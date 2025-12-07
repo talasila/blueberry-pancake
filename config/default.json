@@ -1,0 +1,29 @@
+{
+  "environment": "development",
+  "dataDirectory": "./data",
+  "server": {
+    "port": 3001,
+    "host": "localhost"
+  },
+  "cache": {
+    "enabled": true,
+    "ttl": 3600,
+    "maxSize": 100
+  },
+  "security": {
+    "jwtSecret": "CHANGE_THIS_IN_PRODUCTION_USE_ENV_VAR",
+    "jwtExpiration": "24h",
+    "xsrfEnabled": true
+  },
+  "frontend": {
+    "apiBaseUrl": "http://localhost:3001/api"
+  },
+  "logging": {
+    "enabled": true,
+    "directory": "./logs",
+    "level": "info",
+    "maxFileSize": 10485760,
+    "maxFiles": 5,
+    "console": true
+  }
+}

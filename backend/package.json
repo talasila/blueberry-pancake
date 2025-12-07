@@ -1,0 +1,34 @@
+{
+  "name": "blueberry-pancake-backend",
+  "version": "1.0.0",
+  "description": "Backend for blind tasting event management application",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "dependencies": {
+    "config": "^4.1.1",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "csrf": "^3.1.0",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "node-cache": "^5.1.2"
+  },
+  "devDependencies": {
+    "supertest": "^7.1.4",
+    "vitest": "^1.6.1"
+  }
+}

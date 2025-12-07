@@ -1,0 +1,16 @@
+{
+  "environment": "staging",
+  "server": {
+    "port": 3000,
+    "host": "0.0.0.0"
+  },
+  "cache": {
+    "enabled": true,
+    "ttl": 1800,
+    "maxSize": 200
+  },
+  "logging": {
+    "level": "info",
+    "console": false
+  }
+}

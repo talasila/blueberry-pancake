@@ -1,0 +1,16 @@
+{
+  "environment": "development",
+  "server": {
+    "port": 3001,
+    "host": "localhost"
+  },
+  "cache": {
+    "enabled": true,
+    "ttl": 300,
+    "maxSize": 50
+  },
+  "logging": {
+    "level": "debug",
+    "console": true
+  }
+}
