@@ -155,6 +155,51 @@ class EventService {
   static isValidState(state) {
     return ['created', 'started', 'paused', 'finished'].includes(state);
   }
+
+  /**
+   * Validate event ID format
+   * @param {string} eventId - Event ID to validate
+   * @returns {{valid: boolean, error?: string}} Validation result
+   */
+  validateEventId(eventId) {
+    if (!eventId || typeof eventId !== 'string') {
+      return { valid: false, error: 'Event ID is required' };
+    }
+
+    // Event ID must be exactly 8 alphanumeric characters
+    if (!/^[A-Za-z0-9]{8}$/.test(eventId)) {
+      return { valid: false, error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.' };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Get event by ID
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<object>} Event data
+   */
+  async getEvent(eventId) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    try {
+      // Retrieve event from data repository
+      const event = await dataRepository.getEvent(eventId);
+      return event;
+    } catch (error) {
+      // If event not found, throw with clear message
+      if (error.message.includes('not found') || error.message.includes('File not found')) {
+        throw new Error(`Event not found: ${eventId}`);
+      }
+      // Re-throw other errors
+      loggerService.error(`Error retrieving event ${eventId}: ${error.message}`, error);
+      throw error;
+    }
+  }
 }
 
 export default new EventService();

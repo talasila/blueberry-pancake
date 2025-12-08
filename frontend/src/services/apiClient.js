@@ -229,6 +229,15 @@ class ApiClient {
   async createEvent(eventData) {
     return this.post('/events', eventData);
   }
+
+  /**
+   * Get event by ID
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<any>} Event data
+   */
+  async getEvent(eventId) {
+    return this.get(`/events/${eventId}`);
+  }
 }
 
 // Export singleton instance

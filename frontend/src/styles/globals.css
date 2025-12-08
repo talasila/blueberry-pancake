@@ -158,6 +158,26 @@
   body {
     @apply bg-background text-foreground;
   }
+  /* Ensure scrollbar doesn't appear above fixed header */
+  html {
+    overflow-y: scroll;
+  }
+  /* Prevent scrollbar from appearing above fixed header */
+  header {
+    z-index: 9999 !important;
+    position: fixed !important;
+  }
+  /* Ensure header covers scrollbar area */
+  header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: calc(-1 * (100vw - 100%));
+    width: calc(100vw - 100%);
+    height: 100%;
+    background: inherit;
+    z-index: -1;
+  }
 }
 
 @layer utilities {

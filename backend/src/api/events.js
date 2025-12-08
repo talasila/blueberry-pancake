@@ -62,4 +62,57 @@ router.post('/', async (req, res) => {
   }
 });
 
+/**
+ * GET /api/events/:eventId
+ * Retrieve event by ID
+ * Requires authentication (JWT token)
+ */
+router.get('/:eventId', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    // Validate event ID format before processing (8-character alphanumeric)
+    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+      return res.status(400).json({
+        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
+      });
+    }
+
+    // Get event using EventService
+    const event = await eventService.getEvent(eventId);
+
+    // Return event data
+    res.json(event);
+  } catch (error) {
+    // Log full error details for debugging
+    loggerService.error(`Event retrieval error: ${error.message}`, error).catch(() => {});
+    if (error.stack) {
+      loggerService.error(`Stack trace: ${error.stack}`).catch(() => {});
+    }
+
+    // Handle event not found (404)
+    if (error.message.includes('not found') || error.message.includes('Event not found')) {
+      return res.status(404).json({
+        error: 'Event not found'
+      });
+    }
+
+    // Handle validation errors (400)
+    if (error.message.includes('Invalid event ID format') || 
+        error.message.includes('Event ID is required')) {
+      return res.status(400).json({
+        error: error.message
+      });
+    }
+
+    // Handle server errors (500)
+    // In development, include more error details
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: 'Failed to retrieve event. Please try again.',
+      ...(isDevelopment && { details: error.message, stack: error.stack })
+    });
+  }
+});
+
 export default router;
