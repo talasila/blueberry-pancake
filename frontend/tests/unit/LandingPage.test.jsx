@@ -75,19 +75,6 @@ describe('LandingPage Component - User Story 1', () => {
       window.location = originalLocation;
     });
 
-    it('should prevent default behavior on click', () => {
-      renderWithRouter(<LandingPage />);
-      
-      const joinButton = screen.getByRole('button', { name: /join/i });
-      const clickEvent = new MouseEvent('click', { bubbles: true, cancelable: true });
-      const preventDefaultSpy = vi.spyOn(clickEvent, 'preventDefault');
-      
-      fireEvent(joinButton, clickEvent);
-      
-      // Note: preventDefault is called in the handler, but fireEvent doesn't preserve it
-      // The actual test is that no navigation occurs (tested above)
-      expect(joinButton).toBeInTheDocument();
-    });
   });
 });
 
