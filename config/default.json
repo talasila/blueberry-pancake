@@ -25,5 +25,9 @@
     "maxFileSize": 10485760,
     "maxFiles": 5,
     "console": true
+  },
+  "email": {
+    "resendApiKey": "",
+    "fromAddress": "sreeni@7155421.xys"
   }
 }

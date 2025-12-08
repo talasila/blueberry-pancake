@@ -12,5 +12,9 @@
   "logging": {
     "level": "info",
     "console": false
+  },
+  "email": {
+    "resendApiKey": "",
+    "fromAddress": "sreeni@7155421.xys"
   }
 }

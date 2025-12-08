@@ -20,8 +20,12 @@ class ApiClient {
    */
   setJWTToken(token) {
     this.jwtToken = token;
-    // Store in httpOnly cookie would be better, but for now use memory
-    // In production, consider httpOnly cookies
+    // Also store in localStorage for persistence
+    if (token) {
+      localStorage.setItem('jwtToken', token);
+    } else {
+      localStorage.removeItem('jwtToken');
+    }
   }
 
   /**
@@ -29,7 +33,16 @@ class ApiClient {
    * @returns {string|null} JWT token
    */
   getJWTToken() {
-    return this.jwtToken;
+    // Try memory first, then localStorage
+    if (this.jwtToken) {
+      return this.jwtToken;
+    }
+    const stored = localStorage.getItem('jwtToken');
+    if (stored) {
+      this.jwtToken = stored;
+      return stored;
+    }
+    return null;
   }
 
   /**
@@ -37,6 +50,7 @@ class ApiClient {
    */
   clearJWTToken() {
     this.jwtToken = null;
+    localStorage.removeItem('jwtToken');
   }
 
   /**
@@ -76,9 +90,10 @@ class ApiClient {
       ...options.headers,
     };
 
-    // Add JWT token if available
-    if (this.jwtToken) {
-      headers['Authorization'] = `Bearer ${this.jwtToken}`;
+    // Add JWT token if available (check both memory and localStorage)
+    const token = this.getJWTToken();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     // Add CSRF token for state-changing requests
@@ -98,16 +113,21 @@ class ApiClient {
         credentials: 'include', // Include cookies for CSRF
       });
 
-      // Handle 401 Unauthorized (token expired)
+      // Handle 401 Unauthorized (token expired or invalid)
       if (response.status === 401) {
         this.clearJWTToken();
-        // Could trigger re-authentication flow here
+        // Redirect to landing page to trigger re-authentication
+        if (typeof window !== 'undefined') {
+          window.location.href = '/';
+        }
       }
 
       // Handle errors
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error?.message || `HTTP ${response.status}: ${response.statusText}`);
+        const errorData = await response.json().catch(() => ({ error: 'An unexpected error occurred. Please try again later.' }));
+        // Extract user-friendly error message
+        const errorMessage = errorData.error || errorData.message || `An error occurred (${response.status}). Please try again.`;
+        throw new Error(errorMessage);
       }
 
       return response;
@@ -131,7 +151,8 @@ class ApiClient {
    */
   async get(endpoint, options = {}) {
     const response = await this.request(endpoint, { ...options, method: 'GET' });
-    return response.json();
+    const jsonData = await response.json();
+    return jsonData;
   }
 
   /**
@@ -147,7 +168,8 @@ class ApiClient {
       method: 'POST',
       body: JSON.stringify(data),
     });
-    return response.json();
+    const jsonData = await response.json();
+    return jsonData;
   }
 
   /**
@@ -178,6 +200,25 @@ class ApiClient {
       method: 'DELETE',
     });
     return response.json();
+  }
+
+  /**
+   * Request OTP code via email
+   * @param {string} email - Email address
+   * @returns {Promise<any>} Response data
+   */
+  async requestOTP(email) {
+    return this.post('/auth/otp/request', { email });
+  }
+
+  /**
+   * Verify OTP code and receive JWT token
+   * @param {string} email - Email address
+   * @param {string} otp - OTP code
+   * @returns {Promise<any>} Response data with token
+   */
+  async verifyOTP(email, otp) {
+    return this.post('/auth/otp/verify', { email, otp });
   }
 }
 
