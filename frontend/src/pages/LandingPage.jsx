@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,7 @@ import { Input } from '@/components/ui/input';
 function LandingPage() {
   // State for event ID input field (controlled input)
   const [eventId, setEventId] = useState('');
+  const navigate = useNavigate();
 
   /**
    * Handle Join button click - provides visual feedback only, no functional behavior
@@ -30,11 +32,15 @@ function LandingPage() {
   };
 
   /**
-   * Handle Create button click - provides visual feedback only, no functional behavior
+   * Handle Create button click - navigate to auth page first
+   * User must go through login flow before being allowed to create event
+   * After authentication, user will be redirected to create event page
    */
   const handleCreateClick = (e) => {
     e.preventDefault();
-    // No functional action - visual feedback handled by CSS
+    // Always navigate to auth page first with intended destination
+    // This ensures user goes through login flow before creating event
+    navigate('/auth', { state: { from: { pathname: '/create-event' } } });
   };
 
   return (

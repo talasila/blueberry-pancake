@@ -220,6 +220,15 @@ class ApiClient {
   async verifyOTP(email, otp) {
     return this.post('/auth/otp/verify', { email, otp });
   }
+
+  /**
+   * Create a new event
+   * @param {object} eventData - Event data (name, typeOfItem)
+   * @returns {Promise<any>} Created event data
+   */
+  async createEvent(eventData) {
+    return this.post('/events', eventData);
+  }
 }
 
 // Export singleton instance

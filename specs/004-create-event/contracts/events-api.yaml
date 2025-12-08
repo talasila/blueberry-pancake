@@ -1,0 +1,171 @@
+openapi: 3.0.3
+info:
+  title: Events API
+  description: API for creating and managing blind tasting events
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+  - url: https://api.example.com/api
+    description: Production server
+
+tags:
+  - name: events
+    description: Event management operations
+
+paths:
+  /events:
+    post:
+      summary: Create a new event
+      description: |
+        Creates a new event with the provided details. The authenticated user is automatically 
+        assigned as the event administrator. The event is created in the "created" state.
+      tags:
+        - events
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - typeOfItem
+              properties:
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  pattern: '^[a-zA-Z0-9\s\-_]+$'
+                  description: Event name (1-100 characters, alphanumeric + spaces/hyphens/underscores)
+                  example: "Summer Wine Tasting"
+                typeOfItem:
+                  type: string
+                  enum: [wine]
+                  description: Type of item for the event (currently only "wine" is supported)
+                  example: "wine"
+      responses:
+        '201':
+          description: Event created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+              example:
+                eventId: "aB3xY9mK"
+                name: "Summer Wine Tasting"
+                typeOfItem: "wine"
+                state: "created"
+                administrator: "user@example.com"
+                createdAt: "2025-01-27T10:30:00.000Z"
+                updatedAt: "2025-01-27T10:30:00.000Z"
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                nameRequired:
+                  value:
+                    error: "Event name is required"
+                nameTooLong:
+                  value:
+                    error: "Event name must be 100 characters or less"
+                nameInvalidChars:
+                  value:
+                    error: "Event name contains invalid characters"
+                typeRequired:
+                  value:
+                    error: "Type of item is required"
+                typeInvalid:
+                  value:
+                    error: "Invalid type of item. Only 'wine' is currently supported"
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authentication required"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Failed to create event. Please try again."
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained through OTP authentication
+
+  schemas:
+    Event:
+      type: object
+      required:
+        - eventId
+        - name
+        - typeOfItem
+        - state
+        - administrator
+        - createdAt
+        - updatedAt
+      properties:
+        eventId:
+          type: string
+          pattern: '^[a-zA-Z0-9]{8}$'
+          description: Unique 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Event name
+          example: "Summer Wine Tasting"
+        typeOfItem:
+          type: string
+          enum: [wine]
+          description: Type of item for the event
+          example: "wine"
+        state:
+          type: string
+          enum: [created, started, paused, finished]
+          description: Current lifecycle state of the event
+          example: "created"
+        administrator:
+          type: string
+          format: email
+          description: Email address of the event administrator
+          example: "user@example.com"
+        createdAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when event was created
+          example: "2025-01-27T10:30:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when event was last updated
+          example: "2025-01-27T10:30:00.000Z"
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "Event name is required"

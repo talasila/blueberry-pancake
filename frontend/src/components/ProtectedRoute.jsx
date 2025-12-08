@@ -60,10 +60,10 @@ function ProtectedRoute({ children }) {
     );
   }
 
-  // Redirect to landing page if not authenticated
+  // Redirect to auth page if not authenticated
   // Store current location for post-auth redirect
   if (!isAuthenticated) {
-    return <Navigate to="/" state={{ from: location }} replace />;
+    return <Navigate to="/auth" state={{ from: location }} replace />;
   }
 
   // User is authenticated, render protected content

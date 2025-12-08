@@ -13,7 +13,7 @@ const __dirname = dirname(__filename);
  * File-based data repository implementation
  * Extends DataRepository for file system operations with caching
  */
-export default class FileDataRepository extends DataRepository {
+class FileDataRepository extends DataRepository {
   constructor() {
     super();
     this.dataDirectory = null;
@@ -30,6 +30,10 @@ export default class FileDataRepository extends DataRepository {
 
     const dataDir = configLoader.get('dataDirectory');
     
+    if (!dataDir) {
+      throw new Error('dataDirectory configuration is missing. Please check config/default.json');
+    }
+    
     // Resolve relative paths to absolute
     if (dataDir.startsWith('/')) {
       this.dataDirectory = dataDir;
@@ -40,7 +44,7 @@ export default class FileDataRepository extends DataRepository {
 
     // Ensure data directory exists
     await this.ensureDirectory(this.dataDirectory);
-    await this.ensureDirectory(join(this.dataDirectory, 'events'));
+    // events directory will be created per-event, no need to create it here
 
     this.initialized = true;
   }
@@ -242,4 +246,60 @@ export default class FileDataRepository extends DataRepository {
     // Invalidate cache
     cacheService.del(cacheKey);
   }
+
+  /**
+   * Create a new event
+   * Stores event data in data/events/{eventId}/config.json
+   * @param {object} eventData - Event data object (must include eventId)
+   * @returns {Promise<object>} Created event data
+   */
+  async createEvent(eventData) {
+    await this.initialize();
+    const { eventId } = eventData;
+    
+    if (!eventId) {
+      throw new Error('Event ID is required');
+    }
+
+    // Check if event already exists by trying to read config
+    try {
+      await this.readEventConfig(eventId);
+      // Event exists, throw error
+      throw new Error(`Event with ID ${eventId} already exists`);
+    } catch (error) {
+      // If error is "already exists", re-throw it
+      if (error.message.includes('already exists')) {
+        throw error;
+      }
+      // If error is "not found", that's expected - event doesn't exist yet, continue
+      if (!error.message.includes('not found')) {
+        // Some other error occurred, re-throw it
+        throw error;
+      }
+      // Event doesn't exist, which is what we want - continue
+    }
+
+    // Write event config using existing method
+    // This will create the event directory and config.json file
+    await this.writeEventConfig(eventId, eventData);
+
+    return eventData;
+  }
+
+  /**
+   * Get event by ID
+   * Reads event data from data/events/{eventId}/config.json
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<object>} Event data
+   */
+  async getEvent(eventId) {
+    await this.initialize();
+    // Use existing readEventConfig method
+    return await this.readEventConfig(eventId);
+  }
 }
+
+// Export singleton instance
+const dataRepository = new FileDataRepository();
+export { dataRepository };
+export default dataRepository;

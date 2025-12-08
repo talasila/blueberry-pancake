@@ -11,7 +11,7 @@ router.use('/auth', authRouter);
 
 // Protected routes (authentication required)
 // All routes below this point require authentication
-// Future API routes will be added here and will automatically be protected
-// router.use('/events', requireAuth, eventsRouter);
+import eventsRouter from './events.js';
+router.use('/events', requireAuth, eventsRouter);
 
 export default router;
