@@ -243,6 +243,22 @@ class ApiClient {
   }
 
   /**
+   * PATCH request
+   * @param {string} endpoint - API endpoint
+   * @param {object} data - Request body data
+   * @param {object} options - Fetch options
+   * @returns {Promise<any>} Response data
+   */
+  async patch(endpoint, data, options = {}) {
+    const response = await this.request(endpoint, {
+      ...options,
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    return response.json();
+  }
+
+  /**
    * Request OTP code via email
    * @param {string} email - Email address
    * @returns {Promise<any>} Response data
@@ -350,6 +366,25 @@ class ApiClient {
     }
     
     return response.json();
+  }
+
+  /**
+   * Get item configuration for an event
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<any>} Response data with item configuration (numberOfItems and excludedItemIds)
+   */
+  async getItemConfiguration(eventId) {
+    return this.get(`/events/${eventId}/item-configuration`);
+  }
+
+  /**
+   * Update item configuration for an event
+   * @param {string} eventId - Event identifier
+   * @param {object} config - Configuration object with numberOfItems and/or excludedItemIds
+   * @returns {Promise<any>} Response data with updated item configuration
+   */
+  async updateItemConfiguration(eventId, config) {
+    return this.patch(`/events/${eventId}/item-configuration`, config);
   }
 }
 

@@ -1,0 +1,212 @@
+openapi: 3.0.3
+info:
+  title: Item Configuration API
+  description: API for managing item configuration in events
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+  - url: https://api.example.com/api
+    description: Production server
+
+tags:
+  - name: item-configuration
+    description: Item configuration management operations
+
+paths:
+  /events/{eventId}/item-configuration:
+    get:
+      summary: Get item configuration for an event
+      description: |
+        Returns the item configuration for the specified event, including the number of items
+        and excluded item IDs. If no configuration exists, returns default values (20 items, no exclusions).
+        Only authenticated administrators can access this endpoint.
+      tags:
+        - item-configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+      responses:
+        '200':
+          description: Item configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ItemConfiguration'
+              example:
+                numberOfItems: 25
+                excludedItemIds: [3, 7, 12]
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authentication required"
+        '403':
+          description: Forbidden - user is not an administrator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Only administrators can view item configuration"
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Event not found"
+    patch:
+      summary: Update item configuration for an event
+      description: |
+        Updates the item configuration for the specified event. Can update numberOfItems and/or
+        excludedItemIds. Partial updates are supported (only provided fields are updated).
+        If numberOfItems is reduced and some excludedItemIds are outside the new range, they are
+        automatically removed and a warning is returned. Only authenticated administrators can update
+        item configuration.
+      tags:
+        - item-configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                numberOfItems:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  description: Total number of items (default 20 if not provided)
+                  example: 25
+                excludedItemIds:
+                  oneOf:
+                    - type: string
+                      description: Comma-separated list of item IDs to exclude (e.g., "5,10,15")
+                      example: "5,10,15"
+                    - type: array
+                      items:
+                        type: integer
+                      description: Array of item IDs to exclude
+                      example: [5, 10, 15]
+                  description: Item IDs to exclude from the event (can be comma-separated string or array)
+      responses:
+        '200':
+          description: Item configuration updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ItemConfiguration'
+                  - type: object
+                    properties:
+                      warning:
+                        type: string
+                        description: Warning message if invalid excluded IDs were automatically removed
+                        example: "Item IDs 15, 25 were removed because they are outside the valid range (1-12)"
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidNumberOfItems:
+                  value:
+                    error: "Number of items must be an integer between 1 and 100"
+                invalidExcludedIds:
+                  value:
+                    error: "Invalid item IDs: 25, 30. Must be between 1 and 20"
+                allItemsExcluded:
+                  value:
+                    error: "At least one item must be available. Cannot exclude all item IDs"
+                nonNumericIds:
+                  value:
+                    error: "Excluded item IDs must be numeric values"
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authentication required"
+        '403':
+          description: Forbidden - user is not an administrator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Only administrators can update item configuration"
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Event not found"
+
+components:
+  schemas:
+    ItemConfiguration:
+      type: object
+      required:
+        - numberOfItems
+        - excludedItemIds
+      properties:
+        numberOfItems:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Total number of items available for rating (default 20)
+          example: 25
+        excludedItemIds:
+          type: array
+          items:
+            type: integer
+            minimum: 1
+          description: Array of item IDs to exclude from display and rating
+          example: [3, 7, 12]
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "An error occurred"
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from OTP authentication

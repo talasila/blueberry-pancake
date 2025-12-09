@@ -33,6 +33,7 @@ function EventPage() {
   const [event, setEvent] = useState(contextEvent);
   const [isLoading, setIsLoading] = useState(!contextEvent);
   const [error, setError] = useState(null);
+  const [availableItemIds, setAvailableItemIds] = useState([]);
   const loadStartTimeRef = useRef(null);
 
   // Redirect to PIN entry if no authentication - must happen immediately
@@ -100,6 +101,29 @@ function EventPage() {
       setError(null);
     }
   }, [contextEvent, polledEvent]);
+
+  // Generate available item IDs based on itemConfiguration
+  useEffect(() => {
+    if (event) {
+      const config = event.itemConfiguration || {
+        numberOfItems: 20,
+        excludedItemIds: []
+      };
+      
+      // Generate all item IDs from 1 to numberOfItems
+      const allIds = Array.from(
+        { length: config.numberOfItems }, 
+        (_, i) => i + 1
+      );
+      
+      // Filter out excluded IDs
+      const available = allIds.filter(
+        id => !config.excludedItemIds.includes(id)
+      );
+      
+      setAvailableItemIds(available);
+    }
+  }, [event]);
 
   // Validate event state before allowing actions (e.g., rating)
   const validateEventState = (action) => {
@@ -222,6 +246,28 @@ function EventPage() {
               </div>
             )}
           </div>
+
+          {/* Item IDs display */}
+          {availableItemIds.length > 0 && (
+            <div className="bg-card border border-border rounded-lg p-6">
+              <div>
+                <label className="text-sm font-medium text-muted-foreground">Available Items</label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {availableItemIds.map(itemId => (
+                    <span
+                      key={itemId}
+                      className="inline-flex items-center justify-center px-3 py-1 rounded-md bg-primary/10 text-primary text-sm font-medium"
+                    >
+                      Item {itemId}
+                    </span>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  {availableItemIds.length} item{availableItemIds.length !== 1 ? 's' : ''} available for rating
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Placeholder for rating functionality - out of scope for this feature */}
           <div className="bg-card border border-border rounded-lg p-6">

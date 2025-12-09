@@ -589,4 +589,139 @@ router.patch('/:eventId/state', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/events/:eventId/item-configuration
+ * Get item configuration for an event
+ * 
+ * Returns the item configuration for the specified event, including the number of items
+ * and excluded item IDs. If no configuration exists, returns default values (20 items, no exclusions).
+ * Only authenticated administrators can access this endpoint.
+ * 
+ * Requires authentication (JWT token) and administrator authorization
+ * 
+ * @returns {object} Item configuration object with numberOfItems and excludedItemIds
+ * @throws {401} Unauthorized - authentication required
+ * @throws {403} Forbidden - user is not an administrator
+ * @throws {404} Not found - event does not exist
+ * @throws {500} Internal server error
+ */
+router.get('/:eventId/item-configuration', requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const requesterEmail = req.user?.email;
+
+    if (!requesterEmail) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
+    }
+
+    // Get event to check authorization
+    const event = await eventService.getEvent(eventId);
+
+    // Check if requester is administrator
+    if (!eventService.isAdministrator(event, requesterEmail)) {
+      return res.status(403).json({
+        error: 'Only administrators can view item configuration'
+      });
+    }
+
+    // Get item configuration
+    const config = await eventService.getItemConfiguration(eventId);
+
+    res.json(config);
+  } catch (error) {
+    loggerService.error(`Get item configuration error: ${error.message}`, error).catch(() => {});
+
+    // Handle event not found
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Handle authorization errors
+    if (error.message.includes('Unauthorized') || error.message.includes('administrator')) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    // Handle server errors
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: 'Failed to get item configuration. Please try again.',
+      ...(isDevelopment && { details: error.message })
+    });
+  }
+});
+
+/**
+ * PATCH /api/events/:eventId/item-configuration
+ * Update item configuration for an event
+ * 
+ * Updates the item configuration for the specified event. Can update numberOfItems and/or
+ * excludedItemIds. Partial updates are supported (only provided fields are updated).
+ * Only authenticated administrators can update item configuration.
+ * 
+ * Requires authentication (JWT token) and administrator authorization
+ * 
+ * Request body:
+ * - numberOfItems: (optional) Integer between 1 and 100
+ * - excludedItemIds: (optional) Comma-separated string or array of integers
+ * 
+ * @returns {object} Updated item configuration object
+ * @throws {400} Bad request - validation error
+ * @throws {401} Unauthorized - authentication required
+ * @throws {403} Forbidden - user is not an administrator
+ * @throws {404} Not found - event does not exist
+ * @throws {500} Internal server error
+ */
+router.patch('/:eventId/item-configuration', requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const requesterEmail = req.user?.email;
+    const { numberOfItems, excludedItemIds } = req.body;
+
+    if (!requesterEmail) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
+    }
+
+    // Update item configuration
+    const result = await eventService.updateItemConfiguration(
+      eventId,
+      { numberOfItems, excludedItemIds },
+      requesterEmail
+    );
+
+    res.json(result);
+  } catch (error) {
+    loggerService.error(`Update item configuration error: ${error.message}`, error).catch(() => {});
+
+    // Handle validation errors (400)
+    if (error.message.includes('must be') || 
+        error.message.includes('required') ||
+        error.message.includes('invalid')) {
+      return res.status(400).json({
+        error: error.message
+      });
+    }
+
+    // Handle event not found
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Handle authorization errors
+    if (error.message.includes('Unauthorized') || error.message.includes('administrator')) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    // Handle server errors
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: 'Failed to update item configuration. Please try again.',
+      ...(isDevelopment && { details: error.message })
+    });
+  }
+});
+
 export default router;

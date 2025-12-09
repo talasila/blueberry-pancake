@@ -792,6 +792,152 @@ class EventService {
       throw error;
     }
   }
+
+  /**
+   * Get item configuration for an event
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<object>} Item configuration object with numberOfItems and excludedItemIds
+   */
+  async getItemConfiguration(eventId) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    // Get event
+    const event = await this.getEvent(eventId);
+
+    // Return itemConfiguration or defaults
+    if (event.itemConfiguration) {
+      return {
+        numberOfItems: event.itemConfiguration.numberOfItems ?? 20,
+        excludedItemIds: event.itemConfiguration.excludedItemIds ?? []
+      };
+    }
+
+    // Return defaults if not configured
+    return {
+      numberOfItems: 20,
+      excludedItemIds: []
+    };
+  }
+
+  /**
+   * Update item configuration for an event
+   * @param {string} eventId - Event identifier
+   * @param {object} config - Configuration object with numberOfItems and/or excludedItemIds
+   * @param {string} requesterEmail - Email of the requester (must be an administrator)
+   * @returns {Promise<object>} Updated item configuration
+   */
+  async updateItemConfiguration(eventId, config, requesterEmail) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    if (!requesterEmail || typeof requesterEmail !== 'string') {
+      throw new Error('Requester email is required');
+    }
+
+    // Get current event
+    const event = await this.getEvent(eventId);
+
+    // Validate requester is administrator
+    if (!this.isAdministrator(event, requesterEmail)) {
+      throw new Error('Unauthorized: Only administrators can update item configuration');
+    }
+
+    // Get current configuration or defaults
+    const current = event.itemConfiguration || {
+      numberOfItems: 20,
+      excludedItemIds: []
+    };
+
+    // Update numberOfItems if provided
+    let numberOfItems = current.numberOfItems;
+    if (config.numberOfItems !== undefined) {
+      // Validate numberOfItems
+      if (!Number.isInteger(config.numberOfItems) || config.numberOfItems < 1 || config.numberOfItems > 100) {
+        throw new Error('Number of items must be an integer between 1 and 100');
+      }
+      numberOfItems = config.numberOfItems;
+    }
+
+    // Handle excludedItemIds
+    let excludedItemIds = current.excludedItemIds || [];
+    if (config.excludedItemIds !== undefined) {
+      excludedItemIds = this.normalizeExcludedItemIds(config.excludedItemIds, numberOfItems);
+    }
+
+    // Check if numberOfItems was reduced and some excluded IDs are now invalid
+    let warning = null;
+    if (numberOfItems < current.numberOfItems) {
+      const invalidIds = excludedItemIds.filter(id => id > numberOfItems);
+      if (invalidIds.length > 0) {
+        excludedItemIds = excludedItemIds.filter(id => id <= numberOfItems);
+        warning = `Item IDs ${invalidIds.join(', ')} were removed because they are outside the valid range (1-${numberOfItems})`;
+      }
+    }
+
+    // Update event
+    event.itemConfiguration = {
+      numberOfItems,
+      excludedItemIds
+    };
+    event.updatedAt = new Date().toISOString();
+
+    // Save event
+    await this.updateEvent(eventId, event);
+
+    loggerService.info(`Item configuration updated for event ${eventId} by ${requesterEmail}`, {
+      eventId,
+      numberOfItems,
+      requester: requesterEmail
+    });
+
+    return {
+      numberOfItems,
+      excludedItemIds,
+      ...(warning && { warning })
+    };
+  }
+
+  /**
+   * Normalize excluded item IDs from input (comma-separated string or array)
+   * @param {string|array} input - Comma-separated string or array of item IDs
+   * @param {number} numberOfItems - Total number of items (for validation)
+   * @returns {array} Normalized array of unique integers
+   */
+  normalizeExcludedItemIds(input, numberOfItems) {
+    // Handle both string and array input
+    const inputArray = Array.isArray(input) ? input : String(input).split(',');
+    
+    // Parse, normalize, and validate
+    const normalized = inputArray
+      .map(id => String(id).trim())
+      .filter(id => id.length > 0)
+      .map(id => parseInt(id.replace(/^0+/, ''), 10)) // Remove leading zeros
+      .filter(id => !isNaN(id) && Number.isInteger(id));
+    
+    // Validate range
+    const invalidIds = normalized.filter(id => id < 1 || id > numberOfItems);
+    if (invalidIds.length > 0) {
+      throw new Error(`Invalid item IDs: ${invalidIds.join(', ')}. Must be between 1 and ${numberOfItems}`);
+    }
+    
+    // Remove duplicates and sort
+    const unique = [...new Set(normalized)];
+    const sorted = unique.sort((a, b) => a - b);
+    
+    // Check at least one item remains
+    if (sorted.length >= numberOfItems) {
+      throw new Error('At least one item must be available. Cannot exclude all item IDs');
+    }
+    
+    return sorted;
+  }
 }
 
 export default new EventService();

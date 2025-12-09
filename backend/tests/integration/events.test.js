@@ -17,7 +17,10 @@ vi.mock('../../src/services/EventService.js', () => {
       regeneratePIN: vi.fn(),
       addAdministrator: vi.fn(),
       deleteAdministrator: vi.fn(),
-      getAdministrators: vi.fn()
+      getAdministrators: vi.fn(),
+      isAdministrator: vi.fn(),
+      getItemConfiguration: vi.fn(),
+      updateItemConfiguration: vi.fn()
     }
   };
 });
@@ -914,6 +917,196 @@ describe('GET /api/events/:eventId', () => {
 
       expect(response.body).toHaveProperty('error');
       expect(response.body.error).toContain('Unauthorized');
+    });
+  });
+
+  describe('GET /api/events/:eventId/item-configuration', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should return item configuration for authorized administrator', async () => {
+      const eventId = 'TEST1234';
+      const adminEmail = 'admin@example.com';
+      const token = generateTestToken(adminEmail);
+
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        itemConfiguration: {
+          numberOfItems: 25,
+          excludedItemIds: [5, 10, 15]
+        },
+        administrators: { [adminEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
+      };
+
+      eventService.getEvent.mockResolvedValue(mockEvent);
+      eventService.isAdministrator.mockReturnValue(true);
+      eventService.getItemConfiguration.mockResolvedValue({
+        numberOfItems: 25,
+        excludedItemIds: [5, 10, 15]
+      });
+
+      const response = await request
+        .get(`/api/events/${eventId}/item-configuration`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(response.body).toEqual({
+        numberOfItems: 25,
+        excludedItemIds: [5, 10, 15]
+      });
+    });
+
+    it('should return default values when itemConfiguration not present', async () => {
+      const eventId = 'TEST1234';
+      const adminEmail = 'admin@example.com';
+      const token = generateTestToken(adminEmail);
+
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        administrators: { [adminEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
+      };
+
+      eventService.getEvent.mockResolvedValue(mockEvent);
+      eventService.isAdministrator.mockReturnValue(true);
+      eventService.getItemConfiguration.mockResolvedValue({
+        numberOfItems: 20,
+        excludedItemIds: []
+      });
+
+      const response = await request
+        .get(`/api/events/${eventId}/item-configuration`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(response.body).toEqual({
+        numberOfItems: 20,
+        excludedItemIds: []
+      });
+    });
+
+    it('should return 403 for non-administrator', async () => {
+      const eventId = 'TEST1234';
+      const token = generateTestToken('user@example.com');
+
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        administrators: { 'admin@example.com': { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
+      };
+
+      eventService.getEvent.mockResolvedValue(mockEvent);
+      eventService.getItemConfiguration.mockRejectedValue(
+        new Error('Only administrators can view item configuration')
+      );
+
+      const response = await request
+        .get(`/api/events/${eventId}/item-configuration`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+
+      expect(response.body).toHaveProperty('error');
+    });
+  });
+
+  describe('PATCH /api/events/:eventId/item-configuration', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should update numberOfItems for authorized administrator', async () => {
+      const eventId = 'TEST1234';
+      const adminEmail = 'admin@example.com';
+      const token = generateTestToken(adminEmail);
+
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        administrators: { [adminEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
+      };
+
+      eventService.getEvent.mockResolvedValue(mockEvent);
+      eventService.isAdministrator.mockReturnValue(true);
+      eventService.updateItemConfiguration.mockResolvedValue({
+        numberOfItems: 30,
+        excludedItemIds: []
+      });
+
+      const response = await request
+        .patch(`/api/events/${eventId}/item-configuration`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ numberOfItems: 30 })
+        .expect(200);
+
+      expect(response.body).toEqual({
+        numberOfItems: 30,
+        excludedItemIds: []
+      });
+      expect(eventService.updateItemConfiguration).toHaveBeenCalledWith(
+        eventId,
+        { numberOfItems: 30 },
+        adminEmail
+      );
+    });
+
+    it('should return 400 for invalid numberOfItems (too low)', async () => {
+      const eventId = 'TEST1234';
+      const adminEmail = 'admin@example.com';
+      const token = generateTestToken(adminEmail);
+
+      eventService.updateItemConfiguration.mockRejectedValue(
+        new Error('Number of items must be an integer between 1 and 100')
+      );
+
+      const response = await request
+        .patch(`/api/events/${eventId}/item-configuration`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ numberOfItems: 0 })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('must be an integer between 1 and 100');
+    });
+
+    it('should return 400 for invalid numberOfItems (too high)', async () => {
+      const eventId = 'TEST1234';
+      const adminEmail = 'admin@example.com';
+      const token = generateTestToken(adminEmail);
+
+      eventService.updateItemConfiguration.mockRejectedValue(
+        new Error('Number of items must be an integer between 1 and 100')
+      );
+
+      const response = await request
+        .patch(`/api/events/${eventId}/item-configuration`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ numberOfItems: 101 })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('error');
+    });
+
+    it('should handle excludedItemIds and return warning when IDs removed', async () => {
+      const eventId = 'TEST1234';
+      const adminEmail = 'admin@example.com';
+      const token = generateTestToken(adminEmail);
+
+      eventService.updateItemConfiguration.mockResolvedValue({
+        numberOfItems: 12,
+        excludedItemIds: [5, 10],
+        warning: 'Item IDs 15, 25 were removed because they are outside the valid range (1-12)'
+      });
+
+      const response = await request
+        .patch(`/api/events/${eventId}/item-configuration`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ numberOfItems: 12, excludedItemIds: '5,10,15,25' })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('warning');
+      expect(response.body.warning).toContain('Item IDs 15, 25 were removed');
     });
   });
 });

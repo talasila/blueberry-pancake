@@ -763,4 +763,238 @@ describe('EventService.getEvent', () => {
       expect(result).toEqual({});
     });
   });
+
+  describe('EventService.getItemConfiguration', () => {
+    const eventId = 'testEvent1';
+    const requesterEmail = 'admin@example.com';
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should return default values when itemConfiguration not present', async () => {
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        administrators: { [requesterEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
+      };
+      dataRepository.getEvent.mockResolvedValue(mockEvent);
+
+      const result = await eventService.getItemConfiguration(eventId);
+
+      expect(result).toEqual({
+        numberOfItems: 20,
+        excludedItemIds: []
+      });
+      expect(dataRepository.getEvent).toHaveBeenCalledWith(eventId);
+    });
+
+    it('should return configured values when itemConfiguration present', async () => {
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        itemConfiguration: {
+          numberOfItems: 25,
+          excludedItemIds: [5, 10, 15]
+        },
+        administrators: { [requesterEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
+      };
+      dataRepository.getEvent.mockResolvedValue(mockEvent);
+
+      const result = await eventService.getItemConfiguration(eventId);
+
+      expect(result).toEqual({
+        numberOfItems: 25,
+        excludedItemIds: [5, 10, 15]
+      });
+      expect(dataRepository.getEvent).toHaveBeenCalledWith(eventId);
+    });
+  });
+
+  describe('EventService.updateItemConfiguration', () => {
+    const eventId = 'testEvent1';
+    const requesterEmail = 'admin@example.com';
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should validate numberOfItems range (minimum 1)', async () => {
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        administrators: { [requesterEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
+      };
+      dataRepository.getEvent.mockResolvedValue(mockEvent);
+
+      await expect(
+        eventService.updateItemConfiguration(eventId, { numberOfItems: 0 }, requesterEmail)
+      ).rejects.toThrow('Number of items must be an integer between 1 and 100');
+    });
+
+    it('should validate numberOfItems range (maximum 100)', async () => {
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        administrators: { [requesterEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
+      };
+      dataRepository.getEvent.mockResolvedValue(mockEvent);
+
+      await expect(
+        eventService.updateItemConfiguration(eventId, { numberOfItems: 101 }, requesterEmail)
+      ).rejects.toThrow('Number of items must be an integer between 1 and 100');
+    });
+
+    it('should validate numberOfItems is an integer', async () => {
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        administrators: { [requesterEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
+      };
+      dataRepository.getEvent.mockResolvedValue(mockEvent);
+
+      await expect(
+        eventService.updateItemConfiguration(eventId, { numberOfItems: 20.5 }, requesterEmail)
+      ).rejects.toThrow('Number of items must be an integer between 1 and 100');
+    });
+
+    it('should save numberOfItems to event config', async () => {
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        administrators: { [requesterEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
+      };
+      dataRepository.getEvent.mockResolvedValue(mockEvent);
+      dataRepository.writeEventConfig.mockResolvedValue(undefined);
+
+      const result = await eventService.updateItemConfiguration(
+        eventId,
+        { numberOfItems: 30 },
+        requesterEmail
+      );
+
+      expect(result).toEqual({
+        numberOfItems: 30,
+        excludedItemIds: []
+      });
+      expect(dataRepository.writeEventConfig).toHaveBeenCalledWith(
+        eventId,
+        expect.objectContaining({
+          itemConfiguration: {
+            numberOfItems: 30,
+            excludedItemIds: []
+          }
+        })
+      );
+    });
+
+    it('should handle excludedItemIds in updateItemConfiguration', async () => {
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        administrators: { [requesterEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
+      };
+      dataRepository.getEvent.mockResolvedValue(mockEvent);
+      dataRepository.writeEventConfig.mockResolvedValue(undefined);
+
+      const result = await eventService.updateItemConfiguration(
+        eventId,
+        { numberOfItems: 20, excludedItemIds: '5,10,15' },
+        requesterEmail
+      );
+
+      expect(result).toEqual({
+        numberOfItems: 20,
+        excludedItemIds: [5, 10, 15]
+      });
+      expect(dataRepository.writeEventConfig).toHaveBeenCalledWith(
+        eventId,
+        expect.objectContaining({
+          itemConfiguration: {
+            numberOfItems: 20,
+            excludedItemIds: [5, 10, 15]
+          }
+        })
+      );
+    });
+
+    it('should automatically remove invalid excluded IDs when number reduced', async () => {
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        itemConfiguration: {
+          numberOfItems: 20,
+          excludedItemIds: [5, 10, 15, 25]
+        },
+        administrators: { [requesterEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
+      };
+      dataRepository.getEvent.mockResolvedValue(mockEvent);
+      dataRepository.writeEventConfig.mockResolvedValue(undefined);
+
+      const result = await eventService.updateItemConfiguration(
+        eventId,
+        { numberOfItems: 12 },
+        requesterEmail
+      );
+
+      expect(result).toEqual({
+        numberOfItems: 12,
+        excludedItemIds: [5, 10],
+        warning: 'Item IDs 15, 25 were removed because they are outside the valid range (1-12)'
+      });
+      expect(dataRepository.writeEventConfig).toHaveBeenCalledWith(
+        eventId,
+        expect.objectContaining({
+          itemConfiguration: {
+            numberOfItems: 12,
+            excludedItemIds: [5, 10]
+          }
+        })
+      );
+    });
+  });
+
+  describe('EventService.normalizeExcludedItemIds', () => {
+    it('should parse comma-separated string', () => {
+      const result = eventService.normalizeExcludedItemIds('5,10,15', 20);
+      expect(result).toEqual([5, 10, 15]);
+    });
+
+    it('should remove leading zeros', () => {
+      const result = eventService.normalizeExcludedItemIds('05,010,15', 20);
+      expect(result).toEqual([5, 10, 15]);
+    });
+
+    it('should trim whitespace', () => {
+      const result = eventService.normalizeExcludedItemIds('5, 10 , 15', 20);
+      expect(result).toEqual([5, 10, 15]);
+    });
+
+    it('should remove duplicates', () => {
+      const result = eventService.normalizeExcludedItemIds('5,10,5,15,10', 20);
+      expect(result).toEqual([5, 10, 15]);
+    });
+
+    it('should validate range and throw error for invalid IDs', () => {
+      expect(() => {
+        eventService.normalizeExcludedItemIds('5,25,30', 20);
+      }).toThrow('Invalid item IDs: 25, 30. Must be between 1 and 20');
+    });
+
+    it('should prevent excluding all items', () => {
+      expect(() => {
+        eventService.normalizeExcludedItemIds('1,2,3,4,5', 5);
+      }).toThrow('At least one item must be available. Cannot exclude all item IDs');
+    });
+
+    it('should handle array input', () => {
+      const result = eventService.normalizeExcludedItemIds([5, 10, 15], 20);
+      expect(result).toEqual([5, 10, 15]);
+    });
+
+    it('should sort results', () => {
+      const result = eventService.normalizeExcludedItemIds('15,5,10', 20);
+      expect(result).toEqual([5, 10, 15]);
+    });
+  });
 });

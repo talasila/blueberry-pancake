@@ -8,50 +8,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-
-/**
- * Message component for displaying error/success messages
- */
-function Message({ type, children, className = '' }) {
-  const isError = type === 'error';
-  return (
-    <div className={`text-sm p-3 rounded-md ${isError 
-      ? 'text-destructive bg-destructive/10' 
-      : 'text-green-600 bg-green-50 dark:bg-green-900/20'
-    } ${className}`}>
-      {children}
-    </div>
-  );
-}
-
-/**
- * InfoField component for displaying labeled information
- */
-function InfoField({ label, value, className = '' }) {
-  return (
-    <div>
-      <label className="text-sm font-medium text-muted-foreground">{label}</label>
-      <p className={`mt-1 ${className}`}>{value}</p>
-    </div>
-  );
-}
-
-/**
- * Validates email format
- */
-function isValidEmailFormat(email) {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  return emailRegex.test(email.trim());
-}
-
-/**
- * Clear success message after a delay
- * @param {function} setter - State setter function
- * @param {number} delay - Delay in milliseconds (default: 3000)
- */
-function clearSuccessMessage(setter, delay = 3000) {
-  setTimeout(() => setter(''), delay);
-}
+import Message from '@/components/Message';
+import LoadingSpinner from '@/components/LoadingSpinner';
+import InfoField from '@/components/InfoField';
+import { isValidEmailFormat, clearSuccessMessage } from '@/utils/helpers';
 
 /**
  * State configuration mapping states to icons, colors, labels, and descriptions
@@ -121,20 +81,6 @@ function StateBadge({ state }) {
   );
 }
 
-/**
- * LoadingSpinner component for displaying loading state
- */
-function LoadingSpinner({ size = 'md', className = '' }) {
-  const sizeClasses = {
-    sm: 'h-4 w-4',
-    md: 'h-6 w-6',
-    lg: 'h-8 w-8'
-  };
-  
-  return (
-    <div className={`animate-spin rounded-full border-b-2 border-primary ${sizeClasses[size]} ${className}`} />
-  );
-}
 
 /**
  * Get transition description (what the transition will do)
@@ -206,6 +152,12 @@ function EventAdminPage() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionError, setTransitionError] = useState('');
   const [transitionSuccess, setTransitionSuccess] = useState('');
+  const [numberOfItems, setNumberOfItems] = useState(20);
+  const [excludedItemIdsInput, setExcludedItemIdsInput] = useState('');
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [configError, setConfigError] = useState('');
+  const [configSuccess, setConfigSuccess] = useState('');
+  const [configWarning, setConfigWarning] = useState('');
 
   // Check for OTP authentication (JWT token) - admin pages require OTP even if accessed via PIN
   useEffect(() => {
@@ -253,6 +205,57 @@ function EventAdminPage() {
   useEffect(() => {
     fetchAdministrators();
   }, [fetchAdministrators]);
+
+  // Fetch item configuration on load
+  useEffect(() => {
+    const fetchItemConfiguration = async () => {
+      if (!eventId) return;
+      
+      try {
+        const config = await apiClient.getItemConfiguration(eventId);
+        setNumberOfItems(config.numberOfItems || 20);
+        setExcludedItemIdsInput((config.excludedItemIds || []).join(', '));
+      } catch (error) {
+        console.error('Failed to fetch item configuration:', error);
+        // Use defaults if fetch fails
+        setNumberOfItems(20);
+        setExcludedItemIdsInput('');
+      }
+    };
+
+    fetchItemConfiguration();
+  }, [eventId]);
+
+  // Handle save item configuration
+  const handleSaveItemConfiguration = async () => {
+    setIsSavingConfig(true);
+    setConfigError('');
+    setConfigSuccess('');
+    setConfigWarning('');
+
+    try {
+      const configToSave = {
+        numberOfItems: parseInt(numberOfItems, 10),
+        excludedItemIds: excludedItemIdsInput
+      };
+
+      const result = await apiClient.updateItemConfiguration(eventId, configToSave);
+      
+      setNumberOfItems(result.numberOfItems);
+      setExcludedItemIdsInput((result.excludedItemIds || []).join(', '));
+      
+      if (result.warning) {
+        setConfigWarning(result.warning);
+      }
+      
+      setConfigSuccess('Item configuration saved successfully');
+      clearSuccessMessage(setConfigSuccess);
+    } catch (error) {
+      setConfigError(error.message || 'Failed to save item configuration');
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
 
   // Handle add administrator
   const handleAddAdministrator = async () => {
@@ -390,6 +393,83 @@ function EventAdminPage() {
             <InfoField label="Name" value={event.name} />
             <InfoField label="Type" value={event.typeOfItem} className="capitalize" />
           </div>
+
+          {/* Item Configuration Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Item Configuration</CardTitle>
+              <CardDescription>
+                Configure the number of items and specify which item IDs to exclude from the event
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Number of items input */}
+              <div>
+                <label className="text-sm font-medium">Number of Items</label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={numberOfItems}
+                  onChange={(e) => {
+                    setNumberOfItems(e.target.value);
+                    setConfigError('');
+                  }}
+                  disabled={isSavingConfig}
+                  className="mt-1"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Items will be numbered from 1 to {numberOfItems || 20} (default: 20, max: 100)
+                </p>
+              </div>
+
+              {/* Excluded item IDs input */}
+              <div>
+                <label className="text-sm font-medium">Excluded Item IDs</label>
+                <Input
+                  type="text"
+                  placeholder="5,10,15"
+                  value={excludedItemIdsInput}
+                  onChange={(e) => {
+                    setExcludedItemIdsInput(e.target.value);
+                    setConfigError('');
+                  }}
+                  disabled={isSavingConfig}
+                  className="mt-1"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Comma-separated list of item IDs to exclude (e.g., "5,10,15")
+                </p>
+              </div>
+
+              {/* Messages */}
+              {configError && (
+                <Message type="error">{configError}</Message>
+              )}
+              {configWarning && (
+                <Message type="warning">{configWarning}</Message>
+              )}
+              {configSuccess && (
+                <Message type="success">{configSuccess}</Message>
+              )}
+
+              {/* Save button */}
+              <Button
+                onClick={handleSaveItemConfiguration}
+                disabled={isSavingConfig || !numberOfItems}
+                className="w-full"
+              >
+                {isSavingConfig ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  'Save Configuration'
+                )}
+              </Button>
+            </CardContent>
+          </Card>
 
           {/* State Management Section */}
           <Card>
