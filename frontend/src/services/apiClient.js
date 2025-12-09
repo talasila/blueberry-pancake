@@ -78,6 +78,27 @@ class ApiClient {
   }
 
   /**
+   * Get PIN session ID for an event
+   * @param {string} eventId - Event identifier
+   * @returns {string|null} PIN session ID
+   */
+  getPINSessionId(eventId) {
+    if (!eventId) return null;
+    return localStorage.getItem(`pin:session:${eventId}`);
+  }
+
+  /**
+   * Extract event ID from endpoint URL
+   * @param {string} endpoint - API endpoint
+   * @returns {string|null} Event ID if found
+   */
+  getEventIdFromUrl(endpoint) {
+    // Match patterns like /events/:eventId or /events/:eventId/...
+    const match = endpoint.match(/\/events\/([A-Za-z0-9]{8})(?:\/|$)/);
+    return match ? match[1] : null;
+  }
+
+  /**
    * Make API request with error handling
    * @param {string} endpoint - API endpoint
    * @param {object} options - Fetch options
@@ -94,6 +115,15 @@ class ApiClient {
     const token = this.getJWTToken();
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    // Add PIN session ID if available for event endpoints
+    const eventId = this.getEventIdFromUrl(endpoint);
+    if (eventId) {
+      const pinSessionId = this.getPINSessionId(eventId);
+      if (pinSessionId) {
+        headers['X-PIN-Session-Id'] = pinSessionId;
+      }
     }
 
     // Add CSRF token for state-changing requests
@@ -116,9 +146,19 @@ class ApiClient {
       // Handle 401 Unauthorized (token expired or invalid)
       if (response.status === 401) {
         this.clearJWTToken();
-        // Redirect to landing page to trigger re-authentication
+        
+        // Don't redirect for event pages - they can use PIN authentication
+        // Only redirect to landing page for other protected endpoints
         if (typeof window !== 'undefined') {
-          window.location.href = '/';
+          const currentPath = window.location.pathname;
+          const isOnEventPage = currentPath.startsWith('/event/');
+          
+          // Never redirect if we're on an event page (which can use PIN authentication)
+          // Only redirect to landing page for other protected endpoints
+          if (!isOnEventPage) {
+            window.location.href = '/';
+          }
+          // If on event page, let the component handle the redirect to PIN entry
         }
       }
 
@@ -237,6 +277,26 @@ class ApiClient {
    */
   async getEvent(eventId) {
     return this.get(`/events/${eventId}`);
+  }
+
+  /**
+   * Verify PIN for an event
+   * @param {string} eventId - Event identifier
+   * @param {string} pin - 6-digit PIN
+   * @param {string} email - User email address
+   * @returns {Promise<any>} Response data with sessionId
+   */
+  async verifyPIN(eventId, pin, email) {
+    return this.post(`/events/${eventId}/verify-pin`, { pin, email });
+  }
+
+  /**
+   * Regenerate PIN for an event (admin only)
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<any>} Response data with new PIN
+   */
+  async regeneratePIN(eventId) {
+    return this.post(`/events/${eventId}/regenerate-pin`, {});
   }
 }
 

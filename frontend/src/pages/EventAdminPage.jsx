@@ -1,8 +1,11 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Copy, Check } from 'lucide-react';
+import apiClient from '@/services/apiClient';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
 /**
  * EventAdminPage Component
@@ -19,11 +22,28 @@ import { ArrowLeft } from 'lucide-react';
 function EventAdminPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { event: contextEvent } = useEventContext();
   const { event: polledEvent } = useEventPolling(eventId);
   const [event, setEvent] = useState(contextEvent);
   const [isLoading, setIsLoading] = useState(!contextEvent);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [regenerateError, setRegenerateError] = useState('');
+  const [regenerateSuccess, setRegenerateSuccess] = useState('');
+  const [copied, setCopied] = useState(false);
   const loadStartTimeRef = useRef(null);
+
+  // Check for OTP authentication (JWT token) - admin pages require OTP even if accessed via PIN
+  useEffect(() => {
+    const jwtToken = apiClient.getJWTToken();
+    if (!jwtToken) {
+      // Redirect to OTP auth, preserving intended destination
+      navigate('/auth', { 
+        state: { from: { pathname: `/event/${eventId}/admin` } },
+        replace: true 
+      });
+    }
+  }, [eventId, navigate]);
 
   // Performance monitoring: track page load time
   useEffect(() => {
@@ -83,9 +103,9 @@ function EventAdminPage() {
   return (
     <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-8">
       <div className="max-w-md mx-auto w-full">
-        <div className="space-y-6">
+        <div className="space-y-4">
           <div>
-            <h1 className="text-2xl font-bold">Event Administration</h1>
+            <h4 className="text-xl font-semibold">Event Administration</h4>
             <p className="text-muted-foreground mt-2">
               {event.name} ({event.eventId})
             </p>
@@ -116,14 +136,97 @@ function EventAdminPage() {
               <label className="text-sm font-medium text-muted-foreground">Administrator</label>
               <p className="mt-1">{event.administrator}</p>
             </div>
+
+
           </div>
 
-          {/* Placeholder for admin functionality - out of scope for this feature */}
-          <div className="bg-card border border-border rounded-lg p-6">
-            <p className="text-muted-foreground text-center">
-              Admin functionality (event state management, participant management, etc.) will be implemented in future features.
-            </p>
-          </div>
+          {/* PIN Management Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>PIN Management</CardTitle>
+              <CardDescription>
+                Share this PIN with users to grant access to this event
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* PIN Display Section */}
+              {event.pin && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <p className="font-mono text-lg font-semibold">{event.pin}</p>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(event.pin);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      className="h-8 w-8 p-0"
+                      aria-label="Copy PIN"
+                    >
+                      {copied ? (
+                        <Check className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-2 space-y-4">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Regenerate the event PIN to revoke access for all users. Users will need to enter the new PIN to access the event.
+                  </p>
+                  
+                  {regenerateError && (
+                    <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md mb-4">
+                      {regenerateError}
+                    </div>
+                  )}
+
+                  {regenerateSuccess && (
+                    <div className="text-sm text-green-600 bg-green-50 dark:bg-green-900/20 p-3 rounded-md mb-4">
+                      {regenerateSuccess}
+                    </div>
+                  )}
+
+                  <Button
+                    onClick={async () => {
+                      setIsRegenerating(true);
+                      setRegenerateError('');
+                      setRegenerateSuccess('');
+
+                      try {
+                        const result = await apiClient.regeneratePIN(eventId);
+                        setRegenerateSuccess(`PIN regenerated successfully! New PIN: ${result.pin}`);
+                        
+                        // Update event state with new PIN
+                        setEvent(prev => ({
+                          ...prev,
+                          pin: result.pin,
+                          pinGeneratedAt: result.pinGeneratedAt,
+                          updatedAt: result.pinGeneratedAt
+                        }));
+                      } catch (err) {
+                        setRegenerateError(err.message || 'Failed to regenerate PIN. Please try again.');
+                      } finally {
+                        setIsRegenerating(false);
+                      }
+                    }}
+                    disabled={isRegenerating}
+                    variant="outline"
+                    className="w-full"
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${isRegenerating ? 'animate-spin' : ''}`} />
+                    {isRegenerating ? 'Regenerating...' : 'Regenerate PIN'}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Navigation back to event main page */}
           <div className="flex justify-center">

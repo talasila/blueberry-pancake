@@ -1,0 +1,341 @@
+openapi: 3.0.3
+info:
+  title: Event PIN Access API
+  description: API for PIN-based event access control
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+  - url: https://api.example.com/api
+    description: Production server
+
+tags:
+  - name: pin
+    description: PIN-based event access operations
+
+paths:
+  /events/{eventId}/verify-pin:
+    post:
+      summary: Verify PIN and create verification session
+      description: |
+        Verifies the provided PIN for an event and creates a PIN verification session if valid.
+        Rate limiting applies: 5 attempts per IP per 15 minutes AND 5 attempts per event per 15 minutes.
+        Returns a session ID that can be used to access the event without re-entering the PIN.
+      tags:
+        - pin
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pin
+              properties:
+                pin:
+                  type: string
+                  pattern: '^\d{6}$'
+                  description: 6-digit PIN for the event
+                  example: "456789"
+      responses:
+        '200':
+          description: PIN verified successfully, session created
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - sessionId
+                  - eventId
+                properties:
+                  sessionId:
+                    type: string
+                    format: uuid
+                    description: Session ID for PIN verification (store client-side)
+                    example: "550e8400-e29b-41d4-a716-446655440000"
+                  eventId:
+                    type: string
+                    pattern: '^[a-zA-Z0-9]{8}$'
+                    description: Event ID
+                    example: "aB3xY9mK"
+                  message:
+                    type: string
+                    description: Success message
+                    example: "PIN verified successfully"
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                pinRequired:
+                  value:
+                    error: "PIN is required"
+                pinInvalidFormat:
+                  value:
+                    error: "PIN must be exactly 6 digits"
+                eventNotFound:
+                  value:
+                    error: "Event not found"
+        '401':
+          description: Invalid PIN
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Invalid PIN. Please try again."
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Too many attempts. Please try again in 15 minutes."
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Failed to verify PIN. Please try again."
+
+  /events/{eventId}/regenerate-pin:
+    post:
+      summary: Regenerate PIN for an event (admin only)
+      description: |
+        Regenerates a new 6-digit PIN for an event. Only the event administrator can regenerate PINs.
+        The previous PIN is immediately invalidated and all existing PIN verification sessions are cleared.
+        Returns the new PIN for the administrator to share with users.
+      tags:
+        - pin
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+      responses:
+        '200':
+          description: PIN regenerated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - pin
+                  - eventId
+                  - pinGeneratedAt
+                properties:
+                  pin:
+                    type: string
+                    pattern: '^\d{6}$'
+                    description: New 6-digit PIN
+                    example: "789012"
+                  eventId:
+                    type: string
+                    pattern: '^[a-zA-Z0-9]{8}$'
+                    description: Event ID
+                    example: "aB3xY9mK"
+                  pinGeneratedAt:
+                    type: string
+                    format: date-time
+                    description: ISO 8601 timestamp when PIN was regenerated
+                    example: "2025-01-27T11:00:00.000Z"
+                  message:
+                    type: string
+                    description: Success message
+                    example: "PIN regenerated successfully"
+        '401':
+          description: Authentication required or unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                authRequired:
+                  value:
+                    error: "Authentication required"
+                notAdministrator:
+                  value:
+                    error: "Only the event administrator can regenerate PINs"
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Event not found"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Failed to regenerate PIN. Please try again."
+
+  /events/{eventId}:
+    get:
+      summary: Get event details (requires PIN or OTP authentication)
+      description: |
+        Retrieves event details. Requires either PIN verification session or OTP authentication (JWT token).
+        PIN verification allows access to event main page only.
+        OTP authentication allows access to both main page and admin page.
+      tags:
+        - pin
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+        - name: X-PIN-Session-Id
+          in: header
+          required: false
+          schema:
+            type: string
+            format: uuid
+          description: PIN verification session ID (alternative to JWT token)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Event retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '401':
+          description: Authentication or PIN verification required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                authRequired:
+                  value:
+                    error: "PIN verification or authentication required"
+                invalidSession:
+                  value:
+                    error: "PIN verification session expired or invalid"
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Event not found"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Failed to retrieve event. Please try again."
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained through OTP authentication (optional for PIN-based access)
+
+  schemas:
+    Event:
+      type: object
+      required:
+        - eventId
+        - name
+        - typeOfItem
+        - state
+        - administrator
+        - pin
+        - pinGeneratedAt
+        - createdAt
+        - updatedAt
+      properties:
+        eventId:
+          type: string
+          pattern: '^[a-zA-Z0-9]{8}$'
+          description: Unique 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Event name
+          example: "Summer Wine Tasting"
+        typeOfItem:
+          type: string
+          enum: [wine]
+          description: Type of item for the event
+          example: "wine"
+        state:
+          type: string
+          enum: [created, started, paused, finished]
+          description: Current lifecycle state of the event
+          example: "created"
+        administrator:
+          type: string
+          format: email
+          description: Email address of the event administrator
+          example: "user@example.com"
+        pin:
+          type: string
+          pattern: '^\d{6}$'
+          description: 6-digit PIN for event access (only returned to administrators)
+          example: "456789"
+        pinGeneratedAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when PIN was generated or last regenerated
+          example: "2025-01-27T10:30:00.000Z"
+        createdAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when event was created
+          example: "2025-01-27T10:30:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when event was last updated
+          example: "2025-01-27T10:30:00.000Z"
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "Invalid PIN. Please try again."

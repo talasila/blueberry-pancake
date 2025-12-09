@@ -1,6 +1,7 @@
 import { customAlphabet } from 'nanoid';
 import dataRepository from '../data/FileDataRepository.js';
 import loggerService from '../logging/Logger.js';
+import pinService from './PINService.js';
 
 // Use alphanumeric alphabet (A-Z, a-z, 0-9) for 8-character IDs
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 8);
@@ -108,14 +109,19 @@ class EventService {
     // Generate unique event ID
     const eventId = await this.generateEventId();
 
-    // Create event object
+    // Generate 6-digit PIN for the event
+    const pin = pinService.generatePIN();
     const now = new Date().toISOString();
+
+    // Create event object
     const event = {
       eventId,
       name: nameValidation.value,
       typeOfItem,
       state: 'created',
       administrator: administratorEmail,
+      pin,
+      pinGeneratedAt: now,
       createdAt: now,
       updatedAt: now
     };
@@ -197,6 +203,158 @@ class EventService {
       }
       // Re-throw other errors
       loggerService.error(`Error retrieving event ${eventId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Register a user for an event
+   * Adds user email to the event's users map if not already registered
+   * Users are stored as a map with email as key and registration data as value
+   * @param {string} eventId - Event identifier
+   * @param {string} email - User email address
+   * @returns {Promise<object>} Updated event with user registered
+   */
+  async registerUser(eventId, email) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    if (!email || typeof email !== 'string') {
+      throw new Error('Email is required');
+    }
+
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      throw new Error('Invalid email format');
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const registrationTimestamp = new Date().toISOString();
+
+    try {
+      // Get current event
+      const event = await dataRepository.getEvent(eventId);
+
+      // Initialize users map if it doesn't exist
+      if (!event.users || typeof event.users !== 'object' || Array.isArray(event.users)) {
+        event.users = {};
+      }
+
+      // Check if user is already registered (case-insensitive)
+      const isAlreadyRegistered = normalizedEmail in event.users;
+
+      if (!isAlreadyRegistered) {
+        // Add user to the map with registration timestamp
+        event.users[normalizedEmail] = {
+          registeredAt: registrationTimestamp
+        };
+        
+        // Update event with new user
+        const updatedEvent = {
+          ...event,
+          users: event.users,
+          updatedAt: new Date().toISOString()
+        };
+
+        // Persist updated event
+        await dataRepository.writeEventConfig(eventId, updatedEvent);
+        
+        loggerService.info(`User registered for event: ${eventId}, email: ${normalizedEmail}, registeredAt: ${registrationTimestamp}`);
+      } else {
+        loggerService.debug(`User already registered for event: ${eventId}, email: ${normalizedEmail}`);
+      }
+
+      return {
+        eventId,
+        email: normalizedEmail,
+        registered: !isAlreadyRegistered,
+        registeredAt: isAlreadyRegistered ? event.users[normalizedEmail].registeredAt : registrationTimestamp
+      };
+    } catch (error) {
+      // If event not found, throw with clear message
+      if (error.message.includes('not found') || error.message.includes('File not found')) {
+        throw new Error(`Event not found: ${eventId}`);
+      }
+      // Re-throw validation errors
+      if (error.message.includes('required') || error.message.includes('Invalid')) {
+        throw error;
+      }
+      // Log and re-throw other errors
+      loggerService.error(`Error registering user for event ${eventId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Regenerate PIN for an event
+   * @param {string} eventId - Event identifier
+   * @param {string} administratorEmail - Email of the administrator requesting regeneration
+   * @returns {Promise<object>} Updated event with new PIN
+   */
+  async regeneratePIN(eventId, administratorEmail) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    if (!administratorEmail || typeof administratorEmail !== 'string') {
+      throw new Error('Administrator email is required');
+    }
+
+    try {
+      // Get current event
+      const event = await dataRepository.getEvent(eventId);
+
+      // Verify administrator (case-insensitive email comparison)
+      const eventAdminEmail = event.administrator?.toLowerCase();
+      const requestAdminEmail = administratorEmail.toLowerCase();
+
+      if (eventAdminEmail !== requestAdminEmail) {
+        throw new Error('Only the event administrator can regenerate PINs');
+      }
+
+      // Generate new PIN
+      const newPIN = pinService.generatePIN();
+      const now = new Date().toISOString();
+
+      // Update event with new PIN
+      const updatedEvent = {
+        ...event,
+        pin: newPIN,
+        pinGeneratedAt: now,
+        updatedAt: now
+      };
+
+      // Persist updated event using writeEventConfig
+      await dataRepository.writeEventConfig(eventId, updatedEvent);
+
+      // Invalidate all existing PIN sessions for this event
+      pinService.invalidatePINSessions(eventId);
+
+      loggerService.info(`PIN regenerated for event: ${eventId} by ${administratorEmail}`);
+      
+      return {
+        pin: newPIN,
+        eventId,
+        pinGeneratedAt: now,
+        message: 'PIN regenerated successfully'
+      };
+    } catch (error) {
+      // If event not found, throw with clear message
+      if (error.message.includes('not found') || error.message.includes('File not found')) {
+        throw new Error(`Event not found: ${eventId}`);
+      }
+      // Re-throw authorization errors
+      if (error.message.includes('administrator')) {
+        throw error;
+      }
+      // Log and re-throw other errors
+      loggerService.error(`Error regenerating PIN for event ${eventId}: ${error.message}`, error);
       throw error;
     }
   }

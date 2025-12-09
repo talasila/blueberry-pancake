@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import eventService from '../../src/services/EventService.js';
+import pinService from '../../src/services/PINService.js';
 import dataRepository from '../../src/data/FileDataRepository.js';
 import loggerService from '../../src/logging/Logger.js';
 
@@ -7,7 +8,19 @@ import loggerService from '../../src/logging/Logger.js';
 vi.mock('../../src/data/FileDataRepository.js', () => {
   return {
     default: {
-      getEvent: vi.fn()
+      getEvent: vi.fn(),
+      createEvent: vi.fn(),
+      writeEventConfig: vi.fn()
+    }
+  };
+});
+
+// Mock PIN service
+vi.mock('../../src/services/PINService.js', () => {
+  return {
+    default: {
+      generatePIN: vi.fn(() => '123456'),
+      invalidatePINSessions: vi.fn(() => 0)
     }
   };
 });
@@ -16,7 +29,9 @@ vi.mock('../../src/data/FileDataRepository.js', () => {
 vi.mock('../../src/logging/Logger.js', () => {
   return {
     default: {
-      error: vi.fn()
+      error: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn()
     }
   };
 });
@@ -155,6 +170,102 @@ describe('EventService.getEvent', () => {
       const result = await eventService.getEvent('A5oHyRhE');
       
       expect(result).toEqual(mockEvent);
+    });
+  });
+
+  describe('PIN generation on event creation', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      // Mock generateEventId to return a predictable ID
+      eventService.generateEventId = vi.fn().mockResolvedValue('TEST1234');
+      dataRepository.createEvent = vi.fn().mockImplementation((eventData) => Promise.resolve(eventData));
+    });
+
+    it('should generate PIN when creating event', async () => {
+      const event = await eventService.createEvent('Test Event', 'wine', 'admin@example.com');
+      
+      expect(event).toHaveProperty('pin');
+      expect(event.pin).toMatch(/^\d{6}$/);
+      expect(event.pin.length).toBe(6);
+      expect(event).toHaveProperty('pinGeneratedAt');
+      expect(pinService.generatePIN).toHaveBeenCalled();
+    });
+
+    it('should generate PIN in valid format (6 digits)', async () => {
+      const event = await eventService.createEvent('Test Event', 'wine', 'admin@example.com');
+      
+      expect(event.pin).toMatch(/^\d{6}$/);
+      const pinNum = parseInt(event.pin, 10);
+      expect(pinNum).toBeGreaterThanOrEqual(100000);
+      expect(pinNum).toBeLessThan(1000000);
+    });
+  });
+
+  describe('regeneratePIN', () => {
+    const eventId = 'TEST1234';
+    const administratorEmail = 'admin@example.com';
+    const mockEvent = {
+      eventId,
+      name: 'Test Event',
+      state: 'created',
+      typeOfItem: 'wine',
+      administrator: administratorEmail,
+      pin: '123456',
+      pinGeneratedAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      dataRepository.getEvent.mockResolvedValue(mockEvent);
+      dataRepository.writeEventConfig.mockResolvedValue(undefined);
+      pinService.generatePIN.mockReturnValue('789012');
+      pinService.invalidatePINSessions.mockReturnValue(3);
+    });
+
+    it('should regenerate PIN for event administrator', async () => {
+      const result = await eventService.regeneratePIN(eventId, administratorEmail);
+      
+      expect(result).toHaveProperty('pin', '789012');
+      expect(result).toHaveProperty('eventId', eventId);
+      expect(result).toHaveProperty('pinGeneratedAt');
+      expect(pinService.generatePIN).toHaveBeenCalled();
+      expect(pinService.invalidatePINSessions).toHaveBeenCalledWith(eventId);
+      expect(dataRepository.writeEventConfig).toHaveBeenCalled();
+    });
+
+    it('should reject regeneration from non-administrator', async () => {
+      await expect(
+        eventService.regeneratePIN(eventId, 'other@example.com')
+      ).rejects.toThrow('Only the event administrator can regenerate PINs');
+      
+      expect(pinService.generatePIN).not.toHaveBeenCalled();
+      expect(dataRepository.writeEventConfig).not.toHaveBeenCalled();
+    });
+
+    it('should handle case-insensitive email comparison', async () => {
+      // Administrator email in different case
+      const result = await eventService.regeneratePIN(eventId, 'ADMIN@EXAMPLE.COM');
+      
+      expect(result).toHaveProperty('pin');
+      expect(dataRepository.writeEventConfig).toHaveBeenCalled();
+    });
+
+    it('should return error for non-existent event', async () => {
+      dataRepository.getEvent.mockRejectedValue(new Error('Event not found: NONEXIST'));
+      
+      await expect(
+        eventService.regeneratePIN('NONEXIST', administratorEmail)
+      ).rejects.toThrow('Event not found: NONEXIST');
+    });
+
+    it('should complete regeneration within 2 seconds (performance test per SC-005)', async () => {
+      const startTime = Date.now();
+      await eventService.regeneratePIN(eventId, administratorEmail);
+      const duration = Date.now() - startTime;
+      
+      expect(duration).toBeLessThan(2000); // Must complete within 2 seconds
     });
   });
 });

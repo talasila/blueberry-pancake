@@ -9,6 +9,8 @@ Auto-generated from all feature plans. Last updated: 2025-12-06
 - File-based JSON storage via FileDataRepository (extends DataRepository) for event persistence (004-create-event)
 - JavaScript (ES2020+), Node.js >=22.12.0 + Express 5.2.1, React 19.2.1, React Router DOM 7.10.1, jsonwebtoken 9.0.3 (for auth), existing EventService and DataRepository patterns (005-event-feature)
 - File-based JSON storage via FileDataRepository (existing) for event data retrieval (005-event-feature)
+- JavaScript (ES2020+), Node.js >=22.12.0 + Express 5.2.1, React 19.2.1, React Router DOM 7.10.1, jsonwebtoken 9.0.3 (for auth), existing EventService, RateLimitService, EventService and DataRepository patterns (006-event-pin-access)
+- File-based JSON storage via FileDataRepository (existing) for event data and PIN storage (006-event-pin-access)
 
 - JavaScript (ES2020+), Node.js 18+ + React, Node.js, Express, shadcn UI, Tailwind CSS, Playwright, @cucumber/cucumber, Vitest, jsonwebtoken, csurf/csrf, node-cache, config package (001-baseline-setup)
 
@@ -29,9 +31,9 @@ npm test && npm run lint
 JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 
 ## Recent Changes
+- 006-event-pin-access: Added JavaScript (ES2020+), Node.js >=22.12.0 + Express 5.2.1, React 19.2.1, React Router DOM 7.10.1, jsonwebtoken 9.0.3 (for auth), existing EventService, RateLimitService, EventService and DataRepository patterns
 - 005-event-feature: Added JavaScript (ES2020+), Node.js >=22.12.0 + Express 5.2.1, React 19.2.1, React Router DOM 7.10.1, jsonwebtoken 9.0.3 (for auth), existing EventService and DataRepository patterns
 - 004-create-event: Added JavaScript (ES2020+), Node.js >=22.12.0 + Express 5.2.1, React 19.2.1, React Router DOM 7.10.1, nanoid (for event ID generation), jsonwebtoken 9.0.3 (for auth), existing DataRepository pattern
-- 002-landing-page: Added JavaScript (ES6+), Node.js >=22.12.0 + React 19.2.1, React Router DOM 7.10.1, Tailwind CSS 4.1.17, Vite 6.0.5
 
 
 <!-- MANUAL ADDITIONS START -->

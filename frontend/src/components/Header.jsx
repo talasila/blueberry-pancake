@@ -1,7 +1,9 @@
 import { User } from 'lucide-react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
+import { useMemo, useState, useEffect } from 'react';
 import Logo from './Logo.jsx';
 import { useEventContext } from '@/contexts/EventContext';
+import apiClient from '@/services/apiClient';
 
 /**
  * Header Component
@@ -11,25 +13,70 @@ import { useEventContext } from '@/contexts/EventContext';
  * - Fixed to the top of the viewport
  * - Full width with slightly shaded background
  * - Bottom border with drop shadow
- * - Logo on the left, event name (when in /event/* routes), sign in button on the right
+ * - Logo on the left, event name (when in /event/* routes), profile link on the right (when authenticated)
  * 
- * @param {Function} onSignInClick - Callback function for sign in button click
  * @returns {JSX.Element} The header component
  */
-function Header({ onSignInClick }) {
+function Header() {
   const location = useLocation();
-  const { event } = useEventContext();
+  const { event, eventId } = useEventContext();
+  const [authState, setAuthState] = useState(false);
   
   // Check if we're in an event route
   const isEventRoute = location.pathname.startsWith('/event/');
+  const isLandingPage = location.pathname === '/';
   const eventName = event?.name;
 
-  const handleSignInClick = (e) => {
-    e.preventDefault();
-    if (onSignInClick) {
-      onSignInClick(e);
+  // Extract eventId from pathname if not available from context
+  const pathEventId = useMemo(() => {
+    if (eventId) return eventId;
+    const match = location.pathname.match(/^\/event\/([A-Za-z0-9]{8})/);
+    return match ? match[1] : null;
+  }, [location.pathname, eventId]);
+
+  // Check authentication state and update when location or eventId changes
+  useEffect(() => {
+    const checkAuth = () => {
+      // Check for JWT token (admin or OTP-authenticated user)
+      const jwtToken = apiClient.getJWTToken();
+      if (jwtToken) {
+        setAuthState(true);
+        return;
+      }
+      
+      // Check for PIN session if on an event route
+      if (isEventRoute && pathEventId) {
+        const pinSession = apiClient.getPINSessionId(pathEventId);
+        setAuthState(!!pinSession);
+        return;
+      }
+      
+      setAuthState(false);
+    };
+
+    checkAuth();
+    
+    // Also check on storage events (when localStorage changes)
+    const handleStorageChange = () => {
+      checkAuth();
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [location.pathname, isEventRoute, pathEventId]);
+
+  // Determine profile link path
+  const profilePath = useMemo(() => {
+    if (isEventRoute && pathEventId) {
+      return `/event/${pathEventId}/profile`;
     }
-  };
+    // For non-event routes, use a general profile path
+    // This could be expanded later for global user profiles
+    return '/profile';
+  }, [isEventRoute, pathEventId]);
 
   return (
     <header className="fixed top-0 left-0 right-0 z-[9999] bg-background border-b border-border shadow-md" style={{ width: '100vw', marginRight: 'calc(100% - 100vw)' }}>
@@ -43,14 +90,16 @@ function Header({ onSignInClick }) {
               </span>
             )}
           </div>
-          <button
-            type="button"
-            onClick={handleSignInClick}
-            className="p-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
-            aria-label="Sign in"
-          >
-            <User className="h-5 w-5" />
-          </button>
+          {/* Show profile link only if authenticated and not on landing page */}
+          {authState && !isLandingPage && (
+            <Link
+              to={profilePath}
+              className="p-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
+              aria-label="View profile"
+            >
+              <User className="h-5 w-5" />
+            </Link>
+          )}
         </div>
       </div>
     </header>

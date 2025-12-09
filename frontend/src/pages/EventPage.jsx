@@ -1,9 +1,9 @@
 import { useEventContext } from '@/contexts/EventContext';
+import { usePIN } from '@/contexts/PINContext';
 import useEventPolling from '@/hooks/useEventPolling';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import apiClient from '@/services/apiClient';
-import { Settings } from 'lucide-react';
 
 /**
  * EventPage Component
@@ -23,11 +23,54 @@ function EventPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
   const { event: contextEvent, isAdmin } = useEventContext();
-  const { event: polledEvent, refetch } = useEventPolling(eventId);
+  const { pinVerified, sessionId } = usePIN();
+  
+  // Check authentication synchronously before any API calls
+  const jwtToken = apiClient.getJWTToken();
+  const pinSession = eventId ? apiClient.getPINSessionId(eventId) : null;
+  const hasAuth = !!(jwtToken || pinSession || pinVerified);
+  
   const [event, setEvent] = useState(contextEvent);
   const [isLoading, setIsLoading] = useState(!contextEvent);
   const [error, setError] = useState(null);
   const loadStartTimeRef = useRef(null);
+
+  // Redirect to PIN entry if no authentication - must happen immediately
+  // Use a ref to track if we've already checked to avoid multiple redirects
+  const redirectCheckedRef = useRef(false);
+  
+  useEffect(() => {
+    if (!eventId || redirectCheckedRef.current) return;
+    
+    const currentJwtToken = apiClient.getJWTToken();
+    const currentPinSession = apiClient.getPINSessionId(eventId);
+    
+    // If no JWT token and no PIN session, redirect to PIN entry immediately
+    if (!currentJwtToken && !currentPinSession && !pinVerified) {
+      redirectCheckedRef.current = true;
+      navigate(`/event/${eventId}/pin`, { replace: true });
+      return;
+    }
+    
+    redirectCheckedRef.current = true;
+  }, [eventId, navigate, pinVerified]);
+
+  // Only start polling if we have authentication - pass null to prevent fetching
+  // Wait for redirect check to complete before starting polling
+  const { event: polledEvent, refetch } = useEventPolling(
+    hasAuth && redirectCheckedRef.current ? eventId : null
+  );
+
+  // Handle invalid PIN sessions - clear session and redirect if API returns 401
+  useEffect(() => {
+    if (error && error.includes('PIN verification') || error?.includes('401')) {
+      // Clear invalid PIN session
+      if (eventId) {
+        localStorage.removeItem(`pin:session:${eventId}`);
+        navigate(`/event/${eventId}/pin`, { replace: true });
+      }
+    }
+  }, [error, eventId, navigate]);
 
   // Performance monitoring: track page load time
   useEffect(() => {
@@ -94,6 +137,7 @@ function EventPage() {
 
     return true;
   };
+
 
   // Loading state
   if (isLoading) {
@@ -181,21 +225,6 @@ function EventPage() {
             </p>
             {/* When rating is implemented, use handleActionAttempt to validate state */}
           </div>
-
-          {/* Navigation to admin page (only for administrators) */}
-          {isAdmin && (
-            <div className="flex justify-center">
-              <button
-                onClick={() => navigate(`/event/${eventId}/admin`)}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                aria-label="Go to admin page"
-                type="button"
-              >
-                <Settings className="h-4 w-4" aria-hidden="true" />
-                Admin
-              </button>
-            </div>
-          )}
         </div>
       </div>
     </div>

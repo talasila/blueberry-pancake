@@ -9,9 +9,9 @@ const router = Router();
 router.use('/health', healthRouter);
 router.use('/auth', authRouter);
 
-// Protected routes (authentication required)
-// All routes below this point require authentication
+// Events routes - some public (verify-pin), some protected (create, get with auth)
 import eventsRouter from './events.js';
-router.use('/events', requireAuth, eventsRouter);
+// POST /events requires auth (handled in events.js)
+router.use('/events', eventsRouter);
 
 export default router;

@@ -5,9 +5,12 @@ import AuthPage from './pages/AuthPage.jsx';
 import CreateEventPage from './pages/CreateEventPage.jsx';
 import EventPage from './pages/EventPage.jsx';
 import EventAdminPage from './pages/EventAdminPage.jsx';
+import PINEntryPage from './pages/PINEntryPage.jsx';
+import ProfilePage from './pages/ProfilePage.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
 import { EventContextProvider } from './contexts/EventContext.jsx';
+import { PINProvider } from './contexts/PINContext.jsx';
 import { useParams } from 'react-router-dom';
 import useEvent from './hooks/useEvent.js';
 import useEventPolling from './hooks/useEventPolling.js';
@@ -80,7 +83,7 @@ function EventLayout({ children }) {
  * 
  * Provides layout with Header and routes, with conditional EventContext for event routes
  */
-function AppLayout({ onSignInClick }) {
+function AppLayout() {
   const location = useLocation();
   const isEventRoute = location.pathname.startsWith('/event/');
   
@@ -90,7 +93,7 @@ function AppLayout({ onSignInClick }) {
   
   const content = (
     <div className="min-h-screen bg-background">
-      <Header onSignInClick={onSignInClick} />
+      <Header />
       <main className="pt-16">
         <Routes>
           {/* Public routes - no authentication required */}
@@ -106,26 +109,47 @@ function AppLayout({ onSignInClick }) {
               </ProtectedRoute>
             } 
           />
+          {/* PIN entry route - public, no authentication required */}
+          <Route 
+            path="/event/:eventId/pin" 
+            element={
+              <PINProvider>
+                <PINEntryPage />
+              </PINProvider>
+            } 
+          />
           <Route 
             path="/event/:eventId" 
             element={
-              <ProtectedRoute>
+              <PINProvider>
                 <EventLayout>
                   <EventPage />
                 </EventLayout>
-              </ProtectedRoute>
+              </PINProvider>
             } 
           />
           <Route 
             path="/event/:eventId/admin" 
             element={
               <ProtectedRoute>
-                <EventLayout>
-                  <AdminRoute>
-                    <EventAdminPage />
-                  </AdminRoute>
-                </EventLayout>
+                <PINProvider>
+                  <EventLayout>
+                    <AdminRoute>
+                      <EventAdminPage />
+                    </AdminRoute>
+                  </EventLayout>
+                </PINProvider>
               </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/event/:eventId/profile" 
+            element={
+              <PINProvider>
+                <EventLayout>
+                  <ProfilePage />
+                </EventLayout>
+              </PINProvider>
             } 
           />
         </Routes>
@@ -207,15 +231,9 @@ function EventContextProviderForRoute({ eventId, children }) {
 }
 
 function App() {
-  const handleSignInClick = (e) => {
-    e.preventDefault();
-    // Navigate to auth page
-    window.location.href = '/auth';
-  };
-
   return (
     <Router>
-      <AppLayout onSignInClick={handleSignInClick} />
+      <AppLayout />
     </Router>
   );
 }

@@ -88,6 +88,17 @@ class CacheService {
   }
 
   /**
+   * Get all cache keys
+   * @returns {Array<string>} Array of cache keys
+   */
+  keys() {
+    if (!this.initialized || !this.cache) {
+      return [];
+    }
+    return this.cache.keys();
+  }
+
+  /**
    * Invalidate cache entries matching pattern
    * @param {string} pattern - Pattern to match (e.g., 'config:event:*')
    * @returns {number} Number of invalidated keys

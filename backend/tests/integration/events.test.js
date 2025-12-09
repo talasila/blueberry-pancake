@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import supertest from 'supertest';
 import app from '../../src/app.js';
 import eventService from '../../src/services/EventService.js';
+import pinService from '../../src/services/PINService.js';
 import { createTestEvent, getTestDataRepository } from './setup.js';
 import jwt from 'jsonwebtoken';
 
@@ -12,7 +13,19 @@ vi.mock('../../src/services/EventService.js', () => {
   return {
     default: {
       getEvent: vi.fn(),
-      createEvent: vi.fn()
+      createEvent: vi.fn(),
+      regeneratePIN: vi.fn()
+    }
+  };
+});
+
+// Mock PIN service
+vi.mock('../../src/services/PINService.js', () => {
+  return {
+    default: {
+      verifyPIN: vi.fn(),
+      checkPINSession: vi.fn(),
+      createPINSession: vi.fn()
     }
   };
 });
@@ -271,6 +284,271 @@ describe('GET /api/events/:eventId', () => {
         .expect(200);
 
       expect(response.body.state).toBe('finished');
+    });
+  });
+
+  describe('POST /api/events/:eventId/verify-pin', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should return 200 with sessionId for valid PIN', async () => {
+      const eventId = 'A5ohYrHe';
+      const pin = '123456';
+      const sessionId = '550e8400-e29b-41d4-a716-446655440000';
+
+      pinService.verifyPIN.mockResolvedValue({
+        valid: true,
+        sessionId
+      });
+
+      const response = await request
+        .post(`/api/events/${eventId}/verify-pin`)
+        .send({ pin })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('sessionId', sessionId);
+      expect(response.body).toHaveProperty('eventId', eventId);
+      expect(pinService.verifyPIN).toHaveBeenCalledWith(eventId, pin, expect.any(String));
+    });
+
+    it('should return 401 for invalid PIN', async () => {
+      const eventId = 'A5ohYrHe';
+      const pin = '999999';
+
+      pinService.verifyPIN.mockResolvedValue({
+        valid: false,
+        error: 'Invalid PIN. Please try again.'
+      });
+
+      const response = await request
+        .post(`/api/events/${eventId}/verify-pin`)
+        .send({ pin })
+        .expect(401);
+
+      expect(response.body).toHaveProperty('error', 'Invalid PIN. Please try again.');
+    });
+
+    it('should return 400 for invalid PIN format', async () => {
+      const eventId = 'A5ohYrHe';
+      const pin = '12345'; // Too short
+
+      pinService.verifyPIN.mockResolvedValue({
+        valid: false,
+        error: 'PIN must be exactly 6 digits'
+      });
+
+      const response = await request
+        .post(`/api/events/${eventId}/verify-pin`)
+        .send({ pin })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('error', 'PIN must be exactly 6 digits');
+    });
+
+    it('should return 404 for non-existent event', async () => {
+      const eventId = 'NONEXIST';
+      const pin = '123456';
+
+      pinService.verifyPIN.mockResolvedValue({
+        valid: false,
+        error: 'Event not found'
+      });
+
+      const response = await request
+        .post(`/api/events/${eventId}/verify-pin`)
+        .send({ pin })
+        .expect(404);
+
+      expect(response.body).toHaveProperty('error', 'Event not found');
+    });
+
+    it('should return 429 for rate limit exceeded', async () => {
+      const eventId = 'A5ohYrHe';
+      const pin = '123456';
+
+      pinService.verifyPIN.mockResolvedValue({
+        valid: false,
+        error: 'Too many attempts. Please try again in 15 minutes.'
+      });
+
+      const response = await request
+        .post(`/api/events/${eventId}/verify-pin`)
+        .send({ pin })
+        .expect(429);
+
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('Too many attempts');
+    });
+
+    it('should return 400 when PIN is missing', async () => {
+      const eventId = 'A5ohYrHe';
+
+      const response = await request
+        .post(`/api/events/${eventId}/verify-pin`)
+        .send({})
+        .expect(400);
+
+      expect(response.body).toHaveProperty('error');
+    });
+  });
+
+  describe('GET /api/events/:eventId with PIN session', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should return 200 with event data when valid PIN session is provided', async () => {
+      const eventId = 'A5ohYrHe';
+      const sessionId = '550e8400-e29b-41d4-a716-446655440000';
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        state: 'created',
+        typeOfItem: 'wine',
+        administrator: 'admin@example.com',
+        pin: '123456',
+        pinGeneratedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      pinService.checkPINSession.mockReturnValue(true);
+      eventService.getEvent.mockResolvedValue(mockEvent);
+
+      const response = await request
+        .get(`/api/events/${eventId}`)
+        .set('X-PIN-Session-Id', sessionId)
+        .expect(200);
+
+      expect(response.body).toEqual(mockEvent);
+      expect(pinService.checkPINSession).toHaveBeenCalledWith(eventId, sessionId);
+      expect(eventService.getEvent).toHaveBeenCalledWith(eventId);
+    });
+
+    it('should return 401 when PIN session is invalid', async () => {
+      const eventId = 'A5ohYrHe';
+      const sessionId = 'invalid-session';
+
+      pinService.checkPINSession.mockReturnValue(false);
+
+      const response = await request
+        .get(`/api/events/${eventId}`)
+        .set('X-PIN-Session-Id', sessionId)
+        .expect(401);
+
+      expect(response.body).toHaveProperty('error', 'PIN verification expired or invalid');
+    });
+
+    it('should return 401 when PIN session is missing', async () => {
+      const eventId = 'A5ohYrHe';
+
+      const response = await request
+        .get(`/api/events/${eventId}`)
+        .expect(401);
+
+      expect(response.body).toHaveProperty('error');
+    });
+  });
+
+  describe('POST /api/events/:eventId/regenerate-pin', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should return 200 with new PIN for authorized administrator', async () => {
+      const eventId = 'A5ohYrHe';
+      const token = generateTestToken('admin@example.com');
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        state: 'created',
+        typeOfItem: 'wine',
+        administrator: 'admin@example.com',
+        pin: '123456',
+        pinGeneratedAt: new Date().toISOString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      eventService.getEvent.mockResolvedValue(mockEvent);
+      eventService.regeneratePIN.mockResolvedValue({
+        pin: '789012',
+        eventId,
+        pinGeneratedAt: new Date().toISOString(),
+        message: 'PIN regenerated successfully'
+      });
+
+      const response = await request
+        .post(`/api/events/${eventId}/regenerate-pin`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(response.body).toHaveProperty('pin', '789012');
+      expect(response.body).toHaveProperty('eventId', eventId);
+      expect(response.body).toHaveProperty('pinGeneratedAt');
+      expect(eventService.regeneratePIN).toHaveBeenCalledWith(eventId, 'admin@example.com');
+    });
+
+    it('should return 401 for unauthorized user', async () => {
+      const eventId = 'A5ohYrHe';
+      const token = generateTestToken('other@example.com');
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        administrator: 'admin@example.com',
+        pin: '123456'
+      };
+
+      eventService.getEvent.mockResolvedValue(mockEvent);
+      eventService.regeneratePIN.mockRejectedValue(
+        new Error('Only the event administrator can regenerate PINs')
+      );
+
+      const response = await request
+        .post(`/api/events/${eventId}/regenerate-pin`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(401);
+
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('administrator');
+    });
+
+    it('should return 401 when no token is provided', async () => {
+      const eventId = 'A5ohYrHe';
+
+      const response = await request
+        .post(`/api/events/${eventId}/regenerate-pin`)
+        .expect(401);
+
+      expect(response.body).toHaveProperty('error', 'Authentication required');
+      expect(eventService.regeneratePIN).not.toHaveBeenCalled();
+    });
+
+    it('should return 404 for non-existent event', async () => {
+      const eventId = 'NONEXIST';
+      const token = generateTestToken('admin@example.com');
+
+      eventService.regeneratePIN.mockRejectedValue(new Error('Event not found: NONEXIST'));
+
+      const response = await request
+        .post(`/api/events/${eventId}/regenerate-pin`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(404);
+
+      expect(response.body).toHaveProperty('error', 'Event not found');
+    });
+
+    it('should return 400 for invalid event ID format', async () => {
+      const token = generateTestToken('admin@example.com');
+
+      const response = await request
+        .post('/api/events/INVALID/regenerate-pin')
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('Invalid event ID format');
     });
   });
 });
