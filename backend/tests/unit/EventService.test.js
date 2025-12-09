@@ -268,4 +268,499 @@ describe('EventService.getEvent', () => {
       expect(duration).toBeLessThan(2000); // Must complete within 2 seconds
     });
   });
+
+  describe('migrateAdministratorField', () => {
+    it('should migrate administrator string to administrators object', () => {
+      const event = {
+        eventId: 'TEST1234',
+        administrator: 'admin@example.com',
+        createdAt: '2025-01-27T10:30:00.000Z'
+      };
+
+      const migrated = eventService.migrateAdministratorField(event);
+
+      expect(migrated).toBe(true);
+      expect(event.administrators).toBeDefined();
+      expect(event.administrators['admin@example.com']).toBeDefined();
+      expect(event.administrators['admin@example.com'].owner).toBe(true);
+      expect(event.administrators['admin@example.com'].assignedAt).toBe('2025-01-27T10:30:00.000Z');
+      expect(event.administrator).toBeUndefined();
+    });
+
+    it('should not migrate if administrators object already exists', () => {
+      const event = {
+        eventId: 'TEST1234',
+        administrator: 'admin@example.com',
+        administrators: {
+          'admin@example.com': {
+            assignedAt: '2025-01-27T10:30:00.000Z',
+            owner: true
+          }
+        }
+      };
+
+      const migrated = eventService.migrateAdministratorField(event);
+
+      expect(migrated).toBe(false);
+      expect(event.administrator).toBe('admin@example.com');
+    });
+
+    it('should normalize email to lowercase during migration', () => {
+      const event = {
+        eventId: 'TEST1234',
+        administrator: 'ADMIN@EXAMPLE.COM',
+        createdAt: '2025-01-27T10:30:00.000Z'
+      };
+
+      eventService.migrateAdministratorField(event);
+
+      expect(event.administrators['admin@example.com']).toBeDefined();
+      expect(event.administrators['ADMIN@EXAMPLE.COM']).toBeUndefined();
+    });
+
+    it('should use current timestamp if createdAt is missing', () => {
+      const event = {
+        eventId: 'TEST1234',
+        administrator: 'admin@example.com'
+      };
+
+      eventService.migrateAdministratorField(event);
+
+      expect(event.administrators['admin@example.com'].assignedAt).toBeDefined();
+      expect(typeof event.administrators['admin@example.com'].assignedAt).toBe('string');
+    });
+  });
+
+  describe('isAdministrator', () => {
+    it('should return true for existing administrator', () => {
+      const event = {
+        administrators: {
+          'admin@example.com': {
+            assignedAt: '2025-01-27T10:30:00.000Z',
+            owner: true
+          }
+        }
+      };
+
+      expect(eventService.isAdministrator(event, 'admin@example.com')).toBe(true);
+    });
+
+    it('should return false for non-administrator', () => {
+      const event = {
+        administrators: {
+          'admin@example.com': {
+            assignedAt: '2025-01-27T10:30:00.000Z',
+            owner: true
+          }
+        }
+      };
+
+      expect(eventService.isAdministrator(event, 'other@example.com')).toBe(false);
+    });
+
+    it('should handle case-insensitive email comparison', () => {
+      const event = {
+        administrators: {
+          'admin@example.com': {
+            assignedAt: '2025-01-27T10:30:00.000Z',
+            owner: true
+          }
+        }
+      };
+
+      expect(eventService.isAdministrator(event, 'ADMIN@EXAMPLE.COM')).toBe(true);
+    });
+
+    it('should migrate and check if administrator exists', () => {
+      const event = {
+        administrator: 'admin@example.com',
+        createdAt: '2025-01-27T10:30:00.000Z'
+      };
+
+      expect(eventService.isAdministrator(event, 'admin@example.com')).toBe(true);
+      expect(event.administrators).toBeDefined();
+    });
+
+    it('should return false for null or undefined email', () => {
+      const event = {
+        administrators: {
+          'admin@example.com': {
+            assignedAt: '2025-01-27T10:30:00.000Z',
+            owner: true
+          }
+        }
+      };
+
+      expect(eventService.isAdministrator(event, null)).toBe(false);
+      expect(eventService.isAdministrator(event, undefined)).toBe(false);
+    });
+  });
+
+  describe('isOwner', () => {
+    it('should return true for owner', () => {
+      const event = {
+        administrators: {
+          'admin@example.com': {
+            assignedAt: '2025-01-27T10:30:00.000Z',
+            owner: true
+          }
+        }
+      };
+
+      expect(eventService.isOwner(event, 'admin@example.com')).toBe(true);
+    });
+
+    it('should return false for non-owner administrator', () => {
+      const event = {
+        administrators: {
+          'admin@example.com': {
+            assignedAt: '2025-01-27T10:30:00.000Z',
+            owner: true
+          },
+          'other@example.com': {
+            assignedAt: '2025-01-27T11:00:00.000Z',
+            owner: false
+          }
+        }
+      };
+
+      expect(eventService.isOwner(event, 'other@example.com')).toBe(false);
+    });
+
+    it('should handle case-insensitive email comparison', () => {
+      const event = {
+        administrators: {
+          'admin@example.com': {
+            assignedAt: '2025-01-27T10:30:00.000Z',
+            owner: true
+          }
+        }
+      };
+
+      expect(eventService.isOwner(event, 'ADMIN@EXAMPLE.COM')).toBe(true);
+    });
+
+    it('should migrate and check if user is owner', () => {
+      const event = {
+        administrator: 'admin@example.com',
+        createdAt: '2025-01-27T10:30:00.000Z'
+      };
+
+      expect(eventService.isOwner(event, 'admin@example.com')).toBe(true);
+      expect(event.administrators).toBeDefined();
+    });
+
+    it('should return false for null or undefined email', () => {
+      const event = {
+        administrators: {
+          'admin@example.com': {
+            assignedAt: '2025-01-27T10:30:00.000Z',
+            owner: true
+          }
+        }
+      };
+
+      expect(eventService.isOwner(event, null)).toBe(false);
+      expect(eventService.isOwner(event, undefined)).toBe(false);
+    });
+  });
+
+  describe('normalizeEmail', () => {
+    it('should convert email to lowercase', () => {
+      expect(eventService.normalizeEmail('ADMIN@EXAMPLE.COM')).toBe('admin@example.com');
+    });
+
+    it('should trim whitespace', () => {
+      expect(eventService.normalizeEmail('  admin@example.com  ')).toBe('admin@example.com');
+    });
+
+    it('should handle mixed case', () => {
+      expect(eventService.normalizeEmail('Admin@Example.Com')).toBe('admin@example.com');
+    });
+
+    it('should return empty string for null or undefined', () => {
+      expect(eventService.normalizeEmail(null)).toBe('');
+      expect(eventService.normalizeEmail(undefined)).toBe('');
+    });
+
+    it('should return empty string for non-string input', () => {
+      expect(eventService.normalizeEmail(123)).toBe('');
+      expect(eventService.normalizeEmail({})).toBe('');
+    });
+  });
+
+  describe('isValidEmail', () => {
+    it('should return true for valid email addresses', () => {
+      expect(eventService.isValidEmail('user@example.com')).toBe(true);
+      expect(eventService.isValidEmail('test.email+tag@example.co.uk')).toBe(true);
+      expect(eventService.isValidEmail('admin@test-domain.com')).toBe(true);
+    });
+
+    it('should return false for invalid email addresses', () => {
+      expect(eventService.isValidEmail('invalid')).toBe(false);
+      expect(eventService.isValidEmail('@example.com')).toBe(false);
+      expect(eventService.isValidEmail('user@')).toBe(false);
+      expect(eventService.isValidEmail('user@example')).toBe(false);
+      expect(eventService.isValidEmail('user @example.com')).toBe(false);
+    });
+
+    it('should handle case-insensitive validation', () => {
+      expect(eventService.isValidEmail('USER@EXAMPLE.COM')).toBe(true);
+      expect(eventService.isValidEmail('User@Example.Com')).toBe(true);
+    });
+
+    it('should trim and validate email', () => {
+      expect(eventService.isValidEmail('  user@example.com  ')).toBe(true);
+    });
+
+    it('should return false for null or undefined', () => {
+      expect(eventService.isValidEmail(null)).toBe(false);
+      expect(eventService.isValidEmail(undefined)).toBe(false);
+    });
+
+    it('should return false for empty string', () => {
+      expect(eventService.isValidEmail('')).toBe(false);
+      expect(eventService.isValidEmail('   ')).toBe(false);
+    });
+  });
+
+  describe('addAdministrator', () => {
+    const eventId = 'TEST1234';
+    const requesterEmail = 'admin@example.com';
+    const newAdminEmail = 'newadmin@example.com';
+    let mockEvent;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      mockEvent = {
+        eventId,
+        name: 'Test Event',
+        state: 'created',
+        typeOfItem: 'wine',
+        administrators: {
+          [requesterEmail]: {
+            assignedAt: '2025-01-27T10:30:00.000Z',
+            owner: true
+          }
+        },
+        users: {
+          [requesterEmail]: {
+            registeredAt: '2025-01-27T10:30:00.000Z'
+          }
+        },
+        createdAt: '2025-01-27T10:30:00.000Z',
+        updatedAt: '2025-01-27T10:30:00.000Z'
+      };
+      dataRepository.getEvent.mockResolvedValue(mockEvent);
+      dataRepository.writeEventConfig.mockResolvedValue(undefined);
+    });
+
+    it('should add new administrator successfully', async () => {
+      const result = await eventService.addAdministrator(eventId, newAdminEmail, requesterEmail);
+
+      expect(result.administrators[newAdminEmail.toLowerCase()]).toBeDefined();
+      expect(result.administrators[newAdminEmail.toLowerCase()].owner).toBe(false);
+      expect(result.administrators[newAdminEmail.toLowerCase()]).toHaveProperty('assignedAt');
+      expect(result.users[newAdminEmail.toLowerCase()]).toBeDefined();
+      expect(result.users[newAdminEmail.toLowerCase()]).toHaveProperty('registeredAt');
+      expect(dataRepository.writeEventConfig).toHaveBeenCalled();
+    });
+
+    it('should throw error for duplicate administrator', async () => {
+      mockEvent.administrators[newAdminEmail.toLowerCase()] = {
+        assignedAt: '2025-01-27T11:00:00.000Z',
+        owner: false
+      };
+
+      await expect(
+        eventService.addAdministrator(eventId, newAdminEmail, requesterEmail)
+      ).rejects.toThrow('Administrator already exists');
+    });
+
+    it('should throw error for invalid email format', async () => {
+      await expect(
+        eventService.addAdministrator(eventId, 'invalid-email', requesterEmail)
+      ).rejects.toThrow('Invalid email address');
+    });
+
+    it('should throw error for unauthorized requester', async () => {
+      await expect(
+        eventService.addAdministrator(eventId, newAdminEmail, 'unauthorized@example.com')
+      ).rejects.toThrow('Unauthorized');
+    });
+
+    it('should throw error for self-addition attempt', async () => {
+      await expect(
+        eventService.addAdministrator(eventId, requesterEmail, requesterEmail)
+      ).rejects.toThrow('Administrator already exists');
+    });
+
+    it('should normalize email addresses', async () => {
+      const result = await eventService.addAdministrator(eventId, 'NEWADMIN@EXAMPLE.COM', requesterEmail);
+
+      expect(result.administrators['newadmin@example.com']).toBeDefined();
+      expect(result.administrators['NEWADMIN@EXAMPLE.COM']).toBeUndefined();
+    });
+
+    it('should add administrator to users section if not already present', async () => {
+      const result = await eventService.addAdministrator(eventId, newAdminEmail, requesterEmail);
+
+      expect(result.users[newAdminEmail.toLowerCase()]).toBeDefined();
+      expect(result.users[newAdminEmail.toLowerCase()].registeredAt).toBeDefined();
+    });
+
+    it('should not overwrite existing user registration timestamp', async () => {
+      const existingTimestamp = '2025-01-27T09:00:00.000Z';
+      mockEvent.users[newAdminEmail.toLowerCase()] = {
+        registeredAt: existingTimestamp
+      };
+
+      const result = await eventService.addAdministrator(eventId, newAdminEmail, requesterEmail);
+
+      expect(result.users[newAdminEmail.toLowerCase()].registeredAt).toBe(existingTimestamp);
+    });
+  });
+
+  describe('deleteAdministrator', () => {
+    const eventId = 'TEST1234';
+    const requesterEmail = 'admin@example.com';
+    const adminToDelete = 'other@example.com';
+    let mockEvent;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      mockEvent = {
+        eventId,
+        name: 'Test Event',
+        state: 'created',
+        typeOfItem: 'wine',
+        administrators: {
+          [requesterEmail]: {
+            assignedAt: '2025-01-27T10:30:00.000Z',
+            owner: true
+          },
+          [adminToDelete]: {
+            assignedAt: '2025-01-27T11:00:00.000Z',
+            owner: false
+          }
+        },
+        users: {
+          [requesterEmail]: {
+            registeredAt: '2025-01-27T10:30:00.000Z'
+          },
+          [adminToDelete]: {
+            registeredAt: '2025-01-27T11:00:00.000Z'
+          }
+        },
+        createdAt: '2025-01-27T10:30:00.000Z',
+        updatedAt: '2025-01-27T10:30:00.000Z'
+      };
+      dataRepository.getEvent.mockResolvedValue(mockEvent);
+      dataRepository.writeEventConfig.mockResolvedValue(undefined);
+    });
+
+    it('should delete administrator successfully', async () => {
+      const result = await eventService.deleteAdministrator(eventId, adminToDelete, requesterEmail);
+
+      expect(result.administrators[adminToDelete.toLowerCase()]).toBeUndefined();
+      expect(result.users[adminToDelete.toLowerCase()]).toBeUndefined();
+      expect(result.administrators[requesterEmail.toLowerCase()]).toBeDefined();
+      expect(dataRepository.writeEventConfig).toHaveBeenCalled();
+    });
+
+    it('should prevent owner deletion', async () => {
+      await expect(
+        eventService.deleteAdministrator(eventId, requesterEmail, requesterEmail)
+      ).rejects.toThrow('Cannot delete owner');
+    });
+
+    it('should throw error for unauthorized requester', async () => {
+      await expect(
+        eventService.deleteAdministrator(eventId, adminToDelete, 'unauthorized@example.com')
+      ).rejects.toThrow('Unauthorized');
+    });
+
+    it('should throw error for administrator not found', async () => {
+      await expect(
+        eventService.deleteAdministrator(eventId, 'nonexistent@example.com', requesterEmail)
+      ).rejects.toThrow('Administrator not found');
+    });
+
+    it('should prevent deleting last administrator', async () => {
+      // Remove one administrator so only owner remains
+      delete mockEvent.administrators[adminToDelete];
+      delete mockEvent.users[adminToDelete];
+
+      // Try to delete owner (should fail because it's the last one)
+      await expect(
+        eventService.deleteAdministrator(eventId, requesterEmail, requesterEmail)
+      ).rejects.toThrow('Cannot delete owner');
+    });
+
+    it('should remove administrator from users section atomically', async () => {
+      const result = await eventService.deleteAdministrator(eventId, adminToDelete, requesterEmail);
+
+      expect(result.administrators[adminToDelete.toLowerCase()]).toBeUndefined();
+      expect(result.users[adminToDelete.toLowerCase()]).toBeUndefined();
+    });
+
+    it('should normalize email addresses', async () => {
+      const result = await eventService.deleteAdministrator(eventId, 'OTHER@EXAMPLE.COM', requesterEmail);
+
+      expect(result.administrators['other@example.com']).toBeUndefined();
+      expect(result.administrators['OTHER@EXAMPLE.COM']).toBeUndefined();
+    });
+  });
+
+  describe('getAdministrators', () => {
+    const eventId = 'TEST1234';
+    const requesterEmail = 'admin@example.com';
+    let mockEvent;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      mockEvent = {
+        eventId,
+        name: 'Test Event',
+        state: 'created',
+        typeOfItem: 'wine',
+        administrators: {
+          [requesterEmail]: {
+            assignedAt: '2025-01-27T10:30:00.000Z',
+            owner: true
+          },
+          'other@example.com': {
+            assignedAt: '2025-01-27T11:00:00.000Z',
+            owner: false
+          }
+        },
+        createdAt: '2025-01-27T10:30:00.000Z',
+        updatedAt: '2025-01-27T10:30:00.000Z'
+      };
+      dataRepository.getEvent.mockResolvedValue(mockEvent);
+    });
+
+    it('should return administrators object', async () => {
+      const result = await eventService.getAdministrators(eventId, requesterEmail);
+
+      expect(result).toBeDefined();
+      expect(result[requesterEmail.toLowerCase()]).toBeDefined();
+      expect(result['other@example.com']).toBeDefined();
+      expect(result[requesterEmail.toLowerCase()].owner).toBe(true);
+      expect(result['other@example.com'].owner).toBe(false);
+    });
+
+    it('should throw error for unauthorized requester', async () => {
+      await expect(
+        eventService.getAdministrators(eventId, 'unauthorized@example.com')
+      ).rejects.toThrow('Unauthorized');
+    });
+
+    it('should return empty object if administrators not set', async () => {
+      delete mockEvent.administrators;
+      const result = await eventService.getAdministrators(eventId, requesterEmail);
+
+      expect(result).toEqual({});
+    });
+  });
 });

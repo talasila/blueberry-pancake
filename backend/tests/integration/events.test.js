@@ -14,7 +14,10 @@ vi.mock('../../src/services/EventService.js', () => {
     default: {
       getEvent: vi.fn(),
       createEvent: vi.fn(),
-      regeneratePIN: vi.fn()
+      regeneratePIN: vi.fn(),
+      addAdministrator: vi.fn(),
+      deleteAdministrator: vi.fn(),
+      getAdministrators: vi.fn()
     }
   };
 });
@@ -549,6 +552,368 @@ describe('GET /api/events/:eventId', () => {
 
       expect(response.body).toHaveProperty('error');
       expect(response.body.error).toContain('Invalid event ID format');
+    });
+  });
+
+  describe('POST /api/events - Event creation with administrators object', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should create event with administrators object structure', async () => {
+      const token = generateTestToken('admin@example.com');
+      const eventData = {
+        name: 'Test Event',
+        typeOfItem: 'wine'
+      };
+
+      const mockCreatedEvent = {
+        eventId: 'TEST1234',
+        name: 'Test Event',
+        typeOfItem: 'wine',
+        state: 'created',
+        administrators: {
+          'admin@example.com': {
+            assignedAt: '2025-01-27T10:30:00.000Z',
+            owner: true
+          }
+        },
+        users: {
+          'admin@example.com': {
+            registeredAt: '2025-01-27T10:30:00.000Z'
+          }
+        },
+        pin: '123456',
+        pinGeneratedAt: '2025-01-27T10:30:00.000Z',
+        createdAt: '2025-01-27T10:30:00.000Z',
+        updatedAt: '2025-01-27T10:30:00.000Z'
+      };
+
+      eventService.createEvent.mockResolvedValue(mockCreatedEvent);
+
+      const response = await request
+        .post('/api/events')
+        .set('Authorization', `Bearer ${token}`)
+        .send(eventData)
+        .expect(201);
+
+      expect(response.body).toHaveProperty('administrators');
+      expect(response.body.administrators).toBeDefined();
+      expect(response.body.administrators['admin@example.com']).toBeDefined();
+      expect(response.body.administrators['admin@example.com'].owner).toBe(true);
+      expect(response.body.administrators['admin@example.com']).toHaveProperty('assignedAt');
+      expect(response.body).not.toHaveProperty('administrator');
+      expect(response.body).toHaveProperty('users');
+      expect(response.body.users['admin@example.com']).toBeDefined();
+      expect(eventService.createEvent).toHaveBeenCalledWith(
+        'Test Event',
+        'wine',
+        'admin@example.com'
+      );
+    });
+
+    it('should verify owner flag is set to true for creator', async () => {
+      const token = generateTestToken('creator@example.com');
+      const eventData = {
+        name: 'Test Event',
+        typeOfItem: 'wine'
+      };
+
+      const mockCreatedEvent = {
+        eventId: 'TEST1234',
+        name: 'Test Event',
+        typeOfItem: 'wine',
+        state: 'created',
+        administrators: {
+          'creator@example.com': {
+            assignedAt: '2025-01-27T10:30:00.000Z',
+            owner: true
+          }
+        },
+        users: {
+          'creator@example.com': {
+            registeredAt: '2025-01-27T10:30:00.000Z'
+          }
+        },
+        pin: '123456',
+        pinGeneratedAt: '2025-01-27T10:30:00.000Z',
+        createdAt: '2025-01-27T10:30:00.000Z',
+        updatedAt: '2025-01-27T10:30:00.000Z'
+      };
+
+      eventService.createEvent.mockResolvedValue(mockCreatedEvent);
+
+      const response = await request
+        .post('/api/events')
+        .set('Authorization', `Bearer ${token}`)
+        .send(eventData)
+        .expect(201);
+
+      const admin = response.body.administrators['creator@example.com'];
+      expect(admin.owner).toBe(true);
+      expect(admin.assignedAt).toBeDefined();
+      expect(typeof admin.assignedAt).toBe('string');
+    });
+
+    it('should verify assignedAt timestamp is ISO 8601 format', async () => {
+      const token = generateTestToken('admin@example.com');
+      const eventData = {
+        name: 'Test Event',
+        typeOfItem: 'wine'
+      };
+
+      const mockCreatedEvent = {
+        eventId: 'TEST1234',
+        name: 'Test Event',
+        typeOfItem: 'wine',
+        state: 'created',
+        administrators: {
+          'admin@example.com': {
+            assignedAt: '2025-01-27T10:30:00.000Z',
+            owner: true
+          }
+        },
+        users: {
+          'admin@example.com': {
+            registeredAt: '2025-01-27T10:30:00.000Z'
+          }
+        },
+        pin: '123456',
+        pinGeneratedAt: '2025-01-27T10:30:00.000Z',
+        createdAt: '2025-01-27T10:30:00.000Z',
+        updatedAt: '2025-01-27T10:30:00.000Z'
+      };
+
+      eventService.createEvent.mockResolvedValue(mockCreatedEvent);
+
+      const response = await request
+        .post('/api/events')
+        .set('Authorization', `Bearer ${token}`)
+        .send(eventData)
+        .expect(201);
+
+      const assignedAt = response.body.administrators['admin@example.com'].assignedAt;
+      expect(assignedAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
+      expect(new Date(assignedAt).toISOString()).toBe(assignedAt);
+    });
+  });
+
+  describe('POST /api/events/:eventId/administrators', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should add administrator successfully', async () => {
+      const eventId = 'TEST1234';
+      const token = generateTestToken('admin@example.com');
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        administrators: {
+          'admin@example.com': {
+            assignedAt: '2025-01-27T10:30:00.000Z',
+            owner: true
+          }
+        },
+        users: {
+          'admin@example.com': {
+            registeredAt: '2025-01-27T10:30:00.000Z'
+          }
+        }
+      };
+
+      eventService.getEvent.mockResolvedValue(mockEvent);
+      eventService.addAdministrator.mockResolvedValue({
+        ...mockEvent,
+        administrators: {
+          ...mockEvent.administrators,
+          'newadmin@example.com': {
+            assignedAt: '2025-01-27T12:00:00.000Z',
+            owner: false
+          }
+        }
+      });
+
+      const response = await request
+        .post(`/api/events/${eventId}/administrators`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ email: 'newadmin@example.com' })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('administrators');
+      expect(response.body.administrators['newadmin@example.com']).toBeDefined();
+      expect(response.body.administrators['newadmin@example.com'].owner).toBe(false);
+    });
+
+    it('should return 400 for duplicate administrator', async () => {
+      const eventId = 'TEST1234';
+      const token = generateTestToken('admin@example.com');
+
+      eventService.addAdministrator.mockRejectedValue(
+        new Error('Administrator already exists')
+      );
+
+      const response = await request
+        .post(`/api/events/${eventId}/administrators`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ email: 'admin@example.com' })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('error', 'Administrator already exists');
+    });
+
+    it('should return 400 for invalid email', async () => {
+      const eventId = 'TEST1234';
+      const token = generateTestToken('admin@example.com');
+
+      eventService.addAdministrator.mockRejectedValue(
+        new Error('Invalid email address')
+      );
+
+      const response = await request
+        .post(`/api/events/${eventId}/administrators`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ email: 'invalid-email' })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('error', 'Invalid email address');
+    });
+
+    it('should return 403 for unauthorized access', async () => {
+      const eventId = 'TEST1234';
+      const token = generateTestToken('unauthorized@example.com');
+
+      eventService.addAdministrator.mockRejectedValue(
+        new Error('Unauthorized: Only administrators can add administrators')
+      );
+
+      const response = await request
+        .post(`/api/events/${eventId}/administrators`)
+        .set('Authorization', `Bearer ${token}`)
+        .send({ email: 'newadmin@example.com' })
+        .expect(403);
+
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('Unauthorized');
+    });
+  });
+
+  describe('DELETE /api/events/:eventId/administrators/:email', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should delete administrator successfully', async () => {
+      const eventId = 'TEST1234';
+      const token = generateTestToken('admin@example.com');
+      const emailToDelete = 'other@example.com';
+
+      eventService.deleteAdministrator.mockResolvedValue({
+        eventId,
+        administrators: {
+          'admin@example.com': {
+            assignedAt: '2025-01-27T10:30:00.000Z',
+            owner: true
+          }
+        }
+      });
+
+      const response = await request
+        .delete(`/api/events/${eventId}/administrators/${encodeURIComponent(emailToDelete)}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(response.body).toHaveProperty('success', true);
+      expect(eventService.deleteAdministrator).toHaveBeenCalledWith(
+        eventId,
+        emailToDelete,
+        'admin@example.com'
+      );
+    });
+
+    it('should return 400 for owner deletion prevention', async () => {
+      const eventId = 'TEST1234';
+      const token = generateTestToken('admin@example.com');
+      const ownerEmail = 'admin@example.com';
+
+      eventService.deleteAdministrator.mockRejectedValue(
+        new Error('Cannot delete owner: The original administrator cannot be removed')
+      );
+
+      const response = await request
+        .delete(`/api/events/${eventId}/administrators/${encodeURIComponent(ownerEmail)}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(400);
+
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('Cannot delete owner');
+    });
+
+    it('should return 403 for unauthorized access', async () => {
+      const eventId = 'TEST1234';
+      const token = generateTestToken('unauthorized@example.com');
+      const emailToDelete = 'other@example.com';
+
+      eventService.deleteAdministrator.mockRejectedValue(
+        new Error('Unauthorized: Only administrators can delete administrators')
+      );
+
+      const response = await request
+        .delete(`/api/events/${eventId}/administrators/${encodeURIComponent(emailToDelete)}`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('Unauthorized');
+    });
+  });
+
+  describe('GET /api/events/:eventId/administrators', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should return administrators list successfully', async () => {
+      const eventId = 'TEST1234';
+      const token = generateTestToken('admin@example.com');
+      const mockAdministrators = {
+        'admin@example.com': {
+          assignedAt: '2025-01-27T10:30:00.000Z',
+          owner: true
+        },
+        'other@example.com': {
+          assignedAt: '2025-01-27T11:00:00.000Z',
+          owner: false
+        }
+      };
+
+      eventService.getAdministrators.mockResolvedValue(mockAdministrators);
+
+      const response = await request
+        .get(`/api/events/${eventId}/administrators`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(200);
+
+      expect(response.body).toHaveProperty('administrators');
+      expect(response.body.administrators).toEqual(mockAdministrators);
+      expect(eventService.getAdministrators).toHaveBeenCalledWith(eventId, 'admin@example.com');
+    });
+
+    it('should return 403 for unauthorized access', async () => {
+      const eventId = 'TEST1234';
+      const token = generateTestToken('unauthorized@example.com');
+
+      eventService.getAdministrators.mockRejectedValue(
+        new Error('Unauthorized: Only administrators can view administrators list')
+      );
+
+      const response = await request
+        .get(`/api/events/${eventId}/administrators`)
+        .set('Authorization', `Bearer ${token}`)
+        .expect(403);
+
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('Unauthorized');
     });
   });
 });

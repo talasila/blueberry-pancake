@@ -47,10 +47,21 @@ function AdminRoute({ children }) {
       return null;
     };
 
-    // Case-insensitive email comparison
+    // Check if user is in administrators object (case-insensitive)
     const userEmail = getUserEmail();
-    const adminEmail = event.administrator?.toLowerCase();
-    const isAdministrator = userEmail && adminEmail && userEmail === adminEmail;
+    let isAdministrator = false;
+    
+    if (userEmail && event.administrators) {
+      // Check if user email exists in administrators object (case-insensitive)
+      const normalizedUserEmail = userEmail.toLowerCase();
+      isAdministrator = Object.keys(event.administrators).some(
+        adminEmail => adminEmail.toLowerCase() === normalizedUserEmail
+      );
+    } else if (userEmail && event.administrator) {
+      // Fallback: support old administrator field for backward compatibility
+      const adminEmail = event.administrator?.toLowerCase();
+      isAdministrator = userEmail === adminEmail;
+    }
 
     setIsAdmin(isAdministrator);
     setIsChecking(false);
@@ -59,7 +70,7 @@ function AdminRoute({ children }) {
   // Show loading state while checking
   if (isChecking || eventLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
         <div className="flex flex-col items-center gap-4">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           <div className="text-muted-foreground">Checking permissions...</div>

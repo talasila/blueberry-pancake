@@ -1,0 +1,301 @@
+openapi: 3.0.3
+info:
+  title: Event Administrators API
+  description: API for managing event administrators
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+  - url: https://api.example.com/api
+    description: Production server
+
+tags:
+  - name: administrators
+    description: Event administrator management operations
+
+paths:
+  /events/{eventId}/administrators:
+    get:
+      summary: Get list of administrators for an event
+      description: |
+        Returns the list of all administrators for the specified event, including email addresses,
+        assignment dates, and owner designation. Only authenticated administrators can access this endpoint.
+      tags:
+        - administrators
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+      responses:
+        '200':
+          description: Administrators list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - administrators
+                properties:
+                  administrators:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/Administrator'
+                    description: Object with email addresses as keys, each containing administrator data
+                    example:
+                      owner@example.com:
+                        assignedAt: "2025-01-27T10:30:00.000Z"
+                        owner: true
+                      admin2@example.com:
+                        assignedAt: "2025-01-27T11:00:00.000Z"
+                        owner: false
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authentication required"
+        '403':
+          description: Forbidden - user is not an administrator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Only administrators can view administrators list"
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Event not found"
+    post:
+      summary: Add a new administrator to an event
+      description: |
+        Adds a new administrator to the specified event by email address. The new administrator
+        is automatically added to the users section. Only existing administrators can add new administrators.
+        One administrator can be added at a time (no bulk operations).
+      tags:
+        - administrators
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email address of the new administrator
+                  example: "admin2@example.com"
+      responses:
+        '200':
+          description: Administrator added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - administrators
+                properties:
+                  administrators:
+                    type: object
+                    additionalProperties:
+                      $ref: '#/components/schemas/Administrator'
+                    description: Updated administrators object
+                    example:
+                      owner@example.com:
+                        assignedAt: "2025-01-27T10:30:00.000Z"
+                        owner: true
+                      admin2@example.com:
+                        assignedAt: "2025-01-27T11:00:00.000Z"
+                        owner: false
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                emailRequired:
+                  value:
+                    error: "Email address is required"
+                emailInvalidFormat:
+                  value:
+                    error: "Invalid email address format"
+                duplicateAdministrator:
+                  value:
+                    error: "Administrator already exists"
+                selfAddition:
+                  value:
+                    error: "You are already an administrator"
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authentication required"
+        '403':
+          description: Forbidden - user is not an administrator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Only administrators can add administrators"
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Event not found"
+  /events/{eventId}/administrators/{email}:
+    delete:
+      summary: Delete an administrator from an event
+      description: |
+        Removes an administrator from the specified event. The administrator is also removed from
+        the users section. The owner (original administrator) cannot be deleted. At least one
+        administrator (the owner) must always remain. Only existing administrators can delete other administrators.
+      tags:
+        - administrators
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+        - name: email
+          in: path
+          required: true
+          schema:
+            type: string
+            format: email
+          description: Email address of the administrator to delete
+          example: "admin2@example.com"
+      responses:
+        '200':
+          description: Administrator deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - success
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: "Administrator deleted successfully"
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ownerDeletion:
+                  value:
+                    error: "Cannot delete owner: The original administrator cannot be removed"
+                lastAdministrator:
+                  value:
+                    error: "Cannot delete last administrator: At least one administrator must remain"
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authentication required"
+        '403':
+          description: Forbidden - user is not an administrator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Only administrators can delete administrators"
+        '404':
+          description: Event not found or administrator not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                eventNotFound:
+                  value:
+                    error: "Event not found"
+                administratorNotFound:
+                  value:
+                    error: "Administrator not found"
+
+components:
+  schemas:
+    Administrator:
+      type: object
+      required:
+        - assignedAt
+        - owner
+      properties:
+        assignedAt:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when administrator was assigned
+          example: "2025-01-27T10:30:00.000Z"
+        owner:
+          type: boolean
+          description: Flag indicating if this is the original administrator (event creator)
+          example: true
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "An error occurred"
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from OTP authentication

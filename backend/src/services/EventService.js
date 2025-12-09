@@ -113,13 +113,29 @@ class EventService {
     const pin = pinService.generatePIN();
     const now = new Date().toISOString();
 
-    // Create event object
+    // Normalize administrator email
+    const normalizedAdminEmail = this.normalizeEmail(administratorEmail);
+    if (!this.isValidEmail(normalizedAdminEmail)) {
+      throw new Error('Invalid administrator email format');
+    }
+
+    // Create event object with administrators object structure
     const event = {
       eventId,
       name: nameValidation.value,
       typeOfItem,
       state: 'created',
-      administrator: administratorEmail,
+      administrators: {
+        [normalizedAdminEmail]: {
+          assignedAt: now,
+          owner: true
+        }
+      },
+      users: {
+        [normalizedAdminEmail]: {
+          registeredAt: now
+        }
+      },
       pin,
       pinGeneratedAt: now,
       createdAt: now,
@@ -195,6 +211,14 @@ class EventService {
     try {
       // Retrieve event from data repository
       const event = await dataRepository.getEvent(eventId);
+      
+      // Lazy migration: migrate administrator field if needed
+      if (this.migrateAdministratorField(event)) {
+        // Save migrated event
+        await dataRepository.writeEventConfig(eventId, event);
+        loggerService.info(`Migrated administrator field to administrators object for event: ${eventId}`);
+      }
+      
       return event;
     } catch (error) {
       // If event not found, throw with clear message
@@ -203,6 +227,33 @@ class EventService {
       }
       // Re-throw other errors
       loggerService.error(`Error retrieving event ${eventId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Update event configuration
+   * @param {string} eventId - Event identifier
+   * @param {object} event - Updated event object
+   * @returns {Promise<object>} Updated event data
+   */
+  async updateEvent(eventId, event) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    // Update updatedAt timestamp
+    event.updatedAt = new Date().toISOString();
+
+    try {
+      // Write updated event configuration
+      await dataRepository.writeEventConfig(eventId, event);
+      loggerService.info(`Event updated: ${eventId}`);
+      return event;
+    } catch (error) {
+      loggerService.error(`Error updating event ${eventId}: ${error.message}`, error);
       throw error;
     }
   }
@@ -261,7 +312,7 @@ class EventService {
         };
 
         // Persist updated event
-        await dataRepository.writeEventConfig(eventId, updatedEvent);
+        await this.updateEvent(eventId, updatedEvent);
         
         loggerService.info(`User registered for event: ${eventId}, email: ${normalizedEmail}, registeredAt: ${registrationTimestamp}`);
       } else {
@@ -290,6 +341,273 @@ class EventService {
   }
 
   /**
+   * Migrate administrator field from string to administrators object structure
+   * @param {object} event - Event object
+   * @returns {boolean} True if migration occurred, false otherwise
+   */
+  migrateAdministratorField(event) {
+    if (event.administrator && !event.administrators) {
+      const normalizedEmail = this.normalizeEmail(event.administrator);
+      event.administrators = {
+        [normalizedEmail]: {
+          assignedAt: event.createdAt || new Date().toISOString(),
+          owner: true
+        }
+      };
+      delete event.administrator;
+      return true; // Indicates migration occurred
+    }
+    return false; // No migration needed
+  }
+
+  /**
+   * Check if a user is an administrator for an event
+   * @param {object} event - Event object
+   * @param {string} email - Email address to check
+   * @returns {boolean} True if user is an administrator
+   */
+  isAdministrator(event, email) {
+    if (!event || !email) {
+      return false;
+    }
+    // Migrate if needed
+    this.migrateAdministratorField(event);
+    const normalizedEmail = this.normalizeEmail(email);
+    return event.administrators && event.administrators[normalizedEmail] !== undefined;
+  }
+
+  /**
+   * Check if a user is the owner of an event
+   * @param {object} event - Event object
+   * @param {string} email - Email address to check
+   * @returns {boolean} True if user is the owner
+   */
+  isOwner(event, email) {
+    if (!event || !email) {
+      return false;
+    }
+    // Migrate if needed
+    this.migrateAdministratorField(event);
+    const normalizedEmail = this.normalizeEmail(email);
+    return event.administrators && 
+           event.administrators[normalizedEmail] && 
+           event.administrators[normalizedEmail].owner === true;
+  }
+
+  /**
+   * Normalize email address (lowercase and trim)
+   * @param {string} email - Email address
+   * @returns {string} Normalized email address
+   */
+  normalizeEmail(email) {
+    if (!email || typeof email !== 'string') {
+      return '';
+    }
+    return email.trim().toLowerCase();
+  }
+
+  /**
+   * Validate email format
+   * @param {string} email - Email address to validate
+   * @returns {boolean} True if email format is valid
+   */
+  isValidEmail(email) {
+    if (!email || typeof email !== 'string') {
+      return false;
+    }
+    const normalizedEmail = this.normalizeEmail(email);
+    if (normalizedEmail.length === 0) {
+      return false;
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(normalizedEmail);
+  }
+
+  /**
+   * Get administrators list for an event
+   * @param {string} eventId - Event identifier
+   * @param {string} requesterEmail - Email of the requester (must be an existing administrator)
+   * @returns {Promise<object>} Administrators object
+   */
+  async getAdministrators(eventId, requesterEmail) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    if (!requesterEmail || typeof requesterEmail !== 'string') {
+      throw new Error('Requester email is required');
+    }
+
+    // Get current event (lazy migration happens in getEvent)
+    const event = await this.getEvent(eventId);
+
+    // Validate requester is administrator
+    if (!this.isAdministrator(event, requesterEmail)) {
+      throw new Error('Unauthorized: Only administrators can view administrators list');
+    }
+
+    // Return administrators object
+    return event.administrators || {};
+  }
+
+  /**
+   * Add a new administrator to an event
+   * @param {string} eventId - Event identifier
+   * @param {string} newAdminEmail - Email of the new administrator to add
+   * @param {string} requesterEmail - Email of the requester (must be an existing administrator)
+   * @returns {Promise<object>} Updated event with new administrator
+   */
+  async addAdministrator(eventId, newAdminEmail, requesterEmail) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    if (!newAdminEmail || typeof newAdminEmail !== 'string') {
+      throw new Error('Email address is required');
+    }
+
+    // Trim email before validation
+    const trimmedEmail = newAdminEmail.trim();
+    if (trimmedEmail.length === 0) {
+      throw new Error('Email address cannot be empty');
+    }
+
+    if (!requesterEmail || typeof requesterEmail !== 'string') {
+      throw new Error('Requester email is required');
+    }
+
+    // Get current event (lazy migration happens in getEvent)
+    const event = await this.getEvent(eventId);
+
+    // Validate requester is administrator
+    if (!this.isAdministrator(event, requesterEmail)) {
+      throw new Error('Unauthorized: Only administrators can add administrators');
+    }
+
+    // Validate and normalize email (trimming already done above)
+    const normalizedEmail = this.normalizeEmail(trimmedEmail);
+    if (!this.isValidEmail(normalizedEmail)) {
+      throw new Error('Invalid email address format. Please provide a valid email address.');
+    }
+
+    // Check for duplicates
+    if (event.administrators[normalizedEmail]) {
+      throw new Error(`Administrator with email ${normalizedEmail} already exists for this event.`);
+    }
+
+    // Initialize administrators and users if needed
+    if (!event.administrators) {
+      event.administrators = {};
+    }
+    if (!event.users) {
+      event.users = {};
+    }
+
+    const now = new Date().toISOString();
+
+    // Add to administrators object
+    event.administrators[normalizedEmail] = {
+      assignedAt: now,
+      owner: false
+    };
+
+    // Add to users section if not already present
+    if (!event.users[normalizedEmail]) {
+      event.users[normalizedEmail] = {
+        registeredAt: now
+      };
+    }
+
+    // Atomic update: save both administrators and users together
+    await this.updateEvent(eventId, event);
+
+    loggerService.info(`Administrator added to event ${eventId}: ${normalizedEmail} by ${requesterEmail}`, {
+      eventId,
+      newAdministrator: normalizedEmail,
+      requester: requesterEmail
+    });
+    return event;
+  }
+
+  /**
+   * Delete an administrator from an event
+   * @param {string} eventId - Event identifier
+   * @param {string} emailToDelete - Email of the administrator to delete
+   * @param {string} requesterEmail - Email of the requester (must be an existing administrator)
+   * @returns {Promise<object>} Updated event with administrator removed
+   */
+  async deleteAdministrator(eventId, emailToDelete, requesterEmail) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    if (!emailToDelete || typeof emailToDelete !== 'string') {
+      throw new Error('Email address is required');
+    }
+
+    // Trim email before processing
+    const trimmedEmail = emailToDelete.trim();
+    if (trimmedEmail.length === 0) {
+      throw new Error('Email address cannot be empty');
+    }
+
+    if (!requesterEmail || typeof requesterEmail !== 'string') {
+      throw new Error('Requester email is required');
+    }
+
+    // Get current event (lazy migration happens in getEvent)
+    const event = await this.getEvent(eventId);
+
+    // Validate requester is administrator
+    if (!this.isAdministrator(event, requesterEmail)) {
+      throw new Error('Unauthorized: Only administrators can delete administrators');
+    }
+
+    // Normalize email (trimming already done above)
+    const normalizedEmail = this.normalizeEmail(trimmedEmail);
+
+    // Check if target administrator exists
+    if (!event.administrators[normalizedEmail]) {
+      throw new Error(`Administrator with email ${normalizedEmail} not found for this event.`);
+    }
+
+    // Check if target is owner (prevent deletion)
+    if (this.isOwner(event, normalizedEmail)) {
+      throw new Error('Cannot delete owner: The original administrator cannot be removed');
+    }
+
+    // Check if this would leave no administrators
+    const adminCount = Object.keys(event.administrators).length;
+    if (adminCount <= 1) {
+      throw new Error('Cannot delete last administrator: At least one administrator must remain');
+    }
+
+    // Remove from administrators object
+    delete event.administrators[normalizedEmail];
+
+    // Remove from users section
+    if (event.users && event.users[normalizedEmail]) {
+      delete event.users[normalizedEmail];
+    }
+
+    // Atomic update: save both administrators and users together
+    await this.updateEvent(eventId, event);
+
+    loggerService.info(`Administrator deleted from event ${eventId}: ${normalizedEmail} by ${requesterEmail}`, {
+      eventId,
+      deletedAdministrator: normalizedEmail,
+      requester: requesterEmail
+    });
+    return event;
+  }
+
+  /**
    * Regenerate PIN for an event
    * @param {string} eventId - Event identifier
    * @param {string} administratorEmail - Email of the administrator requesting regeneration
@@ -307,14 +625,12 @@ class EventService {
     }
 
     try {
-      // Get current event
-      const event = await dataRepository.getEvent(eventId);
+      // Get current event (lazy migration happens in getEvent)
+      const event = await this.getEvent(eventId);
 
       // Verify administrator (case-insensitive email comparison)
-      const eventAdminEmail = event.administrator?.toLowerCase();
-      const requestAdminEmail = administratorEmail.toLowerCase();
-
-      if (eventAdminEmail !== requestAdminEmail) {
+      const normalizedRequestEmail = this.normalizeEmail(administratorEmail);
+      if (!this.isAdministrator(event, normalizedRequestEmail)) {
         throw new Error('Only the event administrator can regenerate PINs');
       }
 
@@ -330,8 +646,8 @@ class EventService {
         updatedAt: now
       };
 
-      // Persist updated event using writeEventConfig
-      await dataRepository.writeEventConfig(eventId, updatedEvent);
+      // Persist updated event using updateEvent method
+      await this.updateEvent(eventId, updatedEvent);
 
       // Invalidate all existing PIN sessions for this event
       pinService.invalidatePINSessions(eventId);

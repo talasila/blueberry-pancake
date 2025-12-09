@@ -298,6 +298,35 @@ class ApiClient {
   async regeneratePIN(eventId) {
     return this.post(`/events/${eventId}/regenerate-pin`, {});
   }
+
+  /**
+   * Get administrators list for an event
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<any>} Response data with administrators object
+   */
+  async getAdministrators(eventId) {
+    return this.get(`/events/${eventId}/administrators`);
+  }
+
+  /**
+   * Add administrator to an event
+   * @param {string} eventId - Event identifier
+   * @param {string} email - Email address of the new administrator
+   * @returns {Promise<any>} Response data with updated administrators object
+   */
+  async addAdministrator(eventId, email) {
+    return this.post(`/events/${eventId}/administrators`, { email });
+  }
+
+  /**
+   * Delete administrator from an event
+   * @param {string} eventId - Event identifier
+   * @param {string} email - Email address of the administrator to delete
+   * @returns {Promise<any>} Response data
+   */
+  async deleteAdministrator(eventId, email) {
+    return this.delete(`/events/${eventId}/administrators/${encodeURIComponent(email)}`);
+  }
 }
 
 // Export singleton instance

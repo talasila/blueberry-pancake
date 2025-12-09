@@ -55,8 +55,19 @@ function EventRouteWrapper({ children }) {
   };
 
   const userEmail = getUserId();
-  const adminEmail = currentEvent?.administrator?.toLowerCase();
-  const isAdmin = userEmail && adminEmail && userEmail === adminEmail;
+  let isAdmin = false;
+  
+  if (userEmail && currentEvent?.administrators) {
+    // Check if user email exists in administrators object (case-insensitive)
+    const normalizedUserEmail = userEmail.toLowerCase();
+    isAdmin = Object.keys(currentEvent.administrators).some(
+      adminEmail => adminEmail.toLowerCase() === normalizedUserEmail
+    );
+  } else if (userEmail && currentEvent?.administrator) {
+    // Fallback: support old administrator field for backward compatibility
+    const adminEmail = currentEvent.administrator?.toLowerCase();
+    isAdmin = userEmail === adminEmail;
+  }
 
   return (
     <EventContextProvider event={currentEvent} eventId={eventId} isAdmin={isAdmin}>
@@ -92,9 +103,9 @@ function AppLayout() {
   const eventId = eventIdMatch ? eventIdMatch[1] : null;
   
   const content = (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen bg-background flex flex-col overflow-hidden">
       <Header />
-      <main className="pt-16">
+      <main className="flex-1 overflow-y-auto pt-16">
         <Routes>
           {/* Public routes - no authentication required */}
           <Route path="/" element={<LandingPage />} />
@@ -220,8 +231,19 @@ function EventContextProviderForRoute({ eventId, children }) {
   };
 
   const userEmail = getUserId();
-  const adminEmail = currentEvent?.administrator?.toLowerCase();
-  const isAdmin = userEmail && adminEmail && userEmail === adminEmail;
+  let isAdmin = false;
+  
+  if (userEmail && currentEvent?.administrators) {
+    // Check if user email exists in administrators object (case-insensitive)
+    const normalizedUserEmail = userEmail.toLowerCase();
+    isAdmin = Object.keys(currentEvent.administrators).some(
+      adminEmail => adminEmail.toLowerCase() === normalizedUserEmail
+    );
+  } else if (userEmail && currentEvent?.administrator) {
+    // Fallback: support old administrator field for backward compatibility
+    const adminEmail = currentEvent.administrator?.toLowerCase();
+    isAdmin = userEmail === adminEmail;
+  }
 
   return (
     <EventContextProvider event={currentEvent} eventId={eventId} isAdmin={isAdmin}>

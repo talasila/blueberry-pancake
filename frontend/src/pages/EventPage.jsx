@@ -142,7 +142,7 @@ function EventPage() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
         <div className="flex flex-col items-center gap-4">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           <div className="text-muted-foreground">Loading event...</div>
@@ -154,7 +154,7 @@ function EventPage() {
   // Error state
   if (error && !event) {
     return (
-      <div className="flex items-center justify-center min-h-screen px-4">
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)] px-4">
         <div className="max-w-md w-full">
           <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6">
             <h2 className="text-lg font-semibold text-destructive mb-2">Error</h2>
@@ -172,14 +172,14 @@ function EventPage() {
   // Event data loaded
   if (!event) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
         <div className="text-muted-foreground">No event data available</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-8">
+    <div className="px-4 sm:px-6 lg:px-8 py-8">
       <div className="max-w-md mx-auto w-full">
         <div className="space-y-6">
           <div className="bg-card border border-border rounded-lg p-6 space-y-4">

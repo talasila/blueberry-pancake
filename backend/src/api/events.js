@@ -211,12 +211,12 @@ router.get('/:eventId', requirePINOrAuth, async (req, res) => {
       });
     }
 
-    // Get event using EventService
+    // Get event using EventService (lazy migration happens in getEvent)
     const event = await eventService.getEvent(eventId);
 
     // Remove PIN from response for non-administrators (only return PIN if user is administrator via JWT)
     const isAdministrator = req.user?.email && 
-      event.administrator?.toLowerCase() === req.user.email.toLowerCase();
+      eventService.isAdministrator(event, req.user.email);
     
     if (!isAdministrator) {
       // Remove PIN from response
@@ -254,6 +254,187 @@ router.get('/:eventId', requirePINOrAuth, async (req, res) => {
     res.status(500).json({
       error: 'Failed to retrieve event. Please try again.',
       ...(isDevelopment && { details: error.message, stack: error.stack })
+    });
+  }
+});
+
+/**
+ * GET /api/events/:eventId/administrators
+ * Get list of administrators for an event
+ * Requires OTP authentication (JWT token) and administrator authorization
+ */
+router.get('/:eventId/administrators', requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const requesterEmail = req.user?.email;
+
+    if (!requesterEmail) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
+    }
+
+    // Validate event ID format
+    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+      return res.status(400).json({
+        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
+      });
+    }
+
+    // Get administrators
+    const administrators = await eventService.getAdministrators(eventId, requesterEmail);
+
+    res.json({ administrators });
+  } catch (error) {
+    loggerService.error(`Get administrators error: ${error.message}`, error).catch(() => {});
+    
+    // Handle event not found
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Handle authorization errors
+    if (error.message.includes('Unauthorized')) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    // Handle server errors
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: 'Failed to retrieve administrators. Please try again.',
+      ...(isDevelopment && { details: error.message })
+    });
+  }
+});
+
+/**
+ * POST /api/events/:eventId/administrators
+ * Add a new administrator to an event
+ * Requires OTP authentication (JWT token) and administrator authorization
+ */
+router.post('/:eventId/administrators', requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { email } = req.body;
+    const requesterEmail = req.user?.email;
+
+    if (!requesterEmail) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
+    }
+
+    if (!email || typeof email !== 'string' || !email.trim()) {
+      return res.status(400).json({
+        error: 'Email address is required'
+      });
+    }
+
+    // Validate event ID format
+    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+      return res.status(400).json({
+        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
+      });
+    }
+
+    // Add administrator
+    const event = await eventService.addAdministrator(eventId, email, requesterEmail);
+
+    res.json({ administrators: event.administrators });
+  } catch (error) {
+    loggerService.error(`Add administrator error: ${error.message}`, error).catch(() => {});
+    
+    // Handle event not found
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Handle authorization errors
+    if (error.message.includes('Unauthorized')) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    // Handle validation errors
+    if (error.message.includes('required') || 
+        error.message.includes('Invalid') ||
+        error.message.includes('already exists')) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    // Handle server errors
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: 'Failed to add administrator. Please try again.',
+      ...(isDevelopment && { details: error.message })
+    });
+  }
+});
+
+/**
+ * DELETE /api/events/:eventId/administrators/:email
+ * Delete an administrator from an event
+ * Requires OTP authentication (JWT token) and administrator authorization
+ */
+router.delete('/:eventId/administrators/:email', requireAuth, async (req, res) => {
+  try {
+    const { eventId, email } = req.params;
+    const requesterEmail = req.user?.email;
+
+    if (!requesterEmail) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
+    }
+
+    // Validate event ID format
+    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+      return res.status(400).json({
+        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
+      });
+    }
+
+    // Decode email from URL
+    const emailToDelete = decodeURIComponent(email);
+
+    if (!emailToDelete || typeof emailToDelete !== 'string' || !emailToDelete.trim()) {
+      return res.status(400).json({
+        error: 'Email address is required'
+      });
+    }
+
+    // Delete administrator
+    await eventService.deleteAdministrator(eventId, emailToDelete, requesterEmail);
+
+    res.json({ success: true });
+  } catch (error) {
+    loggerService.error(`Delete administrator error: ${error.message}`, error).catch(() => {});
+    
+    // Handle event not found
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+
+    // Handle authorization errors
+    if (error.message.includes('Unauthorized')) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    // Handle owner deletion prevention
+    if (error.message.includes('Cannot delete owner')) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    // Handle validation errors
+    if (error.message.includes('required') || 
+        error.message.includes('last administrator')) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    // Handle server errors
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: 'Failed to delete administrator. Please try again.',
+      ...(isDevelopment && { details: error.message })
     });
   }
 });

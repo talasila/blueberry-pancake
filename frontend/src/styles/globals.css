@@ -158,9 +158,14 @@
   body {
     @apply bg-background text-foreground;
   }
-  /* Ensure scrollbar doesn't appear above fixed header */
-  html {
-    overflow-y: scroll;
+  /* Prevent body from scrolling - only main content area scrolls */
+  html, body {
+    height: 100%;
+    overflow: hidden;
+  }
+  #root {
+    height: 100%;
+    overflow: hidden;
   }
   /* Prevent scrollbar from appearing above fixed header */
   header {

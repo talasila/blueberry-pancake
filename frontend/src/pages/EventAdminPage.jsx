@@ -1,11 +1,48 @@
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
-import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, RefreshCw, Copy, Check } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { ArrowLeft, RefreshCw, Copy, Check, Trash2 } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+
+/**
+ * Message component for displaying error/success messages
+ */
+function Message({ type, children, className = '' }) {
+  const isError = type === 'error';
+  return (
+    <div className={`text-sm p-3 rounded-md ${isError 
+      ? 'text-destructive bg-destructive/10' 
+      : 'text-green-600 bg-green-50 dark:bg-green-900/20'
+    } ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+/**
+ * InfoField component for displaying labeled information
+ */
+function InfoField({ label, value, className = '' }) {
+  return (
+    <div>
+      <label className="text-sm font-medium text-muted-foreground">{label}</label>
+      <p className={`mt-1 ${className}`}>{value}</p>
+    </div>
+  );
+}
+
+/**
+ * Validates email format
+ */
+function isValidEmailFormat(email) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email.trim());
+}
 
 /**
  * EventAdminPage Component
@@ -15,14 +52,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
  * 
  * Features:
  * - Displays event data
- * - Shows loading state while fetching
- * - Handles error states
- * - Placeholder for admin functionality
+ * - PIN management (regenerate, copy)
+ * - Administrators management (add, delete, view)
+ * - Shows loading and error states
  */
+
 function EventAdminPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const location = useLocation();
   const { event: contextEvent } = useEventContext();
   const { event: polledEvent } = useEventPolling(eventId);
   const [event, setEvent] = useState(contextEvent);
@@ -31,7 +68,15 @@ function EventAdminPage() {
   const [regenerateError, setRegenerateError] = useState('');
   const [regenerateSuccess, setRegenerateSuccess] = useState('');
   const [copied, setCopied] = useState(false);
-  const loadStartTimeRef = useRef(null);
+  const [administrators, setAdministrators] = useState({});
+  const [isLoadingAdministrators, setIsLoadingAdministrators] = useState(false);
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [isAddingAdmin, setIsAddingAdmin] = useState(false);
+  const [addAdminError, setAddAdminError] = useState('');
+  const [addAdminSuccess, setAddAdminSuccess] = useState('');
+  const [isDeletingAdmin, setIsDeletingAdmin] = useState(false);
+  const [deleteAdminError, setDeleteAdminError] = useState('');
+  const [deleteAdminSuccess, setDeleteAdminSuccess] = useState('');
 
   // Check for OTP authentication (JWT token) - admin pages require OTP even if accessed via PIN
   useEffect(() => {
@@ -45,22 +90,6 @@ function EventAdminPage() {
     }
   }, [eventId, navigate]);
 
-  // Performance monitoring: track page load time
-  useEffect(() => {
-    if (!loadStartTimeRef.current) {
-      loadStartTimeRef.current = performance.now();
-    }
-    
-    if (event && !isLoading) {
-      const loadTime = performance.now() - loadStartTimeRef.current;
-      if (loadTime > 2000) {
-        console.warn(`Admin page load time: ${loadTime.toFixed(2)}ms (exceeds 2s target)`);
-      } else {
-        console.log(`Admin page load time: ${loadTime.toFixed(2)}ms`);
-      }
-    }
-  }, [event, isLoading]);
-
   // Update event when context or polling updates
   useEffect(() => {
     if (polledEvent) {
@@ -72,10 +101,88 @@ function EventAdminPage() {
     }
   }, [contextEvent, polledEvent]);
 
+  // Fetch administrators list
+  const fetchAdministrators = useCallback(async () => {
+    if (!eventId) return;
+    
+    setIsLoadingAdministrators(true);
+    try {
+      const response = await apiClient.getAdministrators(eventId);
+      setAdministrators(response.administrators || {});
+    } catch (error) {
+      console.error('Failed to fetch administrators:', error);
+      // Don't show error if it's just that the endpoint doesn't exist yet
+      if (!error.message?.includes('404')) {
+        setAddAdminError('Failed to load administrators list');
+      }
+    } finally {
+      setIsLoadingAdministrators(false);
+    }
+  }, [eventId]);
+
+  // Fetch administrators list on load
+  useEffect(() => {
+    fetchAdministrators();
+  }, [fetchAdministrators]);
+
+  // Handle add administrator
+  const handleAddAdministrator = async () => {
+    const trimmedEmail = newAdminEmail.trim();
+    if (!trimmedEmail) {
+      setAddAdminError('Email address is required');
+      return;
+    }
+
+    if (!isValidEmailFormat(trimmedEmail)) {
+      setAddAdminError('Invalid email format');
+      return;
+    }
+
+    setIsAddingAdmin(true);
+    setAddAdminError('');
+    setAddAdminSuccess('');
+
+    try {
+      await apiClient.addAdministrator(eventId, trimmedEmail);
+      setNewAdminEmail('');
+      setAddAdminSuccess('Administrator added successfully');
+      setTimeout(() => setAddAdminSuccess(''), 3000);
+      
+      // Refresh administrators list
+      await fetchAdministrators();
+    } catch (error) {
+      setAddAdminError(error.message || 'Failed to add administrator. Please try again.');
+    } finally {
+      setIsAddingAdmin(false);
+    }
+  };
+
+  // Handle delete administrator
+  const handleDeleteAdministrator = async (email) => {
+    if (!email) return;
+
+    setIsDeletingAdmin(true);
+    setDeleteAdminError('');
+    setDeleteAdminSuccess('');
+
+    try {
+      await apiClient.deleteAdministrator(eventId, email);
+      setDeleteAdminSuccess('Administrator deleted successfully');
+      setTimeout(() => setDeleteAdminSuccess(''), 3000);
+      
+      // Refresh administrators list
+      await fetchAdministrators();
+    } catch (error) {
+      setDeleteAdminError(error.message || 'Failed to delete administrator. Please try again.');
+    } finally {
+      setIsDeletingAdmin(false);
+    }
+  };
+
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
         <div className="flex flex-col items-center gap-4">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
           <div className="text-muted-foreground">Loading event...</div>
@@ -87,7 +194,7 @@ function EventAdminPage() {
   // Event data loaded
   if (!event) {
     return (
-      <div className="flex items-center justify-center min-h-screen px-4">
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)] px-4">
         <div className="max-w-md w-full">
           <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-6">
             <h2 className="text-lg font-semibold text-destructive mb-2">Error</h2>
@@ -101,7 +208,7 @@ function EventAdminPage() {
   }
 
   return (
-    <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-8">
+    <div className="px-4 sm:px-6 lg:px-8 py-8">
       <div className="max-w-md mx-auto w-full">
         <div className="space-y-4">
           <div>
@@ -112,38 +219,16 @@ function EventAdminPage() {
           </div>
 
           <div className="bg-card border border-border rounded-lg p-6 space-y-4">
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Event ID</label>
-              <p className="mt-1 font-mono text-sm">{event.eventId}</p>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Name</label>
-              <p className="mt-1">{event.name}</p>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Type</label>
-              <p className="mt-1 capitalize">{event.typeOfItem}</p>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Status</label>
-              <p className="mt-1 capitalize">{event.state}</p>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Administrator</label>
-              <p className="mt-1">{event.administrator}</p>
-            </div>
-
-
+            <InfoField label="Event ID" value={event.eventId} className="font-mono text-sm" />
+            <InfoField label="Name" value={event.name} />
+            <InfoField label="Type" value={event.typeOfItem} className="capitalize" />
+            <InfoField label="Status" value={event.state} className="capitalize" />
           </div>
 
           {/* PIN Management Section */}
           <Card>
             <CardHeader>
-              <CardTitle>PIN Management</CardTitle>
+              <CardTitle>PIN</CardTitle>
               <CardDescription>
                 Share this PIN with users to grant access to this event
               </CardDescription>
@@ -182,15 +267,15 @@ function EventAdminPage() {
                   </p>
                   
                   {regenerateError && (
-                    <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md mb-4">
+                    <Message type="error" className="mb-4">
                       {regenerateError}
-                    </div>
+                    </Message>
                   )}
 
                   {regenerateSuccess && (
-                    <div className="text-sm text-green-600 bg-green-50 dark:bg-green-900/20 p-3 rounded-md mb-4">
+                    <Message type="success" className="mb-4">
                       {regenerateSuccess}
-                    </div>
+                    </Message>
                   )}
 
                   <Button
@@ -228,17 +313,128 @@ function EventAdminPage() {
             </CardContent>
           </Card>
 
+          {/* Administrators Management Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Administrators</CardTitle>
+              <CardDescription>
+                Manage administrators for this event. The owner cannot be removed.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Administrators list */}
+              {isLoadingAdministrators ? (
+                <div className="flex items-center justify-center py-4">
+                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {Object.keys(administrators).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No administrators found</p>
+                  ) : (
+                    Object.entries(administrators).map(([email, data]) => (
+                      <div key={email} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 border rounded-lg">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium break-words">{email}</span>
+                            {data.owner && (
+                              <Badge variant="outline" className="flex-shrink-0">Owner</Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Added {new Date(data.assignedAt).toLocaleDateString()}
+                          </p>
+                        </div>
+                        {!data.owner && (
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={() => {
+                              if (window.confirm(`Are you sure you want to remove ${email} as an administrator?`)) {
+                                handleDeleteAdministrator(email);
+                              }
+                            }}
+                            disabled={isDeletingAdmin}
+                            aria-label={`Delete administrator ${email}`}
+                            className="self-start sm:self-center flex-shrink-0"
+                          >
+                            <Trash2 className="h-4 w-4 text-white" />
+                          </Button>
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* Add administrator form */}
+              <div className="space-y-2 pt-4 border-t">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Add an administrator to this event
+                  </p>
+                  <Input
+                    type="email"
+                    placeholder="Enter email address"
+                    value={newAdminEmail}
+                    onChange={(e) => {
+                      setNewAdminEmail(e.target.value);
+                      setAddAdminError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !isAddingAdmin) {
+                        handleAddAdministrator();
+                      }
+                    }}
+                    disabled={isAddingAdmin}
+                    aria-label="New administrator email"
+                  />
+                </div>
+
+                {addAdminError && (
+                  <Message type="error">{addAdminError}</Message>
+                )}
+
+                {addAdminSuccess && (
+                  <Message type="success">{addAdminSuccess}</Message>
+                )}
+
+                {deleteAdminError && (
+                  <Message type="error">{deleteAdminError}</Message>
+                )}
+
+                {deleteAdminSuccess && (
+                  <Message type="success">{deleteAdminSuccess}</Message>
+                )}
+
+                <Button
+                  onClick={handleAddAdministrator}
+                  disabled={!newAdminEmail.trim() || isAddingAdmin}
+                  className="w-full"
+                >
+                  {isAddingAdmin ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    'Add Administrator'
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Navigation back to event main page */}
           <div className="flex justify-center">
-            <button
+            <Button
               onClick={() => navigate(`/event/${eventId}`)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              variant="secondary"
               aria-label="Back to event page"
-              type="button"
             >
               <ArrowLeft className="h-4 w-4" aria-hidden="true" />
               Back to Event
-            </button>
+            </Button>
           </div>
         </div>
       </div>
