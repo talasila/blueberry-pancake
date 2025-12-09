@@ -296,6 +296,26 @@ class ApiClient {
   }
 
   /**
+   * Check if an email is an administrator for an event
+   * @param {string} eventId - Event identifier
+   * @param {string} email - Email address to check
+   * @returns {Promise<{isAdmin: boolean}>} Response data with isAdmin flag
+   */
+  async checkEventAdmin(eventId, email) {
+    return this.get(`/events/${eventId}/check-admin?email=${encodeURIComponent(email)}`);
+  }
+
+  /**
+   * Update event name
+   * @param {string} eventId - Event identifier
+   * @param {string} name - New event name
+   * @returns {Promise<any>} Updated event data
+   */
+  async updateEventName(eventId, name) {
+    return this.patch(`/events/${eventId}`, { name });
+  }
+
+  /**
    * Verify PIN for an event
    * @param {string} eventId - Event identifier
    * @param {string} pin - 6-digit PIN

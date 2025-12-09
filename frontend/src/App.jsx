@@ -5,7 +5,9 @@ import AuthPage from './pages/AuthPage.jsx';
 import CreateEventPage from './pages/CreateEventPage.jsx';
 import EventPage from './pages/EventPage.jsx';
 import EventAdminPage from './pages/EventAdminPage.jsx';
+import EmailEntryPage from './pages/EmailEntryPage.jsx';
 import PINEntryPage from './pages/PINEntryPage.jsx';
+import EventOTPEntryPage from './pages/EventOTPEntryPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
@@ -24,8 +26,16 @@ import apiClient from './services/apiClient.js';
  */
 function EventRouteWrapper({ children }) {
   const { eventId } = useParams();
+  
+  // Check authentication before fetching
+  // Must have a valid (non-empty) token or session
+  const jwtToken = apiClient.getJWTToken();
+  const pinSession = eventId ? apiClient.getPINSessionId(eventId) : null;
+  const hasAuth = !!(jwtToken && jwtToken.trim()) || !!(pinSession && pinSession.trim());
+  
   const { event: initialEvent } = useEvent();
-  const { event: polledEvent } = useEventPolling(eventId);
+  // Only poll if we have authentication
+  const { event: polledEvent } = useEventPolling(hasAuth ? eventId : null);
   const [currentEvent, setCurrentEvent] = useState(initialEvent);
   
   // Update current event when initial load or polling updates
@@ -120,7 +130,12 @@ function AppLayout() {
               </ProtectedRoute>
             } 
           />
-          {/* PIN entry route - public, no authentication required */}
+          {/* Email entry route - first step, public, no authentication required */}
+          <Route 
+            path="/event/:eventId/email" 
+            element={<EmailEntryPage />} 
+          />
+          {/* PIN entry route - step 2 for regular users, public, no authentication required */}
           <Route 
             path="/event/:eventId/pin" 
             element={
@@ -128,6 +143,11 @@ function AppLayout() {
                 <PINEntryPage />
               </PINProvider>
             } 
+          />
+          {/* OTP entry route - step 2 for admins, public, no authentication required */}
+          <Route 
+            path="/event/:eventId/otp" 
+            element={<EventOTPEntryPage />} 
           />
           <Route 
             path="/event/:eventId" 
@@ -187,11 +207,30 @@ function AppLayout() {
  */
 function EventContextProviderForRoute({ eventId, children }) {
   const [currentEvent, setCurrentEvent] = useState(null);
-  const { event: polledEvent } = useEventPolling(eventId);
+  
+  // Check authentication before polling
+  // Must have a valid (non-empty) token or session
+  const jwtToken = apiClient.getJWTToken();
+  const pinSession = eventId ? apiClient.getPINSessionId(eventId) : null;
+  const hasAuth = !!(jwtToken && jwtToken.trim()) || !!(pinSession && pinSession.trim());
+  
+  // Only poll if we have authentication
+  const { event: polledEvent } = useEventPolling(hasAuth ? eventId : null);
   
   // Fetch initial event data
   useEffect(() => {
     if (!eventId) return;
+    
+    // Check authentication before attempting to fetch
+    // Must have a valid (non-empty) token or session
+    const jwtToken = apiClient.getJWTToken();
+    const pinSession = apiClient.getPINSessionId(eventId);
+    const hasAuth = !!(jwtToken && jwtToken.trim()) || !!(pinSession && pinSession.trim());
+    
+    if (!hasAuth) {
+      // Don't fetch if no authentication - let the page component handle redirect
+      return;
+    }
     
     const fetchEvent = async () => {
       try {

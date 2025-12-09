@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Settings } from 'lucide-react';
+import { ArrowLeft, Settings, LogOut } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import apiClient from '@/services/apiClient';
 import { useEventContext } from '@/contexts/EventContext';
@@ -42,6 +42,32 @@ function ProfilePage() {
     if (eventId) {
       navigate(`/event/${eventId}/admin`);
     }
+  };
+
+  const handleLogout = () => {
+    // Clear JWT token
+    apiClient.clearJWTToken();
+    
+    // Clear PIN session for current event if it exists
+    if (eventId) {
+      localStorage.removeItem(`pin:session:${eventId}`);
+      // Clear email from sessionStorage
+      sessionStorage.removeItem(`event:${eventId}:email`);
+    }
+    
+    // Clear all PIN sessions (in case user was logged into multiple events)
+    // Iterate through localStorage keys and remove all pin:session:* items
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('pin:session:')) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    // Navigate to landing page
+    navigate('/', { replace: true });
   };
 
   // Extract user email from JWT token or get from event user data
@@ -112,6 +138,16 @@ function ProfilePage() {
                 Admin
               </Button>
             )}
+            {/* Logout button */}
+            <Button
+              variant="ghost"
+              onClick={handleLogout}
+              className="-ml-2 min-h-[44px] active:bg-accent active:opacity-70 touch-manipulation"
+              aria-label="Logout"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Logout
+            </Button>
           </div>
 
           <Card>

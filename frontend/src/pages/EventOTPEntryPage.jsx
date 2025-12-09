@@ -1,8 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
 import {
   InputOTP,
   InputOTPGroup,
@@ -12,99 +11,104 @@ import {
 import apiClient from '@/services/apiClient';
 
 /**
- * PINEntryPage Component
+ * EventOTPEntryPage Component
  * 
- * Handles PIN-based event access (Step 2 for regular users):
+ * Handles OTP-based event access for administrators (Step 2 for admins):
  * 1. Gets email from previous step (sessionStorage)
- * 2. User enters 6-digit PIN for the event
- * 3. On success, user is registered for the event and granted access
- * 4. Stores PIN session and redirects to event page
+ * 2. Requests OTP code
+ * 3. User enters 6-digit OTP code
+ * 4. On success, stores JWT token and redirects to event page
  */
-function PINEntryPage() {
+function EventOTPEntryPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
   
   const [email, setEmail] = useState('');
-  const [pin, setPin] = useState('');
+  const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
+  const [requestingOTP, setRequestingOTP] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [otpRequested, setOtpRequested] = useState(false);
 
-  // Get email from sessionStorage (set in EmailEntryPage)
+  /**
+   * Request OTP code
+   */
+  const requestOTP = useCallback(async (emailToUse) => {
+    if (!emailToUse) {
+      return; // Can't request OTP without email
+    }
+    
+    setRequestingOTP(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      const response = await apiClient.requestOTP(emailToUse);
+      // Use the message from the response (includes OTP in dev mode)
+      setSuccess(response.message || 'OTP code has been sent to your email. Please check your inbox.');
+      setOtpRequested(true);
+    } catch (err) {
+      // Show user-friendly error message
+      const errorMessage = err.message || 'Unable to send OTP code. Please check your email address and try again.';
+      setError(errorMessage);
+    } finally {
+      setRequestingOTP(false);
+    }
+  }, []);
+
+  // Get email from sessionStorage (set in EmailEntryPage) and auto-request OTP
   useEffect(() => {
     const storedEmail = sessionStorage.getItem(`event:${eventId}:email`);
     if (storedEmail) {
       setEmail(storedEmail);
+      // Automatically request OTP when email is available
+      requestOTP(storedEmail);
     } else {
       // If no email found, redirect back to email entry
       navigate(`/event/${eventId}/email`, { replace: true });
     }
-  }, [eventId, navigate]);
+  }, [eventId, navigate, requestOTP]);
 
   /**
-   * Handle PIN verification
+   * Handle OTP verification
    */
-  const handleVerifyPIN = async (e) => {
+  const handleVerifyOTP = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
-    
-    // Validate email (should already be set from previous step)
-    if (!email || !email.trim()) {
-      setError('Email address is required. Please go back and enter your email.');
-      return;
-    }
-    
-    // Validate PIN
-    if (pin.length !== 6) {
-      setError('PIN must be exactly 6 digits');
-      return;
-    }
-    
     setLoading(true);
 
     try {
-      const response = await apiClient.verifyPIN(eventId, pin, email.trim());
+      const response = await apiClient.verifyOTP(email, otp);
       
-      // Store PIN session ID in localStorage
-      if (response.sessionId) {
-        localStorage.setItem(`pin:session:${eventId}`, response.sessionId);
+      // Store JWT token in localStorage
+      if (response.token) {
+        localStorage.setItem('jwtToken', response.token);
+        apiClient.setJWTToken(response.token);
       }
 
       // Clear email from sessionStorage
       sessionStorage.removeItem(`event:${eventId}:email`);
 
-      setSuccess('PIN verified successfully! Redirecting...');
+      setSuccess('Authentication successful! Redirecting...');
       
       // Redirect to event page
       setTimeout(() => {
         navigate(`/event/${eventId}`, { replace: true });
       }, 1000);
     } catch (err) {
-      // Show user-friendly error message with better context
-      let errorMessage = 'Invalid PIN. Please check the PIN and try again.';
-      
-      if (err.message) {
-        if (err.message.includes('Too many attempts')) {
-          errorMessage = err.message;
-        } else if (err.message.includes('not found')) {
-          errorMessage = 'Event not found. Please check the event ID.';
-        } else if (err.message.includes('must be exactly 6 digits')) {
-          errorMessage = 'PIN must be exactly 6 digits.';
-        } else if (err.message.includes('email')) {
-          errorMessage = err.message;
-        } else if (err.message.includes('Network error') || err.message.includes('Failed to fetch')) {
-          errorMessage = 'Unable to connect to the server. Please check your connection and try again.';
-        } else {
-          errorMessage = err.message;
-        }
-      }
-      
+      // Show user-friendly error message
+      const errorMessage = err.message || 'Invalid OTP code. Please check the code and try again.';
       setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
+
+  if (!email) {
+    return null; // Will redirect in useEffect
+  }
 
   return (
     <div className="w-full">
@@ -112,9 +116,9 @@ function PINEntryPage() {
         <div className="w-full max-w-md">
           <Card>
             <CardHeader>
-              <CardTitle>Enter PIN</CardTitle>
+              <CardTitle>Admin Authentication</CardTitle>
               <CardDescription>
-                Enter the 6-digit PIN to access this event
+                Enter the 6-digit OTP code sent to your email
                 {email && (
                   <span className="block mt-1 text-sm text-muted-foreground">
                     Email: {email}
@@ -123,17 +127,20 @@ function PINEntryPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleVerifyPIN}>
+              <form onSubmit={handleVerifyOTP}>
                 <div className="space-y-4">
-                  {/* PIN input */}
+                  {/* OTP input */}
                   <div>
-                    <Label htmlFor="pin">Event PIN</Label>
-                    <div className="flex justify-center mt-1">
+                    <label htmlFor="otp" className="sr-only">
+                      OTP code
+                    </label>
+                    <div className="flex justify-center">
                       <InputOTP
                         maxLength={6}
-                        value={pin}
-                        onChange={(value) => setPin(value)}
-                        disabled={loading}
+                        value={otp}
+                        onChange={(value) => setOtp(value)}
+                        disabled={loading || requestingOTP}
+                        autoFocus
                       >
                         <InputOTPGroup>
                           <InputOTPSlot index={0} />
@@ -167,6 +174,22 @@ function PINEntryPage() {
                     </div>
                   )}
 
+                  {/* Resend OTP button */}
+                  {otpRequested && (
+                    <div className="text-center">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => requestOTP(email)}
+                        disabled={requestingOTP || loading}
+                        className="text-sm"
+                      >
+                        {requestingOTP ? 'Sending...' : "Didn't receive code? Resend OTP"}
+                      </Button>
+                    </div>
+                  )}
+
                   {/* Action buttons */}
                   <div className="flex gap-2">
                     <Button
@@ -176,19 +199,19 @@ function PINEntryPage() {
                         sessionStorage.removeItem(`event:${eventId}:email`);
                         navigate(`/event/${eventId}/email`, { replace: true });
                       }}
-                      disabled={loading}
+                      disabled={loading || requestingOTP}
                       className="flex-1"
                     >
                       Back
                     </Button>
                     <Button
                       type="submit"
-                      disabled={loading || pin.length !== 6 || !email.trim()}
+                      disabled={loading || requestingOTP || otp.length !== 6}
                       className="flex-1"
                     >
                       {loading 
                         ? 'Verifying...' 
-                        : 'Access Event'}
+                        : 'Verify OTP'}
                     </Button>
                   </div>
                 </div>
@@ -201,4 +224,5 @@ function PINEntryPage() {
   );
 }
 
-export default PINEntryPage;
+export default EventOTPEntryPage;
+

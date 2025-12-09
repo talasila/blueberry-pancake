@@ -28,12 +28,38 @@ function useEventPolling(eventId, intervalMs = 30000) {
       return;
     }
 
+    // Check authentication before attempting to fetch - CRITICAL: must check every time
+    // Must have a valid (non-empty) token or session
+    const jwtToken = apiClient.getJWTToken();
+    const pinSession = apiClient.getPINSessionId(eventId);
+    const hasAuth = !!(jwtToken && jwtToken.trim()) || !!(pinSession && pinSession.trim());
+    
+    if (!hasAuth) {
+      // Don't fetch if no authentication - stop polling interval if it exists
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+        setIsPolling(false);
+      }
+      return;
+    }
+
     try {
       const eventData = await apiClient.getEvent(eventId);
       setEvent(eventData);
       retryCountRef.current = 0; // Reset retry count on success
     } catch (error) {
-      // Handle errors gracefully - don't stop polling on single error
+      // If we get a 401, stop polling immediately
+      if (error.message && error.message.includes('authentication required')) {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+          setIsPolling(false);
+        }
+        return;
+      }
+      
+      // Handle other errors gracefully - don't stop polling on single error
       console.error('Failed to fetch event during polling:', error);
       
       // Exponential backoff for retries
@@ -51,6 +77,17 @@ function useEventPolling(eventId, intervalMs = 30000) {
 
   useEffect(() => {
     if (!eventId) {
+      return;
+    }
+
+    // Check authentication before setting up polling
+    // Must have a valid (non-empty) token or session
+    const jwtToken = apiClient.getJWTToken();
+    const pinSession = apiClient.getPINSessionId(eventId);
+    const hasAuth = !!(jwtToken && jwtToken.trim()) || !!(pinSession && pinSession.trim());
+    
+    if (!hasAuth) {
+      // Don't start polling if no authentication
       return;
     }
 

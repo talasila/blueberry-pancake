@@ -158,6 +158,58 @@ router.post('/:eventId/verify-pin', async (req, res) => {
 });
 
 /**
+ * GET /api/events/:eventId/check-admin
+ * Check if an email is an administrator for an event
+ * Public endpoint - no authentication required
+ * Used to determine which authentication flow to use (PIN vs OTP)
+ */
+router.get('/:eventId/check-admin', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { email } = req.query;
+
+    // Validate inputs
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({
+        error: 'Email address is required'
+      });
+    }
+
+    // Validate event ID format
+    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+      return res.status(400).json({
+        error: 'Invalid event ID format'
+      });
+    }
+
+    // Get event (this will throw if event doesn't exist)
+    const event = await eventService.getEvent(eventId);
+
+    // Check if email is an administrator
+    const isAdmin = eventService.isAdministrator(event, email);
+
+    // Return result (don't expose other event data)
+    res.json({ isAdmin });
+  } catch (error) {
+    loggerService.error(`Check admin error: ${error.message}`, error).catch(() => {});
+
+    // Handle event not found
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        error: 'Event not found'
+      });
+    }
+
+    // Handle server errors
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: 'Failed to check administrator status',
+      ...(isDevelopment && { details: error.message })
+    });
+  }
+});
+
+/**
  * Middleware to check PIN session OR JWT token for event access
  */
 function requirePINOrAuth(req, res, next) {
@@ -483,6 +535,100 @@ router.post('/:eventId/regenerate-pin', requireAuth, async (req, res) => {
     const isDevelopment = process.env.NODE_ENV !== 'production';
     res.status(500).json({
       error: 'Failed to regenerate PIN. Please try again.',
+      ...(isDevelopment && { details: error.message })
+    });
+  }
+});
+
+/**
+ * PATCH /api/events/:eventId
+ * Update event name
+ * Requires authentication (JWT token) and administrator authorization
+ * 
+ * Request body:
+ * - name: New event name (required, max 100 characters)
+ * 
+ * @returns {object} Updated event object
+ * @throws {400} Bad request - validation error
+ * @throws {401} Unauthorized - authentication required
+ * @throws {403} Forbidden - user is not an administrator
+ * @throws {404} Not found - event does not exist
+ * @throws {500} Internal server error
+ */
+router.patch('/:eventId', requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const requesterEmail = req.user?.email;
+    const { name } = req.body;
+
+    if (!requesterEmail) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
+    }
+
+    // Validate event ID format
+    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+      return res.status(400).json({
+        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
+      });
+    }
+
+    // Validate name is provided
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      return res.status(400).json({
+        error: 'Event name is required'
+      });
+    }
+
+    // Validate name length
+    const trimmedName = name.trim();
+    if (trimmedName.length > 100) {
+      return res.status(400).json({
+        error: 'Event name must be 100 characters or less'
+      });
+    }
+
+    // Get event to check authorization
+    const event = await eventService.getEvent(eventId);
+
+    // Check if requester is administrator
+    if (!eventService.isAdministrator(event, requesterEmail)) {
+      return res.status(403).json({
+        error: 'Only administrators can update event name'
+      });
+    }
+
+    // Update event name
+    const updatedEvent = {
+      ...event,
+      name: trimmedName
+    };
+
+    const result = await eventService.updateEvent(eventId, updatedEvent);
+
+    res.json(result);
+  } catch (error) {
+    loggerService.error(`Update event name error: ${error.message}`, error).catch(() => {});
+
+    // Handle event not found
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        error: 'Event not found'
+      });
+    }
+
+    // Handle validation errors
+    if (error.message.includes('Invalid event ID') || error.message.includes('Event ID is required')) {
+      return res.status(400).json({
+        error: error.message
+      });
+    }
+
+    // Handle server errors
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: 'Failed to update event name. Please try again.',
       ...(isDevelopment && { details: error.message })
     });
   }

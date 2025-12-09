@@ -46,10 +46,10 @@ function EventPage() {
     const currentJwtToken = apiClient.getJWTToken();
     const currentPinSession = apiClient.getPINSessionId(eventId);
     
-    // If no JWT token and no PIN session, redirect to PIN entry immediately
+    // If no JWT token and no PIN session, redirect to email entry immediately
     if (!currentJwtToken && !currentPinSession && !pinVerified) {
       redirectCheckedRef.current = true;
-      navigate(`/event/${eventId}/pin`, { replace: true });
+      navigate(`/event/${eventId}/email`, { replace: true });
       return;
     }
     

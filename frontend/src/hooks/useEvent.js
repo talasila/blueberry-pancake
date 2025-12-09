@@ -23,6 +23,20 @@ function useEvent() {
       return;
     }
 
+    // Check authentication before attempting to fetch - CRITICAL: must check every time
+    // Must have a valid (non-empty) token or session
+    const jwtToken = apiClient.getJWTToken();
+    const pinSession = apiClient.getPINSessionId(eventId);
+    const hasAuth = !!(jwtToken && jwtToken.trim()) || !!(pinSession && pinSession.trim());
+    
+    if (!hasAuth) {
+      // Don't fetch if no authentication - let the page component handle redirect
+      setIsLoading(false);
+      setEvent(null);
+      setError(null); // Don't set error, just silently skip
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
 
@@ -31,8 +45,14 @@ function useEvent() {
       setEvent(eventData);
       setError(null);
     } catch (err) {
-      setError(err.message || 'Failed to load event');
-      setEvent(null);
+      // If we get a 401, don't set error - just silently fail and let redirect handle it
+      if (err.message && err.message.includes('authentication required')) {
+        setEvent(null);
+        setError(null);
+      } else {
+        setError(err.message || 'Failed to load event');
+        setEvent(null);
+      }
     } finally {
       setIsLoading(false);
     }

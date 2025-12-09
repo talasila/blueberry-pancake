@@ -2,10 +2,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, RefreshCw, Copy, Check, Trash2, PlayCircle, PauseCircle, CheckCircle2, CircleDot } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Copy, Check, Trash2, PlayCircle, PauseCircle, CheckCircle2, CircleDot, Edit2, X } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import Message from '@/components/Message';
@@ -158,6 +158,12 @@ function EventAdminPage() {
   const [configError, setConfigError] = useState('');
   const [configSuccess, setConfigSuccess] = useState('');
   const [configWarning, setConfigWarning] = useState('');
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editedName, setEditedName] = useState('');
+  const [isSavingName, setIsSavingName] = useState(false);
+  const [nameError, setNameError] = useState('');
+  const [nameSuccess, setNameSuccess] = useState('');
+  const [linkCopied, setLinkCopied] = useState(false);
 
   // Check for OTP authentication (JWT token) - admin pages require OTP even if accessed via PIN
   useEffect(() => {
@@ -181,6 +187,13 @@ function EventAdminPage() {
       setIsLoading(false);
     }
   }, [contextEvent, polledEvent]);
+
+  // Initialize edited name when event changes
+  useEffect(() => {
+    if (event && !isEditingName) {
+      setEditedName(event.name || '');
+    }
+  }, [event, isEditingName]);
 
   // Fetch administrators list
   const fetchAdministrators = useCallback(async () => {
@@ -311,6 +324,60 @@ function EventAdminPage() {
     }
   };
 
+  // Handle start editing name
+  const handleStartEditName = () => {
+    setEditedName(event.name);
+    setIsEditingName(true);
+    setNameError('');
+    setNameSuccess('');
+  };
+
+  // Handle cancel editing name
+  const handleCancelEditName = () => {
+    setEditedName(event.name);
+    setIsEditingName(false);
+    setNameError('');
+    setNameSuccess('');
+  };
+
+  // Handle save event name
+  const handleSaveEventName = async () => {
+    const trimmedName = editedName.trim();
+    if (!trimmedName) {
+      setNameError('Event name is required');
+      return;
+    }
+
+    if (trimmedName.length > 100) {
+      setNameError('Event name must be 100 characters or less');
+      return;
+    }
+
+    setIsSavingName(true);
+    setNameError('');
+    setNameSuccess('');
+
+    try {
+      const updatedEvent = await apiClient.updateEventName(eventId, trimmedName);
+      setEvent(updatedEvent);
+      setIsEditingName(false);
+      setNameSuccess('Event name updated successfully');
+      clearSuccessMessage(setNameSuccess);
+    } catch (error) {
+      setNameError(error.message || 'Failed to update event name. Please try again.');
+    } finally {
+      setIsSavingName(false);
+    }
+  };
+
+  // Handle copy event link
+  const handleCopyEventLink = () => {
+    const eventUrl = `${window.location.origin}/event/${eventId}`;
+    navigator.clipboard.writeText(eventUrl);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
+  };
+
   // Handle state transition
   const handleStateTransition = async (newState) => {
     if (!event) return;
@@ -378,31 +445,121 @@ function EventAdminPage() {
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8">
+    <div className="px-4 sm:px-6 lg:px-8 py-4">
       <div className="max-w-md mx-auto w-full">
         <div className="space-y-4">
           <div>
             <h4 className="text-xl font-semibold">Event Administration</h4>
-            <p className="text-muted-foreground mt-2">
-              {event.name} ({event.eventId})
-            </p>
-          </div>
-
-          <div className="bg-card border border-border rounded-lg p-6 space-y-4">
-            <InfoField label="Event ID" value={event.eventId} className="font-mono text-sm" />
-            <InfoField label="Name" value={event.name} />
-            <InfoField label="Type" value={event.typeOfItem} className="capitalize" />
+            <div className="mt-2 space-y-2">
+              {isEditingName ? (
+                <div className="space-y-2">
+                  <Input
+                    type="text"
+                    value={editedName}
+                    onChange={(e) => {
+                      setEditedName(e.target.value);
+                      setNameError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !isSavingName) {
+                        handleSaveEventName();
+                      } else if (e.key === 'Escape') {
+                        handleCancelEditName();
+                      }
+                    }}
+                    disabled={isSavingName}
+                    className="font-medium"
+                    maxLength={100}
+                    autoFocus
+                  />
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={handleSaveEventName}
+                      disabled={isSavingName || !editedName.trim()}
+                      size="sm"
+                    >
+                      {isSavingName ? (
+                        <>
+                          <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-3.5 w-3.5 mr-1.5" />
+                          Save
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      onClick={handleCancelEditName}
+                      disabled={isSavingName}
+                      variant="ghost"
+                      size="sm"
+                    >
+                      <X className="h-3.5 w-3.5 mr-1.5" />
+                      Cancel
+                    </Button>
+                  </div>
+                  {nameError && (
+                    <Message type="error" className="text-sm">{nameError}</Message>
+                  )}
+                  {nameSuccess && (
+                    <Message type="success" className="text-sm">{nameSuccess}</Message>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-muted-foreground">
+                    <span className="font-medium">{event.name}</span>
+                  </p>
+                  <Button
+                    onClick={handleStartEditName}
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2"
+                    aria-label="Edit event name"
+                  >
+                    <Edit2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )}
+              
+              {/* Copy Event Link */}
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleCopyEventLink}
+                  variant="outline"
+                  size="sm"
+                  className="h-8"
+                >
+                  {linkCopied ? (
+                    <>
+                      <Check className="h-3.5 w-3.5 mr-1.5 text-green-600" />
+                      Link Copied!
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3.5 w-3.5 mr-1.5" />
+                      Copy Event Link
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
           </div>
 
           {/* Item Configuration Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Item Configuration</CardTitle>
-              <CardDescription>
-                Configure the number of items and specify which item IDs to exclude from the event
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+          <Accordion type="single" collapsible className="w-full">
+            <AccordionItem value="item-configuration">
+              <AccordionTrigger>
+                <div className="flex flex-col items-start text-left">
+                  <span className="font-semibold">Item Configuration</span>
+                  <span className="text-sm text-muted-foreground font-normal">
+                    Configure the number of items and specify which item IDs to exclude from the event
+                  </span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4">
               {/* Number of items input */}
               <div>
                 <label className="text-sm font-medium">Number of Items</label>
@@ -468,25 +625,23 @@ function EventAdminPage() {
                   'Save Configuration'
                 )}
               </Button>
-            </CardContent>
-          </Card>
+              </AccordionContent>
+            </AccordionItem>
 
-          {/* State Management Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>State</CardTitle>
-              <div className="space-y-2">
-                <div className="space-y-1">
+            {/* State Management Section */}
+            <AccordionItem value="state">
+              <AccordionTrigger>
+                <div className="flex flex-col items-start text-left">
                   <div className="flex items-center gap-2">
+                    <span className="font-semibold">State</span>
                     <StateBadge state={event.state} />
                   </div>
-                  <p className="text-sm text-muted-foreground">
+                  <span className="text-sm text-muted-foreground font-normal">
                     {getStateDescription(event.state)}
-                  </p>
+                  </span>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4">
               {transitionError && (
                 <Message type="error">{transitionError}</Message>
               )}
@@ -546,18 +701,20 @@ function EventAdminPage() {
                   </div>
                 );
               })()}
-            </CardContent>
-          </Card>
+              </AccordionContent>
+            </AccordionItem>
 
-          {/* PIN Management Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>PIN</CardTitle>
-              <CardDescription>
-                Share this PIN with users to grant access to this event
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+            {/* PIN Management Section */}
+            <AccordionItem value="pin">
+              <AccordionTrigger>
+                <div className="flex flex-col items-start text-left">
+                  <span className="font-semibold">PIN</span>
+                  <span className="text-sm text-muted-foreground font-normal">
+                    Share this PIN with users to grant access to this event
+                  </span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4">
               {/* PIN Display Section */}
               {event.pin && (
                 <div className="space-y-2">
@@ -634,18 +791,20 @@ function EventAdminPage() {
                   </Button>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+              </AccordionContent>
+            </AccordionItem>
 
-          {/* Administrators Management Section */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Administrators</CardTitle>
-              <CardDescription>
-                Manage administrators for this event. The owner cannot be removed.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
+            {/* Administrators Management Section */}
+            <AccordionItem value="administrators">
+              <AccordionTrigger>
+                <div className="flex flex-col items-start text-left">
+                  <span className="font-semibold">Administrators</span>
+                  <span className="text-sm text-muted-foreground font-normal">
+                    Manage administrators for this event. The owner cannot be removed.
+                  </span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4">
               {/* Administrators list */}
               {isLoadingAdministrators ? (
                 <div className="flex items-center justify-center py-4">
@@ -746,8 +905,9 @@ function EventAdminPage() {
                   )}
                 </Button>
               </div>
-            </CardContent>
-          </Card>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
 
           {/* Navigation back to event main page */}
           <div className="flex justify-center">
