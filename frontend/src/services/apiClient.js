@@ -327,6 +327,30 @@ class ApiClient {
   async deleteAdministrator(eventId, email) {
     return this.delete(`/events/${eventId}/administrators/${encodeURIComponent(email)}`);
   }
+
+  /**
+   * Transition event state
+   * @param {string} eventId - Event identifier
+   * @param {string} state - Target state for transition
+   * @param {string} currentState - Expected current state (for optimistic locking)
+   * @returns {Promise<any>} Response data with updated event
+   */
+  async transitionEventState(eventId, state, currentState) {
+    const response = await this.request(`/events/${eventId}/state`, {
+      method: 'PATCH',
+      body: JSON.stringify({ state, currentState }),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to transition state' }));
+      const err = new Error(error.error || 'Failed to transition state');
+      err.status = response.status;
+      err.currentState = error.currentState;
+      throw err;
+    }
+    
+    return response.json();
+  }
 }
 
 // Export singleton instance

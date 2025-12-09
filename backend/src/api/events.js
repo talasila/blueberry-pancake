@@ -488,4 +488,105 @@ router.post('/:eventId/regenerate-pin', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * PATCH /api/events/:eventId/state
+ * Transition event state
+ * 
+ * Transitions an event to a new state. Only administrators can perform state transitions.
+ * Uses optimistic locking to prevent concurrent modification conflicts.
+ * 
+ * Valid transitions:
+ * - created → started
+ * - started → paused, completed
+ * - paused → started, completed
+ * - completed → started, paused
+ * 
+ * Request body:
+ * - state: Target state for transition (required)
+ * - currentState: Expected current state for optimistic locking (required)
+ * 
+ * Requires authentication (JWT token) and administrator authorization
+ * 
+ * @returns {object} Updated event object with new state
+ * @throws {400} Bad request - invalid state, invalid transition, or missing parameters
+ * @throws {401} Unauthorized - authentication required
+ * @throws {403} Forbidden - user is not an administrator
+ * @throws {404} Not found - event does not exist
+ * @throws {409} Conflict - state has changed (optimistic locking failure)
+ * @throws {500} Internal server error
+ */
+router.patch('/:eventId/state', requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { state, currentState } = req.body;
+    const administratorEmail = req.user?.email;
+
+    if (!administratorEmail) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
+    }
+
+    // Validate event ID format
+    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+      return res.status(400).json({
+        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
+      });
+    }
+
+    // Validate request body
+    if (!state || !currentState) {
+      return res.status(400).json({
+        error: 'Both state and currentState are required'
+      });
+    }
+
+    // Transition state
+    const event = await eventService.transitionState(
+      eventId,
+      state,
+      currentState,
+      administratorEmail
+    );
+
+    res.json(event);
+  } catch (error) {
+    loggerService.error(`State transition error: ${error.message}`, error).catch(() => {});
+
+    // Handle optimistic locking conflict
+    if (error.message.includes('state has changed')) {
+      return res.status(409).json({
+        error: error.message,
+        currentState: error.currentState
+      });
+    }
+
+    // Handle event not found
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Handle authorization errors
+    if (error.message.includes('Unauthorized') || error.message.includes('administrator')) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    // Handle validation errors (400)
+    if (error.message.includes('Invalid state') || 
+        error.message.includes('Invalid transition') ||
+        error.message.includes('required')) {
+      return res.status(400).json({
+        error: error.message
+      });
+    }
+
+    // Handle server errors
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: 'Failed to transition event state. Please try again.',
+      ...(isDevelopment && { details: error.message })
+    });
+  }
+});
+
 export default router;

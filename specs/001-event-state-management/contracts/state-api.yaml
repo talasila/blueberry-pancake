@@ -1,0 +1,234 @@
+openapi: 3.0.3
+info:
+  title: Event State Management API
+  description: API for managing event state transitions
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+  - url: https://api.example.com/api
+    description: Production server
+
+tags:
+  - name: state
+    description: Event state management operations
+
+paths:
+  /events/{eventId}/state:
+    patch:
+      summary: Transition event state
+      description: |
+        Transitions an event to a new state. Only administrators can perform state transitions.
+        Uses optimistic locking to prevent concurrent modification conflicts.
+        Valid transitions:
+        - created → started
+        - started → paused, completed
+        - paused → started, completed
+        - completed → started, paused
+      tags:
+        - state
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - state
+                - currentState
+              properties:
+                state:
+                  type: string
+                  enum: [started, paused, completed]
+                  description: Target state for the transition
+                  example: "started"
+                currentState:
+                  type: string
+                  enum: [created, started, paused, completed]
+                  description: Expected current state (for optimistic locking)
+                  example: "created"
+      responses:
+        '200':
+          description: State transition successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+              example:
+                eventId: "aB3xY9mK"
+                name: "My tasting event"
+                typeOfItem: "wine"
+                state: "started"
+                administrators:
+                  admin@example.com:
+                    assignedAt: "2025-01-27T10:30:00.000Z"
+                    owner: true
+                users:
+                  admin@example.com:
+                    registeredAt: "2025-01-27T10:30:00.000Z"
+                createdAt: "2025-01-27T10:30:00.000Z"
+                updatedAt: "2025-01-27T11:15:00.000Z"
+        '400':
+          description: Bad request - invalid state or transition
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidState:
+                  value:
+                    error: "Invalid state: invalidState. Valid states are: created, started, paused, completed"
+                invalidTransition:
+                  value:
+                    error: "Invalid transition from created to paused"
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authentication required"
+        '403':
+          description: Forbidden - user is not an administrator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Only administrators can change event state"
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Event not found"
+        '409':
+          description: Conflict - state has changed (optimistic locking failure)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Event state has changed. Please refresh the page and try again."
+                  currentState:
+                    type: string
+                    example: "started"
+              example:
+                error: "Event state has changed. Please refresh the page and try again."
+                currentState: "started"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Failed to transition event state. Please try again."
+
+components:
+  schemas:
+    Event:
+      type: object
+      required:
+        - eventId
+        - name
+        - typeOfItem
+        - state
+        - administrators
+        - users
+        - createdAt
+        - updatedAt
+      properties:
+        eventId:
+          type: string
+          pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Event name
+          example: "My tasting event"
+        typeOfItem:
+          type: string
+          enum: [wine]
+          description: Type of item for the event
+          example: "wine"
+        state:
+          type: string
+          enum: [created, started, paused, completed]
+          description: Current lifecycle state of the event
+          example: "started"
+        administrators:
+          type: object
+          additionalProperties:
+            type: object
+            required:
+              - assignedAt
+              - owner
+            properties:
+              assignedAt:
+                type: string
+                format: date-time
+                description: Timestamp when administrator was assigned
+              owner:
+                type: boolean
+                description: Whether this administrator is the event owner
+          description: Object with email addresses as keys, each containing administrator data
+        users:
+          type: object
+          additionalProperties:
+            type: object
+            required:
+              - registeredAt
+            properties:
+              registeredAt:
+                type: string
+                format: date-time
+                description: Timestamp when user was registered
+          description: Object with email addresses as keys, each containing user data
+        createdAt:
+          type: string
+          format: date-time
+          description: Timestamp when event was created
+          example: "2025-01-27T10:30:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Timestamp when event was last updated
+          example: "2025-01-27T11:15:00.000Z"
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Event not found"
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token from OTP authentication

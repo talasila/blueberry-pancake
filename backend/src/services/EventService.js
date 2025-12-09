@@ -159,14 +159,14 @@ class EventService {
   }
 
   /**
-   * State transition validation constants (for future use)
-   * Transitions are out of scope for this feature
+   * State transition validation constants
+   * Defines valid state transitions for event lifecycle management
    */
   static VALID_TRANSITIONS = {
-    created: ['started', 'paused', 'finished'],
-    started: ['paused', 'finished'],
-    paused: ['started', 'finished'],
-    finished: [] // Terminal state, no transitions allowed
+    created: ['started'],
+    started: ['paused', 'completed'],
+    paused: ['started', 'completed'],
+    completed: ['started', 'paused']
   };
 
   /**
@@ -175,7 +175,31 @@ class EventService {
    * @returns {boolean} True if state is valid
    */
   static isValidState(state) {
-    return ['created', 'started', 'paused', 'finished'].includes(state);
+    // Include "finished" for legacy support (will be migrated to "completed")
+    return ['created', 'started', 'paused', 'completed', 'finished'].includes(state);
+  }
+
+  /**
+   * Validate if a state transition is allowed
+   * Checks if the transition from fromState to toState is valid according to VALID_TRANSITIONS rules
+   * @param {string} fromState - Current state
+   * @param {string} toState - Target state
+   * @returns {boolean} True if transition is valid, false otherwise
+   * @throws {Error} Does not throw, returns boolean for validation result
+   */
+  validateStateTransition(fromState, toState) {
+    const validTargets = this.constructor.VALID_TRANSITIONS[fromState] || [];
+    return validTargets.includes(toState);
+  }
+
+  /**
+   * Get valid target states for a given current state
+   * Returns array of states that can be transitioned to from the current state
+   * @param {string} currentState - Current event state
+   * @returns {string[]} Array of valid target states, empty array if no valid transitions
+   */
+  getValidTransitions(currentState) {
+    return this.constructor.VALID_TRANSITIONS[currentState] || [];
   }
 
   /**
@@ -212,11 +236,23 @@ class EventService {
       // Retrieve event from data repository
       const event = await dataRepository.getEvent(eventId);
       
+      let migrationOccurred = false;
+      
       // Lazy migration: migrate administrator field if needed
       if (this.migrateAdministratorField(event)) {
-        // Save migrated event
-        await dataRepository.writeEventConfig(eventId, event);
+        migrationOccurred = true;
         loggerService.info(`Migrated administrator field to administrators object for event: ${eventId}`);
+      }
+      
+      // Lazy migration: migrate legacy "finished" state to "completed" if needed
+      if (this.migrateLegacyState(event)) {
+        migrationOccurred = true;
+        loggerService.info(`Migrated legacy "finished" state to "completed" for event: ${eventId}`);
+      }
+      
+      // Save migrated event if any migration occurred
+      if (migrationOccurred) {
+        await dataRepository.writeEventConfig(eventId, event);
       }
       
       return event;
@@ -254,6 +290,72 @@ class EventService {
       return event;
     } catch (error) {
       loggerService.error(`Error updating event ${eventId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Transition event state with optimistic locking
+   * @param {string} eventId - Event identifier
+   * @param {string} newState - Target state for transition
+   * @param {string} currentState - Expected current state (for optimistic locking)
+   * @param {string} administratorEmail - Email of administrator performing transition
+   * @returns {Promise<object>} Updated event with new state
+   */
+  async transitionState(eventId, newState, currentState, administratorEmail) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    // Validate state values
+    if (!this.constructor.isValidState(newState) || !this.constructor.isValidState(currentState)) {
+      loggerService.error(`Invalid state detected for event ${eventId}: newState=${newState}, currentState=${currentState}`);
+      throw new Error(`Invalid state. Valid states are: created, started, paused, completed`);
+    }
+
+    // Get event with optimistic locking check
+    const event = await this.getEvent(eventId);
+
+    // Validate event state is valid (check for corrupted data)
+    if (!this.constructor.isValidState(event.state)) {
+      loggerService.error(`Corrupted event state detected for event ${eventId}: state=${event.state}`);
+      throw new Error(`Invalid event state: ${event.state}. Please contact support.`);
+    }
+
+    // Optimistic locking: verify current state matches expected
+    if (event.state !== currentState) {
+      loggerService.warn(`Optimistic locking conflict for event ${eventId}: expected=${currentState}, actual=${event.state}`);
+      const error = new Error(`Event state has changed. Current state: ${event.state}. Please refresh and try again.`);
+      error.currentState = event.state;
+      throw error;
+    }
+
+    // Validate transition is allowed
+    if (!this.validateStateTransition(currentState, newState)) {
+      loggerService.warn(`Invalid state transition attempted for event ${eventId}: ${currentState} → ${newState}`);
+      throw new Error(`Invalid transition from ${currentState} to ${newState}`);
+    }
+
+    // Validate administrator authorization
+    if (!this.isAdministrator(event, administratorEmail)) {
+      throw new Error('Unauthorized: Only administrators can change event state');
+    }
+
+    // Update state atomically
+    const updatedEvent = {
+      ...event,
+      state: newState,
+      updatedAt: new Date().toISOString()
+    };
+
+    try {
+      await this.updateEvent(eventId, updatedEvent);
+      loggerService.info(`Event state transitioned: ${eventId} from ${currentState} to ${newState} by ${administratorEmail}`);
+      return updatedEvent;
+    } catch (error) {
+      loggerService.error(`Failed to persist state transition for event ${eventId}: ${error.message}`, error);
       throw error;
     }
   }
@@ -355,6 +457,22 @@ class EventService {
         }
       };
       delete event.administrator;
+      return true; // Indicates migration occurred
+    }
+    return false; // No migration needed
+  }
+
+  /**
+   * Migrate legacy "finished" state to "completed" state
+   * Automatically converts "finished" state to "completed" for backward compatibility
+   * Updates the updatedAt timestamp when migration occurs
+   * @param {object} event - Event object (modified in place)
+   * @returns {boolean} True if migration occurred, false otherwise
+   */
+  migrateLegacyState(event) {
+    if (event.state === 'finished') {
+      event.state = 'completed';
+      event.updatedAt = new Date().toISOString();
       return true; // Indicates migration occurred
     }
     return false; // No migration needed

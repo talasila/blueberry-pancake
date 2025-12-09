@@ -107,21 +107,26 @@ function EventPage() {
       return { valid: false, error: 'Event data not available' };
     }
 
-    if (event.state === 'paused') {
+    if (event.state === 'paused' || event.state === 'finished') {
       return { valid: false, error: 'Event is paused. Rating is not available.' };
     }
 
-    if (event.state === 'finished') {
-      return { valid: false, error: 'Event has finished. Rating is no longer available.' };
+    if (event.state === 'completed' || event.state === 'finished') {
+      return { valid: false, error: 'Event is completed. Rating is no longer available.' };
     }
 
     if (event.state === 'created') {
       // Event is in created state - rating might not be available yet
       // This is a placeholder for future rating functionality
+      return { valid: false, error: 'Event has not started yet. Rating is not available.' };
+    }
+
+    // Only "started" state allows feedback
+    if (event.state === 'started') {
       return { valid: true };
     }
 
-    return { valid: true };
+    return { valid: false, error: 'Event state does not allow rating.' };
   };
 
   // Handle action attempts (placeholder for future rating functionality)

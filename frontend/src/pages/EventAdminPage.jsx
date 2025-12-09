@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, RefreshCw, Copy, Check, Trash2 } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Copy, Check, Trash2, PlayCircle, PauseCircle, CheckCircle2, CircleDot } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,6 +45,132 @@ function isValidEmailFormat(email) {
 }
 
 /**
+ * Clear success message after a delay
+ * @param {function} setter - State setter function
+ * @param {number} delay - Delay in milliseconds (default: 3000)
+ */
+function clearSuccessMessage(setter, delay = 3000) {
+  setTimeout(() => setter(''), delay);
+}
+
+/**
+ * State configuration mapping states to icons, colors, labels, and descriptions
+ */
+const STATE_CONFIG = {
+  created: {
+    icon: CircleDot,
+    className: 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600',
+    label: 'Created',
+    description: 'Event is in preparation, not yet started. Users cannot provide feedback.'
+  },
+  started: {
+    icon: PlayCircle,
+    className: 'bg-green-100 text-green-700 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-700',
+    label: 'Started',
+    description: 'Event is active. Users can provide feedback and ratings.'
+  },
+  paused: {
+    icon: PauseCircle,
+    className: 'bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-700',
+    label: 'Paused',
+    description: 'Event is temporarily paused. Users cannot provide feedback.'
+  },
+  completed: {
+    icon: CheckCircle2,
+    className: 'bg-blue-100 text-blue-700 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-700',
+    label: 'Completed',
+    description: 'Event is finished. Users cannot provide feedback. Results are available.'
+  }
+};
+
+/**
+ * Get state configuration with fallback for unknown states
+ * @param {string} state - Event state
+ * @returns {object} State configuration object
+ */
+function getStateConfig(state) {
+  return STATE_CONFIG[state] || {
+    icon: CircleDot,
+    className: 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600',
+    label: state,
+    description: 'Unknown state'
+  };
+}
+
+/**
+ * Get state description (what the state means)
+ * @param {string} state - Event state
+ * @returns {string} Description of what the state means
+ */
+function getStateDescription(state) {
+  return getStateConfig(state).description;
+}
+
+/**
+ * StateBadge component for displaying event state with icon and color
+ */
+function StateBadge({ state }) {
+  const config = getStateConfig(state);
+  const Icon = config.icon;
+  
+  return (
+    <Badge variant="outline" className={`capitalize flex items-center gap-1.5 ${config.className}`}>
+      <Icon className="h-3.5 w-3.5" />
+      {config.label}
+    </Badge>
+  );
+}
+
+/**
+ * LoadingSpinner component for displaying loading state
+ */
+function LoadingSpinner({ size = 'md', className = '' }) {
+  const sizeClasses = {
+    sm: 'h-4 w-4',
+    md: 'h-6 w-6',
+    lg: 'h-8 w-8'
+  };
+  
+  return (
+    <div className={`animate-spin rounded-full border-b-2 border-primary ${sizeClasses[size]} ${className}`} />
+  );
+}
+
+/**
+ * Get transition description (what the transition will do)
+ * @param {string} fromState - Current state
+ * @param {string} toState - Target state
+ * @returns {string} Description of what the transition will do
+ */
+function getTransitionDescription(fromState, toState) {
+  const descriptions = {
+    'created→started': 'Will start the event, enabling user feedback and ratings.',
+    'started→paused': 'Will pause the event, temporarily disabling user feedback.',
+    'started→completed': 'Will complete the event, ending feedback collection and enabling results.',
+    'paused→started': 'Will resume the event, re-enabling user feedback and ratings.',
+    'paused→completed': 'Will complete the event, ending feedback collection and enabling results.',
+    'completed→started': 'Will reopen the event, re-enabling user feedback and ratings.',
+    'completed→paused': 'Will reopen the event in paused state, allowing preparation before enabling feedback.'
+  };
+  return descriptions[`${fromState}→${toState}`] || `Will transition event to "${toState}" state.`;
+}
+
+/**
+ * Get valid state transitions for a given current state
+ * @param {string} currentState - Current event state
+ * @returns {string[]} Array of valid target states
+ */
+function getValidTransitions(currentState) {
+  const transitions = {
+    created: ['started'],
+    started: ['paused', 'completed'],
+    paused: ['started', 'completed'],
+    completed: ['started', 'paused']
+  };
+  return transitions[currentState] || [];
+}
+
+/**
  * EventAdminPage Component
  * 
  * Displays the admin page for event administration.
@@ -77,6 +203,9 @@ function EventAdminPage() {
   const [isDeletingAdmin, setIsDeletingAdmin] = useState(false);
   const [deleteAdminError, setDeleteAdminError] = useState('');
   const [deleteAdminSuccess, setDeleteAdminSuccess] = useState('');
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [transitionError, setTransitionError] = useState('');
+  const [transitionSuccess, setTransitionSuccess] = useState('');
 
   // Check for OTP authentication (JWT token) - admin pages require OTP even if accessed via PIN
   useEffect(() => {
@@ -146,7 +275,7 @@ function EventAdminPage() {
       await apiClient.addAdministrator(eventId, trimmedEmail);
       setNewAdminEmail('');
       setAddAdminSuccess('Administrator added successfully');
-      setTimeout(() => setAddAdminSuccess(''), 3000);
+      clearSuccessMessage(setAddAdminSuccess);
       
       // Refresh administrators list
       await fetchAdministrators();
@@ -168,7 +297,7 @@ function EventAdminPage() {
     try {
       await apiClient.deleteAdministrator(eventId, email);
       setDeleteAdminSuccess('Administrator deleted successfully');
-      setTimeout(() => setDeleteAdminSuccess(''), 3000);
+      clearSuccessMessage(setDeleteAdminSuccess);
       
       // Refresh administrators list
       await fetchAdministrators();
@@ -179,12 +308,50 @@ function EventAdminPage() {
     }
   };
 
+  // Handle state transition
+  const handleStateTransition = async (newState) => {
+    if (!event) return;
+
+    setIsTransitioning(true);
+    setTransitionError('');
+    setTransitionSuccess('');
+
+    try {
+      const updatedEvent = await apiClient.transitionEventState(
+        eventId,
+        newState,
+        event.state
+      );
+      setEvent(updatedEvent);
+      setTransitionSuccess(`Event state changed to ${newState} successfully`);
+      clearSuccessMessage(setTransitionSuccess);
+    } catch (error) {
+      if (error.status === 409) {
+        // Optimistic locking conflict - refresh event data
+        setTransitionError('Event state has changed. Refreshing...');
+        try {
+          const refreshedEvent = await apiClient.getEvent(eventId);
+          setEvent(refreshedEvent);
+          setTimeout(() => {
+            setTransitionError('Please try again with the updated state.');
+          }, 2000);
+        } catch (refreshError) {
+          setTransitionError('Failed to refresh event. Please reload the page.');
+        }
+      } else {
+        setTransitionError(error.message || 'Failed to transition state. Please try again.');
+      }
+    } finally {
+      setIsTransitioning(false);
+    }
+  };
+
   // Loading state
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
         <div className="flex flex-col items-center gap-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <LoadingSpinner size="lg" />
           <div className="text-muted-foreground">Loading event...</div>
         </div>
       </div>
@@ -222,8 +389,85 @@ function EventAdminPage() {
             <InfoField label="Event ID" value={event.eventId} className="font-mono text-sm" />
             <InfoField label="Name" value={event.name} />
             <InfoField label="Type" value={event.typeOfItem} className="capitalize" />
-            <InfoField label="Status" value={event.state} className="capitalize" />
           </div>
+
+          {/* State Management Section */}
+          <Card>
+            <CardHeader>
+              <CardTitle>State</CardTitle>
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <StateBadge state={event.state} />
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    {getStateDescription(event.state)}
+                  </p>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {transitionError && (
+                <Message type="error">{transitionError}</Message>
+              )}
+              {transitionSuccess && (
+                <Message type="success">{transitionSuccess}</Message>
+              )}
+
+              {/* State Actions */}
+              {(() => {
+                const validTransitions = getValidTransitions(event.state);
+                const stateLabels = {
+                  started: 'Start',
+                  paused: 'Pause',
+                  completed: 'Complete'
+                };
+
+                if (validTransitions.length === 0) {
+                  return (
+                    <p className="text-sm text-muted-foreground">
+                      No state transitions available from current state.
+                    </p>
+                  );
+                }
+
+                return (
+                  <div className="space-y-2">
+                    {validTransitions.map(transition => {
+                      const config = getStateConfig(transition);
+                      const Icon = config.icon;
+                      
+                      return (
+                        <div key={transition} className="space-y-1">
+                          <Button
+                            onClick={() => handleStateTransition(transition)}
+                            disabled={isTransitioning}
+                            variant="default"
+                            className="w-full sm:w-auto"
+                          >
+                            {isTransitioning ? (
+                              <>
+                                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                Transitioning...
+                              </>
+                            ) : (
+                              <>
+                                <Icon className="h-4 w-4 mr-2" />
+                                {stateLabels[transition] || transition}
+                              </>
+                            )}
+                          </Button>
+                          <p className="text-xs text-muted-foreground">
+                            {getTransitionDescription(event.state, transition)}
+                          </p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </CardContent>
+          </Card>
 
           {/* PIN Management Section */}
           <Card>
@@ -302,7 +546,7 @@ function EventAdminPage() {
                       }
                     }}
                     disabled={isRegenerating}
-                    variant="outline"
+                    variant="default"
                     className="w-full"
                   >
                     <RefreshCw className={`h-4 w-4 mr-2 ${isRegenerating ? 'animate-spin' : ''}`} />
@@ -325,7 +569,7 @@ function EventAdminPage() {
               {/* Administrators list */}
               {isLoadingAdministrators ? (
                 <div className="flex items-center justify-center py-4">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                  <LoadingSpinner />
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -358,7 +602,7 @@ function EventAdminPage() {
                             aria-label={`Delete administrator ${email}`}
                             className="self-start sm:self-center flex-shrink-0"
                           >
-                            <Trash2 className="h-4 w-4 text-white" />
+                            <Trash2 className="h-4 w-4" />
                           </Button>
                         )}
                       </div>
@@ -368,7 +612,7 @@ function EventAdminPage() {
               )}
 
               {/* Add administrator form */}
-              <div className="space-y-2 pt-4 border-t">
+              <div className="space-y-2 pt-4">
                 <div>
                   <p className="text-sm text-muted-foreground mb-2">
                     Add an administrator to this event
