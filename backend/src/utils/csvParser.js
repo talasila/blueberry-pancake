@@ -15,14 +15,16 @@ export function parseCSV(csvString) {
     return [];
   }
 
-  const lines = csvString.trim().split('\n');
+  // Normalize line endings (handle both LF and CRLF)
+  const normalized = csvString.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const lines = normalized.trim().split('\n');
   if (lines.length < 2) {
     // Only header or empty
     return [];
   }
 
   // Parse header
-  const header = parseCSVLine(lines[0]);
+  const header = parseCSVLine(lines[0]).map(field => field.trim());
   if (header.length === 0) {
     return [];
   }
@@ -39,7 +41,7 @@ export function parseCSV(csvString) {
     const line = lines[i].trim();
     if (!line) continue; // Skip empty lines
 
-    const values = parseCSVLine(line);
+    const values = parseCSVLine(line).map(field => field.trim());
     if (values.length !== header.length) {
       // Skip malformed rows (log warning in production)
       continue;
