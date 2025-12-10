@@ -164,6 +164,15 @@ class FileDataRepository extends DataRepository {
   }
 
   /**
+   * Get event ratings file path
+   * @param {string} eventId - Event identifier
+   * @returns {string} Ratings file path
+   */
+  getEventRatingsPath(eventId) {
+    return join(this.getEventDirectory(eventId), 'ratings.csv');
+  }
+
+  /**
    * Read event configuration
    * @param {string} eventId - Event identifier
    * @returns {Promise<object>} Event configuration
@@ -245,6 +254,41 @@ class FileDataRepository extends DataRepository {
     
     // Invalidate cache
     cacheService.del(cacheKey);
+  }
+
+  /**
+   * Read event ratings (ratings.csv)
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<string>} CSV data
+   */
+  async readEventRatings(eventId) {
+    await this.initialize();
+    const path = this.getEventRatingsPath(eventId);
+    const cacheKey = `ratings:${eventId}`;
+    
+    try {
+      return await this.readFile(path, cacheKey);
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        // Return empty CSV with header if file doesn't exist
+        return 'email,timestamp,itemId,rating,note\n';
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Write event ratings (ratings.csv) - replaces entire file
+   * @param {string} eventId - Event identifier
+   * @param {string} csvContent - Complete CSV content (with header)
+   * @returns {Promise<void>}
+   */
+  async writeEventRatings(eventId, csvContent) {
+    await this.initialize();
+    const path = this.getEventRatingsPath(eventId);
+    const cacheKey = `ratings:${eventId}`;
+    
+    await this.writeFile(path, csvContent, cacheKey);
   }
 
   /**

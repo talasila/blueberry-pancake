@@ -1,0 +1,307 @@
+openapi: 3.0.3
+info:
+  title: Ratings API
+  description: API for submitting and retrieving item ratings for events
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+  - url: https://api.example.com/api
+    description: Production server
+
+tags:
+  - name: ratings
+    description: Rating operations for event items
+
+paths:
+  /events/{eventId}/ratings:
+    get:
+      summary: Get ratings for an event
+      description: |
+        Retrieves all ratings for a specific event. Returns ratings in CSV format.
+        The response includes all ratings from all users. Users should filter by their email
+        on the client side to see only their own ratings.
+      tags:
+        - ratings
+      security:
+        - bearerAuth: []
+        - pinAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+      responses:
+        '200':
+          description: Ratings retrieved successfully
+          content:
+            text/csv:
+              schema:
+                type: string
+              example: |
+                email,timestamp,itemId,rating,note
+                user@example.com,2025-01-27T14:30:00Z,1,4,"Great wine!"
+                user@example.com,2025-01-27T14:35:00Z,2,3,"Not bad"
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authentication required"
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Event not found"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Failed to retrieve ratings"
+
+    post:
+      summary: Submit a rating for an item
+      description: |
+        Submits a rating for a specific item in an event. If the user has already rated
+        this item, the previous rating is replaced with the new one. The event must be
+        in "started" state for rating submission to succeed.
+      tags:
+        - ratings
+      security:
+        - bearerAuth: []
+        - pinAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RatingSubmission'
+      responses:
+        '201':
+          description: Rating submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rating'
+              example:
+                email: "user@example.com"
+                timestamp: "2025-01-27T14:30:00Z"
+                itemId: 1
+                rating: 4
+                note: "Great wine!"
+        '400':
+          description: Validation error or event not in started state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                ratingRequired:
+                  value:
+                    error: "Rating is required"
+                ratingInvalid:
+                  value:
+                    error: "Rating must be between 1 and 4"
+                noteTooLong:
+                  value:
+                    error: "Note must not exceed 500 characters"
+                itemIdInvalid:
+                  value:
+                    error: "Invalid item ID"
+                eventNotStarted:
+                  value:
+                    error: "Event is not in started state. Rating is not available."
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authentication required"
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Event not found"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Failed to submit rating. Please try again."
+
+  /events/{eventId}/ratings/{itemId}:
+    get:
+      summary: Get user's rating for a specific item
+      description: |
+        Retrieves the current user's rating for a specific item in an event.
+        Returns 404 if the user has not rated this item.
+      tags:
+        - ratings
+      security:
+        - bearerAuth: []
+        - pinAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: Item identifier
+          example: 1
+      responses:
+        '200':
+          description: Rating found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rating'
+              example:
+                email: "user@example.com"
+                timestamp: "2025-01-27T14:30:00Z"
+                itemId: 1
+                rating: 4
+                note: "Great wine!"
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authentication required"
+        '404':
+          description: Rating not found or event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Rating not found"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Failed to retrieve rating"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained through OTP authentication
+    pinAuth:
+      type: apiKey
+      in: cookie
+      name: pin_session
+      description: PIN session cookie for event access
+
+  schemas:
+    RatingSubmission:
+      type: object
+      required:
+        - itemId
+        - rating
+      properties:
+        itemId:
+          type: integer
+          minimum: 1
+          description: Item identifier (must be within available items for the event)
+          example: 1
+        rating:
+          type: integer
+          minimum: 1
+          description: Rating value (must be between 1 and maxRating from event's rating configuration)
+          example: 4
+        note:
+          type: string
+          maxLength: 500
+          description: Optional note/comment (max 500 characters)
+          example: "Great wine!"
+
+    Rating:
+      type: object
+      required:
+        - email
+        - timestamp
+        - itemId
+        - rating
+      properties:
+        email:
+          type: string
+          format: email
+          description: User email address
+          example: "user@example.com"
+        timestamp:
+          type: string
+          format: date-time
+          description: ISO 8601 timestamp when rating was submitted
+          example: "2025-01-27T14:30:00Z"
+        itemId:
+          type: integer
+          minimum: 1
+          description: Item identifier
+          example: 1
+        rating:
+          type: integer
+          minimum: 1
+          description: Rating value
+          example: 4
+        note:
+          type: string
+          nullable: true
+          description: Optional note/comment
+          example: "Great wine!"
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+          example: "Rating is required"

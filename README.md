@@ -68,6 +68,22 @@ Frontend runs on `http://localhost:5173`
 - **Testing**: Vitest (unit), Playwright + Cucumber (E2E)
 - **Data Storage**: File-based (JSON/CSV) with database abstraction layer
 
+## Features
+
+### Event Rating Page (009-event-rating-page)
+
+Users can rate items in events with the following features:
+- **Dialpad-style item buttons**: Items displayed as numbered buttons (iPhone dialpad style)
+- **Rating drawer**: Slide-out drawer with state-based content
+- **Rating submission**: Submit ratings with optional notes (500 char limit)
+- **Rating colors**: Buttons colored based on user's rating
+- **Bookmarks**: Bookmark items for later review (session-only)
+- **State-based messages**: Appropriate messages for created/paused/completed states
+- **Caching**: In-memory caching with periodic refresh and invalidation
+- **Error handling**: Retry logic, error boundaries, loading states
+
+See `specs/009-event-rating-page/` for detailed specification and implementation guide.
+
 ## Development
 
 See `specs/001-baseline-setup/quickstart.md` for detailed setup instructions.

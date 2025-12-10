@@ -66,6 +66,16 @@ Given('an event exists with ID {string} and state {string}', async function (eve
   // Event should exist in test data with the specified state
 });
 
+Given('the event is in {string} state', async function (state) {
+  this.testEventState = state;
+  // Event should exist in test data with the specified state
+});
+
+Given('the event has rating configuration with maxRating {int}', async function (maxRating) {
+  this.testMaxRating = maxRating;
+  // Event should have rating configuration
+});
+
 Given('an event exists with ID {string} and administrator {string}', async function (eventId, administrator) {
   this.testEventId = eventId;
   this.testAdministrator = administrator;

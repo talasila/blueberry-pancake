@@ -1,0 +1,47 @@
+import { Bookmark } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+/**
+ * ItemButton Component
+ * Displays an item as a dialpad-style button with rating color and bookmark indicator
+ * 
+ * @param {object} props
+ * @param {number} props.itemId - Item identifier
+ * @param {string} props.ratingColor - Optional color for rated items
+ * @param {boolean} props.isBookmarked - Whether item is bookmarked
+ * @param {function} props.onClick - Click handler
+ */
+function ItemButton({ itemId, ratingColor, isBookmarked, onClick }) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "relative w-14 h-14 rounded-full text-lg font-semibold",
+        "flex items-center justify-center",
+        "transition-all duration-200",
+        "hover:scale-105 active:scale-95",
+        "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+        "shadow-md hover:shadow-lg",
+        ratingColor 
+          ? "text-white" 
+          : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+      )}
+      style={ratingColor ? { backgroundColor: ratingColor } : {}}
+      aria-label={`Item ${itemId}${isBookmarked ? ' (bookmarked)' : ''}`}
+    >
+      <span>{itemId}</span>
+      
+      {/* Bookmark indicator overlay */}
+      {isBookmarked && (
+        <div className="absolute top-0.5 right-0.5">
+          <Bookmark 
+            className="h-3 w-3 fill-yellow-400 text-yellow-400" 
+            aria-label="Bookmarked"
+          />
+        </div>
+      )}
+    </button>
+  );
+}
+
+export default ItemButton;

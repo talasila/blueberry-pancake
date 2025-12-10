@@ -1,9 +1,12 @@
 import { Router } from 'express';
 import eventService from '../services/EventService.js';
 import pinService from '../services/PINService.js';
+import ratingService from '../services/RatingService.js';
+import { toCSV } from '../utils/csvParser.js';
 import loggerService from '../logging/Logger.js';
-import { jwtAuth } from '../middleware/jwtAuth.js';
+import { jwtAuth, generateToken } from '../middleware/jwtAuth.js';
 import requireAuth from '../middleware/requireAuth.js';
+import requirePIN from '../middleware/requirePIN.js';
 
 const router = Router();
 
@@ -134,10 +137,22 @@ router.post('/:eventId/verify-pin', async (req, res) => {
       loggerService.error(`Failed to register user for event ${eventId}: ${registrationError.message}`, registrationError);
     }
 
+    // Generate JWT token for PIN-authenticated user
+    let token;
+    try {
+      token = generateToken({ email: email.trim() });
+    } catch (tokenError) {
+      loggerService.error(`Failed to generate JWT token for PIN auth: ${tokenError.message}`, tokenError).catch(() => {});
+      return res.status(500).json({
+        error: 'Authentication service configuration error. Please contact support.'
+      });
+    }
+
     // PIN verified successfully
     res.json({
       sessionId: result.sessionId,
       eventId,
+      token,
       message: 'PIN verified successfully'
     });
   } catch (error) {
@@ -694,6 +709,9 @@ router.patch('/:eventId/state', requireAuth, async (req, res) => {
       currentState,
       administratorEmail
     );
+
+    // Invalidate ratings cache on state change (T078)
+    ratingService.invalidateCache(eventId);
 
     res.json(event);
   } catch (error) {

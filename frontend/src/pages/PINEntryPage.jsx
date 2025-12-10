@@ -66,7 +66,12 @@ function PINEntryPage() {
     try {
       const response = await apiClient.verifyPIN(eventId, pin, email.trim());
       
-      // Store PIN session ID in localStorage
+      // Store JWT token from PIN verification
+      if (response.token) {
+        apiClient.setJWTToken(response.token);
+      }
+
+      // Store PIN session ID in localStorage (for backward compatibility)
       if (response.sessionId) {
         localStorage.setItem(`pin:session:${eventId}`, response.sessionId);
       }

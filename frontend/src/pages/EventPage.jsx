@@ -4,6 +4,12 @@ import useEventPolling from '@/hooks/useEventPolling';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import apiClient from '@/services/apiClient';
+import { ratingService } from '@/services/ratingService';
+import { getBookmarks } from '@/utils/bookmarkStorage';
+import ItemButton from '@/components/ItemButton';
+import RatingDrawer from '@/components/RatingDrawer';
+import RatingErrorBoundary from '@/components/RatingErrorBoundary';
+import LoadingSpinner from '@/components/LoadingSpinner';
 
 /**
  * EventPage Component
@@ -34,6 +40,12 @@ function EventPage() {
   const [isLoading, setIsLoading] = useState(!contextEvent);
   const [error, setError] = useState(null);
   const [availableItemIds, setAvailableItemIds] = useState([]);
+  const [openDrawerItemId, setOpenDrawerItemId] = useState(null);
+  const [ratings, setRatings] = useState([]);
+  const [bookmarks, setBookmarks] = useState([]);
+  const [ratingConfig, setRatingConfig] = useState(null);
+  const [userEmail, setUserEmail] = useState(null);
+  const [ratingsLoading, setRatingsLoading] = useState(false);
   const loadStartTimeRef = useRef(null);
 
   // Redirect to PIN entry if no authentication - must happen immediately
@@ -125,6 +137,111 @@ function EventPage() {
     }
   }, [event]);
 
+  // Get user email from JWT token
+  useEffect(() => {
+    const token = apiClient.getJWTToken();
+    if (token) {
+      try {
+        // Decode JWT token to get email (simple base64 decode, no verification needed for reading)
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        if (payload.email) {
+          setUserEmail(payload.email);
+          return;
+        }
+      } catch (err) {
+        console.error('Error decoding JWT token:', err);
+      }
+    }
+
+    setUserEmail(null);
+  }, [eventId]);
+
+  // Load rating configuration
+  useEffect(() => {
+    if (eventId && event) {
+      apiClient.getRatingConfiguration(eventId)
+        .then(config => {
+          setRatingConfig(config);
+        })
+        .catch(err => {
+          console.error('Error loading rating configuration:', err);
+          // Use defaults if API fails
+          setRatingConfig({
+            maxRating: 4,
+            ratings: [
+              { value: 1, label: 'What is this crap?', color: '#FF3B30' },
+              { value: 2, label: 'Meh...', color: '#FFCC00' },
+              { value: 3, label: 'Not bad...', color: '#34C759' },
+              { value: 4, label: 'Give me more...', color: '#28A745' }
+            ]
+          });
+        });
+    }
+  }, [eventId, event]);
+
+  // Load user's ratings (T082 - with loading state)
+  const loadRatings = () => {
+    if (eventId && hasAuth && redirectCheckedRef.current && userEmail) {
+      setRatingsLoading(true);
+      ratingService.getRatings(eventId)
+        .then(allRatings => {
+          // Filter to current user's ratings by email
+          const userRatings = allRatings.filter(
+            r => r.email && r.email.toLowerCase() === userEmail.toLowerCase()
+          );
+          setRatings(userRatings);
+        })
+        .catch(err => {
+          console.error('Error loading ratings:', err);
+          setRatings([]);
+        })
+        .finally(() => {
+          setRatingsLoading(false);
+        });
+    }
+  };
+
+  useEffect(() => {
+    loadRatings();
+  }, [eventId, hasAuth, userEmail]);
+
+  // Listen for rating submission events to refresh ratings
+  useEffect(() => {
+    const handleRatingSubmitted = (event) => {
+      if (event.detail.eventId === eventId) {
+        loadRatings();
+      }
+    };
+
+    window.addEventListener('ratingSubmitted', handleRatingSubmitted);
+    return () => {
+      window.removeEventListener('ratingSubmitted', handleRatingSubmitted);
+    };
+  }, [eventId, hasAuth, userEmail]);
+
+  // Listen for bookmark toggle events to refresh bookmarks
+  useEffect(() => {
+    const handleBookmarkToggled = (event) => {
+      if (event.detail.eventId === eventId) {
+        const bookmarkedItems = getBookmarks(eventId);
+        setBookmarks(bookmarkedItems);
+      }
+    };
+
+    window.addEventListener('bookmarkToggled', handleBookmarkToggled);
+    return () => {
+      window.removeEventListener('bookmarkToggled', handleBookmarkToggled);
+    };
+  }, [eventId]);
+
+  // Load bookmarks
+  useEffect(() => {
+    if (eventId) {
+      const bookmarkedItems = getBookmarks(eventId);
+      setBookmarks(bookmarkedItems);
+    }
+  }, [eventId]);
+
   // Validate event state before allowing actions (e.g., rating)
   const validateEventState = (action) => {
     if (!event) {
@@ -153,18 +270,39 @@ function EventPage() {
     return { valid: false, error: 'Event state does not allow rating.' };
   };
 
-  // Handle action attempts (placeholder for future rating functionality)
-  const handleActionAttempt = async (action) => {
-    // Refetch to ensure we have latest state
-    await refetch();
-    
-    const validation = validateEventState(action);
-    if (!validation.valid) {
-      setError(validation.error);
-      return false;
+  // Handle item button click - open drawer
+  const handleItemClick = (itemId) => {
+    // Ensure only one drawer is open at a time
+    if (openDrawerItemId && openDrawerItemId !== itemId) {
+      // Close previous drawer first
+      setOpenDrawerItemId(null);
+      // Small delay to allow close animation
+      setTimeout(() => setOpenDrawerItemId(itemId), 100);
+    } else {
+      setOpenDrawerItemId(itemId);
     }
+    setError(null); // Clear any previous errors
+  };
 
-    return true;
+  // Handle drawer close
+  const handleDrawerClose = () => {
+    setOpenDrawerItemId(null);
+  };
+
+  // Get user's rating for a specific item
+  const getUserRating = (itemId) => {
+    if (!userEmail || !ratings.length) return null;
+    // Filter ratings by user email
+    return ratings.find(r => r.itemId === itemId && r.email.toLowerCase() === userEmail.toLowerCase()) || null;
+  };
+
+  // Get rating color for an item
+  const getRatingColor = (itemId) => {
+    const rating = getUserRating(itemId);
+    if (!rating || !ratingConfig) return null;
+    
+    const ratingOption = ratingConfig.ratings.find(r => r.value === rating.rating);
+    return ratingOption?.color || null;
   };
 
 
@@ -208,77 +346,50 @@ function EventPage() {
   }
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8">
-      <div className="max-w-md mx-auto w-full">
-        <div className="space-y-6">
-          <div className="bg-card border border-border rounded-lg p-6 space-y-4">
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Type</label>
-              <p className="mt-1 capitalize">{event.typeOfItem}</p>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-muted-foreground">Status</label>
-              <p className="mt-1 capitalize">{event.state}</p>
-            </div>
-
-            {error && (
-              <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
-                <p className="text-sm text-destructive">
-                  {error}
-                </p>
-              </div>
-            )}
-
-            {event.state === 'paused' && (
-              <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-4">
-                <p className="text-sm text-yellow-600 dark:text-yellow-400">
-                  This event is currently paused. Rating is not available.
-                </p>
-              </div>
-            )}
-
-            {event.state === 'finished' && (
-              <div className="bg-gray-500/10 border border-gray-500/20 rounded-lg p-4">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  This event has finished. Rating is no longer available.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Item IDs display */}
-          {availableItemIds.length > 0 && (
-            <div className="bg-card border border-border rounded-lg p-6">
-              <div>
-                <label className="text-sm font-medium text-muted-foreground">Available Items</label>
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {availableItemIds.map(itemId => (
-                    <span
-                      key={itemId}
-                      className="inline-flex items-center justify-center px-3 py-1 rounded-md bg-primary/10 text-primary text-sm font-medium"
-                    >
-                      Item {itemId}
-                    </span>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {availableItemIds.length} item{availableItemIds.length !== 1 ? 's' : ''} available for rating
-                </p>
-              </div>
+    <RatingErrorBoundary>
+      <div className="px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-2xl mx-auto w-full">
+          {/* Loading state for ratings (T082) */}
+          {ratingsLoading && (
+            <div className="flex justify-center py-4">
+              <LoadingSpinner />
             </div>
           )}
 
-          {/* Placeholder for rating functionality - out of scope for this feature */}
-          <div className="bg-card border border-border rounded-lg p-6">
-            <p className="text-muted-foreground text-center">
-              Rating functionality will be implemented in a future feature.
-            </p>
-            {/* When rating is implemented, use handleActionAttempt to validate state */}
-          </div>
+          {/* Item buttons in dialpad layout */}
+          {availableItemIds.length > 0 && (
+            <div className="grid grid-cols-3 gap-3 justify-items-center">
+              {availableItemIds.map(itemId => (
+                <ItemButton
+                  key={itemId}
+                  itemId={itemId}
+                  ratingColor={getRatingColor(itemId)}
+                  isBookmarked={bookmarks.includes(itemId)}
+                  onClick={() => handleItemClick(itemId)}
+                />
+              ))}
+            </div>
+          )}
+
+          {availableItemIds.length === 0 && (
+            <div className="text-center text-muted-foreground py-8">
+              No items available for this event.
+            </div>
+          )}
         </div>
       </div>
-    </div>
+
+      {/* Rating Drawer - always render for animation */}
+      <RatingDrawer
+        isOpen={!!openDrawerItemId}
+        onClose={handleDrawerClose}
+        eventState={event?.state}
+        itemId={openDrawerItemId || 0}
+        eventId={eventId}
+        existingRating={openDrawerItemId ? getUserRating(openDrawerItemId) : null}
+        ratingConfig={ratingConfig}
+      />
+    </RatingErrorBoundary>
   );
 }
 
