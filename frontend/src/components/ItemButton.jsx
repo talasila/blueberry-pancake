@@ -35,7 +35,7 @@ function ItemButton({ itemId, ratingColor, isBookmarked, onClick }) {
       {isBookmarked && (
         <div className="absolute top-0 left-0 bg-white/90 dark:bg-gray-900/90 rounded-full p-0.5 shadow-sm border border-gray-300 dark:border-gray-600">
           <Bookmark 
-            className="h-4 w-4 fill-yellow-500 text-yellow-500" 
+            className="h-3 w-3 fill-yellow-500 text-yellow-500" 
             aria-label="Bookmarked"
           />
         </div>
