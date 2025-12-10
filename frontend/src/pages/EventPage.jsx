@@ -358,17 +358,39 @@ function EventPage() {
 
           {/* Item buttons in dialpad layout */}
           {availableItemIds.length > 0 && (
-            <div className="flex justify-center">
-              <div className="grid grid-cols-3 gap-6 justify-items-center" style={{ width: 'fit-content' }}>
-                {availableItemIds.map(itemId => (
-                  <ItemButton
-                    key={itemId}
-                    itemId={itemId}
-                    ratingColor={getRatingColor(itemId)}
-                    isBookmarked={bookmarks.includes(itemId)}
-                    onClick={() => handleItemClick(itemId)}
-                  />
-                ))}
+            <div className="space-y-4">
+              {event?.state === 'started' && (
+                <p className="text-center text-sm text-muted-foreground">
+                  Tap a number to rate
+                </p>
+              )}
+              {event?.state === 'created' && (
+                <p className="text-center text-sm text-muted-foreground">
+                  Event has not started yet
+                </p>
+              )}
+              {event?.state === 'paused' && (
+                <p className="text-center text-sm text-muted-foreground">
+                  Event is paused
+                </p>
+              )}
+              {event?.state === 'completed' && (
+                <p className="text-center text-sm text-muted-foreground">
+                  Tap a number to view details
+                </p>
+              )}
+              <div className="flex justify-center">
+                <div className="grid grid-cols-3 gap-6 justify-items-center" style={{ width: 'fit-content' }}>
+                  {availableItemIds.map(itemId => (
+                    <ItemButton
+                      key={itemId}
+                      itemId={itemId}
+                      ratingColor={getRatingColor(itemId)}
+                      isBookmarked={bookmarks.includes(itemId)}
+                      onClick={() => handleItemClick(itemId)}
+                    />
+                  ))}
+                </div>
               </div>
             </div>
           )}
