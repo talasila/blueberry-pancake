@@ -146,6 +146,8 @@ class RatingService {
 
     // Invalidate cache
     cacheService.del(`ratings:${eventId}`);
+    // Invalidate dashboard cache when rating is submitted
+    cacheService.del(`dashboard:${eventId}`);
 
     loggerService.info(`Rating submitted for event ${eventId}, item ${itemId}, email ${normalizedEmail}`);
 

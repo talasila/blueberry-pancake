@@ -1,0 +1,214 @@
+openapi: 3.0.3
+info:
+  title: Dashboard API
+  description: API for retrieving dashboard statistics and item rating summaries for events
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+  - url: https://api.example.com/api
+    description: Production server
+
+tags:
+  - name: dashboard
+    description: Dashboard statistics and item rating summaries
+
+paths:
+  /events/{eventId}/dashboard:
+    get:
+      summary: Get dashboard statistics and item rating summaries
+      description: |
+        Retrieves aggregated dashboard statistics and item rating summaries for a specific event.
+        Access control:
+        - Administrators can access at any time, regardless of event state
+        - Regular users can only access when event is in "completed" state
+        Returns summary statistics (total users, total bottles, total ratings, average ratings per bottle)
+        and detailed item rating summaries with progression, average rating, and weighted average.
+      tags:
+        - dashboard
+      security:
+        - bearerAuth: []
+        - pinAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+      responses:
+        '200':
+          description: Dashboard data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DashboardResponse'
+              example:
+                statistics:
+                  totalUsers: 30
+                  totalBottles: 33
+                  totalRatings: 150
+                  averageRatingsPerBottle: 4.55
+                itemSummaries:
+                  - itemId: 1
+                    numberOfRaters: 15
+                    averageRating: 3.40
+                    weightedAverage: 3.12
+                    ratingProgression: 50.0
+                  - itemId: 2
+                    numberOfRaters: 20
+                    averageRating: 3.75
+                    weightedAverage: 3.65
+                    ratingProgression: 66.67
+                globalAverage: 3.0
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authentication required"
+        '403':
+          description: Access denied - regular user attempting to access dashboard when event is not completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Dashboard access is only available when the event is completed"
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Event not found"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Failed to retrieve dashboard data"
+
+components:
+  schemas:
+    DashboardResponse:
+      type: object
+      required:
+        - statistics
+        - itemSummaries
+        - globalAverage
+      properties:
+        statistics:
+          $ref: '#/components/schemas/DashboardStatistics'
+        itemSummaries:
+          type: array
+          items:
+            $ref: '#/components/schemas/ItemRatingSummary'
+        globalAverage:
+          type: number
+          nullable: true
+          description: Average rating across all items. Null if no ratings exist.
+          example: 3.0
+
+    DashboardStatistics:
+      type: object
+      required:
+        - totalUsers
+        - totalBottles
+        - totalRatings
+        - averageRatingsPerBottle
+      properties:
+        totalUsers:
+          type: integer
+          minimum: 0
+          description: Count of all registered users in the event
+          example: 30
+        totalBottles:
+          type: integer
+          minimum: 0
+          description: Count of configured items minus excluded items
+          example: 33
+        totalRatings:
+          type: integer
+          minimum: 0
+          description: Total count of all rating submissions in the event
+          example: 150
+        averageRatingsPerBottle:
+          type: number
+          minimum: 0
+          format: float
+          description: Total ratings count divided by total bottles count, formatted to 2 decimal places
+          example: 4.55
+
+    ItemRatingSummary:
+      type: object
+      required:
+        - itemId
+        - numberOfRaters
+        - averageRating
+        - weightedAverage
+        - ratingProgression
+      properties:
+        itemId:
+          type: integer
+          minimum: 1
+          description: Item identifier
+          example: 1
+        numberOfRaters:
+          type: integer
+          minimum: 0
+          description: Count of unique users who have rated this item
+          example: 15
+        averageRating:
+          type: number
+          nullable: true
+          minimum: 1
+          format: float
+          description: Arithmetic mean of all rating values for this item, formatted to 2 decimal places. Null if no ratings exist.
+          example: 3.40
+        weightedAverage:
+          type: number
+          nullable: true
+          minimum: 1
+          format: float
+          description: Bayesian weighted average, formatted to 2 decimal places. Null if calculation cannot be performed (C=0 or global_avg undefined).
+          example: 3.12
+        ratingProgression:
+          type: number
+          minimum: 0
+          maximum: 100
+          format: float
+          description: Percentage of users who have rated this item (numberOfRaters / totalUsers * 100)
+          example: 50.0
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Event not found"
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for administrator authentication
+    pinAuth:
+      type: apiKey
+      in: cookie
+      name: pin_session_{eventId}
+      description: PIN session cookie for regular user authentication

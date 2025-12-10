@@ -22,4 +22,8 @@ router.use('/events', eventsRouter);
 import ratingsRouter from './ratings.js';
 router.use('/events/:eventId', ratingsRouter);
 
+// Dashboard routes - nested under events
+import dashboardRouter from './dashboard.js';
+router.use('/events/:eventId/dashboard', dashboardRouter);
+
 export default router;

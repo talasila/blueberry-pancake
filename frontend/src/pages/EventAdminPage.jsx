@@ -13,6 +13,7 @@ import Message from '@/components/Message';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import InfoField from '@/components/InfoField';
 import { isValidEmailFormat, clearSuccessMessage } from '@/utils/helpers';
+import { useItemTerminology } from '@/utils/itemTerminology';
 
 /**
  * State configuration mapping states to icons, colors, labels, and descriptions
@@ -136,6 +137,7 @@ function EventAdminPage() {
   const { event: contextEvent } = useEventContext();
   const { event: polledEvent } = useEventPolling(eventId);
   const [event, setEvent] = useState(contextEvent);
+  const itemTerminology = useItemTerminology(event);
   const [isLoading, setIsLoading] = useState(!contextEvent);
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regenerateError, setRegenerateError] = useState('');
@@ -348,10 +350,10 @@ function EventAdminPage() {
         setConfigWarning(result.warning);
       }
       
-      setConfigSuccess('Item configuration saved successfully');
+      setConfigSuccess(`${itemTerminology.singular} configuration saved successfully`);
       clearSuccessMessage(setConfigSuccess);
     } catch (error) {
-      setConfigError(error.message || 'Failed to save item configuration');
+      setConfigError(error.message || `Failed to save ${itemTerminology.singularLower} configuration`);
     } finally {
       setIsSavingConfig(false);
     }
@@ -806,9 +808,9 @@ function EventAdminPage() {
               <AccordionTrigger>
                 <div className="flex flex-col items-start text-left">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold">Item Configuration</span>
+                    <span className="font-semibold">{itemTerminology.singular} Configuration</span>
                     <Badge variant="outline" className="text-xs">
-                      {numberOfItems} item{numberOfItems !== 1 ? 's' : ''}
+                      {numberOfItems} {itemTerminology.singularLower}{numberOfItems !== 1 ? 's' : ''}
                       {excludedItemIdsInput && excludedItemIdsInput.trim() && (
                         <span className="ml-1 text-muted-foreground">
                           ({excludedItemIdsInput.split(',').filter(id => id.trim()).length} excluded)
@@ -817,14 +819,14 @@ function EventAdminPage() {
                     </Badge>
                   </div>
                   <span className="text-sm text-muted-foreground font-normal">
-                    Configure the number of items and specify which item IDs to exclude from the event
+                    Configure the number of {itemTerminology.pluralLower} and specify which {itemTerminology.singularLower} IDs to exclude from the event
                   </span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4">
               {/* Number of items input */}
               <div>
-                <label className="text-sm font-medium">Number of Items</label>
+                <label className="text-sm font-medium">Number of {itemTerminology.plural}</label>
                 <Input
                   type="number"
                   min="1"
@@ -838,13 +840,13 @@ function EventAdminPage() {
                   className="mt-1"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Items will be numbered from 1 to {numberOfItems || 20} (default: 20, max: 100)
+                  {itemTerminology.plural} will be numbered from 1 to {numberOfItems || 20} (default: 20, max: 100)
                 </p>
               </div>
 
               {/* Excluded item IDs input */}
               <div>
-                <label className="text-sm font-medium">Excluded Item IDs</label>
+                <label className="text-sm font-medium">Excluded {itemTerminology.singular} IDs</label>
                 <Input
                   type="text"
                   placeholder="5,10,15"
@@ -857,7 +859,7 @@ function EventAdminPage() {
                   className="mt-1"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Comma-separated list of item IDs to exclude (e.g., "5,10,15")
+                  Comma-separated list of {itemTerminology.singularLower} IDs to exclude (e.g., "5,10,15")
                 </p>
               </div>
 

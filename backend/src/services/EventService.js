@@ -2,6 +2,7 @@ import { customAlphabet } from 'nanoid';
 import dataRepository from '../data/FileDataRepository.js';
 import loggerService from '../logging/Logger.js';
 import pinService from './PINService.js';
+import cacheService from '../cache/CacheService.js';
 
 // Use alphanumeric alphabet (A-Z, a-z, 0-9) for 8-character IDs
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 8);
@@ -374,6 +375,10 @@ class EventService {
 
     try {
       await this.updateEvent(eventId, updatedEvent);
+      
+      // Invalidate dashboard cache when event state changes
+      cacheService.del(`dashboard:${eventId}`);
+      
       loggerService.info(`Event state transitioned: ${eventId} from ${currentState} to ${newState} by ${administratorEmail}`);
       return updatedEvent;
     } catch (error) {

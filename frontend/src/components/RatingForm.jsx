@@ -6,6 +6,8 @@ import { ratingService } from '@/services/ratingService';
 import { useParams } from 'react-router-dom';
 import apiClient from '@/services/apiClient';
 import { useQuotes } from '@/hooks/useQuotes';
+import { useEventContext } from '@/contexts/EventContext';
+import { useItemTerminology } from '@/utils/itemTerminology';
 
 /**
  * RatingForm Component
@@ -23,6 +25,8 @@ import { useQuotes } from '@/hooks/useQuotes';
 function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, eventType, noteSuggestionsEnabled }) {
   const { eventId: eventIdFromParams } = useParams();
   const effectiveEventId = eventId || eventIdFromParams;
+  const { event } = useEventContext();
+  const { singularLower } = useItemTerminology(event);
   
 
   const [selectedRating, setSelectedRating] = useState(existingRating?.rating || null);
@@ -395,7 +399,7 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
           maxLength={500}
           rows={3}
           className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-          placeholder="(Optional) Add a note about this item..."
+          placeholder={`(Optional) Add a note about this ${singularLower}...`}
         />
         {note.length > 500 && (
           <p className="text-sm text-destructive mt-1">

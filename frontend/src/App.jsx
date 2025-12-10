@@ -9,8 +9,10 @@ import EmailEntryPage from './pages/EmailEntryPage.jsx';
 import PINEntryPage from './pages/PINEntryPage.jsx';
 import EventOTPEntryPage from './pages/EventOTPEntryPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
+import DashboardPage from './pages/DashboardPage.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
+import DashboardRoute from './components/DashboardRoute.jsx';
 import { EventContextProvider } from './contexts/EventContext.jsx';
 import { PINProvider } from './contexts/PINContext.jsx';
 import { useParams } from 'react-router-dom';
@@ -179,6 +181,18 @@ function AppLayout() {
               <PINProvider>
                 <EventLayout>
                   <ProfilePage />
+                </EventLayout>
+              </PINProvider>
+            } 
+          />
+          <Route 
+            path="/event/:eventId/dashboard" 
+            element={
+              <PINProvider>
+                <EventLayout>
+                  <DashboardRoute>
+                    <DashboardPage />
+                  </DashboardRoute>
                 </EventLayout>
               </PINProvider>
             } 

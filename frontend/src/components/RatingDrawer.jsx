@@ -4,6 +4,8 @@ import { Button } from '@/components/ui/button';
 import Message from '@/components/Message';
 import RatingForm from './RatingForm';
 import { toggleBookmark, isBookmarked } from '@/utils/bookmarkStorage';
+import { useEventContext } from '@/contexts/EventContext';
+import { useItemTerminology } from '@/utils/itemTerminology';
 
 /**
  * RatingDrawer Component
@@ -31,6 +33,8 @@ function RatingDrawer({
   eventType,
   noteSuggestionsEnabled
 }) {
+  const { event } = useEventContext();
+  const { singular } = useItemTerminology(event);
   const openStartTimeRef = useRef(null);
   const hasBeenOpenedRef = useRef(false);
   const [bookmarked, setBookmarked] = useState(false);
@@ -171,7 +175,7 @@ function RatingDrawer({
           {/* Header with title, bookmark button, and close button */}
           <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0">
             <h2 id="drawer-title" className="text-base font-semibold">
-              Item {itemId}
+              {singular} {itemId}
             </h2>
             <div className="flex items-center gap-2">
               {eventState === 'started' && (
@@ -180,7 +184,7 @@ function RatingDrawer({
                   size="icon"
                   className="h-8 w-8"
                   onClick={handleBookmarkToggle}
-                  aria-label={bookmarked ? 'Remove bookmark' : 'Bookmark this item'}
+                  aria-label={bookmarked ? `Remove bookmark` : `Bookmark this ${singular.toLowerCase()}`}
                 >
                   {bookmarked ? (
                     <BookmarkCheck className="h-4 w-4 text-yellow-500 fill-yellow-500" />

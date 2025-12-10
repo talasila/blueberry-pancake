@@ -3,10 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Settings, LogOut } from 'lucide-react';
+import { ArrowLeft, Settings, LogOut, BarChart3 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import apiClient from '@/services/apiClient';
 import { useEventContext } from '@/contexts/EventContext';
+import { useItemTerminology } from '@/utils/itemTerminology';
 
 /**
  * ProfilePage Component
@@ -21,7 +22,8 @@ import { useEventContext } from '@/contexts/EventContext';
 function ProfilePage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { isAdmin } = useEventContext();
+  const { isAdmin, event } = useEventContext();
+  const { singularLower } = useItemTerminology(event);
   const [name, setName] = useState('');
   const [blindItemDetails, setBlindItemDetails] = useState('');
   const [loading, setLoading] = useState(false);
@@ -41,6 +43,12 @@ function ProfilePage() {
   const handleAdminClick = () => {
     if (eventId) {
       navigate(`/event/${eventId}/admin`);
+    }
+  };
+
+  const handleDashboardClick = () => {
+    if (eventId) {
+      navigate(`/event/${eventId}/dashboard`);
     }
   };
 
@@ -123,7 +131,6 @@ function ProfilePage() {
               className="-ml-2 min-h-[44px] active:bg-accent active:opacity-70 touch-manipulation"
               aria-label="Go back"
             >
-              <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
             {/* Admin link (only for administrators) */}
@@ -134,8 +141,18 @@ function ProfilePage() {
                 className="-ml-2 min-h-[44px] active:bg-accent active:opacity-70 touch-manipulation"
                 aria-label="Go to admin page"
               >
-                <Settings className="h-4 w-4 mr-2" />
                 Admin
+              </Button>
+            )}
+            {/* Dashboard link (for administrators at all times, or regular users when event is completed) */}
+            {eventId && (isAdmin || event?.state === 'completed') && (
+              <Button
+                variant="ghost"
+                onClick={handleDashboardClick}
+                className="-ml-2 min-h-[44px] active:bg-accent active:opacity-70 touch-manipulation"
+                aria-label="Go to dashboard"
+              >
+                Dashboard
               </Button>
             )}
             {/* Logout button */}
@@ -145,7 +162,6 @@ function ProfilePage() {
               className="-ml-2 min-h-[44px] active:bg-accent active:opacity-70 touch-manipulation"
               aria-label="Logout"
             >
-              <LogOut className="h-4 w-4 mr-2" />
               Logout
             </Button>
           </div>
@@ -192,10 +208,10 @@ function ProfilePage() {
 
                 {/* Blind Item Details */}
                 <div>
-                  <Label htmlFor="blindItemDetails">Blind Item Details</Label>
+                  <Label htmlFor="blindItemDetails">Blind {singularLower.charAt(0).toUpperCase() + singularLower.slice(1)} Details</Label>
                   <textarea
                     id="blindItemDetails"
-                    placeholder="Enter blind item details (e.g., tasting notes, preferences)"
+                    placeholder={`Enter blind ${singularLower} details (e.g., tasting notes, preferences)`}
                     value={blindItemDetails}
                     onChange={(e) => setBlindItemDetails(e.target.value)}
                     disabled={loading}

@@ -10,12 +10,13 @@ import ItemButton from '@/components/ItemButton';
 import RatingDrawer from '@/components/RatingDrawer';
 import RatingErrorBoundary from '@/components/RatingErrorBoundary';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { useItemTerminology } from '@/utils/itemTerminology';
 
 /**
  * EventPage Component
  * 
  * Displays the main event page where users can view event details
- * and participate in rating items.
+ * and participate in rating items/bottles.
  * 
  * Features:
  * - Displays event data from context (provided by EventRouteWrapper)
@@ -30,6 +31,7 @@ function EventPage() {
   const navigate = useNavigate();
   const { event: contextEvent, isAdmin } = useEventContext();
   const { pinVerified, sessionId } = usePIN();
+  const { pluralLower } = useItemTerminology(contextEvent);
   
   // Check authentication synchronously before any API calls
   const jwtToken = apiClient.getJWTToken();
@@ -397,7 +399,7 @@ function EventPage() {
 
           {availableItemIds.length === 0 && (
             <div className="text-center text-muted-foreground py-8">
-              No items available for this event.
+              No {pluralLower} available for this event.
             </div>
           )}
         </div>

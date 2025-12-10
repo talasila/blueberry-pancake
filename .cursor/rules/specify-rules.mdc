@@ -23,6 +23,7 @@ Auto-generated from all feature plans. Last updated: 2025-12-06
 - File-based (CSV files in `data/events/{eventId}/ratings.csv`), session storage (browser localStorage/sessionStorage for bookmarks) (009-event-rating-page)
 - Node.js >=22.12.0 (backend), React 19.2.1 (frontend) + Express 5.2.1 (backend), React Router 7.10.1, Vite 6.0.5 (frontend), Tailwind CSS 4.1.17 (001-wine-note-suggestions)
 - File-based JSON storage (`data/events/{eventId}/config.json` for event config, `quotes.json` in root for quotes) (001-wine-note-suggestions)
+- File-based (event config JSON, ratings CSV files in `data/events/{eventId}/`), in-memory caching (010-dashboard-page)
 
 - JavaScript (ES2020+), Node.js 18+ + React, Node.js, Express, shadcn UI, Tailwind CSS, Playwright, @cucumber/cucumber, Vitest, jsonwebtoken, csurf/csrf, node-cache, config package (001-baseline-setup)
 
@@ -43,9 +44,9 @@ npm test && npm run lint
 JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 
 ## Recent Changes
+- 010-dashboard-page: Added Node.js >=22.12.0, JavaScript (ES modules)
 - 001-wine-note-suggestions: Added Node.js >=22.12.0 (backend), React 19.2.1 (frontend) + Express 5.2.1 (backend), React Router 7.10.1, Vite 6.0.5 (frontend), Tailwind CSS 4.1.17
 - 009-event-rating-page: Added Node.js >=22.12.0, JavaScript (ES modules)
-- 001-ratings-config: Added JavaScript (ES2020+), Node.js >=22.12.0 + Express 5.2.1, React 19.2.1, React Router DOM 7.10.1, jsonwebtoken 9.0.3 (for auth), existing EventService, DataRepository patterns, shadcn UI components (Accordion, Button, Input, ColorPicker or equivalent), existing optimistic locking pattern from event state transitions
 
 
 <!-- MANUAL ADDITIONS START -->
