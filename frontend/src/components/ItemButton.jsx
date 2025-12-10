@@ -16,7 +16,7 @@ function ItemButton({ itemId, ratingColor, isBookmarked, onClick }) {
     <button
       onClick={onClick}
       className={cn(
-        "relative w-16 h-16 rounded-full text-3xl font-normal",
+        "relative w-14 h-14 rounded-full text-3xl font-normal",
         "flex items-center justify-center",
         "transition-all duration-200",
         "hover:scale-105 active:scale-95",
