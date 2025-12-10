@@ -358,16 +358,18 @@ function EventPage() {
 
           {/* Item buttons in dialpad layout */}
           {availableItemIds.length > 0 && (
-            <div className="grid grid-cols-3 gap-3 justify-items-center">
-              {availableItemIds.map(itemId => (
-                <ItemButton
-                  key={itemId}
-                  itemId={itemId}
-                  ratingColor={getRatingColor(itemId)}
-                  isBookmarked={bookmarks.includes(itemId)}
-                  onClick={() => handleItemClick(itemId)}
-                />
-              ))}
+            <div className="flex justify-center">
+              <div className="grid grid-cols-3 gap-6 justify-items-center" style={{ width: 'fit-content' }}>
+                {availableItemIds.map(itemId => (
+                  <ItemButton
+                    key={itemId}
+                    itemId={itemId}
+                    ratingColor={getRatingColor(itemId)}
+                    isBookmarked={bookmarks.includes(itemId)}
+                    onClick={() => handleItemClick(itemId)}
+                  />
+                ))}
+              </div>
             </div>
           )}
 

@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { ChevronDown } from 'lucide-react';
 import { ratingService } from '@/services/ratingService';
 import { useParams } from 'react-router-dom';
 import apiClient from '@/services/apiClient';
@@ -27,6 +28,8 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose }) 
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
   const MAX_RETRIES = 3; // Maximum number of retry attempts
 
   // Reset form state when itemId or existingRating changes
@@ -37,7 +40,24 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose }) 
     setSuccess(false);
     setIsSubmitting(false);
     setRetryCount(0);
+    setIsDropdownOpen(false);
   }, [itemId, existingRating]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [isDropdownOpen]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -133,41 +153,89 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose }) 
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Rating Options */}
       <div>
-        <Label className="text-base font-semibold mb-4 block">
-          Select Rating
-        </Label>
-        <div className="grid grid-cols-2 gap-2">
-          {ratingConfig.ratings.map((ratingOption) => (
-            <button
-              key={ratingOption.value}
-              type="button"
-              onClick={() => setSelectedRating(ratingOption.value)}
-              className={`
-                p-2 rounded-lg border-2 transition-all
-                ${selectedRating === ratingOption.value
-                  ? 'border-white border-opacity-50 shadow-lg'
-                  : 'border-transparent hover:border-white hover:border-opacity-30'
-                }
-              `}
-              style={{
-                backgroundColor: ratingOption.color,
-                color: 'white'
-              }}
-            >
-              <div className="text-center">
-                <div className="font-semibold text-sm">{ratingOption.value}</div>
-                <div className="text-xs mt-0.5 opacity-90">
-                  {ratingOption.label}
-                </div>
-              </div>
-            </button>
-          ))}
+        <div className="relative" ref={dropdownRef}>
+          <button
+            type="button"
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-ring transition-colors flex items-center justify-between"
+            style={
+              selectedRating
+                ? {
+                    backgroundColor: ratingConfig.ratings.find(r => r.value === selectedRating)?.color || '',
+                    color: 'white',
+                    borderColor: ratingConfig.ratings.find(r => r.value === selectedRating)?.color || ''
+                  }
+                : {
+                    backgroundColor: 'var(--background)',
+                    color: 'var(--foreground)',
+                    borderColor: 'var(--input)'
+                  }
+            }
+          >
+            <div className="flex items-center gap-2">
+              {selectedRating ? (
+                <>
+                  <div
+                    className="w-4 h-4 rounded-full"
+                    style={{
+                      backgroundColor: ratingConfig.ratings.find(r => r.value === selectedRating)?.color || ''
+                    }}
+                  />
+                  <span>
+                    {selectedRating} - {ratingConfig.ratings.find(r => r.value === selectedRating)?.label || ''}
+                  </span>
+                </>
+              ) : (
+                <span className="text-muted-foreground">-- Select a rating --</span>
+              )}
+            </div>
+            <ChevronDown className={`h-4 w-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+          </button>
+
+          {isDropdownOpen && (
+            <div className="absolute z-10 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto">
+              {/* No rating option */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedRating(null);
+                  setIsDropdownOpen(false);
+                }}
+                className="w-full px-3 py-2 text-left hover:bg-accent flex items-center gap-2 transition-colors"
+                style={{
+                  backgroundColor: selectedRating === null ? 'var(--muted)' : undefined,
+                  color: selectedRating === null ? 'var(--muted-foreground)' : undefined
+                }}
+              >
+                <div className="w-5 h-5 rounded-full flex-shrink-0 border-2 border-muted-foreground" />
+                <span className="text-muted-foreground">No rating</span>
+              </button>
+              {ratingConfig.ratings.map((ratingOption) => (
+                <button
+                  key={ratingOption.value}
+                  type="button"
+                  onClick={() => {
+                    setSelectedRating(ratingOption.value);
+                    setIsDropdownOpen(false);
+                  }}
+                  className="w-full px-3 py-2 text-left hover:bg-accent flex items-center gap-2 transition-colors"
+                  style={{
+                    backgroundColor: selectedRating === ratingOption.value ? ratingOption.color : undefined,
+                    color: selectedRating === ratingOption.value ? 'white' : undefined
+                  }}
+                >
+                  <div
+                    className="w-5 h-5 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: ratingOption.color }}
+                  />
+                  <span>
+                    {ratingOption.value} - {ratingOption.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
-        {!selectedRating && (
-          <p className="text-sm text-destructive mt-2">
-            Please select a rating
-          </p>
-        )}
       </div>
 
       {/* Note Field */}

@@ -16,7 +16,7 @@ function ItemButton({ itemId, ratingColor, isBookmarked, onClick }) {
     <button
       onClick={onClick}
       className={cn(
-        "relative w-14 h-14 rounded-full text-lg font-semibold",
+        "relative w-16 h-16 rounded-full text-3xl font-normal",
         "flex items-center justify-center",
         "transition-all duration-200",
         "hover:scale-105 active:scale-95",
@@ -33,9 +33,9 @@ function ItemButton({ itemId, ratingColor, isBookmarked, onClick }) {
       
       {/* Bookmark indicator overlay */}
       {isBookmarked && (
-        <div className="absolute top-0.5 right-0.5">
+        <div className="absolute top-0 left-0 bg-white/90 dark:bg-gray-900/90 rounded-full p-0.5 shadow-sm border border-gray-300 dark:border-gray-600">
           <Bookmark 
-            className="h-3 w-3 fill-yellow-400 text-yellow-400" 
+            className="h-4 w-4 fill-yellow-500 text-yellow-500" 
             aria-label="Bookmarked"
           />
         </div>
