@@ -870,4 +870,143 @@ router.patch('/:eventId/item-configuration', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/events/:eventId/rating-configuration
+ * Get rating configuration for an event
+ * 
+ * Returns the rating configuration for the specified event, including maxRating
+ * and ratings array with labels and colors. Returns default values if not configured.
+ * 
+ * No authentication required (public endpoint for event access)
+ * 
+ * @returns {object} Rating configuration object with maxRating and ratings array
+ * @throws {400} Bad request - invalid event ID format
+ * @throws {404} Not found - event does not exist
+ * @throws {500} Internal server error
+ */
+router.get('/:eventId/rating-configuration', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    // Get rating configuration
+    const ratingConfig = await eventService.getRatingConfiguration(eventId);
+
+    res.json(ratingConfig);
+  } catch (error) {
+    loggerService.error(`Get rating configuration error: ${error.message}`, error).catch(() => {});
+
+    // Handle validation errors (400)
+    if (error.message.includes('Invalid event ID') || error.message.includes('format')) {
+      return res.status(400).json({
+        error: error.message
+      });
+    }
+
+    // Handle event not found
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Handle server errors
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: 'Failed to get rating configuration. Please try again.',
+      ...(isDevelopment && { details: error.message })
+    });
+  }
+});
+
+/**
+ * PATCH /api/events/:eventId/rating-configuration
+ * Update rating configuration for an event
+ * 
+ * Updates the rating configuration for the specified event. Can update maxRating
+ * and/or ratings array. Partial updates are supported (only provided fields are updated).
+ * Max rating can only be changed when event is in "created" state.
+ * Uses optimistic locking to prevent concurrent modification conflicts.
+ * Only authenticated administrators can update rating configuration.
+ * 
+ * Requires authentication (JWT token) and administrator authorization
+ * 
+ * Request body:
+ * - maxRating: (optional) Integer between 2 and 4
+ * - ratings: (optional) Array of rating objects with value, label, color
+ * - expectedUpdatedAt: (optional) Expected updatedAt timestamp for optimistic locking
+ * 
+ * @returns {object} Updated rating configuration object
+ * @throws {400} Bad request - validation error
+ * @throws {401} Unauthorized - authentication required
+ * @throws {403} Forbidden - user is not an administrator
+ * @throws {404} Not found - event does not exist
+ * @throws {409} Conflict - event has been modified (optimistic locking failure)
+ * @throws {500} Internal server error
+ */
+router.patch('/:eventId/rating-configuration', requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const requesterEmail = req.user?.email;
+    const { maxRating, ratings, expectedUpdatedAt } = req.body;
+
+    if (!requesterEmail) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
+    }
+
+    // Update rating configuration
+    const result = await eventService.updateRatingConfiguration(
+      eventId,
+      { maxRating, ratings },
+      requesterEmail,
+      expectedUpdatedAt
+    );
+
+    res.json(result);
+  } catch (error) {
+    loggerService.error(`Update rating configuration error: ${error.message}`, error).catch(() => {});
+
+    // Handle optimistic locking conflicts (409)
+    if (error.code === 'OPTIMISTIC_LOCK_CONFLICT') {
+      return res.status(409).json({
+        error: error.message,
+        currentUpdatedAt: error.currentUpdatedAt
+      });
+    }
+
+    // Handle state restriction errors (400)
+    if (error.message.includes('can only be changed when event is in "created" state')) {
+      return res.status(400).json({
+        error: error.message
+      });
+    }
+
+    // Handle validation errors (400)
+    if (error.message.includes('must be') || 
+        error.message.includes('required') ||
+        error.message.includes('invalid') ||
+        error.message.includes('format')) {
+      return res.status(400).json({
+        error: error.message
+      });
+    }
+
+    // Handle event not found
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Handle authorization errors
+    if (error.message.includes('Unauthorized') || error.message.includes('administrator')) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    // Handle server errors
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: 'Failed to update rating configuration. Please try again.',
+      ...(isDevelopment && { details: error.message })
+    });
+  }
+});
+
 export default router;

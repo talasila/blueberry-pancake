@@ -7,6 +7,28 @@ import pinService from './PINService.js';
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 8);
 
 /**
+ * Default rating presets for different max rating values
+ * Each preset defines labels and colors for rating values 1 to maxRating
+ */
+const DEFAULT_RATING_PRESETS = {
+  2: [
+    { value: 1, label: 'Poor', color: '#FF3B30' },
+    { value: 2, label: 'Good', color: '#28A745' }
+  ],
+  3: [
+    { value: 1, label: 'Poor', color: '#FF3B30' },
+    { value: 2, label: 'Average', color: '#FFCC00' },
+    { value: 3, label: 'Good', color: '#34C759' }
+  ],
+  4: [
+    { value: 1, label: 'What is this crap?', color: '#FF3B30' },
+    { value: 2, label: 'Meh...', color: '#FFCC00' },
+    { value: 3, label: 'Not bad...', color: '#34C759' },
+    { value: 4, label: 'Give me more...', color: '#28A745' }
+  ]
+};
+
+/**
  * EventService
  * Handles event creation business logic
  */
@@ -937,6 +959,352 @@ class EventService {
     }
     
     return sorted;
+  }
+
+  /**
+   * Convert color input (hex, RGB, or HSL) to hex format
+   * @param {string} colorInput - Color in hex (#RRGGBB or #RGB), RGB (rgb(r,g,b)), or HSL (hsl(h,s%,l%)) format
+   * @returns {string} Hex color code (#RRGGBB)
+   * @throws {Error} If color format is invalid
+   */
+  convertColorToHex(colorInput) {
+    if (!colorInput || typeof colorInput !== 'string') {
+      throw new Error('Color input is required and must be a string');
+    }
+
+    const trimmed = colorInput.trim();
+
+    // Already hex format (#RRGGBB or #RGB)
+    if (/^#[0-9A-Fa-f]{6}$/.test(trimmed)) {
+      return trimmed.toUpperCase();
+    }
+
+    // Short hex format (#RGB)
+    if (/^#[0-9A-Fa-f]{3}$/.test(trimmed)) {
+      const r = trimmed[1];
+      const g = trimmed[2];
+      const b = trimmed[3];
+      return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
+    }
+
+    // RGB format: rgb(r, g, b) or rgb(r,g,b)
+    const rgbMatch = trimmed.match(/^rgb\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*\)$/i);
+    if (rgbMatch) {
+      const r = parseInt(rgbMatch[1], 10);
+      const g = parseInt(rgbMatch[2], 10);
+      const b = parseInt(rgbMatch[3], 10);
+      
+      if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255) {
+        throw new Error('RGB values must be between 0 and 255');
+      }
+      
+      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`.toUpperCase();
+    }
+
+    // HSL format: hsl(h, s%, l%) or hsl(h,s%,l%)
+    const hslMatch = trimmed.match(/^hsl\s*\(\s*(\d+)\s*,\s*(\d+)%\s*,\s*(\d+)%\s*\)$/i);
+    if (hslMatch) {
+      const h = parseInt(hslMatch[1], 10) / 360;
+      const s = parseInt(hslMatch[2], 10) / 100;
+      const l = parseInt(hslMatch[3], 10) / 100;
+      
+      // Convert HSL to RGB
+      const c = (1 - Math.abs(2 * l - 1)) * s;
+      const x = c * (1 - Math.abs((h * 6) % 2 - 1));
+      const m = l - c / 2;
+      
+      let r, g, b;
+      if (h < 1/6) {
+        r = c; g = x; b = 0;
+      } else if (h < 2/6) {
+        r = x; g = c; b = 0;
+      } else if (h < 3/6) {
+        r = 0; g = c; b = x;
+      } else if (h < 4/6) {
+        r = 0; g = x; b = c;
+      } else if (h < 5/6) {
+        r = x; g = 0; b = c;
+      } else {
+        r = c; g = 0; b = x;
+      }
+      
+      r = Math.round((r + m) * 255);
+      g = Math.round((g + m) * 255);
+      b = Math.round((b + m) * 255);
+      
+      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`.toUpperCase();
+    }
+
+    throw new Error(`Invalid color format: ${trimmed}. Supported formats: #RRGGBB, #RGB, rgb(r,g,b), hsl(h,s%,l%)`);
+  }
+
+  /**
+   * Generate default ratings array for a given maxRating value
+   * @param {number} maxRating - Maximum rating value (2, 3, or 4)
+   * @returns {Array} Array of rating objects with value, label, and color
+   * @throws {Error} If maxRating is not 2, 3, or 4
+   */
+  generateDefaultRatings(maxRating) {
+    if (!Number.isInteger(maxRating) || maxRating < 2 || maxRating > 4) {
+      throw new Error('maxRating must be an integer between 2 and 4');
+    }
+
+    const preset = DEFAULT_RATING_PRESETS[maxRating];
+    if (!preset) {
+      throw new Error(`No default preset found for maxRating: ${maxRating}`);
+    }
+
+    // Return a deep copy to prevent mutation
+    return preset.map(rating => ({ ...rating }));
+  }
+
+  /**
+   * Get rating configuration for an event
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<object>} Rating configuration object with maxRating and ratings array
+   */
+  async getRatingConfiguration(eventId) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    // Get event
+    const event = await this.getEvent(eventId);
+
+    // Return ratingConfiguration or defaults
+    if (event.ratingConfiguration) {
+      return {
+        maxRating: event.ratingConfiguration.maxRating ?? 4,
+        ratings: event.ratingConfiguration.ratings ?? this.generateDefaultRatings(event.ratingConfiguration.maxRating ?? 4)
+      };
+    }
+
+    // Return defaults if not configured
+    const defaultMaxRating = 4;
+    return {
+      maxRating: defaultMaxRating,
+      ratings: this.generateDefaultRatings(defaultMaxRating)
+    };
+  }
+
+  /**
+   * Validate max rating change is allowed based on event state
+   * @param {object} event - Event object
+   * @param {number} newMaxRating - New max rating value
+   * @returns {{valid: boolean, error?: string}} Validation result
+   */
+  validateMaxRatingChange(event, newMaxRating) {
+    // Max rating can only be changed when event is in "created" state
+    if (event.state !== 'created') {
+      return {
+        valid: false,
+        error: `Maximum rating can only be changed when event is in "created" state. Current state: ${event.state}`
+      };
+    }
+
+    // Validate newMaxRating is different from current
+    const currentMaxRating = event.ratingConfiguration?.maxRating ?? 4;
+    if (newMaxRating === currentMaxRating) {
+      // No change, this is valid (no-op)
+      return { valid: true };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Validate rating configuration
+   * @param {object} config - Rating configuration object
+   * @param {number} config.maxRating - Maximum rating value (2-4)
+   * @param {Array} config.ratings - Array of rating objects
+   * @returns {{valid: boolean, error?: string}} Validation result
+   */
+  validateRatingConfiguration(config) {
+    if (!config || typeof config !== 'object') {
+      return { valid: false, error: 'Rating configuration is required' };
+    }
+
+    // Validate maxRating
+    if (config.maxRating !== undefined) {
+      if (!Number.isInteger(config.maxRating) || config.maxRating < 2 || config.maxRating > 4) {
+        return { valid: false, error: 'maxRating must be an integer between 2 and 4' };
+      }
+    }
+
+    // Validate ratings array if provided
+    if (config.ratings !== undefined) {
+      if (!Array.isArray(config.ratings)) {
+        return { valid: false, error: 'ratings must be an array' };
+      }
+
+      const maxRating = config.maxRating ?? 4;
+      
+      // Validate array length matches maxRating
+      if (config.ratings.length !== maxRating) {
+        return { valid: false, error: `ratings array must contain exactly ${maxRating} rating objects` };
+      }
+
+      // Validate each rating object
+      for (let i = 0; i < config.ratings.length; i++) {
+        const rating = config.ratings[i];
+        const expectedValue = i + 1;
+
+        if (!rating || typeof rating !== 'object') {
+          return { valid: false, error: `Rating at index ${i} must be an object` };
+        }
+
+        // Validate value
+        if (rating.value !== expectedValue) {
+          return { valid: false, error: `Rating at index ${i} must have value ${expectedValue}` };
+        }
+
+        // Validate label
+        if (!rating.label || typeof rating.label !== 'string') {
+          return { valid: false, error: `Rating at index ${i} must have a non-empty label string` };
+        }
+
+        if (rating.label.trim().length === 0) {
+          return { valid: false, error: `Rating at index ${i} label cannot be empty` };
+        }
+
+        if (rating.label.length > 50) {
+          return { valid: false, error: `Rating at index ${i} label must be 50 characters or less` };
+        }
+
+        // Validate color
+        if (!rating.color || typeof rating.color !== 'string') {
+          return { valid: false, error: `Rating at index ${i} must have a color string` };
+        }
+
+        // Validate color format (must be valid hex after conversion)
+        try {
+          this.convertColorToHex(rating.color);
+        } catch (error) {
+          return { valid: false, error: `Rating at index ${i} has invalid color format: ${error.message}` };
+        }
+      }
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Update rating configuration for an event
+   * @param {string} eventId - Event identifier
+   * @param {object} config - Configuration object with maxRating and/or ratings
+   * @param {string} requesterEmail - Email of the requester (must be an administrator)
+   * @param {string} expectedUpdatedAt - Expected updatedAt timestamp for optimistic locking (optional)
+   * @returns {Promise<object>} Updated rating configuration
+   */
+  async updateRatingConfiguration(eventId, config, requesterEmail, expectedUpdatedAt) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    if (!requesterEmail || typeof requesterEmail !== 'string') {
+      throw new Error('Requester email is required');
+    }
+
+    // Get current event
+    const event = await this.getEvent(eventId);
+
+    // Optimistic locking: check updatedAt if provided
+    if (expectedUpdatedAt && event.updatedAt !== expectedUpdatedAt) {
+      loggerService.warn(`Optimistic locking conflict for event ${eventId}: expected=${expectedUpdatedAt}, actual=${event.updatedAt}`);
+      const error = new Error('Event has been modified by another administrator. Please refresh and try again.');
+      error.currentUpdatedAt = event.updatedAt;
+      error.code = 'OPTIMISTIC_LOCK_CONFLICT';
+      throw error;
+    }
+
+    // Validate requester is administrator
+    if (!this.isAdministrator(event, requesterEmail)) {
+      throw new Error('Unauthorized: Only administrators can update rating configuration');
+    }
+
+    // Get current configuration or defaults
+    const current = event.ratingConfiguration || {
+      maxRating: 4,
+      ratings: this.generateDefaultRatings(4)
+    };
+
+    // Determine new maxRating
+    let newMaxRating = current.maxRating;
+    if (config.maxRating !== undefined) {
+      // Validate maxRating change is allowed
+      const maxRatingValidation = this.validateMaxRatingChange(event, config.maxRating);
+      if (!maxRatingValidation.valid) {
+        throw new Error(maxRatingValidation.error);
+      }
+
+      if (!Number.isInteger(config.maxRating) || config.maxRating < 2 || config.maxRating > 4) {
+        throw new Error('maxRating must be an integer between 2 and 4');
+      }
+      newMaxRating = config.maxRating;
+    }
+
+    // Handle ratings array
+    let newRatings = current.ratings;
+    if (config.ratings !== undefined) {
+      // If maxRating changed, generate new ratings array
+      if (config.maxRating !== undefined && config.maxRating !== current.maxRating) {
+        newRatings = this.generateDefaultRatings(newMaxRating);
+      } else {
+        // Use provided ratings array
+        newRatings = config.ratings;
+      }
+    } else if (config.maxRating !== undefined && config.maxRating !== current.maxRating) {
+      // MaxRating changed but no ratings provided, generate defaults
+      newRatings = this.generateDefaultRatings(newMaxRating);
+    }
+
+    // Convert all colors to hex format
+    const normalizedRatings = newRatings.map(rating => {
+      try {
+        const hexColor = this.convertColorToHex(rating.color);
+        return {
+          value: rating.value,
+          label: rating.label.trim(),
+          color: hexColor
+        };
+      } catch (error) {
+        throw new Error(`Invalid color for rating value ${rating.value}: ${error.message}`);
+      }
+    });
+
+    // Validate the complete configuration
+    const validation = this.validateRatingConfiguration({
+      maxRating: newMaxRating,
+      ratings: normalizedRatings
+    });
+    if (!validation.valid) {
+      throw new Error(validation.error);
+    }
+
+    // Update event
+    event.ratingConfiguration = {
+      maxRating: newMaxRating,
+      ratings: normalizedRatings
+    };
+    event.updatedAt = new Date().toISOString();
+
+    // Save event
+    await this.updateEvent(eventId, event);
+
+    loggerService.info(`Rating configuration updated for event ${eventId} by ${requesterEmail}`, {
+      eventId,
+      maxRating: newMaxRating,
+      requester: requesterEmail
+    });
+
+    return {
+      maxRating: newMaxRating,
+      ratings: normalizedRatings
+    };
   }
 }
 

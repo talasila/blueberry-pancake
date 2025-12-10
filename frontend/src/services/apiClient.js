@@ -406,6 +406,44 @@ class ApiClient {
   async updateItemConfiguration(eventId, config) {
     return this.patch(`/events/${eventId}/item-configuration`, config);
   }
+
+  /**
+   * Get rating configuration for an event
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<any>} Response data with rating configuration (maxRating and ratings array)
+   */
+  async getRatingConfiguration(eventId) {
+    return this.get(`/events/${eventId}/rating-configuration`);
+  }
+
+  /**
+   * Update rating configuration for an event
+   * @param {string} eventId - Event identifier
+   * @param {object} config - Configuration object with maxRating and/or ratings array
+   * @param {string} expectedUpdatedAt - Expected updatedAt timestamp for optimistic locking (optional)
+   * @returns {Promise<any>} Response data with updated rating configuration
+   */
+  async updateRatingConfiguration(eventId, config, expectedUpdatedAt) {
+    const body = { ...config };
+    if (expectedUpdatedAt) {
+      body.expectedUpdatedAt = expectedUpdatedAt;
+    }
+    
+    const response = await this.request(`/events/${eventId}/rating-configuration`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    });
+    
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Failed to update rating configuration' }));
+      const err = new Error(error.error || 'Failed to update rating configuration');
+      err.status = response.status;
+      err.currentUpdatedAt = error.currentUpdatedAt;
+      throw err;
+    }
+    
+    return response.json();
+  }
 }
 
 // Export singleton instance

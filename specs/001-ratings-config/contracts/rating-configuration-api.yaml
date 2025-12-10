@@ -1,0 +1,261 @@
+openapi: 3.0.3
+info:
+  title: Ratings Configuration API
+  description: API for managing rating configuration in events
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+  - url: https://api.example.com/api
+    description: Production server
+
+tags:
+  - name: rating-configuration
+    description: Rating configuration management operations
+
+paths:
+  /events/{eventId}/rating-configuration:
+    get:
+      summary: Get rating configuration for an event
+      description: |
+        Returns the rating configuration for the specified event, including the maximum rating value
+        and ratings array with labels and colors. If no configuration exists, returns default values
+        (scale 1-4 with default labels and colors). Only authenticated administrators can access this endpoint.
+      tags:
+        - rating-configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+      responses:
+        '200':
+          description: Rating configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RatingConfiguration'
+              example:
+                maxRating: 4
+                ratings:
+                  - value: 1
+                    label: "What is this crap?"
+                    color: "#FF3B30"
+                  - value: 2
+                    label: "Meh..."
+                    color: "#FFCC00"
+                  - value: 3
+                    label: "Not bad..."
+                    color: "#34C759"
+                  - value: 4
+                    label: "Give me more..."
+                    color: "#28A745"
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authentication required"
+        '403':
+          description: Forbidden - user is not an administrator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Only administrators can view rating configuration"
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Event not found"
+    patch:
+      summary: Update rating configuration for an event
+      description: |
+        Updates the rating configuration for the specified event. Can update maxRating and/or
+        ratings array. Partial updates are supported (only provided fields are updated).
+        If maxRating is changed, new ratings array is generated based on new maxRating (preserves
+        custom labels/colors where possible, uses defaults for new ratings). Max rating can only
+        be changed when event is in "created" state. Uses optimistic locking to prevent concurrent
+        modification conflicts. Only authenticated administrators can update rating configuration.
+      tags:
+        - rating-configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                maxRating:
+                  type: integer
+                  minimum: 2
+                  maximum: 4
+                  description: Maximum rating value (2-4, can only be changed when event is in "created" state)
+                  example: 3
+                ratings:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/Rating'
+                  description: Array of rating objects (must contain exactly maxRating items, sequential values 1 to maxRating)
+                  example:
+                    - value: 1
+                      label: "Terrible"
+                      color: "#FF0000"
+                    - value: 2
+                      label: "Okay"
+                      color: "#FFFF00"
+                    - value: 3
+                      label: "Great"
+                      color: "#00FF00"
+      responses:
+        '200':
+          description: Rating configuration updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RatingConfiguration'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidMaxRating:
+                  value:
+                    error: "Maximum rating must be an integer between 2 and 4"
+                invalidState:
+                  value:
+                    error: "Maximum rating can only be changed when event is in 'created' state"
+                invalidLabel:
+                  value:
+                    error: "Label cannot be empty"
+                labelTooLong:
+                  value:
+                    error: "Label cannot exceed 50 characters"
+                invalidColor:
+                  value:
+                    error: "Invalid color format. Must be hex (#RRGGBB), RGB (rgb(r,g,b)), or HSL (hsl(h,s%,l%))"
+                invalidRatingsArray:
+                  value:
+                    error: "Ratings array must contain exactly 4 items with sequential values 1 to 4"
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Authentication required"
+        '403':
+          description: Forbidden - user is not an administrator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Only administrators can update rating configuration"
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Event not found"
+        '409':
+          description: Conflict - event was modified by another admin (optimistic locking)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Event was modified by another administrator. Please refresh and try again."
+
+components:
+  schemas:
+    RatingConfiguration:
+      type: object
+      required:
+        - maxRating
+        - ratings
+      properties:
+        maxRating:
+          type: integer
+          minimum: 2
+          maximum: 4
+          description: Maximum rating value, determines scale from 1 to maxRating (default 4)
+          example: 4
+        ratings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Rating'
+          description: Array of rating level configurations (one for each value 1 to maxRating)
+          minItems: 2
+          maxItems: 4
+    Rating:
+      type: object
+      required:
+        - value
+        - label
+        - color
+      properties:
+        value:
+          type: integer
+          minimum: 1
+          maximum: 4
+          description: The rating value (1 = lowest/worst, maxRating = highest/best)
+          example: 1
+        label:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: Display text for this rating level
+          example: "What is this crap?"
+        color:
+          type: string
+          pattern: '^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$'
+          description: Color code in hex format (e.g., #FF3B30). Input may be hex, RGB, or HSL but is stored as hex
+          example: "#FF3B30"
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "An error occurred"
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from OTP authentication
+

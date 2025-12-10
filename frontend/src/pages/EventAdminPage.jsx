@@ -164,6 +164,15 @@ function EventAdminPage() {
   const [nameError, setNameError] = useState('');
   const [nameSuccess, setNameSuccess] = useState('');
   const [linkCopied, setLinkCopied] = useState(false);
+  const [maxRating, setMaxRating] = useState(4);
+  const [ratings, setRatings] = useState([]);
+  const [isSavingRatingConfig, setIsSavingRatingConfig] = useState(false);
+  const [ratingConfigError, setRatingConfigError] = useState('');
+  const [ratingConfigSuccess, setRatingConfigSuccess] = useState('');
+  const [maxRatingError, setMaxRatingError] = useState('');
+  const [labelErrors, setLabelErrors] = useState({});
+  const [colorErrors, setColorErrors] = useState({});
+  const [openColorDropdowns, setOpenColorDropdowns] = useState({});
 
   // Check for OTP authentication (JWT token) - admin pages require OTP even if accessed via PIN
   useEffect(() => {
@@ -239,6 +248,75 @@ function EventAdminPage() {
     fetchItemConfiguration();
   }, [eventId]);
 
+  // Default rating presets (matching backend)
+  const getDefaultRatings = (maxRating) => {
+    const presets = {
+      2: [
+        { value: 1, label: 'Poor', color: '#FF3B30' },
+        { value: 2, label: 'Good', color: '#28A745' }
+      ],
+      3: [
+        { value: 1, label: 'Poor', color: '#FF3B30' },
+        { value: 2, label: 'Average', color: '#FFCC00' },
+        { value: 3, label: 'Good', color: '#34C759' }
+      ],
+      4: [
+        { value: 1, label: 'What is this crap?', color: '#FF3B30' },
+        { value: 2, label: 'Meh...', color: '#FFCC00' },
+        { value: 3, label: 'Not bad...', color: '#34C759' },
+        { value: 4, label: 'Give me more...', color: '#28A745' }
+      ]
+    };
+    return presets[maxRating] || presets[4];
+  };
+
+  // Simple color palette for selection
+  const COLOR_PALETTE = [
+    { value: '#FF3B30', label: 'Red' },
+    { value: '#FF9500', label: 'Orange' },
+    { value: '#FFCC00', label: 'Yellow' },
+    { value: '#34C759', label: 'Green' },
+    { value: '#28A745', label: 'Dark Green' },
+    { value: '#007AFF', label: 'Blue' },
+    { value: '#5856D6', label: 'Purple' },
+    { value: '#AF52DE', label: 'Pink' },
+    { value: '#FF2D55', label: 'Pink Red' }
+  ];
+
+  // Fetch rating configuration on load
+  useEffect(() => {
+    const fetchRatingConfiguration = async () => {
+      if (!eventId) return;
+      
+      try {
+        const config = await apiClient.getRatingConfiguration(eventId);
+        setMaxRating(config.maxRating || 4);
+        setRatings(config.ratings || getDefaultRatings(config.maxRating || 4));
+      } catch (error) {
+        console.error('Failed to fetch rating configuration:', error);
+        // Use defaults if fetch fails
+        setMaxRating(4);
+        setRatings(getDefaultRatings(4));
+      }
+    };
+
+    fetchRatingConfiguration();
+  }, [eventId]);
+
+  // Update ratings array when maxRating changes (only if user is editing)
+  useEffect(() => {
+    const maxRatingNum = parseInt(maxRating, 10);
+    if (!isNaN(maxRatingNum) && maxRatingNum >= 2 && maxRatingNum <= 4) {
+      const currentMaxRating = ratings.length > 0 ? Math.max(...ratings.map(r => r.value)) : 0;
+      // Only update if maxRating actually changed and we have existing ratings
+      if (ratings.length > 0 && currentMaxRating !== maxRatingNum) {
+        // Generate new ratings array based on new maxRating
+        setRatings(getDefaultRatings(maxRatingNum));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maxRating]);
+
   // Handle save item configuration
   const handleSaveItemConfiguration = async () => {
     setIsSavingConfig(true);
@@ -267,6 +345,161 @@ function EventAdminPage() {
       setConfigError(error.message || 'Failed to save item configuration');
     } finally {
       setIsSavingConfig(false);
+    }
+  };
+
+  // Validate label for a rating
+  const validateLabel = (value, label) => {
+    if (!label || typeof label !== 'string' || label.trim().length === 0) {
+      return 'Label is required';
+    }
+    if (label.length > 50) {
+      return 'Label must be 50 characters or less';
+    }
+    return null;
+  };
+
+  // Validate color for a rating
+  const validateColor = (value, color) => {
+    if (!color || typeof color !== 'string') {
+      return 'Color is required';
+    }
+    // Basic hex validation (backend will do full conversion)
+    const hexPattern = /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/;
+    const rgbPattern = /^rgb\s*\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*\)$/i;
+    const hslPattern = /^hsl\s*\(\s*\d+\s*,\s*\d+%\s*,\s*\d+%\s*\)$/i;
+    
+    if (!hexPattern.test(color) && !rgbPattern.test(color) && !hslPattern.test(color)) {
+      return 'Invalid color format. Use hex (#RRGGBB), RGB (rgb(r,g,b)), or HSL (hsl(h,s%,l%))';
+    }
+    return null;
+  };
+
+  // Handle label change
+  const handleLabelChange = (value, newLabel) => {
+    setRatings(prev => prev.map(r => r.value === value ? { ...r, label: newLabel } : r));
+    setLabelErrors(prev => ({ ...prev, [value]: null }));
+    setRatingConfigError('');
+  };
+
+  // Handle label blur (validate)
+  const handleLabelBlur = (value, label) => {
+    const error = validateLabel(value, label);
+    if (error) {
+      setLabelErrors(prev => ({ ...prev, [value]: error }));
+    } else {
+      setLabelErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[value];
+        return newErrors;
+      });
+    }
+  };
+
+  // Handle color change
+  const handleColorChange = (value, newColor) => {
+    setRatings(prev => prev.map(r => r.value === value ? { ...r, color: newColor } : r));
+    setColorErrors(prev => ({ ...prev, [value]: null }));
+    setRatingConfigError('');
+    setOpenColorDropdowns(prev => ({ ...prev, [value]: false }));
+  };
+
+  // Toggle color dropdown
+  const toggleColorDropdown = (value) => {
+    setOpenColorDropdowns(prev => ({ ...prev, [value]: !prev[value] }));
+  };
+
+  // Handle color blur (validate)
+  const handleColorBlur = (value, color) => {
+    const error = validateColor(value, color);
+    if (error) {
+      setColorErrors(prev => ({ ...prev, [value]: error }));
+    } else {
+      setColorErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[value];
+        return newErrors;
+      });
+    }
+  };
+
+  // Handle reset to defaults
+  const handleResetToDefaults = () => {
+    const maxRatingNum = parseInt(maxRating, 10);
+    if (!isNaN(maxRatingNum) && maxRatingNum >= 2 && maxRatingNum <= 4) {
+      setRatings(getDefaultRatings(maxRatingNum));
+      setLabelErrors({});
+      setColorErrors({});
+      setRatingConfigError('');
+      setRatingConfigSuccess('Reset to defaults');
+      clearSuccessMessage(setRatingConfigSuccess);
+    }
+  };
+
+  // Handle save rating configuration
+  const handleSaveRatingConfiguration = async () => {
+    // Validate maxRating
+    const maxRatingNum = parseInt(maxRating, 10);
+    if (isNaN(maxRatingNum) || maxRatingNum < 2 || maxRatingNum > 4) {
+      setMaxRatingError('Maximum rating must be between 2 and 4');
+      return;
+    }
+    setMaxRatingError('');
+
+    // Validate all labels
+    const labelValidationErrors = {};
+    ratings.forEach(rating => {
+      const error = validateLabel(rating.value, rating.label);
+      if (error) {
+        labelValidationErrors[rating.value] = error;
+      }
+    });
+    if (Object.keys(labelValidationErrors).length > 0) {
+      setLabelErrors(labelValidationErrors);
+      setRatingConfigError('Please fix label validation errors before saving');
+      return;
+    }
+
+    // Validate all colors
+    const colorValidationErrors = {};
+    ratings.forEach(rating => {
+      const error = validateColor(rating.value, rating.color);
+      if (error) {
+        colorValidationErrors[rating.value] = error;
+      }
+    });
+    if (Object.keys(colorValidationErrors).length > 0) {
+      setColorErrors(colorValidationErrors);
+      setRatingConfigError('Please fix color validation errors before saving');
+      return;
+    }
+
+    setIsSavingRatingConfig(true);
+    setRatingConfigError('');
+    setRatingConfigSuccess('');
+
+    try {
+      const expectedUpdatedAt = event?.updatedAt;
+      const configToSave = {
+        maxRating: maxRatingNum,
+        ratings: ratings
+      };
+
+      const result = await apiClient.updateRatingConfiguration(eventId, configToSave, expectedUpdatedAt);
+      
+      setMaxRating(result.maxRating);
+      setRatings(result.ratings);
+      
+      setRatingConfigSuccess('Rating configuration saved successfully');
+      clearSuccessMessage(setRatingConfigSuccess);
+    } catch (error) {
+      if (error.status === 409) {
+        setRatingConfigError('Event has been modified by another administrator. Please refresh the page and try again.');
+      } else {
+        setRatingConfigError(error.message || 'Failed to save rating configuration');
+      }
+    } finally {
+      setIsSavingRatingConfig(false);
     }
   };
 
@@ -553,7 +786,17 @@ function EventAdminPage() {
             <AccordionItem value="item-configuration">
               <AccordionTrigger>
                 <div className="flex flex-col items-start text-left">
-                  <span className="font-semibold">Item Configuration</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">Item Configuration</span>
+                    <Badge variant="outline" className="text-xs">
+                      {numberOfItems} item{numberOfItems !== 1 ? 's' : ''}
+                      {excludedItemIdsInput && excludedItemIdsInput.trim() && (
+                        <span className="ml-1 text-muted-foreground">
+                          ({excludedItemIdsInput.split(',').filter(id => id.trim()).length} excluded)
+                        </span>
+                      )}
+                    </Badge>
+                  </div>
                   <span className="text-sm text-muted-foreground font-normal">
                     Configure the number of items and specify which item IDs to exclude from the event
                   </span>
@@ -625,6 +868,195 @@ function EventAdminPage() {
                   'Save Configuration'
                 )}
               </Button>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* Ratings Configuration Section */}
+            <AccordionItem value="ratings-configuration">
+              <AccordionTrigger>
+                <div className="flex flex-col items-start text-left">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">Ratings Configuration</span>
+                    {ratings.length > 0 && (
+                      <div className="flex items-center gap-1">
+                        {ratings.map((rating) => (
+                          <div
+                            key={rating.value}
+                            className="w-4 h-4 rounded-full border border-gray-300"
+                            style={{ backgroundColor: rating.color }}
+                            title={`Rating ${rating.value}: ${rating.label}`}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-sm text-muted-foreground font-normal">
+                    Configure how items are rated, including the rating scale, labels, and colors
+                  </span>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4">
+                {event?.state !== 'created' && (
+                  <Message type="info">
+                    Rating configuration can only be edited when the event is in "created" state.
+                  </Message>
+                )}
+                {/* Max Rating Input */}
+                <div>
+                  <label className="text-sm font-medium">Maximum Rating</label>
+                  <Input
+                    type="number"
+                    min="2"
+                    max="4"
+                    value={maxRating}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setMaxRating(value);
+                      setMaxRatingError('');
+                      setRatingConfigError('');
+                    }}
+                    onBlur={(e) => {
+                      const value = parseInt(e.target.value, 10);
+                      if (isNaN(value) || value < 2 || value > 4) {
+                        setMaxRatingError('Maximum rating must be between 2 and 4');
+                      } else {
+                        setMaxRatingError('');
+                      }
+                    }}
+                    disabled={isSavingRatingConfig || (event?.state !== 'created')}
+                    className="mt-1"
+                  />
+                  {maxRatingError && (
+                    <p className="text-xs text-red-600 mt-1">{maxRatingError}</p>
+                  )}
+                  {!maxRatingError && event?.state === 'created' && (
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Rating scale will be from 1 (lowest/worst) to {maxRating || 4} (highest/best)
+                    </p>
+                  )}
+                </div>
+
+                {/* Ratings Configuration */}
+                {ratings.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium">Rating Levels</label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleResetToDefaults}
+                        disabled={isSavingRatingConfig || (event?.state !== 'created')}
+                      >
+                        Reset to Defaults
+                      </Button>
+                    </div>
+                    <div className="space-y-3">
+                      {ratings.map((rating) => (
+                        <div key={rating.value} className="py-1">
+                          <div className="mb-2">
+                            <span className="text-sm font-medium">Rating {rating.value}</span>
+                          </div>
+                          <div className="flex items-start gap-2">
+                            <div className="flex-1">
+                              <Input
+                                type="text"
+                                value={rating.label}
+                                onChange={(e) => handleLabelChange(rating.value, e.target.value)}
+                                onBlur={(e) => handleLabelBlur(rating.value, e.target.value)}
+                                disabled={isSavingRatingConfig || (event?.state !== 'created')}
+                                maxLength={50}
+                                className="h-9"
+                              />
+                              {labelErrors[rating.value] && (
+                                <p className="text-xs text-red-600 mt-0.5">{labelErrors[rating.value]}</p>
+                              )}
+                              {!labelErrors[rating.value] && (
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                  {rating.label.length}/50 characters
+                                </p>
+                              )}
+                            </div>
+                            <div className="relative flex-shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => toggleColorDropdown(rating.value)}
+                                disabled={isSavingRatingConfig || (event?.state !== 'created')}
+                                className="flex h-9 w-12 items-center justify-center gap-1 rounded-md border border-input bg-transparent px-1.5 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                              >
+                                <div
+                                  className="w-5 h-5 rounded border border-gray-300"
+                                  style={{ backgroundColor: rating.color }}
+                                />
+                                <svg
+                                  className={`h-3 w-3 transition-transform ${openColorDropdowns[rating.value] ? 'rotate-180' : ''}`}
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </button>
+                              {openColorDropdowns[rating.value] && (
+                                <>
+                                  <div
+                                    className="fixed inset-0 z-10"
+                                    onClick={() => toggleColorDropdown(rating.value)}
+                                  />
+                                  <div className="absolute z-20 right-0 mt-1 rounded-md border border-input bg-background shadow-lg p-1">
+                                    <div className="flex gap-1">
+                                      {COLOR_PALETTE.map((colorOption) => (
+                                        <button
+                                          key={colorOption.value}
+                                          type="button"
+                                          onClick={() => handleColorChange(rating.value, colorOption.value)}
+                                          className={`w-8 h-8 rounded border-2 transition-all flex-shrink-0 ${
+                                            rating.color === colorOption.value
+                                              ? 'border-gray-900 scale-110 ring-2 ring-gray-400'
+                                              : 'border-gray-300 hover:border-gray-500'
+                                          }`}
+                                          style={{ backgroundColor: colorOption.value }}
+                                          title={colorOption.label}
+                                        />
+                                      ))}
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          {colorErrors[rating.value] && (
+                            <p className="text-xs text-red-600 mt-0.5">{colorErrors[rating.value]}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Messages */}
+                {ratingConfigError && (
+                  <Message type="error">{ratingConfigError}</Message>
+                )}
+                {ratingConfigSuccess && (
+                  <Message type="success">{ratingConfigSuccess}</Message>
+                )}
+
+                {/* Save button */}
+                <Button
+                  onClick={handleSaveRatingConfiguration}
+                  disabled={isSavingRatingConfig || !maxRating || maxRatingError || (event?.state !== 'created')}
+                  className="w-full"
+                >
+                  {isSavingRatingConfig ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    'Save Rating Configuration'
+                  )}
+                </Button>
               </AccordionContent>
             </AccordionItem>
 
@@ -708,7 +1140,14 @@ function EventAdminPage() {
             <AccordionItem value="pin">
               <AccordionTrigger>
                 <div className="flex flex-col items-start text-left">
-                  <span className="font-semibold">PIN</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">PIN</span>
+                    {event.pin && (
+                      <Badge variant="outline" className="font-mono text-xs">
+                        {event.pin}
+                      </Badge>
+                    )}
+                  </div>
                   <span className="text-sm text-muted-foreground font-normal">
                     Share this PIN with users to grant access to this event
                   </span>
