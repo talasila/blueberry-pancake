@@ -30,11 +30,21 @@ function RatingDrawer({
   const openStartTimeRef = useRef(null);
   const hasBeenOpenedRef = useRef(false);
   const [bookmarked, setBookmarked] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
 
   // Track if drawer has ever been opened (for animation)
   useEffect(() => {
     if (isOpen) {
       hasBeenOpenedRef.current = true;
+      // Ensure drawer starts in closed position, then animate to open
+      setIsAnimating(false);
+      // Use setTimeout to ensure the closed state is rendered before transitioning
+      const timer = setTimeout(() => {
+        setIsAnimating(true);
+      }, 10);
+      return () => clearTimeout(timer);
+    } else {
+      setIsAnimating(false);
     }
   }, [isOpen]);
 
@@ -143,7 +153,7 @@ function RatingDrawer({
           fixed bottom-0 left-0 right-0 w-full max-h-[75vh]
           bg-background shadow-xl z-50 rounded-t-lg
           transform transition-transform duration-300 ease-out
-          ${isOpen ? 'translate-y-0' : 'translate-y-full'}
+          ${isOpen && isAnimating ? 'translate-y-0' : 'translate-y-full'}
           ${!isOpen ? 'pointer-events-none' : ''}
         `}
         role="dialog"

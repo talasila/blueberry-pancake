@@ -240,9 +240,6 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose }) 
 
       {/* Note Field */}
       <div>
-        <Label htmlFor="note" className="text-base font-semibold mb-2 block">
-          Note (Optional)
-        </Label>
         <textarea
           id="note"
           value={note}
@@ -250,7 +247,7 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose }) 
           maxLength={500}
           rows={4}
           className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-          placeholder="Add a note about this item..."
+          placeholder="(Optional) Add a note about this item..."
         />
         <div className="flex justify-between items-center mt-1">
           <span className="text-xs text-muted-foreground">
