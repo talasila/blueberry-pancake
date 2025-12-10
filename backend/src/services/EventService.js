@@ -1073,20 +1073,46 @@ class EventService {
     // Get event
     const event = await this.getEvent(eventId);
 
+    // Determine noteSuggestionsEnabled value
+    // Default to true for wine events if not set
+    let noteSuggestionsEnabled = undefined;
+    if (event.typeOfItem === 'wine') {
+      if (event.ratingConfiguration?.noteSuggestionsEnabled !== undefined) {
+        noteSuggestionsEnabled = event.ratingConfiguration.noteSuggestionsEnabled;
+      } else {
+        // Default to true for wine events when not set
+        noteSuggestionsEnabled = true;
+      }
+    }
+
     // Return ratingConfiguration or defaults
     if (event.ratingConfiguration) {
-      return {
+      const config = {
         maxRating: event.ratingConfiguration.maxRating ?? 4,
         ratings: event.ratingConfiguration.ratings ?? this.generateDefaultRatings(event.ratingConfiguration.maxRating ?? 4)
       };
+      
+      // Include noteSuggestionsEnabled if applicable (wine events)
+      if (noteSuggestionsEnabled !== undefined) {
+        config.noteSuggestionsEnabled = noteSuggestionsEnabled;
+      }
+      
+      return config;
     }
 
     // Return defaults if not configured
     const defaultMaxRating = 4;
-    return {
+    const defaultConfig = {
       maxRating: defaultMaxRating,
       ratings: this.generateDefaultRatings(defaultMaxRating)
     };
+    
+    // Include noteSuggestionsEnabled if applicable (wine events)
+    if (noteSuggestionsEnabled !== undefined) {
+      defaultConfig.noteSuggestionsEnabled = noteSuggestionsEnabled;
+    }
+    
+    return defaultConfig;
   }
 
   /**
@@ -1285,11 +1311,39 @@ class EventService {
       throw new Error(validation.error);
     }
 
+    // Handle noteSuggestionsEnabled if provided
+    let noteSuggestionsEnabled = current.noteSuggestionsEnabled;
+    if (config.noteSuggestionsEnabled !== undefined) {
+      // Validate noteSuggestionsEnabled change is allowed
+      if (event.state !== 'created') {
+        throw new Error('Note suggestions toggle can only be changed when event is in "created" state');
+      }
+      
+      if (event.typeOfItem !== 'wine') {
+        throw new Error('Note suggestions are only available for wine events');
+      }
+      
+      if (typeof config.noteSuggestionsEnabled !== 'boolean') {
+        throw new Error('noteSuggestionsEnabled must be a boolean');
+      }
+      
+      noteSuggestionsEnabled = config.noteSuggestionsEnabled;
+    } else if (event.typeOfItem === 'wine' && noteSuggestionsEnabled === undefined) {
+      // Default to true for wine events if not set
+      noteSuggestionsEnabled = true;
+    }
+
     // Update event
     event.ratingConfiguration = {
       maxRating: newMaxRating,
       ratings: normalizedRatings
     };
+    
+    // Include noteSuggestionsEnabled if applicable (wine events)
+    if (event.typeOfItem === 'wine') {
+      event.ratingConfiguration.noteSuggestionsEnabled = noteSuggestionsEnabled;
+    }
+    
     event.updatedAt = new Date().toISOString();
 
     // Save event
@@ -1298,13 +1352,21 @@ class EventService {
     loggerService.info(`Rating configuration updated for event ${eventId} by ${requesterEmail}`, {
       eventId,
       maxRating: newMaxRating,
+      noteSuggestionsEnabled: event.typeOfItem === 'wine' ? noteSuggestionsEnabled : undefined,
       requester: requesterEmail
     });
 
-    return {
+    const result = {
       maxRating: newMaxRating,
       ratings: normalizedRatings
     };
+    
+    // Include noteSuggestionsEnabled in response if applicable (wine events)
+    if (event.typeOfItem === 'wine') {
+      result.noteSuggestionsEnabled = noteSuggestionsEnabled;
+    }
+    
+    return result;
   }
 }
 

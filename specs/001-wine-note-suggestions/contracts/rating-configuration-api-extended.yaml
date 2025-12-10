@@ -1,0 +1,281 @@
+openapi: 3.0.3
+info:
+  title: Rating Configuration API (Extended)
+  description: |
+    Extended API for managing rating configuration in events, including note suggestions toggle.
+    This extends the existing rating configuration API to include noteSuggestionsEnabled field.
+  version: 1.1.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:3001/api
+    description: Local development server
+  - url: https://api.example.com/api
+    description: Production server
+
+tags:
+  - name: rating-configuration
+    description: Rating configuration management operations
+
+paths:
+  /events/{eventId}/rating-configuration:
+    get:
+      summary: Get rating configuration for an event
+      description: |
+        Returns the rating configuration for the specified event, including the maximum rating value,
+        ratings array with labels and colors, and note suggestions enabled flag. If no configuration
+        exists, returns default values. The noteSuggestionsEnabled field defaults to true for wine
+        events when missing. Only authenticated administrators can access this endpoint.
+      tags:
+        - rating-configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+      responses:
+        '200':
+          description: Rating configuration retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RatingConfiguration'
+              example:
+                maxRating: 4
+                ratings:
+                  - value: 1
+                    label: "What is this crap?"
+                    color: "#FF3B30"
+                  - value: 2
+                    label: "Meh..."
+                    color: "#FFCC00"
+                  - value: 3
+                    label: "Not bad..."
+                    color: "#34C759"
+                  - value: 4
+                    label: "Give me more..."
+                    color: "#28A745"
+                noteSuggestionsEnabled: true
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - user is not an administrator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    patch:
+      summary: Update rating configuration for an event
+      description: |
+        Updates the rating configuration for the specified event. Can update maxRating, ratings array,
+        and/or noteSuggestionsEnabled. Partial updates are supported. The noteSuggestionsEnabled field
+        can only be changed when the event is in "created" state and is only applicable to wine events.
+        Uses optimistic locking to prevent concurrent modification conflicts. Only authenticated
+        administrators can update rating configuration.
+      tags:
+        - rating-configuration
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+          example: "aB3xY9mK"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RatingConfigurationUpdate'
+            example:
+              maxRating: 4
+              ratings:
+                - value: 1
+                  label: "What is this crap?"
+                  color: "#FF3B30"
+                - value: 2
+                  label: "Meh..."
+                  color: "#FFCC00"
+                - value: 3
+                  label: "Not bad..."
+                  color: "#34C759"
+                - value: 4
+                  label: "Give me more..."
+                  color: "#28A745"
+              noteSuggestionsEnabled: true
+              expectedUpdatedAt: "2025-01-27T10:00:00.000Z"
+      responses:
+        '200':
+          description: Rating configuration updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RatingConfiguration'
+        '400':
+          description: Bad request - validation error or state restriction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                stateRestriction:
+                  value:
+                    error: "Note suggestions toggle can only be changed when event is in \"created\" state"
+                invalidValue:
+                  value:
+                    error: "noteSuggestionsEnabled must be a boolean"
+                nonWineEvent:
+                  value:
+                    error: "Note suggestions are only available for wine events"
+        '401':
+          description: Unauthorized - authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - user is not an administrator
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Conflict - optimistic locking failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OptimisticLockError'
+
+components:
+  schemas:
+    RatingConfiguration:
+      type: object
+      required:
+        - maxRating
+        - ratings
+      properties:
+        maxRating:
+          type: integer
+          minimum: 2
+          maximum: 4
+          description: Maximum rating value (determines scale from 1 to maxRating)
+          example: 4
+        ratings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Rating'
+          description: Array of rating level configurations
+        noteSuggestionsEnabled:
+          type: boolean
+          description: |
+            Whether note suggestions are enabled for this event. Only applicable to wine events.
+            Defaults to true for wine events when missing. Not present for non-wine events.
+          example: true
+
+    RatingConfigurationUpdate:
+      type: object
+      properties:
+        maxRating:
+          type: integer
+          minimum: 2
+          maximum: 4
+          description: Maximum rating value (optional, partial update supported)
+        ratings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Rating'
+          description: Array of rating level configurations (optional, partial update supported)
+        noteSuggestionsEnabled:
+          type: boolean
+          description: |
+            Whether note suggestions are enabled (optional, partial update supported).
+            Can only be changed when event is in "created" state. Only applicable to wine events.
+        expectedUpdatedAt:
+          type: string
+          format: date-time
+          description: Expected updatedAt timestamp for optimistic locking
+          example: "2025-01-27T10:00:00.000Z"
+
+    Rating:
+      type: object
+      required:
+        - value
+        - label
+        - color
+      properties:
+        value:
+          type: integer
+          minimum: 1
+          description: Rating value (1 = lowest/worst, maxRating = highest/best)
+          example: 1
+        label:
+          type: string
+          minLength: 1
+          maxLength: 50
+          description: Display text for this rating level
+          example: "What is this crap?"
+        color:
+          type: string
+          pattern: '^#[0-9A-Fa-f]{6}$'
+          description: Color code in hex format
+          example: "#FF3B30"
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Event not found"
+
+    OptimisticLockError:
+      type: object
+      required:
+        - error
+        - currentUpdatedAt
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Event was modified by another user. Please refresh and try again."
+        currentUpdatedAt:
+          type: string
+          format: date-time
+          description: Current updatedAt timestamp
+          example: "2025-01-27T10:05:00.000Z"
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token authentication

@@ -1,0 +1,138 @@
+openapi: 3.0.3
+info:
+  title: Quotes API
+  description: API for accessing the static quotes database for wine note suggestions
+  version: 1.0.0
+  contact:
+    name: API Support
+
+servers:
+  - url: http://localhost:3001/api
+    description: Local development server
+  - url: https://api.example.com/api
+    description: Production server
+
+tags:
+  - name: quotes
+    description: Quotes database operations
+
+paths:
+  /quotes:
+    get:
+      summary: Get all quotes from the quotes database
+      description: |
+        Returns the complete quotes database from quotes.json file. The quotes are organized
+        by rating level and quote type (snarky, poetic, haiku). This endpoint is public and
+        does not require authentication. The response is cached by the frontend service.
+      tags:
+        - quotes
+      responses:
+        '200':
+          description: Quotes retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuotesDatabase'
+              example:
+                "1":
+                  snarky:
+                    - id: "1-snarky-1"
+                      text: "This wine tastes like someone tried to make grape juice but forgot the grapes."
+                    - id: "1-snarky-2"
+                      text: "If regret had a flavor, this would be it."
+                  poetic:
+                    - id: "1-poetic-1"
+                      text: "A delicate dance of flavors..."
+                    - id: "1-poetic-2"
+                      text: "Like morning dew on autumn leaves..."
+                  haiku:
+                    - id: "1-haiku-1"
+                      text: "Bitter notes linger / Empty glass reflects the truth / This wine has no soul"
+                    - id: "1-haiku-2"
+                      text: "One star rating / Disappointment in each sip / Better luck next time"
+                "2":
+                  snarky:
+                    - id: "2-snarky-1"
+                      text: "This wine is what happens when you let a chemistry experiment go wrong."
+                  poetic:
+                    - id: "2-poetic-1"
+                      text: "A journey of subtle complexity..."
+                  haiku:
+                    - id: "2-haiku-1"
+                      text: "Two stars given / Mediocre at its best / Nothing to remember"
+        '500':
+          description: Internal server error - quotes.json file missing or corrupted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Failed to load quotes database"
+
+components:
+  schemas:
+    QuotesDatabase:
+      type: object
+      description: Complete quotes database organized by rating level and quote type
+      additionalProperties:
+        $ref: '#/components/schemas/RatingLevelQuotes'
+      example:
+        "1":
+          snarky:
+            - id: "1-snarky-1"
+              text: "This wine tastes like someone tried to make grape juice but forgot the grapes."
+          poetic:
+            - id: "1-poetic-1"
+              text: "A delicate dance of flavors..."
+          haiku:
+            - id: "1-haiku-1"
+              text: "Bitter notes linger / Empty glass reflects the truth / This wine has no soul"
+
+    RatingLevelQuotes:
+      type: object
+      description: Quotes for a specific rating level, organized by quote type
+      properties:
+        snarky:
+          type: array
+          items:
+            $ref: '#/components/schemas/Quote'
+          description: Snarky quotes for this rating level
+        poetic:
+          type: array
+          items:
+            $ref: '#/components/schemas/Quote'
+          description: Poetic quotes for this rating level
+        haiku:
+          type: array
+          items:
+            $ref: '#/components/schemas/Quote'
+          description: Haiku quotes for this rating level
+      additionalProperties: false
+
+    Quote:
+      type: object
+      description: A single quote with identifier and text
+      required:
+        - id
+        - text
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the quote (e.g., "1-snarky-1")
+          example: "1-snarky-1"
+        text:
+          type: string
+          description: The quote text content (max 500 characters)
+          example: "This wine tastes like someone tried to make grape juice but forgot the grapes."
+          maxLength: 500
+      additionalProperties: false
+
+    Error:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Failed to load quotes database"

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import Message from '@/components/Message';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import InfoField from '@/components/InfoField';
@@ -166,6 +167,7 @@ function EventAdminPage() {
   const [linkCopied, setLinkCopied] = useState(false);
   const [maxRating, setMaxRating] = useState(4);
   const [ratings, setRatings] = useState([]);
+  const [noteSuggestionsEnabled, setNoteSuggestionsEnabled] = useState(true);
   const [isSavingRatingConfig, setIsSavingRatingConfig] = useState(false);
   const [ratingConfigError, setRatingConfigError] = useState('');
   const [ratingConfigSuccess, setRatingConfigSuccess] = useState('');
@@ -292,16 +294,23 @@ function EventAdminPage() {
         const config = await apiClient.getRatingConfiguration(eventId);
         setMaxRating(config.maxRating || 4);
         setRatings(config.ratings || getDefaultRatings(config.maxRating || 4));
+        // Load noteSuggestionsEnabled (defaults to true for wine events if not set)
+        if (event?.typeOfItem === 'wine') {
+          setNoteSuggestionsEnabled(config.noteSuggestionsEnabled !== undefined ? config.noteSuggestionsEnabled : true);
+        }
       } catch (error) {
         console.error('Failed to fetch rating configuration:', error);
         // Use defaults if fetch fails
         setMaxRating(4);
         setRatings(getDefaultRatings(4));
+        if (event?.typeOfItem === 'wine') {
+          setNoteSuggestionsEnabled(true);
+        }
       }
     };
 
     fetchRatingConfiguration();
-  }, [eventId]);
+  }, [eventId, event?.typeOfItem]);
 
   // Update ratings array when maxRating changes (only if user is editing)
   useEffect(() => {
@@ -484,11 +493,21 @@ function EventAdminPage() {
         maxRating: maxRatingNum,
         ratings: ratings
       };
+      
+      // Include noteSuggestionsEnabled for wine events
+      if (event?.typeOfItem === 'wine') {
+        configToSave.noteSuggestionsEnabled = noteSuggestionsEnabled;
+      }
 
       const result = await apiClient.updateRatingConfiguration(eventId, configToSave, expectedUpdatedAt);
       
       setMaxRating(result.maxRating);
       setRatings(result.ratings);
+      
+      // Update noteSuggestionsEnabled if returned in result
+      if (event?.typeOfItem === 'wine' && result.noteSuggestionsEnabled !== undefined) {
+        setNoteSuggestionsEnabled(result.noteSuggestionsEnabled);
+      }
       
       setRatingConfigSuccess('Rating configuration saved successfully');
       clearSuccessMessage(setRatingConfigSuccess);
@@ -1031,6 +1050,23 @@ function EventAdminPage() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* Note Suggestions Toggle - Only for wine events */}
+                {event?.typeOfItem === 'wine' && (
+                  <div className="flex items-center justify-between py-3 border-t">
+                    <div className="flex flex-col">
+                      <label className="text-sm font-medium">Note Suggestions</label>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Enable contextual note suggestions when rating wine items
+                      </p>
+                    </div>
+                    <Switch
+                      checked={noteSuggestionsEnabled}
+                      onCheckedChange={setNoteSuggestionsEnabled}
+                      disabled={isSavingRatingConfig || (event?.state !== 'created')}
+                    />
                   </div>
                 )}
 

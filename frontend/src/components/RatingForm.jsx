@@ -5,6 +5,7 @@ import { ChevronDown } from 'lucide-react';
 import { ratingService } from '@/services/ratingService';
 import { useParams } from 'react-router-dom';
 import apiClient from '@/services/apiClient';
+import { useQuotes } from '@/hooks/useQuotes';
 
 /**
  * RatingForm Component
@@ -16,8 +17,10 @@ import apiClient from '@/services/apiClient';
  * @param {object} props.existingRating - Existing rating (if any)
  * @param {object} props.ratingConfig - Rating configuration { maxRating, ratings: [{value, label, color}] }
  * @param {function} props.onClose - Close handler (called after successful submission)
+ * @param {string} props.eventType - Type of event (e.g., "wine")
+ * @param {boolean} props.noteSuggestionsEnabled - Whether note suggestions are enabled for this event
  */
-function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose }) {
+function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, eventType, noteSuggestionsEnabled }) {
   const { eventId: eventIdFromParams } = useParams();
   const effectiveEventId = eventId || eventIdFromParams;
   
@@ -32,6 +35,11 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose }) 
   const dropdownRef = useRef(null);
   const MAX_RETRIES = 3; // Maximum number of retry attempts
 
+  // Quotes hook for note suggestions
+  const { getSuggestionsForRating } = useQuotes();
+  const [suggestions, setSuggestions] = useState([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+
   // Reset form state when itemId or existingRating changes
   useEffect(() => {
     setSelectedRating(existingRating?.rating || null);
@@ -41,7 +49,108 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose }) 
     setIsSubmitting(false);
     setRetryCount(0);
     setIsDropdownOpen(false);
+    setSuggestions([]); // Clear suggestions when item changes
   }, [itemId, existingRating]);
+
+  // Update suggestions when rating level changes
+  useEffect(() => {
+    const loadSuggestions = async () => {
+      // Check if suggestions should be displayed
+      const shouldShowSuggestions = 
+        eventType === 'wine' && 
+        noteSuggestionsEnabled !== false && 
+        selectedRating !== null;
+
+      if (shouldShowSuggestions) {
+        try {
+          setLoadingSuggestions(true);
+          const newSuggestions = await getSuggestionsForRating(selectedRating);
+          setSuggestions(newSuggestions || []);
+        } catch (error) {
+          console.error('Failed to load suggestions:', error);
+          setSuggestions([]); // Graceful degradation
+        } finally {
+          setLoadingSuggestions(false);
+        }
+      } else {
+        setSuggestions([]);
+        setLoadingSuggestions(false);
+      }
+    };
+
+    loadSuggestions();
+  }, [selectedRating, eventType, noteSuggestionsEnabled, getSuggestionsForRating]);
+
+  /**
+   * Append suggestion to note with spacing logic
+   * Adds a space only if existing text doesn't end with whitespace
+   * @param {string} currentNote - Current note text
+   * @param {string} suggestionText - Suggestion text to append
+   * @returns {string} Updated note text
+   */
+  const appendSuggestion = (currentNote, suggestionText) => {
+    if (!suggestionText) return currentNote;
+    
+    const trimmedNote = currentNote.trimEnd();
+    const needsSpace = trimmedNote.length > 0 && !/\s$/.test(trimmedNote);
+    const space = needsSpace ? ' ' : '';
+    
+    return trimmedNote + space + suggestionText;
+  };
+
+  /**
+   * Append suggestion to note with character limit handling
+   * If suggestion would exceed 500 character limit, adds partial text to stay within limit
+   * @param {string} currentNote - Current note text
+   * @param {string} suggestionText - Suggestion text to append
+   * @returns {string} Updated note text (within 500 character limit)
+   */
+  const appendSuggestionWithLimit = (currentNote, suggestionText) => {
+    if (!suggestionText) return currentNote;
+    
+    const MAX_LENGTH = 500;
+    const noteWithSuggestion = appendSuggestion(currentNote, suggestionText);
+    
+    // If within limit, return full text
+    if (noteWithSuggestion.length <= MAX_LENGTH) {
+      return noteWithSuggestion;
+    }
+    
+    // Otherwise, add as much of the suggestion as possible
+    const trimmedNote = currentNote.trimEnd();
+    const needsSpace = trimmedNote.length > 0 && !/\s$/.test(trimmedNote);
+    const space = needsSpace ? ' ' : '';
+    const availableSpace = MAX_LENGTH - (trimmedNote.length + space.length);
+    
+    if (availableSpace > 0) {
+      const partialSuggestion = suggestionText.substring(0, availableSpace);
+      return trimmedNote + space + partialSuggestion;
+    }
+    
+    // If no space available, return current note unchanged
+    return currentNote;
+  };
+
+  /**
+   * Handle suggestion button click
+   * Adds suggestion text to note field
+   * @param {string} suggestionText - Text of the clicked suggestion
+   */
+  const handleSuggestionClick = (suggestionText) => {
+    const updatedNote = appendSuggestionWithLimit(note, suggestionText);
+    setNote(updatedNote);
+  };
+
+  /**
+   * Handle clear button click
+   * Clears both the selected rating and note
+   */
+  const handleClear = () => {
+    setSelectedRating(null);
+    setNote('');
+    setError(null);
+    setIsDropdownOpen(false);
+  };
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -64,8 +173,8 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose }) 
     setError(null);
     setSuccess(false);
 
-    // Validate rating is selected
-    if (!selectedRating) {
+    // Validate rating is selected (unless removing an existing rating)
+    if (!selectedRating && !existingRating) {
       setError('Please select a rating');
       return;
     }
@@ -92,12 +201,17 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose }) 
 
     const attemptSubmit = async (attemptNumber = 0) => {
       try {
-        await ratingService.submitRating(
-          effectiveEventId,
-          itemId,
-          selectedRating,
-          note
-        );
+        // If there's an existing rating but no selected rating, delete it
+        if (existingRating && !selectedRating) {
+          await ratingService.deleteRating(effectiveEventId, itemId);
+        } else {
+          await ratingService.submitRating(
+            effectiveEventId,
+            itemId,
+            selectedRating,
+            note
+          );
+        }
 
         setSuccess(true);
         setRetryCount(0);
@@ -238,6 +352,40 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose }) 
         </div>
       </div>
 
+      {/* Note Suggestions - Only for wine events with suggestions enabled */}
+      {eventType === 'wine' && noteSuggestionsEnabled !== false && selectedRating !== null && (
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Note Suggestions</Label>
+          {loadingSuggestions ? (
+            <div className="text-xs text-muted-foreground py-2">Loading suggestions...</div>
+          ) : suggestions.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {suggestions.map((suggestion, index) => (
+                <Button
+                  key={index}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleSuggestionClick(suggestion.text)}
+                  onKeyDown={(e) => {
+                    // Keyboard navigation support
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleSuggestionClick(suggestion.text);
+                    }
+                  }}
+                  className="text-xs text-left justify-start h-auto py-2 px-3 break-words whitespace-normal"
+                  aria-label={`Add suggestion: ${suggestion.text.substring(0, 50)}${suggestion.text.length > 50 ? '...' : ''}`}
+                  tabIndex={0}
+                >
+                  {suggestion.text}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      )}
+
       {/* Note Field */}
       <div>
         <textarea
@@ -245,22 +393,10 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose }) 
           value={note}
           onChange={(e) => setNote(e.target.value)}
           maxLength={500}
-          rows={4}
+          rows={3}
           className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
           placeholder="(Optional) Add a note about this item..."
         />
-        <div className="flex justify-between items-center mt-1">
-          <span className="text-xs text-muted-foreground">
-            {note.length > 450 && (
-              <span className={note.length > 500 ? 'text-destructive' : 'text-yellow-600'}>
-                {500 - note.length} characters remaining
-              </span>
-            )}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {note.length}/500
-          </span>
-        </div>
         {note.length > 500 && (
           <p className="text-sm text-destructive mt-1">
             Note exceeds 500 character limit
@@ -284,7 +420,7 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose }) 
         </div>
       )}
 
-      {/* Submit Button */}
+      {/* Action Buttons */}
       <div className="flex gap-3">
         <Button
           type="button"
@@ -296,12 +432,23 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose }) 
           Cancel
         </Button>
         <Button
+          type="button"
+          variant="outline"
+          onClick={handleClear}
+          disabled={isSubmitting || (!selectedRating && !note && !existingRating)}
+          className="flex-1"
+        >
+          Clear
+        </Button>
+        <Button
           type="submit"
-          disabled={!selectedRating || isSubmitting || note.length > 500}
+          disabled={(!selectedRating && !existingRating) || isSubmitting || note.length > 500}
           className="flex-1"
         >
           {isSubmitting 
             ? (retryCount > 0 ? `Retrying... (${retryCount}/${MAX_RETRIES})` : 'Submitting...')
+            : existingRating && !selectedRating
+            ? 'Remove Rating'
             : existingRating 
             ? 'Update Rating' 
             : 'Submit Rating'}

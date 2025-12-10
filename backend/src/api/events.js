@@ -963,7 +963,7 @@ router.patch('/:eventId/rating-configuration', requireAuth, async (req, res) => 
   try {
     const { eventId } = req.params;
     const requesterEmail = req.user?.email;
-    const { maxRating, ratings, expectedUpdatedAt } = req.body;
+    const { maxRating, ratings, noteSuggestionsEnabled, expectedUpdatedAt } = req.body;
 
     if (!requesterEmail) {
       return res.status(401).json({
@@ -974,7 +974,7 @@ router.patch('/:eventId/rating-configuration', requireAuth, async (req, res) => 
     // Update rating configuration
     const result = await eventService.updateRatingConfiguration(
       eventId,
-      { maxRating, ratings },
+      { maxRating, ratings, noteSuggestionsEnabled },
       requesterEmail,
       expectedUpdatedAt
     );

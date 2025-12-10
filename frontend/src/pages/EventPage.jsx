@@ -412,6 +412,8 @@ function EventPage() {
         eventId={eventId}
         existingRating={openDrawerItemId ? getUserRating(openDrawerItemId) : null}
         ratingConfig={ratingConfig}
+        eventType={event?.typeOfItem}
+        noteSuggestionsEnabled={ratingConfig?.noteSuggestionsEnabled}
       />
     </RatingErrorBoundary>
   );

@@ -158,5 +158,25 @@ export const ratingService = {
       console.error('Error submitting rating:', error);
       throw error;
     }
+  },
+
+  /**
+   * Delete a rating for an item
+   * @param {string} eventId - Event identifier
+   * @param {number} itemId - Item identifier
+   * @returns {Promise<object>} Response object
+   */
+  async deleteRating(eventId, itemId) {
+    if (!eventId || eventId === 'undefined' || eventId === 'null' || eventId.trim() === '') {
+      throw new Error('Event ID is required');
+    }
+    
+    try {
+      const response = await apiClient.delete(`/events/${eventId}/ratings/${itemId}`);
+      return response;
+    } catch (error) {
+      console.error('Error deleting rating:', error);
+      throw error;
+    }
   }
 };

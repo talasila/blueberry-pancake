@@ -176,4 +176,77 @@ router.get('/ratings/:itemId', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * DELETE /api/events/:eventId/ratings/:itemId
+ * Delete user's rating for a specific item
+ * Requires JWT authentication
+ */
+router.delete('/ratings/:itemId', requireAuth, async (req, res) => {
+  try {
+    const { eventId, itemId } = req.params;
+    if (!eventId) {
+      return res.status(400).json({ error: 'Event ID is required' });
+    }
+
+    // Get user email from JWT token only
+    const userEmail = req.user?.email;
+    if (!userEmail) {
+      return res.status(401).json({
+        error: 'Email is required'
+      });
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(userEmail.trim())) {
+      return res.status(400).json({
+        error: 'Invalid email format'
+      });
+    }
+
+    // Parse itemId
+    const itemIdNum = parseInt(itemId, 10);
+    if (isNaN(itemIdNum)) {
+      return res.status(400).json({
+        error: 'Invalid item ID'
+      });
+    }
+
+    // Delete rating
+    const deleted = await ratingService.deleteRating(eventId, itemIdNum, userEmail);
+
+    if (!deleted) {
+      return res.status(404).json({
+        error: 'Rating not found'
+      });
+    }
+
+    res.status(200).json({ message: 'Rating deleted successfully' });
+  } catch (error) {
+    loggerService.error(`Error deleting rating: ${error.message}`, error).catch(() => {});
+
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        error: 'Event not found'
+      });
+    }
+
+    if (error.message.includes('not in started state')) {
+      return res.status(400).json({
+        error: error.message
+      });
+    }
+
+    if (error.message.includes('Invalid') || error.message.includes('required')) {
+      return res.status(400).json({
+        error: error.message
+      });
+    }
+
+    res.status(500).json({
+      error: 'Failed to delete rating. Please try again.'
+    });
+  }
+});
+
 export default router;

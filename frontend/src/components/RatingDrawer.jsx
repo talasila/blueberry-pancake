@@ -17,6 +17,8 @@ import { toggleBookmark, isBookmarked } from '@/utils/bookmarkStorage';
  * @param {string} props.eventId - Event identifier
  * @param {object} props.existingRating - Existing rating for this item (if any)
  * @param {object} props.ratingConfig - Rating configuration (maxRating, ratings array)
+ * @param {string} props.eventType - Type of event (e.g., "wine")
+ * @param {boolean} props.noteSuggestionsEnabled - Whether note suggestions are enabled
  */
 function RatingDrawer({ 
   isOpen, 
@@ -25,7 +27,9 @@ function RatingDrawer({
   itemId, 
   eventId,
   existingRating,
-  ratingConfig 
+  ratingConfig,
+  eventType,
+  noteSuggestionsEnabled
 }) {
   const openStartTimeRef = useRef(null);
   const hasBeenOpenedRef = useRef(false);
@@ -101,6 +105,8 @@ function RatingDrawer({
           existingRating={existingRating}
           ratingConfig={ratingConfig}
           onClose={onClose}
+          eventType={eventType}
+          noteSuggestionsEnabled={noteSuggestionsEnabled}
         />
       );
       break;

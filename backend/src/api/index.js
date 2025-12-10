@@ -9,6 +9,10 @@ const router = Router();
 router.use('/health', healthRouter);
 router.use('/auth', authRouter);
 
+// Quotes route - public endpoint for quotes database
+import quotesRouter from './quotes.js';
+router.use('/quotes', quotesRouter);
+
 // Events routes - some public (verify-pin), some protected (create, get with auth)
 import eventsRouter from './events.js';
 // POST /events requires auth (handled in events.js)

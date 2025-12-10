@@ -216,6 +216,60 @@ class RatingService {
   }
 
   /**
+   * Delete a rating (remove existing rating)
+   * @param {string} eventId - Event identifier
+   * @param {number} itemId - Item identifier
+   * @param {string} email - User email
+   * @returns {Promise<boolean>} True if rating was deleted, false if not found
+   */
+  async deleteRating(eventId, itemId, email) {
+    // Validate event state (must be "started")
+    const event = await eventService.getEvent(eventId);
+    if (event.state !== 'started') {
+      throw new Error(`Event is not in started state. Rating deletion is not available. Current state: ${event.state}`);
+    }
+
+    // Validate email
+    if (!email || typeof email !== 'string' || !this.isValidEmail(email)) {
+      throw new Error('Valid email is required');
+    }
+
+    // Validate itemId
+    const itemConfig = await eventService.getItemConfiguration(eventId);
+    if (!Number.isInteger(itemId) || itemId < 1 || itemId > itemConfig.numberOfItems) {
+      throw new Error(`Invalid item ID. Must be between 1 and ${itemConfig.numberOfItems}`);
+    }
+
+    // Get all ratings
+    const ratings = await this.getRatings(eventId);
+    const normalizedEmail = this.normalizeEmail(email);
+
+    // Find existing rating for this user/item combination
+    const existingIndex = ratings.findIndex(
+      r => r.itemId === itemId && this.normalizeEmail(r.email) === normalizedEmail
+    );
+
+    if (existingIndex < 0) {
+      // Rating not found
+      return false;
+    }
+
+    // Remove the rating
+    ratings.splice(existingIndex, 1);
+
+    // Write back entire CSV file
+    const csvContent = toCSV(ratings);
+    await dataRepository.writeEventRatings(eventId, csvContent);
+
+    // Invalidate cache
+    cacheService.del(`ratings:${eventId}`);
+
+    loggerService.info(`Rating deleted for event ${eventId}, item ${itemId}, email ${normalizedEmail}`);
+
+    return true;
+  }
+
+  /**
    * Invalidate cache for an event (called on event state change)
    * @param {string} eventId - Event identifier
    */
