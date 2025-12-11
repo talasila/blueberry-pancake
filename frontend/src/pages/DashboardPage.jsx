@@ -157,7 +157,12 @@ function DashboardPage() {
 
       {/* Item Ratings Table */}
       <div className="mt-6">
-        <h2 className="text-lg font-semibold mb-4">{singular} Ratings</h2>
+        <h2 className="text-lg font-semibold mb-2">{singular} Ratings</h2>
+        <div className="text-sm text-muted-foreground mb-4 space-y-1">
+          <div><strong>Progress:</strong> Percentage of users who have rated this item.</div>
+          <div><strong>Avg.:</strong> Arithmetic mean of all ratings.</div>
+          <div><strong>Wt. Avg.:</strong> Bayesian weighted average that accounts for items with fewer ratings.</div>
+        </div>
         <ItemRatingsTable 
           itemSummaries={dashboardData?.itemSummaries || []}
           ratingConfiguration={dashboardData?.ratingConfiguration?.ratings || []}
