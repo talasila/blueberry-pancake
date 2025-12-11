@@ -219,6 +219,7 @@ function EventAdminPage() {
   const [isDeletingUser, setIsDeletingUser] = useState(false);
   const [deleteUserError, setDeleteUserError] = useState('');
   const [deleteUserSuccess, setDeleteUserSuccess] = useState('');
+  const [selectedUserEmail, setSelectedUserEmail] = useState('');
 
   // Check for OTP authentication (JWT token) - admin pages require OTP even if accessed via PIN
   useEffect(() => {
@@ -1843,43 +1844,53 @@ function EventAdminPage() {
                         </div>
                         
                         {getAllUsersWithStats().length === 0 ? (
-                          <p className="text-sm text-muted-foreground text-center py-4 border rounded-md">
+                          <p className="text-sm text-muted-foreground text-center py-2">
                             No users found.
                           </p>
                         ) : (
-                          <div className="space-y-1.5 max-h-96 overflow-y-auto">
-                            {getAllUsersWithStats().map((user) => {
-                              const canDelete = !user.isOwner && 
-                                !(user.isAdministrator && Object.keys(administrators || {}).length <= 1);
-                              
-                              return (
-                                <div 
-                                  key={user.email} 
-                                  className="flex items-center justify-between gap-2 px-3 py-2 border rounded-md hover:bg-muted/50 transition-colors"
-                                >
-                                  <div className="flex-1 min-w-0 flex items-center gap-2">
-                                    {user.name ? (
-                                      <>
-                                        <span className="font-medium text-sm truncate">{user.name}</span>
-                                        <span className="text-xs text-muted-foreground truncate">({user.email})</span>
-                                      </>
-                                    ) : (
-                                      <span className="font-medium text-sm truncate">{user.email}</span>
-                                    )}
-                                  </div>
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={() => handleOpenDeleteUserDialog(user.email, user.name, user.isAdministrator)}
-                                    disabled={!canDelete || isDeletingUser}
-                                    aria-label={`Delete user ${user.email}`}
-                                    className="h-7 w-7 p-0 flex-shrink-0"
-                                  >
-                                    <Trash2 className="h-3.5 w-3.5" />
-                                  </Button>
-                                </div>
-                              );
-                            })}
+                          <div className="space-y-2">
+                            <select
+                              className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                              value={selectedUserEmail}
+                              onChange={(e) => setSelectedUserEmail(e.target.value)}
+                              disabled={isDeletingUser}
+                            >
+                              <option value="">Select a user to delete...</option>
+                              {getAllUsersWithStats().map((user) => {
+                                const canDelete = !user.isOwner && 
+                                  !(user.isAdministrator && Object.keys(administrators || {}).length <= 1);
+                                
+                                if (!canDelete) return null;
+                                
+                                const displayText = user.name 
+                                  ? `${user.name} (${user.email})`
+                                  : user.email;
+                                
+                                return (
+                                  <option key={user.email} value={user.email}>
+                                    {displayText}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => {
+                                if (selectedUserEmail) {
+                                  const user = getAllUsersWithStats().find(u => u.email === selectedUserEmail);
+                                  if (user) {
+                                    handleOpenDeleteUserDialog(user.email, user.name, user.isAdministrator);
+                                    setSelectedUserEmail('');
+                                  }
+                                }
+                              }}
+                              disabled={!selectedUserEmail || isDeletingUser}
+                              className="w-full sm:w-auto"
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete User
+                            </Button>
                           </div>
                         )}
                       </div>
