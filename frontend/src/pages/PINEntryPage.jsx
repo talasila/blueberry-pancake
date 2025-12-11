@@ -10,6 +10,7 @@ import {
   InputOTPSeparator,
 } from '@/components/ui/input-otp';
 import apiClient from '@/services/apiClient';
+import { clearAllBookmarks } from '@/utils/bookmarkStorage';
 
 /**
  * PINEntryPage Component
@@ -65,6 +66,9 @@ function PINEntryPage() {
 
     try {
       const response = await apiClient.verifyPIN(eventId, pin, email.trim());
+      
+      // Clear all bookmarks from previous user session
+      clearAllBookmarks();
       
       // Store JWT token from PIN verification
       if (response.token) {

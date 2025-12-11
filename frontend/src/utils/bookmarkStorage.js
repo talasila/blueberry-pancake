@@ -108,3 +108,22 @@ export function toggleBookmark(eventId, itemId) {
     return true;
   }
 }
+
+/**
+ * Clear all bookmarks from sessionStorage
+ * Used when user logs out or when a new user authenticates
+ */
+export function clearAllBookmarks() {
+  try {
+    const bookmarkKeysToRemove = [];
+    for (let i = 0; i < sessionStorage.length; i++) {
+      const key = sessionStorage.key(i);
+      if (key && key.startsWith('bookmarks:')) {
+        bookmarkKeysToRemove.push(key);
+      }
+    }
+    bookmarkKeysToRemove.forEach(key => sessionStorage.removeItem(key));
+  } catch (error) {
+    console.error('Error clearing bookmarks from sessionStorage:', error);
+  }
+}

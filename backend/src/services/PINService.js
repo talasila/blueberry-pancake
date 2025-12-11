@@ -103,25 +103,30 @@ class PINService {
     }
 
     // Check rate limits (per IP and per event) - both must pass
-    const ipLimit = rateLimitService.checkIPLimit(ipAddress);
-    const eventLimit = this._checkEventLimit(eventId);
+    // Skip rate limiting in development mode (same as OTP auth)
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    
+    if (!isDevelopment) {
+      const ipLimit = rateLimitService.checkIPLimit(ipAddress);
+      const eventLimit = this._checkEventLimit(eventId);
 
-    if (!ipLimit.allowed) {
-      const retryMinutes = Math.ceil((ipLimit.retryAfter || 900) / 60);
-      loggerService.warn(`PIN verification rate limit exceeded for IP: ${ipAddress} (retry in ${retryMinutes} minutes)`);
-      return {
-        valid: false,
-        error: `Too many attempts from this IP address. Please try again in ${retryMinutes} minute(s).`
-      };
-    }
+      if (!ipLimit.allowed) {
+        const retryMinutes = Math.ceil((ipLimit.retryAfter || 900) / 60);
+        loggerService.warn(`PIN verification rate limit exceeded for IP: ${ipAddress} (retry in ${retryMinutes} minutes)`);
+        return {
+          valid: false,
+          error: `Too many attempts from this IP address. Please try again in ${retryMinutes} minute(s).`
+        };
+      }
 
-    if (!eventLimit.allowed) {
-      const retryMinutes = Math.ceil((eventLimit.retryAfter || 900) / 60);
-      loggerService.warn(`PIN verification rate limit exceeded for event: ${eventId} (retry in ${retryMinutes} minutes)`);
-      return {
-        valid: false,
-        error: `Too many attempts for this event. Please try again in ${retryMinutes} minute(s).`
-      };
+      if (!eventLimit.allowed) {
+        const retryMinutes = Math.ceil((eventLimit.retryAfter || 900) / 60);
+        loggerService.warn(`PIN verification rate limit exceeded for event: ${eventId} (retry in ${retryMinutes} minutes)`);
+        return {
+          valid: false,
+          error: `Too many attempts for this event. Please try again in ${retryMinutes} minute(s).`
+        };
+      }
     }
 
     // Validate event exists
@@ -139,9 +144,11 @@ class PINService {
       
       // Compare PIN
       if (event.pin !== pin) {
-        // Record failed attempt (increment rate limit counters)
-        rateLimitService.checkIPLimit(ipAddress);
-        this._checkEventLimit(eventId);
+        // Record failed attempt (increment rate limit counters) - only in production
+        if (!isDevelopment) {
+          rateLimitService.checkIPLimit(ipAddress);
+          this._checkEventLimit(eventId);
+        }
         loggerService.warn(`Invalid PIN attempt for event: ${eventId} from IP: ${ipAddress} (PIN mismatch)`);
         return { 
           valid: false, 

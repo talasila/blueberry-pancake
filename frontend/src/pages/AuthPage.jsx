@@ -10,6 +10,7 @@ import {
   InputOTPSeparator,
 } from '@/components/ui/input-otp';
 import apiClient from '@/services/apiClient';
+import { clearAllBookmarks } from '@/utils/bookmarkStorage';
 
 /**
  * AuthPage Component
@@ -67,6 +68,9 @@ function AuthPage() {
 
     try {
       const response = await apiClient.verifyOTP(email, otp);
+      
+      // Clear all bookmarks from previous user session
+      clearAllBookmarks();
       
       // Store JWT token in localStorage
       if (response.token) {

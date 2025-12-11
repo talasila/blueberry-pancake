@@ -8,6 +8,7 @@ import { useState, useEffect } from 'react';
 import apiClient from '@/services/apiClient';
 import { useEventContext } from '@/contexts/EventContext';
 import { useItemTerminology } from '@/utils/itemTerminology';
+import { clearAllBookmarks } from '@/utils/bookmarkStorage';
 
 /**
  * ProfilePage Component
@@ -73,6 +74,9 @@ function ProfilePage() {
       }
     }
     keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    // Clear all bookmarks from sessionStorage (in case user was logged into multiple events)
+    clearAllBookmarks();
     
     // Navigate to landing page
     navigate('/', { replace: true });
