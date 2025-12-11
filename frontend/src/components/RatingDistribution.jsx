@@ -11,7 +11,7 @@
 function RatingDistribution({ ratingDistribution = {}, ratingConfiguration = [], totalRatings = 0 }) {
   if (!ratingDistribution || totalRatings === 0) {
     return (
-      <div className="w-full h-3 bg-muted rounded-full">
+      <div className="w-full h-2 bg-muted rounded-full">
         <div className="text-xs text-muted-foreground mt-1">No ratings</div>
       </div>
     );
@@ -53,7 +53,7 @@ function RatingDistribution({ ratingDistribution = {}, ratingConfiguration = [],
 
   if (segments.length === 0) {
     return (
-      <div className="w-full h-3 bg-muted rounded-full">
+      <div className="w-full h-2 bg-muted rounded-full">
         <div className="text-xs text-muted-foreground mt-1">No ratings</div>
       </div>
     );
@@ -62,7 +62,7 @@ function RatingDistribution({ ratingDistribution = {}, ratingConfiguration = [],
   return (
     <div className="w-full">
       {/* Distribution bar */}
-      <div className="w-full h-3 bg-muted rounded-full overflow-hidden flex">
+      <div className="w-full h-2 bg-muted rounded-full overflow-hidden flex">
         {segments.map((segment, index) => (
           <div
             key={segment.ratingValue}
