@@ -561,7 +561,7 @@ function SimilarUsersDrawer({
                                         <g key={idx}>
                                           {isPerfect ? (
                                             // Perfect matches: green stars (centered on baseline)
-                                            <g transform={`translate(${barX + (actualBarWidth / 2)}, ${centerY - 0.5})`}>
+                                            <g transform={`translate(${barX + (actualBarWidth / 2)}, ${centerY - 0.5}) scale(0.75)`}>
                                               <path
                                                 d="M 0 -6 L 1.8 -1.8 L 6 -0.6 L 3 2.4 L 3.6 7 L 0 4.6 L -3.6 7 L -3 2.4 L -6 -0.6 L -1.8 -1.8 Z"
                                                 fill="#10b981"
