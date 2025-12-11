@@ -189,9 +189,10 @@ function SimilarUsersDrawer({
               const chartWidth = width - (padding * 2);
               const chartHeight = height - (padding * 2);
               const centerY = padding + (chartHeight / 2);
-              const barWidth = chartWidth / sortedItems.length;
-              const barSpacing = barWidth * 0.15;
-              const actualBarWidth = barWidth - barSpacing;
+              // Use fixed bar width for consistency across all sparklines
+              const actualBarWidth = 3; // Fixed width in pixels
+              const barSpacing = 1; // Fixed spacing in pixels
+              const barWidth = actualBarWidth + barSpacing; // Total space per bar
               
               return (
                 <svg width={width} height={height} className="shrink-0">
@@ -201,10 +202,8 @@ function SimilarUsersDrawer({
                     y1={centerY}
                     x2={width - padding}
                     y2={centerY}
-                    stroke="#10b981"
-                    strokeWidth="1"
-                    strokeDasharray="2,1"
-                    opacity={0.4}
+                    stroke="#4b5563"
+                    strokeWidth="0.5"
                   />
                   
                   {/* Bars */}
