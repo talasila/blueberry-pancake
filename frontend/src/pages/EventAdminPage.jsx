@@ -810,7 +810,7 @@ function EventAdminPage() {
                   <div className="flex items-center gap-2">
                     <span className="font-semibold">{itemTerminology.singular} Configuration</span>
                     <Badge variant="outline" className="text-xs">
-                      {numberOfItems} {itemTerminology.singularLower}{numberOfItems !== 1 ? 's' : ''}
+                      {numberOfItems} 
                       {excludedItemIdsInput && excludedItemIdsInput.trim() && (
                         <span className="ml-1 text-muted-foreground">
                           ({excludedItemIdsInput.split(',').filter(id => id.trim()).length} excluded)
@@ -818,12 +818,12 @@ function EventAdminPage() {
                       )}
                     </Badge>
                   </div>
-                  <span className="text-sm text-muted-foreground font-normal">
-                    Configure the number of {itemTerminology.pluralLower} and specify which {itemTerminology.singularLower} IDs to exclude from the event
-                  </span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4">
+              <span className="text-sm text-muted-foreground font-normal">
+                    Configure the number of {itemTerminology.pluralLower} and specify which {itemTerminology.singularLower} IDs to exclude from the event
+              </span>
               {/* Number of items input */}
               <div>
                 <label className="text-sm font-medium">Number of {itemTerminology.plural}</label>
@@ -1186,12 +1186,12 @@ function EventAdminPage() {
                       </Badge>
                     )}
                   </div>
-                  <span className="text-sm text-muted-foreground font-normal">
-                    Share this PIN with users to grant access to this event
-                  </span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4">
+              <span className="text-sm text-muted-foreground font-normal">
+                    Share this PIN with users to grant access to this event
+              </span>
               {/* PIN Display Section */}
               {event.pin && (
                 <div className="space-y-2">
@@ -1276,12 +1276,12 @@ function EventAdminPage() {
               <AccordionTrigger>
                 <div className="flex flex-col items-start text-left">
                   <span className="font-semibold">Administrators</span>
-                  <span className="text-sm text-muted-foreground font-normal">
-                    Manage administrators for this event. The owner cannot be removed.
-                  </span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4">
+              <span className="text-sm text-muted-foreground font-normal">
+                    Manage administrators for this event. The owner cannot be removed.
+              </span>
               {/* Administrators list */}
               {isLoadingAdministrators ? (
                 <div className="flex items-center justify-center py-4">
