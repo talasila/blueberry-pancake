@@ -432,6 +432,11 @@ function SimilarUsersDrawer({
                         ? Math.round(selectedUser.similarityScore * 100) 
                         : 0;
                       
+                      // Get MAE value for display (round to 2 decimal places)
+                      const maeValue = selectedUser.mae !== null && selectedUser.mae !== undefined
+                        ? selectedUser.mae.toFixed(2)
+                        : null;
+                      
                       // Get the top match for comparison
                       const topMatch = similarUsers[0];
                       const topMatchScore = topMatch?.similarityScore ?? 0;
@@ -456,8 +461,8 @@ function SimilarUsersDrawer({
                             </p>
                             <p className="text-xs text-muted-foreground">
                               Taste similarity: <strong>{similarityPercent}%</strong>
-                              {position > 1 && topMatch && (
-                                <span> (Top match: {topMatchPercent}%)</span>
+                              {maeValue !== null && (
+                                <span> (MAE: {maeValue})</span>
                               )}
                             </p>
                             {position > 1 && topMatch && (

@@ -93,6 +93,7 @@ class SimilarityService {
           email,
           name: null, // Will be populated from event config if available
           similarityScore,
+          mae, // Mean Absolute Error (for display purposes)
           commonItemsCount: commonItems.length,
           perfectMatches,
           closeMatches,
