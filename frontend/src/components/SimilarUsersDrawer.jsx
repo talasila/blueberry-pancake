@@ -175,33 +175,107 @@ function SimilarUsersDrawer({
               return 'from-orange-500 to-red-400';
             };
             
+            // Generate sparkline for this user
+            const generateSparkline = () => {
+              if (!user.commonItems || user.commonItems.length < 2) return null;
+              
+              const sortedItems = sortItemsById(user.commonItems);
+              const deviations = sortedItems.map(item => item.similarUserRating - item.userRating);
+              const maxDeviation = Math.max(...deviations.map(Math.abs), 1);
+              
+              const width = 80;
+              const height = 32;
+              const padding = 2;
+              const chartWidth = width - (padding * 2);
+              const chartHeight = height - (padding * 2);
+              const centerY = padding + (chartHeight / 2);
+              const barWidth = chartWidth / sortedItems.length;
+              const barSpacing = barWidth * 0.15;
+              const actualBarWidth = barWidth - barSpacing;
+              
+              return (
+                <svg width={width} height={height} className="shrink-0">
+                  {/* Baseline */}
+                  <line
+                    x1={padding}
+                    y1={centerY}
+                    x2={width - padding}
+                    y2={centerY}
+                    stroke="#10b981"
+                    strokeWidth="1"
+                    strokeDasharray="2,1"
+                    opacity={0.4}
+                  />
+                  
+                  {/* Bars */}
+                  {deviations.map((deviation, idx) => {
+                    const isPositive = deviation > 0;
+                    const isZero = Math.abs(deviation) < 0.1;
+                    const normalizedDev = deviation / maxDeviation;
+                    const barHeight = Math.abs(normalizedDev) * (chartHeight / 2);
+                    const barX = padding + (idx * barWidth) + (barSpacing / 2);
+                    const barY = isPositive ? centerY - barHeight : centerY;
+                    
+                    if (isZero) {
+                      return (
+                        <circle
+                          key={idx}
+                          cx={barX + (actualBarWidth / 2)}
+                          cy={centerY}
+                          r="1"
+                          fill="#10b981"
+                        />
+                      );
+                    }
+                    
+                    return (
+                      <rect
+                        key={idx}
+                        x={barX}
+                        y={barY}
+                        width={actualBarWidth}
+                        height={barHeight || 0.5}
+                        fill={isPositive ? "#10b981" : "#ef4444"}
+                        opacity={0.7}
+                        rx="1"
+                      />
+                    );
+                  })}
+                </svg>
+              );
+            };
+            
             return (
-              <button
-                key={user.email || index}
-                onClick={() => handleUserClick(user)}
-                className="w-full flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:opacity-90 transition-all text-left relative overflow-hidden group"
-              >
-                {/* Progress bar background */}
-                <div 
-                  className={`absolute left-0 top-0 bottom-0 bg-gradient-to-r ${getProgressColor()} transition-all duration-1000 ease-out opacity-20 group-hover:opacity-30`}
-                  style={{ width: `${matchPercentage}%` }}
-                />
+              <div key={user.email || index} className="flex items-center gap-3">
+                <button
+                  onClick={() => handleUserClick(user)}
+                  className="flex-1 flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:opacity-90 transition-all text-left relative overflow-hidden group"
+                >
+                  {/* Progress bar background */}
+                  <div 
+                    className={`absolute left-0 top-0 bottom-0 bg-gradient-to-r ${getProgressColor()} transition-all duration-1000 ease-out opacity-20 group-hover:opacity-30`}
+                    style={{ width: `${matchPercentage}%` }}
+                  />
+                  
+                  {/* Content overlay */}
+                  <div className="relative z-10 flex items-center justify-between w-full">
+                    <span className="font-medium truncate flex-1 min-w-0">
+                      {user.name || user.email}
+                    </span>
+                    {user.similarityScore !== null && (
+                      <div className="flex items-center gap-2 shrink-0">
+                        {/* Sparkle icon for high matches */}
+                        {user.similarityScore >= 0.8 && (
+                          <Sparkles className="h-4 w-4 text-yellow-500 animate-pulse" />
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </button>
                 
-                {/* Content overlay */}
-                <div className="relative z-10 flex items-center justify-between w-full">
-                  <span className="font-medium truncate flex-1 min-w-0">
-                    {user.name || user.email}
-                  </span>
-                  {user.similarityScore !== null && (
-                    <div className="flex items-center gap-2 shrink-0">
-                      {/* Sparkle icon for high matches */}
-                      {user.similarityScore >= 0.8 && (
-                        <Sparkles className="h-4 w-4 text-yellow-500 animate-pulse" />
-                      )}
-                    </div>
-                  )}
-                </div>
-              </button>
+                {/* Sparkline outside button */}
+                {generateSparkline()}
+              </div>
             );
           })}
         </div>
@@ -313,7 +387,191 @@ function SimilarUsersDrawer({
               {/* Content */}
               <div className="flex-1 overflow-y-auto p-6">
                 {selectedUser.commonItems && selectedUser.commonItems.length > 0 ? (
-                  <div className="space-y-3">
+                  <div className="space-y-4">
+                    {/* Summary */}
+                    {(() => {
+                      const sortedItems = sortItemsById(selectedUser.commonItems);
+                      const perfectMatches = sortedItems.filter(item => item.userRating === item.similarUserRating).length;
+                      const closeMatches = sortedItems.filter(item => Math.abs(item.userRating - item.similarUserRating) === 1).length;
+                      const differentMatches = sortedItems.filter(item => Math.abs(item.userRating - item.similarUserRating) > 1).length;
+                      const totalItems = sortedItems.length;
+                      
+                      // Find this user's position in the list
+                      const userIndex = similarUsers.findIndex(u => u.email === selectedUser.email);
+                      const position = userIndex + 1;
+                      const totalUsers = similarUsers.length;
+                      
+                      // Get similarity score as percentage
+                      const similarityPercent = selectedUser.similarityScore !== null 
+                        ? Math.round(selectedUser.similarityScore * 100) 
+                        : 0;
+                      
+                      // Get the top match for comparison
+                      const topMatch = similarUsers[0];
+                      const topMatchScore = topMatch?.similarityScore ?? 0;
+                      const topMatchPercent = topMatchScore !== null ? Math.round(topMatchScore * 100) : 0;
+                      const currentScore = selectedUser.similarityScore ?? 0;
+                      const scoreDifference = topMatchScore - currentScore;
+                      
+                      const getPositionLabel = () => {
+                        if (position === 1) return { text: 'Your best match!', color: 'text-green-600' };
+                        if (position === 2) return { text: 'Your 2nd best match', color: 'text-blue-600' };
+                        if (position === 3) return { text: 'Your 3rd best match', color: 'text-yellow-600' };
+                        return { text: `Your ${position}th best match`, color: 'text-orange-600' };
+                      };
+                      
+                      const positionInfo = getPositionLabel();
+                      
+                      return (
+                        <div className="bg-muted/50 rounded-lg p-4 space-y-3">
+                          <div>
+                            <p className="text-sm font-semibold mb-1">
+                              {positionInfo.text} <span className={`text-xs font-normal ${positionInfo.color}`}>(#{position} of {totalUsers})</span>
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              Taste similarity: <strong>{similarityPercent}%</strong>
+                              {position > 1 && topMatch && (
+                                <span> (Top match: {topMatchPercent}%)</span>
+                              )}
+                            </p>
+                            {position > 1 && topMatch && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {scoreDifference > 0.3 
+                                  ? `This person's rating patterns are less similar to yours than your top match.`
+                                  : scoreDifference > 0.15
+                                  ? `This person's rating patterns are somewhat less similar to yours than your top match.`
+                                  : `This person's rating patterns are very close to your top match.`
+                                }
+                              </p>
+                            )}
+                          </div>
+                          
+                          <div className="space-y-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <Star className="h-4 w-4 fill-current text-green-600" />
+                                <span>Perfect matches:</span>
+                              </div>
+                              <span className="font-medium">
+                                {perfectMatches} {perfectMatches === 1 ? 'item' : 'items'} ({Math.round((perfectMatches / totalItems) * 100)}%)
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2 text-muted-foreground">
+                                <span className="text-blue-600 text-base">≈</span>
+                                <span>Close matches:</span>
+                              </div>
+                              <span className="font-medium">
+                                {closeMatches} {closeMatches === 1 ? 'item' : 'items'} ({Math.round((closeMatches / totalItems) * 100)}%)
+                              </span>
+                            </div>
+                            {differentMatches > 0 && (
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-muted-foreground">
+                                  <span className="text-orange-600">•</span>
+                                  <span>Different opinions:</span>
+                                </div>
+                                <span className="font-medium">
+                                  {differentMatches} {differentMatches === 1 ? 'item' : 'items'} ({Math.round((differentMatches / totalItems) * 100)}%)
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Bar chart: Rating deviation visualization (You as baseline) */}
+                          {sortedItems.length > 1 && (() => {
+                            // Calculate deviations from your ratings
+                            const deviations = sortedItems.map(item => item.similarUserRating - item.userRating);
+                            const maxDeviation = Math.max(...deviations.map(Math.abs), 1);
+                            
+                            const width = 280;
+                            const height = 80;
+                            const padding = 8;
+                            const chartWidth = width - (padding * 2);
+                            const chartHeight = height - (padding * 2);
+                            const centerY = padding + (chartHeight / 2);
+                            const barWidth = chartWidth / sortedItems.length;
+                            const barSpacing = barWidth * 0.2; // 20% spacing between bars
+                            const actualBarWidth = barWidth - barSpacing;
+                            
+                            return (
+                              <div className="pt-3 border-t">
+                                <p className="text-xs font-medium text-muted-foreground mb-2">Rating differences (relative to you):</p>
+                                <div className="relative">
+                                  <svg width={width} height={height} className="overflow-visible">
+                                    {/* Baseline (your ratings) */}
+                                    <line
+                                      x1={padding}
+                                      y1={centerY}
+                                      x2={width - padding}
+                                      y2={centerY}
+                                      stroke="#10b981"
+                                      strokeWidth="2"
+                                      strokeDasharray="4,2"
+                                      opacity={0.5}
+                                    />
+                                    
+                                    {/* Zero line label */}
+                                    <text
+                                      x={width - padding - 2}
+                                      y={centerY + 4}
+                                      fontSize="10"
+                                      fill="currentColor"
+                                      opacity={0.5}
+                                      textAnchor="end"
+                                    >
+                                      You
+                                    </text>
+                                    
+                                    {/* Bars for each item */}
+                                    {deviations.map((deviation, idx) => {
+                                      const isPositive = deviation > 0;
+                                      const isZero = Math.abs(deviation) < 0.1;
+                                      
+                                      // Normalize deviation to chart height
+                                      const normalizedDev = deviation / maxDeviation;
+                                      const barHeight = Math.abs(normalizedDev) * (chartHeight / 2);
+                                      
+                                      // Bar position
+                                      const barX = padding + (idx * barWidth) + (barSpacing / 2);
+                                      const barY = isPositive 
+                                        ? centerY - barHeight 
+                                        : centerY;
+                                      
+                                      return (
+                                        <g key={idx}>
+                                          {/* Bar */}
+                                          {!isZero ? (
+                                            <rect
+                                              x={barX}
+                                              y={barY}
+                                              width={actualBarWidth}
+                                              height={barHeight || 1}
+                                              fill={isPositive ? "#10b981" : "#ef4444"}
+                                              opacity={0.8}
+                                              rx="2"
+                                            />
+                                          ) : (
+                                            // Small indicator for zero deviation
+                                            <circle
+                                              cx={barX + (actualBarWidth / 2)}
+                                              cy={centerY}
+                                              r="2"
+                                              fill="#10b981"
+                                            />
+                                          )}
+                                        </g>
+                                      );
+                                    })}
+                                  </svg>
+                                </div>
+                              </div>
+                            );
+                          })()}
+                        </div>
+                      );
+                    })()}
+                    
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm border-collapse">
                       <thead>
@@ -381,17 +639,6 @@ function SimilarUsersDrawer({
                         })}
                       </tbody>
                     </table>
-                    </div>
-                    {/* Legend for rating alignment icons */}
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2 border-t">
-                      <div className="flex items-center gap-1">
-                        <Star className="h-3 w-3 fill-current text-green-600" />
-                        <span>Perfect match</span>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-blue-600">≈</span>
-                        <span>Close match</span>
-                      </div>
                     </div>
                   </div>
                 ) : (
