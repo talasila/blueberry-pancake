@@ -525,29 +525,15 @@ function SimilarUsersDrawer({
                                 <p className="text-xs font-medium text-muted-foreground mb-2">Rating differences (relative to you):</p>
                                 <div className="relative">
                                   <svg width={width} height={height} className="overflow-visible">
-                                    {/* Baseline (your ratings) */}
+                                    {/* Baseline (your ratings) - extends beyond chart */}
                                     <line
-                                      x1={padding}
+                                      x1={0}
                                       y1={centerY}
-                                      x2={width - padding}
+                                      x2={width}
                                       y2={centerY}
-                                      stroke="#10b981"
-                                      strokeWidth="2"
-                                      strokeDasharray="4,2"
-                                      opacity={0.5}
+                                      stroke="#4b5563"
+                                      strokeWidth="1"
                                     />
-                                    
-                                    {/* Zero line label */}
-                                    <text
-                                      x={width - padding - 2}
-                                      y={centerY + 4}
-                                      fontSize="10"
-                                      fill="currentColor"
-                                      opacity={0.5}
-                                      textAnchor="end"
-                                    >
-                                      You
-                                    </text>
                                     
                                     {/* Bars for each item */}
                                     {deviations.map((deviation, idx) => {
@@ -580,26 +566,26 @@ function SimilarUsersDrawer({
                                               />
                                             </g>
                                           ) : isClose ? (
-                                            // Close matches: blue bars
+                                            // Close matches: blue bars (thinner)
                                             <rect
-                                              x={barX}
+                                              x={barX + (actualBarWidth * 0.2)}
                                               y={barY}
-                                              width={actualBarWidth}
+                                              width={actualBarWidth * 0.6}
                                               height={barHeight || 1}
                                               fill="#3b82f6"
                                               opacity={0.8}
-                                              rx="2"
+                                              rx="1"
                                             />
                                           ) : isDifferent ? (
-                                            // Different opinions: red bars
+                                            // Different opinions: red bars (thinner)
                                             <rect
-                                              x={barX}
+                                              x={barX + (actualBarWidth * 0.2)}
                                               y={barY}
-                                              width={actualBarWidth}
+                                              width={actualBarWidth * 0.6}
                                               height={barHeight || 1}
                                               fill="#ef4444"
                                               opacity={0.8}
-                                              rx="2"
+                                              rx="1"
                                             />
                                           ) : null}
                                         </g>
