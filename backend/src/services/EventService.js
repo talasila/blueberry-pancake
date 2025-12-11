@@ -470,6 +470,132 @@ class EventService {
   }
 
   /**
+   * Update user name in an event
+   * @param {string} eventId - Event identifier
+   * @param {string} email - User email address
+   * @param {string} name - User name
+   * @returns {Promise<object>} Updated user data
+   */
+  async updateUserName(eventId, email, name) {
+    // Validate inputs
+    if (!eventId || typeof eventId !== 'string') {
+      throw new Error('Event ID is required');
+    }
+    if (!email || typeof email !== 'string') {
+      throw new Error('Email address is required');
+    }
+    if (typeof name !== 'string') {
+      throw new Error('Name must be a string');
+    }
+
+    // Normalize email to lowercase
+    const normalizedEmail = email.toLowerCase().trim();
+
+    try {
+      // Get current event
+      const event = await dataRepository.getEvent(eventId);
+
+      // Initialize users map if it doesn't exist
+      if (!event.users || typeof event.users !== 'object' || Array.isArray(event.users)) {
+        event.users = {};
+      }
+
+      // Initialize user entry if it doesn't exist
+      if (!event.users[normalizedEmail]) {
+        event.users[normalizedEmail] = {
+          registeredAt: new Date().toISOString()
+        };
+      }
+
+      // Update user's name
+      event.users[normalizedEmail] = {
+        ...event.users[normalizedEmail],
+        name: name.trim() || undefined // Remove name if empty string
+      };
+
+      // Update event with new user data
+      const updatedEvent = {
+        ...event,
+        users: event.users,
+        updatedAt: new Date().toISOString()
+      };
+
+      // Persist updated event
+      await this.updateEvent(eventId, updatedEvent);
+
+      loggerService.info(`User name updated for event: ${eventId}, email: ${normalizedEmail}`);
+
+      return {
+        eventId,
+        email: normalizedEmail,
+        name: event.users[normalizedEmail].name || null
+      };
+    } catch (error) {
+      // If event not found, throw with clear message
+      if (error.message.includes('not found') || error.message.includes('File not found')) {
+        throw new Error(`Event not found: ${eventId}`);
+      }
+      // Re-throw validation errors
+      if (error.message.includes('required') || error.message.includes('Invalid')) {
+        throw error;
+      }
+      // Log and re-throw other errors
+      loggerService.error(`Error updating user name for event ${eventId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get user profile data (name, etc.) for an event
+   * @param {string} eventId - Event identifier
+   * @param {string} email - User email address
+   * @returns {Promise<object>} User profile data
+   */
+  async getUserProfile(eventId, email) {
+    // Validate inputs
+    if (!eventId || typeof eventId !== 'string') {
+      throw new Error('Event ID is required');
+    }
+    if (!email || typeof email !== 'string') {
+      throw new Error('Email address is required');
+    }
+
+    // Normalize email to lowercase
+    const normalizedEmail = email.toLowerCase().trim();
+
+    try {
+      // Get current event
+      const event = await dataRepository.getEvent(eventId);
+
+      // Initialize users map if it doesn't exist
+      if (!event.users || typeof event.users !== 'object' || Array.isArray(event.users)) {
+        return {
+          eventId,
+          email: normalizedEmail,
+          name: null
+        };
+      }
+
+      // Get user data
+      const userData = event.users[normalizedEmail];
+
+      return {
+        eventId,
+        email: normalizedEmail,
+        name: userData?.name || null
+      };
+    } catch (error) {
+      // If event not found, throw with clear message
+      if (error.message.includes('not found') || error.message.includes('File not found')) {
+        throw new Error(`Event not found: ${eventId}`);
+      }
+      // Log and re-throw other errors
+      loggerService.error(`Error getting user profile for event ${eventId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Get bookmarks for a user in an event
    * @param {string} eventId - Event identifier
    * @param {string} email - User email address

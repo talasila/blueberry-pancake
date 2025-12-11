@@ -82,24 +82,52 @@ function ProfilePage() {
     navigate('/', { replace: true });
   };
 
-  // Extract user email from JWT token or get from event user data
+  // Extract user email from JWT token or PIN session, and load user profile
   useEffect(() => {
-    // Try to get email from JWT token first (for admins)
-    const token = apiClient.getJWTToken();
-    if (token) {
-      try {
-        const parts = token.split('.');
-        if (parts.length === 3) {
-          const payload = JSON.parse(atob(parts[1]));
-          setUserEmail(payload.email || '');
+    const loadUserProfile = async () => {
+      let email = '';
+      
+      // Try to get email from JWT token first (for admins)
+      const token = apiClient.getJWTToken();
+      if (token) {
+        try {
+          const parts = token.split('.');
+          if (parts.length === 3) {
+            const payload = JSON.parse(atob(parts[1]));
+            email = payload.email || '';
+          }
+        } catch (error) {
+          console.error('Error extracting email from token:', error);
         }
-      } catch (error) {
-        console.error('Error extracting email from token:', error);
       }
-    }
+      
+      // If no email from JWT, try to get from PIN session (for regular users)
+      if (!email && eventId) {
+        const pinEmail = sessionStorage.getItem(`event:${eventId}:email`);
+        if (pinEmail) {
+          email = pinEmail;
+        }
+      }
+      
+      if (email) {
+        setUserEmail(email);
+        
+        // Load user profile data from backend
+        try {
+          const profile = await apiClient.getUserProfile(eventId, email);
+          if (profile.name) {
+            setName(profile.name);
+          }
+        } catch (error) {
+          console.error('Error loading user profile:', error);
+          // Don't show error to user, just log it
+        }
+      }
+    };
     
-    // TODO: Load user profile data from backend
-    // For now, just initialize with empty values
+    if (eventId) {
+      loadUserProfile();
+    }
   }, [eventId]);
 
   const handleSave = async (e) => {
@@ -109,14 +137,22 @@ function ProfilePage() {
     setLoading(true);
 
     try {
-      // TODO: Implement API call to save profile data
-      // await apiClient.updateUserProfile(eventId, { name, blindItemDetails });
+      if (!userEmail) {
+        throw new Error('User email is required. Please log in again.');
+      }
+
+      // Update user name via API
+      await apiClient.updateUserProfile(eventId, name, userEmail);
       
-      // Placeholder for now
+      setSuccess('Profile updated successfully!');
+      setLoading(false);
+      
+      // Navigate to event page after showing success message
       setTimeout(() => {
-        setSuccess('Profile updated successfully!');
-        setLoading(false);
-      }, 500);
+        if (eventId) {
+          navigate(`/event/${eventId}`);
+        }
+      }, 1500); // Wait 1.5 seconds to show success message
     } catch (err) {
       setError(err.message || 'Failed to update profile. Please try again.');
       setLoading(false);

@@ -1097,6 +1097,135 @@ router.get('/:eventId/bookmarks', requirePINOrAuth, async (req, res) => {
  * Save bookmarks for the current user in an event
  * Requires either PIN verification session OR OTP authentication (JWT token)
  */
+/**
+ * GET /api/events/:eventId/profile
+ * Get user profile (name) for an event
+ * Requires PIN or JWT authentication
+ */
+router.get('/:eventId/profile', requirePINOrAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    // Validate event ID format
+    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+      return res.status(400).json({
+        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
+      });
+    }
+
+    // Get user email from JWT token (if authenticated via OTP) or from query string (for PIN auth)
+    let userEmail = req.user?.email;
+    
+    // If no email from JWT, try to get from query string (for PIN auth)
+    if (!userEmail) {
+      userEmail = req.query?.email;
+    }
+
+    if (!userEmail || typeof userEmail !== 'string') {
+      return res.status(400).json({
+        error: 'Email address is required'
+      });
+    }
+
+    // Get user profile
+    const result = await eventService.getUserProfile(eventId, userEmail);
+
+    res.json(result);
+  } catch (error) {
+    loggerService.error(`Get user profile error: ${error.message}`, error).catch(() => {});
+
+    // Handle validation errors (400)
+    if (error.message.includes('required') || 
+        error.message.includes('Invalid') ||
+        error.message.includes('format')) {
+      return res.status(400).json({
+        error: error.message
+      });
+    }
+
+    // Handle not found errors (404)
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        error: error.message
+      });
+    }
+
+    // Handle all other errors (500)
+    res.status(500).json({
+      error: 'Failed to retrieve user profile. Please try again.'
+    });
+  }
+});
+
+/**
+ * PUT /api/events/:eventId/profile
+ * Update user profile (name) for an event
+ * Requires PIN or JWT authentication
+ */
+router.put('/:eventId/profile', requirePINOrAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { name } = req.body;
+
+    // Validate event ID format
+    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+      return res.status(400).json({
+        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
+      });
+    }
+
+    // Get user email from JWT token (if authenticated via OTP) or from request body (for PIN auth)
+    let userEmail = req.user?.email;
+    
+    // If no email from JWT, try to get from request body (for PIN auth)
+    if (!userEmail) {
+      userEmail = req.body?.email;
+    }
+
+    if (!userEmail || typeof userEmail !== 'string') {
+      return res.status(400).json({
+        error: 'Email address is required'
+      });
+    }
+
+    // Validate name (optional, but if provided must be a string)
+    if (name !== undefined && typeof name !== 'string') {
+      return res.status(400).json({
+        error: 'Name must be a string'
+      });
+    }
+
+    // Update user name
+    const result = await eventService.updateUserName(eventId, userEmail, name || '');
+
+    res.json(result);
+  } catch (error) {
+    loggerService.error(`Update user profile error: ${error.message}`, error).catch(() => {});
+
+    // Handle validation errors (400)
+    if (error.message.includes('required') || 
+        error.message.includes('Invalid') ||
+        error.message.includes('must be') ||
+        error.message.includes('format')) {
+      return res.status(400).json({
+        error: error.message
+      });
+    }
+
+    // Handle not found errors (404)
+    if (error.message.includes('not found')) {
+      return res.status(404).json({
+        error: error.message
+      });
+    }
+
+    // Handle all other errors (500)
+    res.status(500).json({
+      error: 'Failed to update user profile. Please try again.'
+    });
+  }
+});
+
 router.put('/:eventId/bookmarks', requirePINOrAuth, async (req, res) => {
   try {
     const { eventId } = req.params;

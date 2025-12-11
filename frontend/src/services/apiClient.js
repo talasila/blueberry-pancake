@@ -476,6 +476,38 @@ class ApiClient {
     }
     return this.put(endpoint, body);
   }
+
+  /**
+   * Get user profile (name) for the current user in an event
+   * @param {string} eventId - Event identifier
+   * @param {string} email - User email address (required for PIN auth)
+   * @returns {Promise<any>} Response data with user profile
+   */
+  async getUserProfile(eventId, email = null) {
+    const endpoint = `/events/${eventId}/profile`;
+    if (email) {
+      // For PIN auth, include email in query string
+      return this.get(`${endpoint}?email=${encodeURIComponent(email)}`);
+    }
+    return this.get(endpoint);
+  }
+
+  /**
+   * Update user profile (name) for the current user in an event
+   * @param {string} eventId - Event identifier
+   * @param {string} name - User name
+   * @param {string} email - User email address (required for PIN auth)
+   * @returns {Promise<any>} Response data with updated user profile
+   */
+  async updateUserProfile(eventId, name, email = null) {
+    const endpoint = `/events/${eventId}/profile`;
+    const body = { name };
+    if (email) {
+      // For PIN auth, include email in body
+      body.email = email;
+    }
+    return this.put(endpoint, body);
+  }
 }
 
 // Export singleton instance
