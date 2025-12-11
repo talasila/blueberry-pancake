@@ -821,9 +821,9 @@ function EventAdminPage() {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4">
-              <span className="text-sm text-muted-foreground font-normal">
+              <div className="text-sm text-muted-foreground font-normal">
                     Configure the number of {itemTerminology.pluralLower} and specify which {itemTerminology.singularLower} IDs to exclude from the event
-              </span>
+              </div>
               {/* Number of items input */}
               <div>
                 <label className="text-sm font-medium">Number of {itemTerminology.plural}</label>
@@ -914,9 +914,9 @@ function EventAdminPage() {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4">
-                <span className="text-sm text-muted-foreground font-normal">
+                <div className="text-sm text-muted-foreground font-normal">
                   Configure how items are rated, including the rating scale, labels, and colors
-                </span>
+                </div>
                 {event?.state !== 'created' && (
                   <Message type="info">
                     Rating configuration can only be edited when the event is in "created" state.
@@ -1109,9 +1109,9 @@ function EventAdminPage() {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4">
-                <span className="text-sm text-muted-foreground font-normal">
+                <div className="text-sm text-muted-foreground font-normal">
                   Manage the state of this event. The event can be started, paused, or completed.
-                </span>
+                </div>
               {transitionError && (
                 <Message type="error">{transitionError}</Message>
               )}
@@ -1189,9 +1189,9 @@ function EventAdminPage() {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4">
-              <span className="text-sm text-muted-foreground font-normal">
+              <div className="text-sm text-muted-foreground font-normal">
                     Share this PIN with users to grant access to this event
-              </span>
+              </div>
               {/* PIN Display Section */}
               {event.pin && (
                 <div className="space-y-2">
@@ -1279,9 +1279,9 @@ function EventAdminPage() {
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4">
-              <span className="text-sm text-muted-foreground font-normal">
+              <div className="text-sm text-muted-foreground font-normal">
                     Manage administrators for this event. The owner cannot be removed.
-              </span>
+              </div>
               {/* Administrators list */}
               {isLoadingAdministrators ? (
                 <div className="flex items-center justify-center py-4">
