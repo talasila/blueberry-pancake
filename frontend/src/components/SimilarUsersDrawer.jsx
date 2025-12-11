@@ -210,36 +210,62 @@ function SimilarUsersDrawer({
                   {/* Bars */}
                   {deviations.map((deviation, idx) => {
                     const isPositive = deviation > 0;
-                    const isZero = Math.abs(deviation) < 0.1;
+                    const absDeviation = Math.abs(deviation);
+                    const isPerfect = absDeviation < 0.1;
+                    const isClose = absDeviation >= 0.1 && absDeviation <= 1;
+                    const isDifferent = absDeviation > 1;
+                    
                     const normalizedDev = deviation / maxDeviation;
                     const barHeight = Math.abs(normalizedDev) * (chartHeight / 2);
                     const barX = padding + (idx * barWidth) + (barSpacing / 2);
                     const barY = isPositive ? centerY - barHeight : centerY;
                     
-                    if (isZero) {
+                    if (isPerfect) {
+                      // Perfect matches: green big dots
                       return (
                         <circle
                           key={idx}
                           cx={barX + (actualBarWidth / 2)}
                           cy={centerY}
-                          r="1"
+                          r="3"
                           fill="#10b981"
                         />
                       );
                     }
                     
-                    return (
-                      <rect
-                        key={idx}
-                        x={barX}
-                        y={barY}
-                        width={actualBarWidth}
-                        height={barHeight || 0.5}
-                        fill={isPositive ? "#10b981" : "#ef4444"}
-                        opacity={0.7}
-                        rx="1"
-                      />
-                    );
+                    if (isClose) {
+                      // Close matches: blue bars
+                      return (
+                        <rect
+                          key={idx}
+                          x={barX}
+                          y={barY}
+                          width={actualBarWidth}
+                          height={barHeight || 0.5}
+                          fill="#3b82f6"
+                          opacity={0.7}
+                          rx="1"
+                        />
+                      );
+                    }
+                    
+                    if (isDifferent) {
+                      // Different opinions: red bars
+                      return (
+                        <rect
+                          key={idx}
+                          x={barX}
+                          y={barY}
+                          width={actualBarWidth}
+                          height={barHeight || 0.5}
+                          fill="#ef4444"
+                          opacity={0.7}
+                          rx="1"
+                        />
+                      );
+                    }
+                    
+                    return null;
                   })}
                 </svg>
               );
@@ -526,7 +552,10 @@ function SimilarUsersDrawer({
                                     {/* Bars for each item */}
                                     {deviations.map((deviation, idx) => {
                                       const isPositive = deviation > 0;
-                                      const isZero = Math.abs(deviation) < 0.1;
+                                      const absDeviation = Math.abs(deviation);
+                                      const isPerfect = absDeviation < 0.1;
+                                      const isClose = absDeviation >= 0.1 && absDeviation <= 1;
+                                      const isDifferent = absDeviation > 1;
                                       
                                       // Normalize deviation to chart height
                                       const normalizedDev = deviation / maxDeviation;
@@ -540,26 +569,37 @@ function SimilarUsersDrawer({
                                       
                                       return (
                                         <g key={idx}>
-                                          {/* Bar */}
-                                          {!isZero ? (
+                                          {isPerfect ? (
+                                            // Perfect matches: green big dots
+                                            <circle
+                                              cx={barX + (actualBarWidth / 2)}
+                                              cy={centerY}
+                                              r="4"
+                                              fill="#10b981"
+                                            />
+                                          ) : isClose ? (
+                                            // Close matches: blue bars
                                             <rect
                                               x={barX}
                                               y={barY}
                                               width={actualBarWidth}
                                               height={barHeight || 1}
-                                              fill={isPositive ? "#10b981" : "#ef4444"}
+                                              fill="#3b82f6"
                                               opacity={0.8}
                                               rx="2"
                                             />
-                                          ) : (
-                                            // Small indicator for zero deviation
-                                            <circle
-                                              cx={barX + (actualBarWidth / 2)}
-                                              cy={centerY}
-                                              r="2"
-                                              fill="#10b981"
+                                          ) : isDifferent ? (
+                                            // Different opinions: red bars
+                                            <rect
+                                              x={barX}
+                                              y={barY}
+                                              width={actualBarWidth}
+                                              height={barHeight || 1}
+                                              fill="#ef4444"
+                                              opacity={0.8}
+                                              rx="2"
                                             />
-                                          )}
+                                          ) : null}
                                         </g>
                                       );
                                     })}
