@@ -280,6 +280,26 @@ class RatingService {
   invalidateCache(eventId) {
     cacheService.del(`ratings:${eventId}`);
   }
+
+  /**
+   * Delete all ratings for an event
+   * Clears the ratings.csv file, leaving only the header
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<void>}
+   */
+  async deleteAllRatings(eventId) {
+    // Write empty CSV with just the header
+    const emptyCSV = 'email,timestamp,itemId,rating,note\n';
+    await dataRepository.writeEventRatings(eventId, emptyCSV);
+    
+    // Invalidate ratings cache
+    cacheService.del(`ratings:${eventId}`);
+    
+    // Invalidate dashboard cache (depends on ratings)
+    cacheService.del(`dashboard:${eventId}`);
+    
+    loggerService.info(`All ratings deleted for event ${eventId}`);
+  }
 }
 
 export default new RatingService();

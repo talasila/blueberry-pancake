@@ -1,8 +1,10 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import Message from '@/components/Message';
+import { clearSuccessMessage } from '@/utils/helpers';
 
 /**
  * LandingPage Component
@@ -22,6 +24,18 @@ function LandingPage() {
   // State for event ID input field (controlled input)
   const [eventId, setEventId] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
+  const [successMessage, setSuccessMessage] = useState('');
+
+  // Display success message from navigation state
+  useEffect(() => {
+    if (location.state?.message && location.state?.messageType === 'success') {
+      setSuccessMessage(location.state.message);
+      clearSuccessMessage(setSuccessMessage);
+      // Clear location state to prevent message from showing again on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   /**
    * Handle Join button click - provides visual feedback only, no functional behavior
@@ -47,6 +61,13 @@ function LandingPage() {
     <div className="w-full">
       <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-4">
         <div className="w-full max-w-md">
+          {/* Success Message */}
+          {successMessage && (
+            <div className="mb-4">
+              <Message type="success">{successMessage}</Message>
+            </div>
+          )}
+
           {/* Intro Text */}
           <div className="text-left mb-6 sm:mb-8">
             <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">

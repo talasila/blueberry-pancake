@@ -508,6 +508,48 @@ class ApiClient {
     }
     return this.put(endpoint, body);
   }
+
+  /**
+   * Delete an event and all its data
+   * Only the event owner can delete the event
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<any>} Response data with success message
+   */
+  async deleteEvent(eventId) {
+    return this.delete(`/events/${eventId}`);
+  }
+
+  /**
+   * Delete all ratings and bookmarks for an event
+   * Only event administrators can delete ratings and bookmarks
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<any>} Response data with success message
+   */
+  async deleteAllRatings(eventId) {
+    return this.delete(`/events/${eventId}/ratings`);
+  }
+
+  /**
+   * Delete all users (excluding administrators) and all their associated data
+   * Only event administrators can delete users
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<any>} Response data with success message and counts
+   */
+  async deleteAllUsers(eventId) {
+    return this.delete(`/events/${eventId}/users`);
+  }
+
+  /**
+   * Delete a single user and all their associated data
+   * Only event administrators can delete users
+   * Prevents deletion of owner or last administrator
+   * @param {string} eventId - Event identifier
+   * @param {string} email - Email of the user to delete
+   * @returns {Promise<any>} Response data with success message and counts
+   */
+  async deleteUser(eventId, email) {
+    return this.delete(`/events/${eventId}/users/${encodeURIComponent(email)}`);
+  }
 }
 
 // Export singleton instance

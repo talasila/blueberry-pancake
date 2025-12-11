@@ -1290,4 +1290,247 @@ router.put('/:eventId/bookmarks', requirePINOrAuth, async (req, res) => {
   }
 });
 
+/**
+ * DELETE /api/events/:eventId
+ * Delete an event and all its data
+ * Requires OTP authentication (JWT token) and owner authorization
+ * Only the event owner can delete the event
+ */
+router.delete('/:eventId', requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const requesterEmail = req.user?.email;
+
+    if (!requesterEmail) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
+    }
+
+    // Validate event ID format
+    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+      return res.status(400).json({
+        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
+      });
+    }
+
+    // Delete event
+    const result = await eventService.deleteEvent(eventId, requesterEmail);
+
+    res.json(result);
+  } catch (error) {
+    loggerService.error(`Delete event error: ${error.message}`, error).catch(() => {});
+    
+    // Handle event not found
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+
+    // Handle authorization errors
+    if (error.message.includes('Unauthorized') || error.message.includes('owner')) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    // Handle validation errors
+    if (error.message.includes('required') || 
+        error.message.includes('Invalid') ||
+        error.message.includes('format')) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    // Handle server errors
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: 'Failed to delete event. Please try again.',
+      ...(isDevelopment && { details: error.message })
+    });
+  }
+});
+
+/**
+ * DELETE /api/events/:eventId/ratings
+ * Delete all ratings and bookmarks for an event
+ * Requires OTP authentication (JWT token) and administrator authorization
+ * Only event administrators can delete ratings and bookmarks
+ */
+router.delete('/:eventId/ratings', requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const requesterEmail = req.user?.email;
+
+    if (!requesterEmail) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
+    }
+
+    // Validate event ID format
+    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+      return res.status(400).json({
+        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
+      });
+    }
+
+    // Delete all ratings and bookmarks
+    const result = await eventService.deleteAllRatingsAndBookmarks(eventId, requesterEmail);
+
+    res.json(result);
+  } catch (error) {
+    loggerService.error(`Delete all ratings error: ${error.message}`, error).catch(() => {});
+    
+    // Handle event not found
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+
+    // Handle authorization errors
+    if (error.message.includes('Unauthorized') || error.message.includes('administrator')) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    // Handle validation errors
+    if (error.message.includes('required') || 
+        error.message.includes('Invalid') ||
+        error.message.includes('format')) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    // Handle server errors
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: 'Failed to delete ratings and bookmarks. Please try again.',
+      ...(isDevelopment && { details: error.message })
+    });
+  }
+});
+
+/**
+ * DELETE /api/events/:eventId/users/:email
+ * Delete a single user and all their associated data
+ * Requires OTP authentication (JWT token) and administrator authorization
+ * Only event administrators can delete users
+ * Prevents deletion of owner or last administrator
+ */
+router.delete('/:eventId/users/:email', requireAuth, async (req, res) => {
+  try {
+    const { eventId, email } = req.params;
+    const requesterEmail = req.user?.email;
+
+    if (!requesterEmail) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
+    }
+
+    // Validate event ID format
+    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+      return res.status(400).json({
+        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
+      });
+    }
+
+    // Decode email from URL
+    const userEmailToDelete = decodeURIComponent(email);
+
+    if (!userEmailToDelete || typeof userEmailToDelete !== 'string' || !userEmailToDelete.trim()) {
+      return res.status(400).json({
+        error: 'User email is required'
+      });
+    }
+
+    // Delete user
+    const result = await eventService.deleteUser(eventId, userEmailToDelete, requesterEmail);
+
+    res.json(result);
+  } catch (error) {
+    loggerService.error(`Delete user error: ${error.message}`, error).catch(() => {});
+    
+    // Handle event not found
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+
+    // Handle authorization errors
+    if (error.message.includes('Unauthorized') || error.message.includes('administrator')) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    // Handle owner/last admin protection
+    if (error.message.includes('Cannot delete owner') || error.message.includes('Cannot delete last administrator')) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    // Handle validation errors
+    if (error.message.includes('required') || 
+        error.message.includes('Invalid') ||
+        error.message.includes('format')) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    // Handle server errors
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: 'Failed to delete user. Please try again.',
+      ...(isDevelopment && { details: error.message })
+    });
+  }
+});
+
+/**
+ * DELETE /api/events/:eventId/users
+ * Delete all users (excluding administrators) and all their associated data
+ * Requires OTP authentication (JWT token) and administrator authorization
+ * Only event administrators can delete users
+ */
+router.delete('/:eventId/users', requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const requesterEmail = req.user?.email;
+
+    if (!requesterEmail) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
+    }
+
+    // Validate event ID format
+    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+      return res.status(400).json({
+        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
+      });
+    }
+
+    // Delete all users
+    const result = await eventService.deleteAllUsers(eventId, requesterEmail);
+
+    res.json(result);
+  } catch (error) {
+    loggerService.error(`Delete all users error: ${error.message}`, error).catch(() => {});
+    
+    // Handle event not found
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+
+    // Handle authorization errors
+    if (error.message.includes('Unauthorized') || error.message.includes('administrator')) {
+      return res.status(403).json({ error: error.message });
+    }
+
+    // Handle validation errors
+    if (error.message.includes('required') || 
+        error.message.includes('Invalid') ||
+        error.message.includes('format')) {
+      return res.status(400).json({ error: error.message });
+    }
+
+    // Handle server errors
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: 'Failed to delete users. Please try again.',
+      ...(isDevelopment && { details: error.message })
+    });
+  }
+});
+
 export default router;

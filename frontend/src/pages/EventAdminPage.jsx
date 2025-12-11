@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, RefreshCw, Copy, Check, Trash2, PlayCircle, PauseCircle, CheckCircle2, CircleDot, Edit2, X } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Copy, Check, Trash2, PlayCircle, PauseCircle, CheckCircle2, CircleDot, Edit2, X, AlertTriangle } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -15,6 +15,11 @@ import InfoField from '@/components/InfoField';
 import { isValidEmailFormat, clearSuccessMessage } from '@/utils/helpers';
 import { useItemTerminology } from '@/utils/itemTerminology';
 import itemService from '@/services/itemService';
+import { ratingService } from '@/services/ratingService';
+import DeleteEventDialog from '@/components/DeleteEventDialog';
+import DeleteRatingsDialog from '@/components/DeleteRatingsDialog';
+import DeleteAllUsersDialog from '@/components/DeleteAllUsersDialog';
+import DeleteUserDialog from '@/components/DeleteUserDialog';
 
 /**
  * State configuration mapping states to icons, colors, labels, and descriptions
@@ -183,6 +188,37 @@ function EventAdminPage() {
   const [items, setItems] = useState([]);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [itemsError, setItemsError] = useState('');
+  
+  // Delete event state
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeletingEvent, setIsDeletingEvent] = useState(false);
+  const [deleteEventError, setDeleteEventError] = useState('');
+  const [currentUserEmail, setCurrentUserEmail] = useState(null);
+  
+  // Delete ratings state
+  const [isDeleteRatingsDialogOpen, setIsDeleteRatingsDialogOpen] = useState(false);
+  const [isDeletingRatings, setIsDeletingRatings] = useState(false);
+  const [deleteRatingsError, setDeleteRatingsError] = useState('');
+  const [deleteRatingsSuccess, setDeleteRatingsSuccess] = useState('');
+  
+  // Delete users state
+  const [isDeleteUsersDialogOpen, setIsDeleteUsersDialogOpen] = useState(false);
+  const [isDeletingUsers, setIsDeletingUsers] = useState(false);
+  const [deleteUsersError, setDeleteUsersError] = useState('');
+  const [deleteUsersSuccess, setDeleteUsersSuccess] = useState('');
+  
+  // Delete single user state
+  const [deleteUserDialogState, setDeleteUserDialogState] = useState({
+    isOpen: false,
+    userEmail: null,
+    userName: null,
+    itemsCount: 0,
+    ratingsCount: 0,
+    isAdministrator: false
+  });
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [deleteUserError, setDeleteUserError] = useState('');
+  const [deleteUserSuccess, setDeleteUserSuccess] = useState('');
 
   // Check for OTP authentication (JWT token) - admin pages require OTP even if accessed via PIN
   useEffect(() => {
@@ -193,6 +229,17 @@ function EventAdminPage() {
         state: { from: { pathname: `/event/${eventId}/admin` } },
         replace: true 
       });
+    } else {
+      // Extract email from JWT token
+      try {
+        const parts = jwtToken.split('.');
+        if (parts.length === 3) {
+          const payload = JSON.parse(atob(parts[1]));
+          setCurrentUserEmail(payload.email || null);
+        }
+      } catch (error) {
+        console.error('Error extracting email from token:', error);
+      }
     }
   }, [eventId, navigate]);
 
@@ -667,6 +714,259 @@ function EventAdminPage() {
     navigator.clipboard.writeText(eventUrl);
     setLinkCopied(true);
     setTimeout(() => setLinkCopied(false), 2000);
+  };
+
+  // Check if current user is the owner
+  const isCurrentUserOwner = () => {
+    if (!currentUserEmail || !administrators || Object.keys(administrators).length === 0) {
+      return false;
+    }
+    const normalizedEmail = currentUserEmail.trim().toLowerCase();
+    return administrators[normalizedEmail]?.owner === true;
+  };
+
+  // Check if current user is an administrator (owner or regular admin)
+  const isCurrentUserAdministrator = () => {
+    if (!currentUserEmail || !administrators || Object.keys(administrators).length === 0) {
+      return false;
+    }
+    const normalizedEmail = currentUserEmail.trim().toLowerCase();
+    return administrators[normalizedEmail] !== undefined;
+  };
+
+  // Calculate number of non-admin users
+  const getNonAdminUserCount = () => {
+    if (!event?.users || typeof event.users !== 'object' || !administrators) {
+      return 0;
+    }
+    
+    const administratorEmails = new Set();
+    Object.keys(administrators).forEach(email => {
+      administratorEmails.add(email.trim().toLowerCase());
+    });
+    
+    let count = 0;
+    Object.keys(event.users).forEach(email => {
+      const normalizedEmail = email.trim().toLowerCase();
+      if (!administratorEmails.has(normalizedEmail)) {
+        count++;
+      }
+    });
+    
+    return count;
+  };
+
+  // Get all users with their stats
+  const getAllUsersWithStats = () => {
+    if (!event?.users || typeof event.users !== 'object') {
+      return [];
+    }
+
+    const administratorEmails = new Set();
+    if (administrators) {
+      Object.keys(administrators).forEach(email => {
+        administratorEmails.add(email.trim().toLowerCase());
+      });
+    }
+
+    return Object.entries(event.users).map(([email, userData]) => {
+      const normalizedEmail = email.trim().toLowerCase();
+      const isAdmin = administratorEmails.has(normalizedEmail);
+      const isOwner = administrators?.[normalizedEmail]?.owner === true;
+      
+      // Count items for this user
+      const userItems = items.filter(item => {
+        if (!item.ownerEmail) return false;
+        return item.ownerEmail.trim().toLowerCase() === normalizedEmail;
+      });
+
+      // Note: We can't easily count ratings without fetching them all
+      // For now, we'll show items count and leave ratings as "N/A" or fetch if needed
+      // Actually, let's fetch ratings to show accurate count
+      
+      return {
+        email,
+        normalizedEmail,
+        name: userData?.name || null,
+        registeredAt: userData?.registeredAt || null,
+        isAdministrator: isAdmin,
+        isOwner,
+        itemsCount: userItems.length
+      };
+    }).sort((a, b) => {
+      // Sort: owners first, then admins, then regular users
+      if (a.isOwner && !b.isOwner) return -1;
+      if (!a.isOwner && b.isOwner) return 1;
+      if (a.isAdministrator && !b.isAdministrator) return -1;
+      if (!a.isAdministrator && b.isAdministrator) return 1;
+      // Then by email
+      return a.email.localeCompare(b.email);
+    });
+  };
+
+  // Get ratings count for a user (async, will be called when opening dialog)
+  const getUserRatingsCount = async (userEmail) => {
+    try {
+      const allRatings = await ratingService.getRatings(eventId);
+      const normalizedEmail = userEmail.trim().toLowerCase();
+      return allRatings.filter(rating => {
+        const ratingEmail = (rating.email || '').trim().toLowerCase();
+        return ratingEmail === normalizedEmail;
+      }).length;
+    } catch (error) {
+      console.error('Failed to fetch ratings count:', error);
+      return 0;
+    }
+  };
+
+  // Handle delete event
+  const handleDeleteEvent = async () => {
+    setIsDeletingEvent(true);
+    setDeleteEventError('');
+
+    try {
+      await apiClient.deleteEvent(eventId);
+      
+      // Navigate to landing page with success message
+      navigate('/', { 
+        state: { 
+          message: `Event "${event?.name || eventId}" has been deleted successfully.`,
+          messageType: 'success'
+        }
+      });
+    } catch (error) {
+      setDeleteEventError(error.message || 'Failed to delete event. Please try again.');
+      setIsDeletingEvent(false);
+    }
+  };
+
+  // Handle delete all ratings and bookmarks
+  const handleDeleteAllRatings = async () => {
+    setIsDeletingRatings(true);
+    setDeleteRatingsError('');
+    setDeleteRatingsSuccess('');
+
+    try {
+      await apiClient.deleteAllRatings(eventId);
+      
+      setDeleteRatingsSuccess('All ratings and bookmarks deleted successfully');
+      clearSuccessMessage(setDeleteRatingsSuccess);
+      
+      // Close dialog
+      setIsDeleteRatingsDialogOpen(false);
+      
+      // Refresh event data to reflect changes
+      try {
+        const refreshedEvent = await apiClient.getEvent(eventId);
+        setEvent(refreshedEvent);
+      } catch (refreshError) {
+        console.error('Failed to refresh event after deleting ratings:', refreshError);
+      }
+    } catch (error) {
+      setDeleteRatingsError(error.message || 'Failed to delete ratings and bookmarks. Please try again.');
+    } finally {
+      setIsDeletingRatings(false);
+    }
+  };
+
+  // Handle delete all users
+  const handleDeleteAllUsers = async () => {
+    setIsDeletingUsers(true);
+    setDeleteUsersError('');
+    setDeleteUsersSuccess('');
+
+    try {
+      const result = await apiClient.deleteAllUsers(eventId);
+      
+      setDeleteUsersSuccess(result.message || `Successfully deleted ${result.usersDeleted || 0} user(s) and all their associated data`);
+      clearSuccessMessage(setDeleteUsersSuccess);
+      
+      // Close dialog
+      setIsDeleteUsersDialogOpen(false);
+      
+      // Refresh event data to reflect changes
+      try {
+        const refreshedEvent = await apiClient.getEvent(eventId);
+        setEvent(refreshedEvent);
+        // Refresh administrators list
+        await fetchAdministrators();
+        // Refresh items list
+        const allItems = await itemService.getItems(eventId);
+        setItems(allItems || []);
+      } catch (refreshError) {
+        console.error('Failed to refresh event after deleting users:', refreshError);
+      }
+    } catch (error) {
+      setDeleteUsersError(error.message || 'Failed to delete users. Please try again.');
+    } finally {
+      setIsDeletingUsers(false);
+    }
+  };
+
+  // Handle delete single user
+  const handleDeleteUser = async () => {
+    if (!deleteUserDialogState.userEmail) return;
+
+    setIsDeletingUser(true);
+    setDeleteUserError('');
+    setDeleteUserSuccess('');
+
+    try {
+      const result = await apiClient.deleteUser(eventId, deleteUserDialogState.userEmail);
+      
+      setDeleteUserSuccess(result.message || `User ${deleteUserDialogState.userEmail} deleted successfully`);
+      clearSuccessMessage(setDeleteUserSuccess);
+      
+      // Close dialog
+      setDeleteUserDialogState({
+        isOpen: false,
+        userEmail: null,
+        userName: null,
+        itemsCount: 0,
+        ratingsCount: 0,
+        isAdministrator: false
+      });
+      
+      // Refresh event data to reflect changes
+      try {
+        const refreshedEvent = await apiClient.getEvent(eventId);
+        setEvent(refreshedEvent);
+        // Refresh administrators list
+        await fetchAdministrators();
+        // Refresh items list
+        const allItems = await itemService.getItems(eventId);
+        setItems(allItems || []);
+      } catch (refreshError) {
+        console.error('Failed to refresh event after deleting user:', refreshError);
+      }
+    } catch (error) {
+      setDeleteUserError(error.message || 'Failed to delete user. Please try again.');
+    } finally {
+      setIsDeletingUser(false);
+    }
+  };
+
+  // Open delete user dialog
+  const handleOpenDeleteUserDialog = async (userEmail, userName, isAdministrator) => {
+    // Get user stats
+    const userItems = items.filter(item => {
+      if (!item.ownerEmail) return false;
+      return item.ownerEmail.trim().toLowerCase() === userEmail.trim().toLowerCase();
+    });
+    
+    // Get ratings count
+    const ratingsCount = await getUserRatingsCount(userEmail);
+
+    setDeleteUserDialogState({
+      isOpen: true,
+      userEmail,
+      userName: userName || null,
+      itemsCount: userItems.length,
+      ratingsCount,
+      isAdministrator
+    });
+    setDeleteUserError('');
+    setDeleteUserSuccess('');
   };
 
   // Handle state transition
@@ -1486,9 +1786,258 @@ function EventAdminPage() {
               </div>
               </AccordionContent>
             </AccordionItem>
+
+            {/* Danger Zone Section */}
+            {isCurrentUserAdministrator() && (
+              <AccordionItem value="danger-zone">
+                <AccordionTrigger>
+                  <div className="flex flex-col items-start text-left">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-destructive" />
+                      <span className="font-semibold text-destructive">Danger Zone</span>
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-4">
+                  <div className="text-sm text-muted-foreground font-normal">
+                    Irreversible and destructive actions. Only event administrators can perform these actions.
+                  </div>
+
+                  {deleteEventError && (
+                    <Message type="error">{deleteEventError}</Message>
+                  )}
+
+                  {deleteRatingsError && (
+                    <Message type="error">{deleteRatingsError}</Message>
+                  )}
+
+                  {deleteRatingsSuccess && (
+                    <Message type="success">{deleteRatingsSuccess}</Message>
+                  )}
+
+                  {deleteUsersError && (
+                    <Message type="error">{deleteUsersError}</Message>
+                  )}
+
+                  {deleteUsersSuccess && (
+                    <Message type="success">{deleteUsersSuccess}</Message>
+                  )}
+
+                  {deleteUserError && (
+                    <Message type="error">{deleteUserError}</Message>
+                  )}
+
+                  {deleteUserSuccess && (
+                    <Message type="success">{deleteUserSuccess}</Message>
+                  )}
+
+                  {/* Users Management Section */}
+                  {isCurrentUserAdministrator() && (
+                    <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+                      <div className="space-y-3">
+                        <div>
+                          <h4 className="font-semibold text-destructive mb-1">Users Management</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Delete individual users and all their associated data. Administrators can be deleted except the owner or last administrator.
+                          </p>
+                        </div>
+                        
+                        {getAllUsersWithStats().length === 0 ? (
+                          <p className="text-sm text-muted-foreground text-center py-4 border rounded-md">
+                            No users found.
+                          </p>
+                        ) : (
+                          <div className="space-y-1.5 max-h-96 overflow-y-auto">
+                            {getAllUsersWithStats().map((user) => {
+                              const canDelete = !user.isOwner && 
+                                !(user.isAdministrator && Object.keys(administrators || {}).length <= 1);
+                              
+                              return (
+                                <div 
+                                  key={user.email} 
+                                  className="flex items-center justify-between gap-2 px-3 py-2 border rounded-md hover:bg-muted/50 transition-colors"
+                                >
+                                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                                    {user.name ? (
+                                      <>
+                                        <span className="font-medium text-sm truncate">{user.name}</span>
+                                        <span className="text-xs text-muted-foreground truncate">({user.email})</span>
+                                      </>
+                                    ) : (
+                                      <span className="font-medium text-sm truncate">{user.email}</span>
+                                    )}
+                                  </div>
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={() => handleOpenDeleteUserDialog(user.email, user.name, user.isAdministrator)}
+                                    disabled={!canDelete || isDeletingUser}
+                                    aria-label={`Delete user ${user.email}`}
+                                    className="h-7 w-7 p-0 flex-shrink-0"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Delete All Users Section */}
+                  {isCurrentUserAdministrator() && (
+                    <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+                      <div className="space-y-3">
+                        <div>
+                          <h4 className="font-semibold text-destructive mb-1">Delete All Users</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Permanently delete all users (excluding administrators) and all their associated data including items, ratings, bookmarks, and profiles.
+                          </p>
+                          {getNonAdminUserCount() > 0 && (
+                            <p className="text-sm font-medium text-foreground mt-1">
+                              {getNonAdminUserCount()} user(s) will be deleted.
+                            </p>
+                          )}
+                        </div>
+                        <Button
+                          variant="destructive"
+                          onClick={() => setIsDeleteUsersDialogOpen(true)}
+                          disabled={isDeletingUsers || getNonAdminUserCount() === 0}
+                          className="w-full sm:w-auto"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete All Users
+                        </Button>
+                        {getNonAdminUserCount() === 0 && (
+                          <p className="text-xs text-muted-foreground">
+                            No users to delete (only administrators exist).
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Delete All Ratings Section */}
+                  {isCurrentUserAdministrator() && (
+                    <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+                      <div className="space-y-3">
+                        <div>
+                          <h4 className="font-semibold text-destructive mb-1">Delete All Ratings</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Permanently delete all ratings and bookmarks for this event. Event configuration and items will remain unchanged.
+                          </p>
+                        </div>
+                        <Button
+                          variant="destructive"
+                          onClick={() => setIsDeleteRatingsDialogOpen(true)}
+                          disabled={isDeletingRatings}
+                          className="w-full sm:w-auto"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete All Ratings
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Delete Event Section - Owner Only */}
+                  {isCurrentUserOwner() && (
+                    <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+                      <div className="space-y-3">
+                        <div>
+                          <h4 className="font-semibold text-destructive mb-1">Delete Event</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Permanently delete this event and all of its data. This action cannot be undone.
+                          </p>
+                        </div>
+                        <Button
+                          variant="destructive"
+                          onClick={() => setIsDeleteDialogOpen(true)}
+                          disabled={isDeletingEvent}
+                          className="w-full sm:w-auto"
+                        >
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete Event
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+            )}
           </Accordion>
         </div>
       </div>
+
+      {/* Delete Event Dialog */}
+      <DeleteEventDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => {
+          if (!isDeletingEvent) {
+            setIsDeleteDialogOpen(false);
+            setDeleteEventError('');
+          }
+        }}
+        onConfirm={handleDeleteEvent}
+        eventName={event?.name || eventId}
+        isDeleting={isDeletingEvent}
+      />
+
+      {/* Delete Ratings Dialog */}
+      <DeleteRatingsDialog
+        isOpen={isDeleteRatingsDialogOpen}
+        onClose={() => {
+          if (!isDeletingRatings) {
+            setIsDeleteRatingsDialogOpen(false);
+            setDeleteRatingsError('');
+          }
+        }}
+        onConfirm={handleDeleteAllRatings}
+        eventName={event?.name || eventId}
+        isDeleting={isDeletingRatings}
+      />
+
+      {/* Delete All Users Dialog */}
+      <DeleteAllUsersDialog
+        isOpen={isDeleteUsersDialogOpen}
+        onClose={() => {
+          if (!isDeletingUsers) {
+            setIsDeleteUsersDialogOpen(false);
+            setDeleteUsersError('');
+          }
+        }}
+        onConfirm={handleDeleteAllUsers}
+        eventName={event?.name || eventId}
+        userCount={getNonAdminUserCount()}
+        isDeleting={isDeletingUsers}
+      />
+
+      {/* Delete User Dialog */}
+      <DeleteUserDialog
+        isOpen={deleteUserDialogState.isOpen}
+        onClose={() => {
+          if (!isDeletingUser) {
+            setDeleteUserDialogState({
+              isOpen: false,
+              userEmail: null,
+              userName: null,
+              itemsCount: 0,
+              ratingsCount: 0,
+              isAdministrator: false
+            });
+            setDeleteUserError('');
+          }
+        }}
+        onConfirm={handleDeleteUser}
+        userEmail={deleteUserDialogState.userEmail || ''}
+        userName={deleteUserDialogState.userName}
+        itemsCount={deleteUserDialogState.itemsCount}
+        ratingsCount={deleteUserDialogState.ratingsCount}
+        isAdministrator={deleteUserDialogState.isAdministrator}
+        isDeleting={isDeletingUser}
+      />
     </div>
   );
 }

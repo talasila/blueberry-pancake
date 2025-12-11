@@ -341,6 +341,35 @@ class FileDataRepository extends DataRepository {
     // Use existing readEventConfig method
     return await this.readEventConfig(eventId);
   }
+
+  /**
+   * Delete an event and all its data
+   * Deletes the entire event directory including config.json, data.csv, ratings.csv, and any other files
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<void>}
+   */
+  async deleteEvent(eventId) {
+    await this.initialize();
+    const eventDir = this.getEventDirectory(eventId);
+    
+    try {
+      // Check if directory exists
+      await fs.access(eventDir);
+      
+      // Delete entire directory recursively
+      await fs.rm(eventDir, { recursive: true, force: true });
+      
+      // Invalidate all cache entries for this event
+      cacheService.del(getEventConfigKey(eventId));
+      cacheService.del(getEventDataKey(eventId));
+      cacheService.del(`ratings:${eventId}`);
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        throw new Error(`Event not found: ${eventId}`);
+      }
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance

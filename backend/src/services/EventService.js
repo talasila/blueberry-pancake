@@ -3,6 +3,7 @@ import dataRepository from '../data/FileDataRepository.js';
 import loggerService from '../logging/Logger.js';
 import pinService from './PINService.js';
 import cacheService from '../cache/CacheService.js';
+import { getEventConfigKey } from '../cache/cacheKeys.js';
 
 // Use alphanumeric alphabet (A-Z, a-z, 0-9) for 8-character IDs
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 8);
@@ -727,6 +728,390 @@ class EventService {
       loggerService.error(`Error saving bookmarks for user ${normalizedEmail} in event ${eventId}: ${error.message}`, error);
       throw error;
     }
+  }
+
+  /**
+   * Delete all bookmarks for all users in an event
+   * Removes bookmarks property from all users in the event.users object
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<void>}
+   */
+  async deleteAllBookmarks(eventId) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    try {
+      // Get current event
+      const event = await this.getEvent(eventId);
+
+      // If no users object, nothing to do
+      if (!event.users || typeof event.users !== 'object' || Array.isArray(event.users)) {
+        return;
+      }
+
+      // Remove bookmarks from all users
+      let bookmarksRemoved = 0;
+      for (const email in event.users) {
+        if (event.users[email] && event.users[email].bookmarks) {
+          delete event.users[email].bookmarks;
+          bookmarksRemoved++;
+        }
+      }
+
+      // Only update if we actually removed bookmarks
+      if (bookmarksRemoved > 0) {
+        event.updatedAt = new Date().toISOString();
+        await this.updateEvent(eventId, event);
+        loggerService.info(`All bookmarks deleted for event ${eventId}: ${bookmarksRemoved} users affected`);
+      }
+    } catch (error) {
+      // If event not found, throw with clear message
+      if (error.message.includes('not found') || error.message.includes('File not found')) {
+        throw new Error(`Event not found: ${eventId}`);
+      }
+      // Log and re-throw other errors
+      loggerService.error(`Error deleting all bookmarks for event ${eventId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete all ratings and bookmarks for an event
+   * Orchestrates deletion of ratings, bookmarks, and cache invalidation
+   * @param {string} eventId - Event identifier
+   * @param {string} requesterEmail - Email of the requester (must be owner or administrator)
+   * @returns {Promise<{success: boolean, message: string}>} Success response
+   * @throws {Error} If validation fails, event not found, or requester is not authorized
+   */
+  async deleteAllRatingsAndBookmarks(eventId, requesterEmail) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    if (!requesterEmail || typeof requesterEmail !== 'string') {
+      throw new Error('Requester email is required');
+    }
+
+    // Get current event
+    const event = await this.getEvent(eventId);
+
+    // Verify requester is owner or administrator
+    const normalizedEmail = this.normalizeEmail(requesterEmail);
+    if (!this.isAdministrator(event, normalizedEmail)) {
+      throw new Error('Unauthorized: Only event administrators can delete ratings and bookmarks');
+    }
+
+    // Import ratingService here to avoid circular dependency
+    const ratingService = (await import('./RatingService.js')).default;
+
+    // Delete all ratings
+    await ratingService.deleteAllRatings(eventId);
+
+    // Delete all bookmarks
+    await this.deleteAllBookmarks(eventId);
+
+    // Invalidate similar users cache for all users
+    // We need to clear all possible similar users cache keys
+    // Since we don't know all user emails, we'll clear the cache pattern
+    // Note: This is a best-effort approach. The cache will naturally expire.
+    if (event.users && typeof event.users === 'object') {
+      for (const email in event.users) {
+        cacheService.del(`similarUsers:${eventId}:${email}`);
+      }
+    }
+
+    loggerService.info(`All ratings and bookmarks deleted for event ${eventId} by ${normalizedEmail}`, {
+      eventId,
+      requester: normalizedEmail,
+      eventName: event.name
+    });
+
+    return {
+      success: true,
+      message: 'All ratings and bookmarks deleted successfully'
+    };
+  }
+
+  /**
+   * Delete all users (excluding administrators) and all their associated data
+   * For each user, deletes: user registration, items, ratings, bookmarks, profile
+   * @param {string} eventId - Event identifier
+   * @param {string} requesterEmail - Email of the requester (must be owner or administrator)
+   * @returns {Promise<{success: boolean, message: string, usersDeleted: number}>} Success response with count
+   * @throws {Error} If validation fails, event not found, or requester is not authorized
+   */
+  async deleteAllUsers(eventId, requesterEmail) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    if (!requesterEmail || typeof requesterEmail !== 'string') {
+      throw new Error('Requester email is required');
+    }
+
+    // Get current event
+    const event = await this.getEvent(eventId);
+
+    // Verify requester is owner or administrator
+    const normalizedRequesterEmail = this.normalizeEmail(requesterEmail);
+    if (!this.isAdministrator(event, normalizedRequesterEmail)) {
+      throw new Error('Unauthorized: Only event administrators can delete users');
+    }
+
+    // Get list of administrator emails (to exclude from deletion)
+    const administratorEmails = new Set();
+    if (event.administrators && typeof event.administrators === 'object') {
+      for (const email in event.administrators) {
+        administratorEmails.add(this.normalizeEmail(email));
+      }
+    }
+
+    // Get all users (excluding administrators)
+    const usersToDelete = [];
+    if (event.users && typeof event.users === 'object') {
+      for (const email in event.users) {
+        const normalizedEmail = this.normalizeEmail(email);
+        if (!administratorEmails.has(normalizedEmail)) {
+          usersToDelete.push(normalizedEmail);
+        }
+      }
+    }
+
+    if (usersToDelete.length === 0) {
+      return {
+        success: true,
+        message: 'No users to delete',
+        usersDeleted: 0
+      };
+    }
+
+    // Import services here to avoid circular dependency
+    const ratingService = (await import('./RatingService.js')).default;
+
+    // For each user, delete their data:
+    // 1. Delete user entry from event.users
+    // 2. Delete all items owned by the user
+    // 3. Delete all ratings by the user
+
+    let itemsDeleted = 0;
+    let ratingsDeleted = 0;
+
+    // Delete items owned by users
+    if (event.items && Array.isArray(event.items)) {
+      const itemsToKeep = event.items.filter(item => {
+        if (!item.ownerEmail) {
+          return true; // Keep items without ownerEmail
+        }
+        const itemOwnerEmail = this.normalizeEmail(item.ownerEmail);
+        if (usersToDelete.includes(itemOwnerEmail)) {
+          itemsDeleted++;
+          return false; // Delete item
+        }
+        return true; // Keep item
+      });
+      event.items = itemsToKeep;
+    }
+
+    // Delete ratings by users
+    try {
+      const allRatings = await ratingService.getRatings(eventId);
+      const ratingsToKeep = allRatings.filter(rating => {
+        const ratingEmail = this.normalizeEmail(rating.email);
+        if (usersToDelete.includes(ratingEmail)) {
+          ratingsDeleted++;
+          return false; // Delete rating
+        }
+        return true; // Keep rating
+      });
+
+      // Write back filtered ratings
+      const { toCSV } = await import('../utils/csvParser.js');
+      const csvContent = toCSV(ratingsToKeep);
+      await dataRepository.writeEventRatings(eventId, csvContent);
+    } catch (error) {
+      // If ratings file doesn't exist or error reading, that's okay
+      loggerService.warn(`Error processing ratings during user deletion: ${error.message}`);
+    }
+
+    // Delete user entries from event.users
+    for (const email of usersToDelete) {
+      if (event.users[email]) {
+        delete event.users[email];
+      }
+    }
+
+    // Update event
+    event.updatedAt = new Date().toISOString();
+    await this.updateEvent(eventId, event);
+
+    // Invalidate caches
+    cacheService.del(getEventConfigKey(eventId));
+    cacheService.del(`ratings:${eventId}`);
+    cacheService.del(`dashboard:${eventId}`);
+    
+    // Invalidate similar users cache for deleted users
+    for (const email of usersToDelete) {
+      cacheService.del(`similarUsers:${eventId}:${email}`);
+    }
+
+    loggerService.info(`All users deleted for event ${eventId} by ${normalizedRequesterEmail}`, {
+      eventId,
+      requester: normalizedRequesterEmail,
+      eventName: event.name,
+      usersDeleted: usersToDelete.length,
+      itemsDeleted,
+      ratingsDeleted
+    });
+
+    return {
+      success: true,
+      message: `Successfully deleted ${usersToDelete.length} user(s) and all their associated data`,
+      usersDeleted: usersToDelete.length,
+      itemsDeleted,
+      ratingsDeleted
+    };
+  }
+
+  /**
+   * Delete a single user and all their associated data
+   * For the user, deletes: user registration, items, ratings, bookmarks, profile
+   * If user is an administrator, also removes from administrators (with owner/last admin protection)
+   * @param {string} eventId - Event identifier
+   * @param {string} userEmailToDelete - Email of the user to delete
+   * @param {string} requesterEmail - Email of the requester (must be owner or administrator)
+   * @returns {Promise<{success: boolean, message: string, itemsDeleted: number, ratingsDeleted: number}>} Success response with counts
+   * @throws {Error} If validation fails, event not found, requester is not authorized, or user is owner/last admin
+   */
+  async deleteUser(eventId, userEmailToDelete, requesterEmail) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    if (!userEmailToDelete || typeof userEmailToDelete !== 'string') {
+      throw new Error('User email is required');
+    }
+
+    if (!requesterEmail || typeof requesterEmail !== 'string') {
+      throw new Error('Requester email is required');
+    }
+
+    // Get current event
+    const event = await this.getEvent(eventId);
+
+    // Verify requester is owner or administrator
+    const normalizedRequesterEmail = this.normalizeEmail(requesterEmail);
+    if (!this.isAdministrator(event, normalizedRequesterEmail)) {
+      throw new Error('Unauthorized: Only event administrators can delete users');
+    }
+
+    // Normalize user email to delete
+    const normalizedUserEmail = this.normalizeEmail(userEmailToDelete.trim());
+
+    // Check if user exists
+    if (!event.users || !event.users[normalizedUserEmail]) {
+      throw new Error(`User with email ${normalizedUserEmail} not found for this event`);
+    }
+
+    // Check if user is owner - prevent deletion
+    if (this.isOwner(event, normalizedUserEmail)) {
+      throw new Error('Cannot delete owner: The original administrator cannot be removed');
+    }
+
+    // Check if user is an administrator and if this would leave no administrators
+    const isUserAdministrator = event.administrators && event.administrators[normalizedUserEmail];
+    if (isUserAdministrator) {
+      const adminCount = Object.keys(event.administrators).length;
+      if (adminCount <= 1) {
+        throw new Error('Cannot delete last administrator: At least one administrator must remain');
+      }
+    }
+
+    // Import services here to avoid circular dependency
+    const ratingService = (await import('./RatingService.js')).default;
+
+    let itemsDeleted = 0;
+    let ratingsDeleted = 0;
+
+    // Delete items owned by the user
+    if (event.items && Array.isArray(event.items)) {
+      const itemsToKeep = event.items.filter(item => {
+        if (!item.ownerEmail) {
+          return true; // Keep items without ownerEmail
+        }
+        const itemOwnerEmail = this.normalizeEmail(item.ownerEmail);
+        if (itemOwnerEmail === normalizedUserEmail) {
+          itemsDeleted++;
+          return false; // Delete item
+        }
+        return true; // Keep item
+      });
+      event.items = itemsToKeep;
+    }
+
+    // Delete ratings by the user
+    try {
+      const allRatings = await ratingService.getRatings(eventId);
+      const ratingsToKeep = allRatings.filter(rating => {
+        const ratingEmail = this.normalizeEmail(rating.email);
+        if (ratingEmail === normalizedUserEmail) {
+          ratingsDeleted++;
+          return false; // Delete rating
+        }
+        return true; // Keep rating
+      });
+
+      // Write back filtered ratings
+      const { toCSV } = await import('../utils/csvParser.js');
+      const csvContent = toCSV(ratingsToKeep);
+      await dataRepository.writeEventRatings(eventId, csvContent);
+    } catch (error) {
+      // If ratings file doesn't exist or error reading, that's okay
+      loggerService.warn(`Error processing ratings during user deletion: ${error.message}`);
+    }
+
+    // Remove from administrators if user is an administrator
+    if (isUserAdministrator) {
+      delete event.administrators[normalizedUserEmail];
+    }
+
+    // Delete user entry from event.users
+    delete event.users[normalizedUserEmail];
+
+    // Update event
+    event.updatedAt = new Date().toISOString();
+    await this.updateEvent(eventId, event);
+
+    // Invalidate caches
+    cacheService.del(getEventConfigKey(eventId));
+    cacheService.del(`ratings:${eventId}`);
+    cacheService.del(`dashboard:${eventId}`);
+    cacheService.del(`similarUsers:${eventId}:${normalizedUserEmail}`);
+
+    loggerService.info(`User deleted from event ${eventId} by ${normalizedRequesterEmail}`, {
+      eventId,
+      requester: normalizedRequesterEmail,
+      deletedUser: normalizedUserEmail,
+      eventName: event.name,
+      itemsDeleted,
+      ratingsDeleted,
+      wasAdministrator: isUserAdministrator
+    });
+
+    return {
+      success: true,
+      message: `User ${normalizedUserEmail} and all associated data deleted successfully`,
+      itemsDeleted,
+      ratingsDeleted
+    };
   }
 
   /**
@@ -1674,6 +2059,53 @@ class EventService {
     }
     
     return result;
+  }
+
+  /**
+   * Delete an event and all its data
+   * Only the owner can delete an event. This permanently deletes all event data including
+   * configuration, ratings, profiles, and all files in the event directory.
+   * @param {string} eventId - Event identifier
+   * @param {string} requesterEmail - Email of the requester (must be the owner)
+   * @returns {Promise<{success: boolean, message: string}>} Success response
+   * @throws {Error} If validation fails, event not found, or requester is not owner
+   */
+  async deleteEvent(eventId, requesterEmail) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    if (!requesterEmail || typeof requesterEmail !== 'string') {
+      throw new Error('Requester email is required');
+    }
+
+    // Get current event
+    const event = await this.getEvent(eventId);
+
+    // Verify requester is the owner
+    const normalizedEmail = this.normalizeEmail(requesterEmail);
+    if (!this.isOwner(event, normalizedEmail)) {
+      throw new Error('Unauthorized: Only the event owner can delete the event');
+    }
+
+    // Delete event directory and all its contents
+    await dataRepository.deleteEvent(eventId);
+
+    // Invalidate PIN sessions for this event
+    pinService.invalidatePINSessions(eventId);
+
+    loggerService.info(`Event deleted: ${eventId} by owner ${normalizedEmail}`, {
+      eventId,
+      owner: normalizedEmail,
+      eventName: event.name
+    });
+
+    return {
+      success: true,
+      message: 'Event deleted successfully'
+    };
   }
 }
 
