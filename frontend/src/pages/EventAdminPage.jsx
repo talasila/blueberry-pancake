@@ -2,7 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
 import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, RefreshCw, Copy, Check, Trash2, PlayCircle, PauseCircle, CheckCircle2, CircleDot, Edit2, X, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Copy, Check, Trash2, PlayCircle, PauseCircle, CheckCircle2, CircleDot, Edit2, X, AlertTriangle, Download } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { Button } from '@/components/ui/button';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -12,7 +12,8 @@ import { Switch } from '@/components/ui/switch';
 import Message from '@/components/Message';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import InfoField from '@/components/InfoField';
-import { isValidEmailFormat, clearSuccessMessage } from '@/utils/helpers';
+import { isValidEmailFormat, clearSuccessMessage, downloadCSV } from '@/utils/helpers';
+import { calculateWeightedAverage } from '@/utils/bayesianAverage';
 import { useItemTerminology } from '@/utils/itemTerminology';
 import itemService from '@/services/itemService';
 import { ratingService } from '@/services/ratingService';
@@ -220,6 +221,14 @@ function EventAdminPage() {
   const [deleteUserError, setDeleteUserError] = useState('');
   const [deleteUserSuccess, setDeleteUserSuccess] = useState('');
   const [selectedUserEmail, setSelectedUserEmail] = useState('');
+  
+  // Export data state
+  const [isExportingRatings, setIsExportingRatings] = useState(false);
+  const [exportRatingsError, setExportRatingsError] = useState('');
+  const [exportRatingsSuccess, setExportRatingsSuccess] = useState('');
+  const [isExportingMatrix, setIsExportingMatrix] = useState(false);
+  const [exportMatrixError, setExportMatrixError] = useState('');
+  const [exportMatrixSuccess, setExportMatrixSuccess] = useState('');
 
   // Check for OTP authentication (JWT token) - admin pages require OTP even if accessed via PIN
   useEffect(() => {
@@ -968,6 +977,200 @@ function EventAdminPage() {
     });
     setDeleteUserError('');
     setDeleteUserSuccess('');
+  };
+
+  // Handle export ratings data
+  const handleExportRatings = async () => {
+    if (!eventId || !event) return;
+
+    setIsExportingRatings(true);
+    setExportRatingsError('');
+    setExportRatingsSuccess('');
+
+    try {
+      // Fetch ratings data
+      const ratings = await ratingService.getRatings(eventId);
+
+      if (!ratings || ratings.length === 0) {
+        setExportRatingsError('No ratings data available to export');
+        setIsExportingRatings(false);
+        return;
+      }
+
+      // Get user names from event.users
+      const usersMap = event.users || {};
+      
+      // Transform ratings data to include username
+      const exportData = ratings.map(rating => {
+        const normalizedEmail = (rating.email || '').trim().toLowerCase();
+        const userData = usersMap[normalizedEmail];
+        const username = userData?.name || rating.email || '';
+
+        return {
+          username,
+          userEmail: rating.email || '',
+          ratingTimestamp: rating.timestamp || '',
+          itemid: rating.itemId || '',
+          rating: rating.rating || '',
+          note: rating.note || ''
+        };
+      });
+
+      // Generate filename with event ID and timestamp
+      const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const filename = `ratings-export-${eventId}-${timestamp}.csv`;
+
+      // Download CSV
+      downloadCSV(exportData, ['username', 'userEmail', 'ratingTimestamp', 'itemid', 'rating', 'note'], filename);
+
+      setExportRatingsSuccess('Ratings data exported successfully');
+      clearSuccessMessage(setExportRatingsSuccess);
+    } catch (error) {
+      console.error('Error exporting ratings:', error);
+      setExportRatingsError(error.message || 'Failed to export ratings data. Please try again.');
+    } finally {
+      setIsExportingRatings(false);
+    }
+  };
+
+  // Handle export ratings matrix
+  const handleExportMatrix = async () => {
+    if (!eventId || !event) return;
+
+    setIsExportingMatrix(true);
+    setExportMatrixError('');
+    setExportMatrixSuccess('');
+
+    try {
+      // Fetch ratings data
+      const ratings = await ratingService.getRatings(eventId);
+
+      if (!ratings || ratings.length === 0) {
+        setExportMatrixError('No ratings data available to export');
+        setIsExportingMatrix(false);
+        return;
+      }
+
+      // Get user names from event.users
+      const usersMap = event.users || {};
+      
+      // Get all unique itemIds and users
+      const itemIds = new Set();
+      const userEmails = new Set();
+      const ratingMap = new Map(); // Map: "itemId|email" -> rating
+
+      ratings.forEach(rating => {
+        if (rating.itemId) {
+          itemIds.add(rating.itemId);
+          userEmails.add(rating.email);
+          const key = `${rating.itemId}|${rating.email}`;
+          ratingMap.set(key, rating.rating);
+        }
+      });
+
+      // Sort itemIds numerically
+      const sortedItemIds = Array.from(itemIds).sort((a, b) => a - b);
+      
+      // Sort users by email
+      const sortedUserEmails = Array.from(userEmails).sort();
+
+      // Calculate global average (average of all ratings across all items)
+      // Match dashboard calculation: sum of all rating values / total ratings
+      const globalAverage = ratings.length > 0
+        ? ratings.reduce((sum, r) => {
+            const ratingValue = parseInt(r.rating, 10);
+            return sum + (isNaN(ratingValue) ? 0 : ratingValue);
+          }, 0) / ratings.length
+        : null;
+
+      // Calculate total users (count of users in event.users object, same as dashboard)
+      const totalUsers = event.users ? Object.keys(event.users).length : 0;
+
+      // Build column headers with username (email) format for uniqueness
+      const columnHeaders = new Map(); // Map: email -> column header
+      sortedUserEmails.forEach(email => {
+        const normalizedEmail = email.trim().toLowerCase();
+        const userData = usersMap[normalizedEmail];
+        const username = userData?.name || '';
+        // Use "username (email)" format, or just email if no username
+        const columnHeader = username ? `${username} (${email})` : email;
+        columnHeaders.set(email, columnHeader);
+      });
+
+      // Build matrix data
+      const matrixData = sortedItemIds.map(itemId => {
+        const row = { itemId };
+        
+        // Add user ratings as columns
+        sortedUserEmails.forEach(email => {
+          const key = `${itemId}|${email}`;
+          const rating = ratingMap.get(key);
+          const columnHeader = columnHeaders.get(email);
+          
+          row[columnHeader] = rating || '';
+        });
+
+        // Calculate average rating for this item
+        const itemRatings = ratings.filter(r => r.itemId === itemId);
+        const averageRating = itemRatings.length > 0
+          ? (itemRatings.reduce((sum, r) => sum + r.rating, 0) / itemRatings.length).toFixed(2)
+          : '';
+
+        // Calculate weighted average using Bayesian formula (same as dashboard)
+        // Count unique raters for this item
+        const uniqueRaters = new Set();
+        itemRatings.forEach(rating => {
+          if (rating.email) {
+            uniqueRaters.add(rating.email.toLowerCase().trim());
+          }
+        });
+        const numberOfRaters = uniqueRaters.size;
+
+        // Calculate sum of ratings for this item (match dashboard calculation)
+        const sumOfRatings = itemRatings.reduce((sum, r) => {
+          const ratingValue = parseInt(r.rating, 10);
+          return sum + (isNaN(ratingValue) ? 0 : ratingValue);
+        }, 0);
+
+        // Calculate weighted average using Bayesian formula
+        const weightedAvg = calculateWeightedAverage(
+          globalAverage,
+          totalUsers,
+          numberOfRaters,
+          sumOfRatings
+        );
+        const weightedRating = weightedAvg !== null && weightedAvg !== undefined
+          ? weightedAvg.toFixed(2)
+          : '';
+
+        row['Average Rating'] = averageRating;
+        row['Weighted Rating'] = weightedRating;
+
+        return row;
+      });
+
+      // Build column headers: itemId, user columns, Average Rating, Weighted Rating
+      const columns = ['itemId'];
+      sortedUserEmails.forEach(email => {
+        columns.push(columnHeaders.get(email));
+      });
+      columns.push('Average Rating', 'Weighted Rating');
+
+      // Generate filename with event ID and timestamp
+      const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const filename = `ratings-matrix-${eventId}-${timestamp}.csv`;
+
+      // Download CSV
+      downloadCSV(matrixData, columns, filename);
+
+      setExportMatrixSuccess('Ratings matrix exported successfully');
+      clearSuccessMessage(setExportMatrixSuccess);
+    } catch (error) {
+      console.error('Error exporting matrix:', error);
+      setExportMatrixError(error.message || 'Failed to export ratings matrix. Please try again.');
+    } finally {
+      setIsExportingMatrix(false);
+    }
   };
 
   // Handle state transition
@@ -1787,6 +1990,103 @@ function EventAdminPage() {
               </div>
               </AccordionContent>
             </AccordionItem>
+
+            {/* Export Data Section */}
+            {isCurrentUserAdministrator() && (
+              <AccordionItem value="export-data">
+                <AccordionTrigger>
+                  <div className="flex flex-col items-start text-left">
+                    <div className="flex items-center gap-2">
+                      <Download className="h-4 w-4" />
+                      <span className="font-semibold">Export Data</span>
+                    </div>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-4">
+                  <div className="text-sm text-muted-foreground font-normal">
+                    Export event data as CSV files for analysis and backup purposes.
+                  </div>
+
+                  {exportRatingsError && (
+                    <Message type="error">{exportRatingsError}</Message>
+                  )}
+
+                  {exportRatingsError && (
+                    <Message type="error">{exportRatingsError}</Message>
+                  )}
+
+                  {exportRatingsSuccess && (
+                    <Message type="success">{exportRatingsSuccess}</Message>
+                  )}
+
+                  {exportMatrixError && (
+                    <Message type="error">{exportMatrixError}</Message>
+                  )}
+
+                  {exportMatrixSuccess && (
+                    <Message type="success">{exportMatrixSuccess}</Message>
+                  )}
+
+                  {/* Raw Ratings Data Export */}
+                  <div className="p-4 border rounded-lg">
+                    <div className="space-y-3">
+                      <div>
+                        <h4 className="font-semibold mb-1">Raw Ratings Data</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Export all ratings data including username, email, timestamp, item ID, rating, and notes.
+                        </p>
+                      </div>
+                      <Button
+                        onClick={handleExportRatings}
+                        disabled={isExportingRatings || isExportingMatrix}
+                        className="w-full sm:w-auto"
+                      >
+                        {isExportingRatings ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Exporting...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="h-4 w-4 mr-2" />
+                            Export Ratings Data
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Ratings Matrix Export */}
+                  <div className="p-4 border rounded-lg">
+                    <div className="space-y-3">
+                      <div>
+                        <h4 className="font-semibold mb-1">Ratings Matrix</h4>
+                        <p className="text-sm text-muted-foreground">
+                          Export a matrix showing item-to-user ratings with average and weighted ratings for each item. Weighted rating uses the Bayesian formula (same as dashboard) that accounts for items with fewer ratings.
+                        </p>
+                      </div>
+                      <Button
+                        onClick={handleExportMatrix}
+                        disabled={isExportingMatrix || isExportingRatings}
+                        className="w-full sm:w-auto"
+                      >
+                        {isExportingMatrix ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Exporting...
+                          </>
+                        ) : (
+                          <>
+                            <Download className="h-4 w-4 mr-2" />
+                            Export Ratings Matrix
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            )}
 
             {/* Danger Zone Section */}
             {isCurrentUserAdministrator() && (
