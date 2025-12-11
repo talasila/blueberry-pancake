@@ -67,7 +67,7 @@ function PINEntryPage() {
     try {
       const response = await apiClient.verifyPIN(eventId, pin, email.trim());
       
-      // Clear all bookmarks from previous user session
+      // Clear local bookmark cache (bookmarks are persisted on server, will be loaded on event page)
       clearAllBookmarks();
       
       // Store JWT token from PIN verification

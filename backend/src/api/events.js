@@ -1027,4 +1027,138 @@ router.patch('/:eventId/rating-configuration', requireAuth, async (req, res) => 
   }
 });
 
+/**
+ * GET /api/events/:eventId/bookmarks
+ * Get bookmarks for the current user in an event
+ * Requires either PIN verification session OR OTP authentication (JWT token)
+ */
+router.get('/:eventId/bookmarks', requirePINOrAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    // Validate event ID format
+    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+      return res.status(400).json({
+        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
+      });
+    }
+
+    // Get user email from JWT token (if authenticated via OTP) or from query string (for PIN auth)
+    let userEmail = req.user?.email;
+    
+    // If no email from JWT, try to get from query string (for PIN auth)
+    // Note: GET requests don't have a body, so we use query string
+    if (!userEmail) {
+      userEmail = req.query?.email;
+    }
+
+    if (!userEmail || typeof userEmail !== 'string') {
+      return res.status(400).json({
+        error: 'Email address is required'
+      });
+    }
+
+    // Get bookmarks for user
+    const bookmarks = await eventService.getUserBookmarks(eventId, userEmail);
+
+    res.json({
+      eventId,
+      email: userEmail,
+      bookmarks
+    });
+  } catch (error) {
+    loggerService.error(`Get bookmarks error: ${error.message}`, error).catch(() => {});
+
+    // Handle validation errors (400)
+    if (error.message.includes('required') || 
+        error.message.includes('Invalid') ||
+        error.message.includes('format')) {
+      return res.status(400).json({
+        error: error.message
+      });
+    }
+
+    // Handle event not found
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Handle server errors
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: 'Failed to retrieve bookmarks. Please try again.',
+      ...(isDevelopment && { details: error.message })
+    });
+  }
+});
+
+/**
+ * PUT /api/events/:eventId/bookmarks
+ * Save bookmarks for the current user in an event
+ * Requires either PIN verification session OR OTP authentication (JWT token)
+ */
+router.put('/:eventId/bookmarks', requirePINOrAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const { bookmarks } = req.body;
+
+    // Validate event ID format
+    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+      return res.status(400).json({
+        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
+      });
+    }
+
+    // Get user email from JWT token (if authenticated via OTP) or from request body (for PIN auth)
+    let userEmail = req.user?.email;
+    
+    // If no email from JWT, try to get from request body (for PIN auth)
+    if (!userEmail) {
+      userEmail = req.body?.email;
+    }
+
+    if (!userEmail || typeof userEmail !== 'string') {
+      return res.status(400).json({
+        error: 'Email address is required'
+      });
+    }
+
+    // Validate bookmarks
+    if (!Array.isArray(bookmarks)) {
+      return res.status(400).json({
+        error: 'Bookmarks must be an array'
+      });
+    }
+
+    // Save bookmarks for user
+    const result = await eventService.saveUserBookmarks(eventId, userEmail, bookmarks);
+
+    res.json(result);
+  } catch (error) {
+    loggerService.error(`Save bookmarks error: ${error.message}`, error).catch(() => {});
+
+    // Handle validation errors (400)
+    if (error.message.includes('required') || 
+        error.message.includes('Invalid') ||
+        error.message.includes('must be') ||
+        error.message.includes('format')) {
+      return res.status(400).json({
+        error: error.message
+      });
+    }
+
+    // Handle event not found
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Handle server errors
+    const isDevelopment = process.env.NODE_ENV !== 'production';
+    res.status(500).json({
+      error: 'Failed to save bookmarks. Please try again.',
+      ...(isDevelopment && { details: error.message })
+    });
+  }
+});
+
 export default router;

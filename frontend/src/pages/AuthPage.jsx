@@ -69,7 +69,7 @@ function AuthPage() {
     try {
       const response = await apiClient.verifyOTP(email, otp);
       
-      // Clear all bookmarks from previous user session
+      // Clear local bookmark cache (bookmarks are persisted on server, will be loaded on event page)
       clearAllBookmarks();
       
       // Store JWT token in localStorage

@@ -6,6 +6,7 @@ import RatingForm from './RatingForm';
 import { toggleBookmark, isBookmarked } from '@/utils/bookmarkStorage';
 import { useEventContext } from '@/contexts/EventContext';
 import { useItemTerminology } from '@/utils/itemTerminology';
+import apiClient from '@/services/apiClient';
 
 /**
  * RatingDrawer Component
@@ -21,6 +22,7 @@ import { useItemTerminology } from '@/utils/itemTerminology';
  * @param {object} props.ratingConfig - Rating configuration (maxRating, ratings array)
  * @param {string} props.eventType - Type of event (e.g., "wine")
  * @param {boolean} props.noteSuggestionsEnabled - Whether note suggestions are enabled
+ * @param {string} props.userEmail - User email address (optional, for server sync)
  */
 function RatingDrawer({ 
   isOpen, 
@@ -31,7 +33,8 @@ function RatingDrawer({
   existingRating,
   ratingConfig,
   eventType,
-  noteSuggestionsEnabled
+  noteSuggestionsEnabled,
+  userEmail
 }) {
   const { event } = useEventContext();
   const { singular } = useItemTerminology(event);
@@ -64,9 +67,23 @@ function RatingDrawer({
   }, [eventId, itemId]);
 
   // Handle bookmark toggle
-  const handleBookmarkToggle = () => {
+  const handleBookmarkToggle = async () => {
     if (eventId && itemId) {
-      const newState = toggleBookmark(eventId, itemId);
+      // Get user email if not provided as prop (try to get from JWT token)
+      let email = userEmail;
+      if (!email) {
+        const token = apiClient.getJWTToken();
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            email = payload.email || null;
+          } catch (err) {
+            console.error('Error decoding JWT token:', err);
+          }
+        }
+      }
+      
+      const newState = await toggleBookmark(eventId, itemId, email);
       setBookmarked(newState);
       // Trigger event to update bookmark indicator on EventPage
       window.dispatchEvent(new CustomEvent('bookmarkToggled', { 

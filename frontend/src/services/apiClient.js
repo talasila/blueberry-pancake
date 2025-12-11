@@ -444,6 +444,38 @@ class ApiClient {
     
     return response.json();
   }
+
+  /**
+   * Get bookmarks for the current user in an event
+   * @param {string} eventId - Event identifier
+   * @param {string} email - User email address (required for PIN auth)
+   * @returns {Promise<any>} Response data with bookmarks array
+   */
+  async getBookmarks(eventId, email = null) {
+    const endpoint = `/events/${eventId}/bookmarks`;
+    if (email) {
+      // For PIN auth, include email in query string
+      return this.get(`${endpoint}?email=${encodeURIComponent(email)}`);
+    }
+    return this.get(endpoint);
+  }
+
+  /**
+   * Save bookmarks for the current user in an event
+   * @param {string} eventId - Event identifier
+   * @param {Array<number>} bookmarks - Array of bookmarked item IDs
+   * @param {string} email - User email address (required for PIN auth)
+   * @returns {Promise<any>} Response data with saved bookmarks
+   */
+  async saveBookmarks(eventId, bookmarks, email = null) {
+    const endpoint = `/events/${eventId}/bookmarks`;
+    const body = { bookmarks };
+    if (email) {
+      // For PIN auth, include email in body
+      body.email = email;
+    }
+    return this.put(endpoint, body);
+  }
 }
 
 // Export singleton instance

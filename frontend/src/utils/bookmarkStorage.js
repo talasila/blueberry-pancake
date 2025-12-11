@@ -1,7 +1,9 @@
 /**
  * Bookmark storage utility
- * Manages bookmarks in browser sessionStorage (session-only, not persisted)
+ * Manages bookmarks with server-side persistence
+ * Uses sessionStorage for local caching and syncs with server
  */
+import apiClient from '@/services/apiClient';
 
 /**
  * Get storage key for event bookmarks
@@ -13,7 +15,7 @@ function getBookmarkKey(eventId) {
 }
 
 /**
- * Get all bookmarks for an event
+ * Get all bookmarks for an event from sessionStorage (local cache)
  * @param {string} eventId - Event identifier
  * @returns {Array<number>} Array of bookmarked item IDs
  */
@@ -38,11 +40,40 @@ export function getBookmarks(eventId) {
 }
 
 /**
+ * Load bookmarks from server for an event
+ * @param {string} eventId - Event identifier
+ * @param {string} userEmail - User email address (optional, for PIN auth)
+ * @returns {Promise<Array<number>>} Array of bookmarked item IDs
+ */
+export async function loadBookmarksFromServer(eventId, userEmail = null) {
+  if (!eventId) {
+    return [];
+  }
+
+  try {
+    const response = await apiClient.getBookmarks(eventId, userEmail);
+    const bookmarks = response.bookmarks || [];
+    
+    // Cache in sessionStorage
+    const key = getBookmarkKey(eventId);
+    sessionStorage.setItem(key, JSON.stringify(bookmarks));
+    
+    return Array.isArray(bookmarks) ? bookmarks : [];
+  } catch (error) {
+    console.error('Error loading bookmarks from server:', error);
+    // Return cached bookmarks if server fails
+    return getBookmarks(eventId);
+  }
+}
+
+/**
  * Add a bookmark for an item
  * @param {string} eventId - Event identifier
  * @param {number} itemId - Item identifier
+ * @param {string} userEmail - User email address (optional, for server sync)
+ * @returns {Promise<void>}
  */
-export function addBookmark(eventId, itemId) {
+export async function addBookmark(eventId, itemId, userEmail = null) {
   if (!eventId || !itemId) {
     return;
   }
@@ -53,9 +84,19 @@ export function addBookmark(eventId, itemId) {
       bookmarks.push(itemId);
       const key = getBookmarkKey(eventId);
       sessionStorage.setItem(key, JSON.stringify(bookmarks));
+      
+      // Sync with server
+      if (userEmail) {
+        try {
+          await apiClient.saveBookmarks(eventId, bookmarks, userEmail);
+        } catch (error) {
+          console.error('Error syncing bookmark to server:', error);
+          // Continue even if server sync fails
+        }
+      }
     }
   } catch (error) {
-    console.error('Error adding bookmark to sessionStorage:', error);
+    console.error('Error adding bookmark:', error);
   }
 }
 
@@ -63,8 +104,10 @@ export function addBookmark(eventId, itemId) {
  * Remove a bookmark for an item
  * @param {string} eventId - Event identifier
  * @param {number} itemId - Item identifier
+ * @param {string} userEmail - User email address (optional, for server sync)
+ * @returns {Promise<void>}
  */
-export function removeBookmark(eventId, itemId) {
+export async function removeBookmark(eventId, itemId, userEmail = null) {
   if (!eventId || !itemId) {
     return;
   }
@@ -73,8 +116,18 @@ export function removeBookmark(eventId, itemId) {
     const bookmarks = getBookmarks(eventId).filter(id => id !== itemId);
     const key = getBookmarkKey(eventId);
     sessionStorage.setItem(key, JSON.stringify(bookmarks));
+    
+    // Sync with server
+    if (userEmail) {
+      try {
+        await apiClient.saveBookmarks(eventId, bookmarks, userEmail);
+      } catch (error) {
+        console.error('Error syncing bookmark removal to server:', error);
+        // Continue even if server sync fails
+      }
+    }
   } catch (error) {
-    console.error('Error removing bookmark from sessionStorage:', error);
+    console.error('Error removing bookmark:', error);
   }
 }
 
@@ -97,21 +150,23 @@ export function isBookmarked(eventId, itemId) {
  * Toggle bookmark state for an item
  * @param {string} eventId - Event identifier
  * @param {number} itemId - Item identifier
- * @returns {boolean} New bookmark state (true if bookmarked, false if unbookmarked)
+ * @param {string} userEmail - User email address (optional, for server sync)
+ * @returns {Promise<boolean>} New bookmark state (true if bookmarked, false if unbookmarked)
  */
-export function toggleBookmark(eventId, itemId) {
+export async function toggleBookmark(eventId, itemId, userEmail = null) {
   if (isBookmarked(eventId, itemId)) {
-    removeBookmark(eventId, itemId);
+    await removeBookmark(eventId, itemId, userEmail);
     return false;
   } else {
-    addBookmark(eventId, itemId);
+    await addBookmark(eventId, itemId, userEmail);
     return true;
   }
 }
 
 /**
- * Clear all bookmarks from sessionStorage
- * Used when user logs out or when a new user authenticates
+ * Clear all bookmarks from sessionStorage (local cache only)
+ * Server-side bookmarks are preserved and will be loaded when user accesses event page
+ * Used when user logs out or when a new user authenticates to clear local cache
  */
 export function clearAllBookmarks() {
   try {

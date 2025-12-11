@@ -5,7 +5,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import apiClient from '@/services/apiClient';
 import { ratingService } from '@/services/ratingService';
-import { getBookmarks } from '@/utils/bookmarkStorage';
+import { getBookmarks, loadBookmarksFromServer } from '@/utils/bookmarkStorage';
 import ItemButton from '@/components/ItemButton';
 import RatingDrawer from '@/components/RatingDrawer';
 import SimilarUsersDrawer from '@/components/SimilarUsersDrawer';
@@ -227,8 +227,20 @@ function EventPage() {
 
   // Listen for bookmark toggle events to refresh bookmarks
   useEffect(() => {
-    const handleBookmarkToggled = (event) => {
-      if (event.detail.eventId === eventId) {
+    const handleBookmarkToggled = async (event) => {
+      if (event.detail.eventId === eventId && userEmail) {
+        // Reload from server to ensure sync
+        try {
+          const bookmarkedItems = await loadBookmarksFromServer(eventId, userEmail);
+          setBookmarks(bookmarkedItems);
+        } catch (error) {
+          console.error('Error reloading bookmarks after toggle:', error);
+          // Fallback to local cache
+          const cachedBookmarks = getBookmarks(eventId);
+          setBookmarks(cachedBookmarks);
+        }
+      } else if (event.detail.eventId === eventId) {
+        // If no userEmail, just use local cache
         const bookmarkedItems = getBookmarks(eventId);
         setBookmarks(bookmarkedItems);
       }
@@ -238,15 +250,27 @@ function EventPage() {
     return () => {
       window.removeEventListener('bookmarkToggled', handleBookmarkToggled);
     };
-  }, [eventId]);
+  }, [eventId, userEmail]);
 
-  // Load bookmarks
+  // Load bookmarks from server on mount
   useEffect(() => {
-    if (eventId) {
-      const bookmarkedItems = getBookmarks(eventId);
-      setBookmarks(bookmarkedItems);
+    if (eventId && userEmail) {
+      loadBookmarksFromServer(eventId, userEmail)
+        .then(bookmarkedItems => {
+          setBookmarks(bookmarkedItems);
+        })
+        .catch(error => {
+          console.error('Error loading bookmarks:', error);
+          // Fallback to local cache
+          const cachedBookmarks = getBookmarks(eventId);
+          setBookmarks(cachedBookmarks);
+        });
+    } else if (eventId) {
+      // If no userEmail yet, use cached bookmarks
+      const cachedBookmarks = getBookmarks(eventId);
+      setBookmarks(cachedBookmarks);
     }
-  }, [eventId]);
+  }, [eventId, userEmail]);
 
   // Validate event state before allowing actions (e.g., rating)
   const validateEventState = (action) => {
@@ -470,6 +494,7 @@ function EventPage() {
         ratingConfig={ratingConfig}
         eventType={event?.typeOfItem}
         noteSuggestionsEnabled={ratingConfig?.noteSuggestionsEnabled}
+        userEmail={userEmail}
       />
     </RatingErrorBoundary>
   );

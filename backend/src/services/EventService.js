@@ -470,6 +470,140 @@ class EventService {
   }
 
   /**
+   * Get bookmarks for a user in an event
+   * @param {string} eventId - Event identifier
+   * @param {string} email - User email address
+   * @returns {Promise<Array<number>>} Array of bookmarked item IDs
+   */
+  async getUserBookmarks(eventId, email) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    if (!email || typeof email !== 'string') {
+      throw new Error('Email is required');
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    try {
+      // Get current event
+      const event = await dataRepository.getEvent(eventId);
+
+      // Initialize users map if it doesn't exist
+      if (!event.users || typeof event.users !== 'object' || Array.isArray(event.users)) {
+        event.users = {};
+      }
+
+      // Get user's bookmarks, default to empty array
+      const userData = event.users[normalizedEmail];
+      const bookmarks = userData?.bookmarks || [];
+
+      // Ensure bookmarks is an array
+      return Array.isArray(bookmarks) ? bookmarks : [];
+    } catch (error) {
+      // If event not found, throw with clear message
+      if (error.message.includes('not found') || error.message.includes('File not found')) {
+        throw new Error(`Event not found: ${eventId}`);
+      }
+      // Re-throw validation errors
+      if (error.message.includes('required') || error.message.includes('Invalid')) {
+        throw error;
+      }
+      // Log and re-throw other errors
+      loggerService.error(`Error getting bookmarks for user ${normalizedEmail} in event ${eventId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Save bookmarks for a user in an event
+   * @param {string} eventId - Event identifier
+   * @param {string} email - User email address
+   * @param {Array<number>} bookmarks - Array of bookmarked item IDs
+   * @returns {Promise<{eventId: string, email: string, bookmarks: Array<number>}>}
+   */
+  async saveUserBookmarks(eventId, email, bookmarks) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    if (!email || typeof email !== 'string') {
+      throw new Error('Email is required');
+    }
+
+    // Validate bookmarks is an array
+    if (!Array.isArray(bookmarks)) {
+      throw new Error('Bookmarks must be an array');
+    }
+
+    // Validate all bookmarks are numbers
+    if (!bookmarks.every(id => typeof id === 'number' && Number.isInteger(id) && id > 0)) {
+      throw new Error('All bookmark item IDs must be positive integers');
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    try {
+      // Get current event
+      const event = await dataRepository.getEvent(eventId);
+
+      // Initialize users map if it doesn't exist
+      if (!event.users || typeof event.users !== 'object' || Array.isArray(event.users)) {
+        event.users = {};
+      }
+
+      // Initialize user entry if it doesn't exist
+      if (!event.users[normalizedEmail]) {
+        event.users[normalizedEmail] = {
+          registeredAt: new Date().toISOString()
+        };
+      }
+
+      // Update user's bookmarks (remove duplicates and sort)
+      const uniqueBookmarks = [...new Set(bookmarks)].sort((a, b) => a - b);
+      event.users[normalizedEmail] = {
+        ...event.users[normalizedEmail],
+        bookmarks: uniqueBookmarks
+      };
+
+      // Update event with new user data
+      const updatedEvent = {
+        ...event,
+        users: event.users,
+        updatedAt: new Date().toISOString()
+      };
+
+      // Persist updated event
+      await this.updateEvent(eventId, updatedEvent);
+
+      loggerService.info(`Bookmarks saved for user ${normalizedEmail} in event ${eventId}: ${uniqueBookmarks.length} bookmarks`);
+
+      return {
+        eventId,
+        email: normalizedEmail,
+        bookmarks: uniqueBookmarks
+      };
+    } catch (error) {
+      // If event not found, throw with clear message
+      if (error.message.includes('not found') || error.message.includes('File not found')) {
+        throw new Error(`Event not found: ${eventId}`);
+      }
+      // Re-throw validation errors
+      if (error.message.includes('required') || error.message.includes('Invalid') || error.message.includes('must be')) {
+        throw error;
+      }
+      // Log and re-throw other errors
+      loggerService.error(`Error saving bookmarks for user ${normalizedEmail} in event ${eventId}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Migrate administrator field from string to administrators object structure
    * @param {object} event - Event object
    * @returns {boolean} True if migration occurred, false otherwise
