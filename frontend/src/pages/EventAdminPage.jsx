@@ -703,7 +703,28 @@ function EventAdminPage() {
       <div className="max-w-md mx-auto w-full">
         <div className="space-y-4">
           <div>
-            <h4 className="text-xl font-semibold">Event Administration</h4>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-xl font-semibold">Event Administration</h4>
+              {/* Share */}
+              <Button
+                onClick={handleCopyEventLink}
+                variant="outline"
+                size="sm"
+                className="h-8"
+              >
+                {linkCopied ? (
+                  <>
+                    <Check className="h-3.5 w-3.5 mr-1.5 text-green-600" />
+                    Link Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-3.5 w-3.5 mr-1.5" />
+                    Share
+                  </>
+                )}
+              </Button>
+            </div>
             <div className="mt-2 space-y-2">
               {isEditingName ? (
                 <div className="space-y-2">
@@ -777,28 +798,6 @@ function EventAdminPage() {
                   </Button>
                 </div>
               )}
-              
-              {/* Copy Event Link */}
-              <div className="flex items-center gap-2">
-                <Button
-                  onClick={handleCopyEventLink}
-                  variant="outline"
-                  size="sm"
-                  className="h-8"
-                >
-                  {linkCopied ? (
-                    <>
-                      <Check className="h-3.5 w-3.5 mr-1.5 text-green-600" />
-                      Link Copied!
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3.5 w-3.5 mr-1.5" />
-                      Copy Event Link
-                    </>
-                  )}
-                </Button>
-              </div>
             </div>
           </div>
 
