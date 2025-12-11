@@ -940,12 +940,12 @@ function EventAdminPage() {
               </AccordionContent>
             </AccordionItem>
 
-            {/* Items Management Section */}
+            {/* Item Management Section */}
             <AccordionItem value="items-management">
               <AccordionTrigger>
                 <div className="flex flex-col items-start text-left">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold">{itemTerminology.plural} Management</span>
+                    <span className="font-semibold">{itemTerminology.singular} Management</span>
                     <Badge variant="outline" className="text-xs">
                       {itemsSummary.total} registered
                     </Badge>
@@ -999,7 +999,7 @@ function EventAdminPage() {
               <AccordionTrigger>
                 <div className="flex flex-col items-start text-left">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold">Ratings Configuration</span>
+                    <span className="font-semibold">Rating Configuration</span>
                     {ratings.length > 0 && (
                       <div className="flex items-center gap-1">
                         {ratings.map((rating) => (
