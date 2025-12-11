@@ -13,7 +13,7 @@ function ProgressBar({ percentage }) {
 
   return (
     <div
-      className="w-full h-1.5 bg-muted rounded-full overflow-hidden"
+      className="w-full h-1 bg-muted rounded-full overflow-hidden"
       role="progressbar"
       aria-valuenow={clampedPercentage}
       aria-valuemin={0}
