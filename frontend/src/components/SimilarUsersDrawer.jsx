@@ -221,13 +221,13 @@ function SimilarUsersDrawer({
                     const barY = isPositive ? centerY - barHeight : centerY;
                     
                     if (isPerfect) {
-                      // Perfect matches: green big dots
+                      // Perfect matches: green small dots
                       return (
                         <circle
                           key={idx}
                           cx={barX + (actualBarWidth / 2)}
                           cy={centerY}
-                          r="3"
+                          r="1.5"
                           fill="#10b981"
                         />
                       );
@@ -570,13 +570,15 @@ function SimilarUsersDrawer({
                                       return (
                                         <g key={idx}>
                                           {isPerfect ? (
-                                            // Perfect matches: green big dots
-                                            <circle
-                                              cx={barX + (actualBarWidth / 2)}
-                                              cy={centerY}
-                                              r="4"
-                                              fill="#10b981"
-                                            />
+                                            // Perfect matches: green stars (centered on baseline)
+                                            <g transform={`translate(${barX + (actualBarWidth / 2)}, ${centerY - 0.5})`}>
+                                              <path
+                                                d="M 0 -6 L 1.8 -1.8 L 6 -0.6 L 3 2.4 L 3.6 7 L 0 4.6 L -3.6 7 L -3 2.4 L -6 -0.6 L -1.8 -1.8 Z"
+                                                fill="#10b981"
+                                                stroke="#10b981"
+                                                strokeWidth="0.3"
+                                              />
+                                            </g>
                                           ) : isClose ? (
                                             // Close matches: blue bars
                                             <rect
