@@ -1,11 +1,12 @@
 import ratingService from './RatingService.js';
 import cacheService from '../cache/CacheService.js';
-import { calculatePearsonCorrelation } from '../utils/pearsonCorrelation.js';
+import eventService from './EventService.js';
+import { calculateMeanAbsoluteError, maeToSimilarityScore } from '../utils/meanAbsoluteError.js';
 import loggerService from '../logging/Logger.js';
 
 /**
  * SimilarityService
- * Calculates similarity between users based on rating patterns using Pearson correlation
+ * Calculates similarity between users based on rating patterns using Mean Absolute Error (MAE)
  */
 class SimilarityService {
   /**
@@ -28,6 +29,10 @@ class SimilarityService {
     }
 
     try {
+      // Get event to access maxRating for MAE to similarity conversion
+      const event = await eventService.getEvent(eventId);
+      const maxRating = event.ratingConfiguration?.maxRating || 4;
+
       // Get all ratings for the event
       const allRatings = await ratingService.getRatings(eventId);
 
@@ -53,18 +58,22 @@ class SimilarityService {
           continue;
         }
 
-        // Calculate correlation
-        const correlation = calculatePearsonCorrelation(
+        // Calculate Mean Absolute Error (MAE)
+        const mae = calculateMeanAbsoluteError(
           currentUserRatings,
           ratings
         );
 
-        // Exclude users with null correlation (insufficient variance, etc.)
-        if (correlation === null) {
-          // Log correlation calculation failures for debugging (T041)
-          loggerService.debug(`Correlation calculation failed for event ${eventId}, users ${currentUserEmail} and ${email}: insufficient variance or edge case`).catch(() => {});
+        // Exclude users with null MAE (invalid calculation)
+        if (mae === null) {
+          loggerService.debug(`MAE calculation failed for event ${eventId}, users ${currentUserEmail} and ${email}: invalid data`).catch(() => {});
           continue;
         }
+
+        // Convert MAE to similarity score (0 to 1, where 1 = perfect match)
+        // MAE of 0 (perfect match) → similarity of 1
+        // MAE of maxRating (worst match) → similarity of 0
+        const similarityScore = maeToSimilarityScore(mae, maxRating);
 
         // Build common items array for response
         const commonItemsForResponse = commonItems.map(item => ({
@@ -73,19 +82,37 @@ class SimilarityService {
           similarUserRating: item.user2Rating
         }));
 
+        // Count perfect matches (exact rating match) and close matches (within 1 point)
+        const perfectMatches = commonItems.filter(item => item.user1Rating === item.user2Rating).length;
+        const closeMatches = commonItems.filter(item => {
+          const diff = Math.abs(item.user1Rating - item.user2Rating);
+          return diff === 1; // Exactly 1 point difference
+        }).length;
+
         similarUsers.push({
           email,
           name: null, // Will be populated from event config if available
-          similarityScore: correlation,
+          similarityScore,
           commonItemsCount: commonItems.length,
+          perfectMatches,
+          closeMatches,
           commonItems: commonItemsForResponse
         });
       }
 
-      // Sort by similarity score (descending), then by common items count (descending), then alphabetically
+      // Sort by similarity score (descending), then by perfect matches (descending),
+      // then by close matches (descending), then by common items count (descending), then alphabetically
       similarUsers.sort((a, b) => {
         if (a.similarityScore !== b.similarityScore) {
           return b.similarityScore - a.similarityScore; // Descending
+        }
+        // Tiebreaker: prioritize perfect matches
+        if (a.perfectMatches !== b.perfectMatches) {
+          return b.perfectMatches - a.perfectMatches; // Descending
+        }
+        // Tiebreaker: prioritize close matches
+        if (a.closeMatches !== b.closeMatches) {
+          return b.closeMatches - a.closeMatches; // Descending
         }
         if (a.commonItemsCount !== b.commonItemsCount) {
           return b.commonItemsCount - a.commonItemsCount; // Descending
