@@ -9,6 +9,7 @@ import { getBookmarks, loadBookmarksFromServer } from '@/utils/bookmarkStorage';
 import ItemButton from '@/components/ItemButton';
 import RatingDrawer from '@/components/RatingDrawer';
 import SimilarUsersDrawer from '@/components/SimilarUsersDrawer';
+import ItemDetailsDrawer from '@/components/ItemDetailsDrawer';
 import RatingErrorBoundary from '@/components/RatingErrorBoundary';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { Button } from '@/components/ui/button';
@@ -46,6 +47,7 @@ function EventPage() {
   const [error, setError] = useState(null);
   const [availableItemIds, setAvailableItemIds] = useState([]);
   const [openDrawerItemId, setOpenDrawerItemId] = useState(null);
+  const [openItemDetailsItemId, setOpenItemDetailsItemId] = useState(null);
   const [isSimilarUsersDrawerOpen, setIsSimilarUsersDrawerOpen] = useState(false);
   const [ratings, setRatings] = useState([]);
   const [bookmarks, setBookmarks] = useState([]);
@@ -306,14 +308,25 @@ function EventPage() {
     if (isSimilarUsersDrawerOpen) {
       setIsSimilarUsersDrawerOpen(false);
     }
-    // Ensure only one drawer is open at a time
-    if (openDrawerItemId && openDrawerItemId !== itemId) {
-      // Close previous drawer first
-      setOpenDrawerItemId(null);
-      // Small delay to allow close animation
-      setTimeout(() => setOpenDrawerItemId(itemId), 100);
+    
+    // If event is completed, open item details drawer instead of rating drawer
+    if (event?.state === 'completed') {
+      if (openItemDetailsItemId && openItemDetailsItemId !== itemId) {
+        setOpenItemDetailsItemId(null);
+        setTimeout(() => setOpenItemDetailsItemId(itemId), 100);
+      } else {
+        setOpenItemDetailsItemId(itemId);
+      }
+      setOpenDrawerItemId(null); // Ensure rating drawer is closed
     } else {
-      setOpenDrawerItemId(itemId);
+      // For non-completed states, open rating drawer
+      if (openDrawerItemId && openDrawerItemId !== itemId) {
+        setOpenDrawerItemId(null);
+        setTimeout(() => setOpenDrawerItemId(itemId), 100);
+      } else {
+        setOpenDrawerItemId(itemId);
+      }
+      setOpenItemDetailsItemId(null); // Ensure item details drawer is closed
     }
     setError(null); // Clear any previous errors
   };
@@ -321,6 +334,11 @@ function EventPage() {
   // Handle drawer close
   const handleDrawerClose = () => {
     setOpenDrawerItemId(null);
+  };
+
+  // Handle item details drawer close
+  const handleItemDetailsDrawerClose = () => {
+    setOpenItemDetailsItemId(null);
   };
 
   // Handle similar users drawer close
@@ -460,7 +478,7 @@ function EventPage() {
           )}
 
           {/* Find Similar Tastes button - only visible when user has 3+ ratings */}
-          {hasMinimumRatings() && (event?.state === 'started' || event?.state === 'paused') && (
+          {hasMinimumRatings() && (event?.state === 'started' || event?.state === 'paused' || event?.state === 'completed') && (
             <div className="flex justify-center mt-8">
               <Button
                 onClick={handleSimilarUsersClick}
@@ -483,19 +501,32 @@ function EventPage() {
         eventState={event?.state}
       />
 
-      {/* Rating Drawer - always render for animation */}
-      <RatingDrawer
-        isOpen={!!openDrawerItemId}
-        onClose={handleDrawerClose}
-        eventState={event?.state}
-        itemId={openDrawerItemId || 0}
-        eventId={eventId}
-        existingRating={openDrawerItemId ? getUserRating(openDrawerItemId) : null}
-        ratingConfig={ratingConfig}
-        eventType={event?.typeOfItem}
-        noteSuggestionsEnabled={ratingConfig?.noteSuggestionsEnabled}
-        userEmail={userEmail}
-      />
+      {/* Rating Drawer - only render when event is not completed */}
+      {event?.state !== 'completed' && (
+        <RatingDrawer
+          isOpen={!!openDrawerItemId}
+          onClose={handleDrawerClose}
+          eventState={event?.state}
+          itemId={openDrawerItemId || 0}
+          eventId={eventId}
+          existingRating={openDrawerItemId ? getUserRating(openDrawerItemId) : null}
+          ratingConfig={ratingConfig}
+          eventType={event?.typeOfItem}
+          noteSuggestionsEnabled={ratingConfig?.noteSuggestionsEnabled}
+          userEmail={userEmail}
+        />
+      )}
+
+      {/* Item Details Drawer - only render when event is completed */}
+      {event?.state === 'completed' && (
+        <ItemDetailsDrawer
+          isOpen={!!openItemDetailsItemId}
+          onClose={handleItemDetailsDrawerClose}
+          eventId={eventId}
+          itemId={openItemDetailsItemId || 0}
+          eventState={event?.state}
+        />
+      )}
     </RatingErrorBoundary>
   );
 }

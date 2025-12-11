@@ -30,4 +30,8 @@ router.use('/events/:eventId/dashboard', dashboardRouter);
 import similarUsersRouter from './similarUsers.js';
 router.use('/events/:eventId', similarUsersRouter);
 
+// Items routes - nested under events
+import itemsRouter from './items.js';
+router.use('/events/:eventId/items', itemsRouter);
+
 export default router;

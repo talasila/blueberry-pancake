@@ -16,8 +16,13 @@ import { useItemTerminology } from '@/utils/itemTerminology';
  * 
  * Default sort: Item ID ascending
  * All columns are sortable (ascending/descending)
+ * 
+ * @param {object} props
+ * @param {Array} props.itemSummaries - Array of item summary objects
+ * @param {Array} props.ratingConfiguration - Rating configuration array
+ * @param {function} props.onRowClick - Optional click handler for table rows (receives itemId)
  */
-function ItemRatingsTable({ itemSummaries = [], ratingConfiguration = [] }) {
+function ItemRatingsTable({ itemSummaries = [], ratingConfiguration = [], onRowClick }) {
   const { event } = useEventContext();
   const { singularLower, pluralLower } = useItemTerminology(event);
   const [sortColumn, setSortColumn] = useState('itemId');
@@ -155,7 +160,11 @@ function ItemRatingsTable({ itemSummaries = [], ratingConfiguration = [] }) {
             const weightedAvgTooltip = getTooltipMessage(item.weightedAverage, 'weightedAverage');
 
             return (
-              <tr key={item.itemId} className="border-b hover:bg-muted/50">
+              <tr 
+                key={item.itemId} 
+                className={`border-b hover:bg-muted/50 ${onRowClick ? 'cursor-pointer' : ''}`}
+                onClick={() => onRowClick && onRowClick(item.itemId)}
+              >
                 <td className="p-2 text-sm">{item.itemId}</td>
                 <td className="p-2">
                   <div className="w-full max-w-xs space-y-2">

@@ -1,10 +1,11 @@
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, ArrowLeft } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import StatisticsCard from '@/components/StatisticsCard';
 import ItemRatingsTable from '@/components/ItemRatingsTable';
+import ItemDetailsDrawer from '@/components/ItemDetailsDrawer';
 import dashboardService from '@/services/dashboardService';
 import { useEventContext } from '@/contexts/EventContext';
 import { useItemTerminology } from '@/utils/itemTerminology';
@@ -20,10 +21,12 @@ import { useItemTerminology } from '@/utils/itemTerminology';
  */
 function DashboardPage() {
   const { eventId } = useParams();
+  const navigate = useNavigate();
   const { event } = useEventContext();
   const [dashboardData, setDashboardData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [openItemDetailsItemId, setOpenItemDetailsItemId] = useState(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -111,7 +114,19 @@ function DashboardPage() {
   const { singular, plural, pluralLower } = useItemTerminology(event);
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="px-4 sm:px-6 lg:px-8 py-4">
+      {/* Navigation back to event main page */}
+      <div className="mb-6">
+        <Button
+          onClick={() => navigate(`/event/${eventId}`)}
+          variant="outline"
+          className="flex items-center gap-2"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Event
+        </Button>
+      </div>
+      
       {/* Header with title and refresh button */}
       <div className="flex items-center justify-between">
         <h4 className="text-xl font-bold">Dashboard</h4>
@@ -128,7 +143,7 @@ function DashboardPage() {
       </div>
 
       {/* Summary Statistics - 2 columns grid (always 2 columns) */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-4 py-4">
         <StatisticsCard
           title="Total Users"
           value={statistics?.totalUsers ?? null}
@@ -166,8 +181,24 @@ function DashboardPage() {
         <ItemRatingsTable 
           itemSummaries={dashboardData?.itemSummaries || []}
           ratingConfiguration={dashboardData?.ratingConfiguration?.ratings || []}
+          onRowClick={(itemId) => {
+            if (event?.state === 'completed') {
+              setOpenItemDetailsItemId(itemId);
+            }
+          }}
         />
       </div>
+
+      {/* Item Details Drawer - only render when event is completed */}
+      {event?.state === 'completed' && (
+        <ItemDetailsDrawer
+          isOpen={!!openItemDetailsItemId}
+          onClose={() => setOpenItemDetailsItemId(null)}
+          eventId={eventId}
+          itemId={openItemDetailsItemId || 0}
+          eventState={event?.state}
+        />
+      )}
     </div>
   );
 }

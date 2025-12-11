@@ -10,11 +10,13 @@ import PINEntryPage from './pages/PINEntryPage.jsx';
 import EventOTPEntryPage from './pages/EventOTPEntryPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
+import ItemAssignmentPage from './pages/ItemAssignmentPage.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
 import DashboardRoute from './components/DashboardRoute.jsx';
 import { EventContextProvider } from './contexts/EventContext.jsx';
 import { PINProvider } from './contexts/PINContext.jsx';
+import { Toaster } from './components/ui/sonner';
 import { useParams } from 'react-router-dom';
 import useEvent from './hooks/useEvent.js';
 import useEventPolling from './hooks/useEventPolling.js';
@@ -176,6 +178,20 @@ function AppLayout() {
             } 
           />
           <Route 
+            path="/event/:eventId/admin/items/assign" 
+            element={
+              <ProtectedRoute>
+                <PINProvider>
+                  <EventLayout>
+                    <AdminRoute>
+                      <ItemAssignmentPage />
+                    </AdminRoute>
+                  </EventLayout>
+                </PINProvider>
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
             path="/event/:eventId/profile" 
             element={
               <PINProvider>
@@ -309,6 +325,7 @@ function App() {
   return (
     <Router>
       <AppLayout />
+      <Toaster />
     </Router>
   );
 }

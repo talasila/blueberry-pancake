@@ -1111,6 +1111,29 @@ class EventService {
   }
 
   /**
+   * Get count of registered items for an event
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<number>} Count of registered items
+   */
+  async getRegisteredItemsCount(eventId) {
+    // Validate event ID format
+    const idValidation = this.validateEventId(eventId);
+    if (!idValidation.valid) {
+      throw new Error(idValidation.error);
+    }
+
+    // Get event
+    const event = await this.getEvent(eventId);
+
+    // Initialize items array if needed
+    if (!event.items || !Array.isArray(event.items)) {
+      return 0;
+    }
+
+    return event.items.length;
+  }
+
+  /**
    * Update item configuration for an event
    * @param {string} eventId - Event identifier
    * @param {object} config - Configuration object with numberOfItems and/or excludedItemIds
@@ -1150,6 +1173,25 @@ class EventService {
         throw new Error('Number of items must be an integer between 1 and 100');
       }
       numberOfItems = config.numberOfItems;
+
+      // Validate numberOfItems is not less than registered items count
+      const registeredCount = await this.getRegisteredItemsCount(eventId);
+      if (numberOfItems < registeredCount) {
+        throw new Error(`Number of items (${numberOfItems}) cannot be less than the number of registered items (${registeredCount})`);
+      }
+
+      // Validate numberOfItems is not less than highest assigned itemId
+      const items = event.items || [];
+      const assignedItemIds = items
+        .filter(item => item.itemId !== null && item.itemId !== undefined)
+        .map(item => item.itemId);
+      
+      if (assignedItemIds.length > 0) {
+        const highestAssignedId = Math.max(...assignedItemIds);
+        if (numberOfItems < highestAssignedId) {
+          throw new Error(`Number of items (${numberOfItems}) cannot be less than the highest assigned item ID (${highestAssignedId})`);
+        }
+      }
     }
 
     // Handle excludedItemIds

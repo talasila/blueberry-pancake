@@ -14,6 +14,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import InfoField from '@/components/InfoField';
 import { isValidEmailFormat, clearSuccessMessage } from '@/utils/helpers';
 import { useItemTerminology } from '@/utils/itemTerminology';
+import itemService from '@/services/itemService';
 
 /**
  * State configuration mapping states to icons, colors, labels, and descriptions
@@ -177,6 +178,11 @@ function EventAdminPage() {
   const [labelErrors, setLabelErrors] = useState({});
   const [colorErrors, setColorErrors] = useState({});
   const [openColorDropdowns, setOpenColorDropdowns] = useState({});
+  
+  // Items management state
+  const [items, setItems] = useState([]);
+  const [isLoadingItems, setIsLoadingItems] = useState(false);
+  const [itemsError, setItemsError] = useState('');
 
   // Check for OTP authentication (JWT token) - admin pages require OTP even if accessed via PIN
   useEffect(() => {
@@ -231,6 +237,37 @@ function EventAdminPage() {
   useEffect(() => {
     fetchAdministrators();
   }, [fetchAdministrators]);
+
+  // Fetch items on load (admin sees all items)
+  useEffect(() => {
+    const fetchItems = async () => {
+      if (!eventId) return;
+
+      setIsLoadingItems(true);
+      setItemsError('');
+
+      try {
+        const allItems = await itemService.getItems(eventId);
+        setItems(allItems || []);
+      } catch (error) {
+        console.error('Failed to fetch items:', error);
+        setItemsError(error.message || 'Failed to load items');
+      } finally {
+        setIsLoadingItems(false);
+      }
+    };
+
+    if (eventId) {
+      fetchItems();
+    }
+  }, [eventId]);
+
+  // Calculate summary statistics
+  const itemsSummary = {
+    total: items.length,
+    assigned: items.filter(item => item.itemId !== null && item.itemId !== undefined).length,
+    unassigned: items.filter(item => item.itemId === null || item.itemId === undefined).length
+  };
 
   // Fetch item configuration on load
   useEffect(() => {
@@ -702,6 +739,18 @@ function EventAdminPage() {
     <div className="px-4 sm:px-6 lg:px-8 py-4">
       <div className="max-w-md mx-auto w-full">
         <div className="space-y-4">
+          {/* Navigation back to event main page */}
+          <div className="mb-6">
+            <Button
+              onClick={() => navigate(`/event/${eventId}`)}
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Event
+            </Button>
+          </div>
+          
           <div>
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-xl font-semibold">Event Administration</h4>
@@ -888,6 +937,60 @@ function EventAdminPage() {
                   'Save Configuration'
                 )}
               </Button>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* Items Management Section */}
+            <AccordionItem value="items-management">
+              <AccordionTrigger>
+                <div className="flex flex-col items-start text-left">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">{itemTerminology.plural} Management</span>
+                    <Badge variant="outline" className="text-xs">
+                      {itemsSummary.total} registered
+                    </Badge>
+                  </div>
+                </div>
+              </AccordionTrigger>
+              <AccordionContent className="space-y-4">
+                <div className="text-sm text-muted-foreground font-normal">
+                  Summary of registered {itemTerminology.pluralLower} and {itemTerminology.singularLower} ID assignments.
+                </div>
+
+                {/* Items error */}
+                {itemsError && (
+                  <Message type="error">{itemsError}</Message>
+                )}
+
+                {/* Summary */}
+                {isLoadingItems ? (
+                  <div className="flex justify-center py-4">
+                    <LoadingSpinner />
+                  </div>
+                ) : itemsSummary.total === 0 ? (
+                  <div className="text-sm text-muted-foreground text-center py-4 border rounded-md">
+                    No {itemTerminology.pluralLower} registered yet.
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="text-sm space-y-1">
+                      <div>Total {itemTerminology.plural}: <strong>{itemsSummary.total}</strong></div>
+                      <div>Assigned: <strong>{itemsSummary.assigned}</strong></div>
+                      <div>Unassigned: <strong>{itemsSummary.unassigned}</strong></div>
+                    </div>
+
+                    {/* Link to assignment page */}
+                    <div className="flex justify-center">
+                      <Button
+                        variant="default"
+                        onClick={() => navigate(`/event/${eventId}/admin/items/assign`)}
+                        className="flex items-center gap-2"
+                      >
+                        Manage {itemTerminology.singular} ID Assignments
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </AccordionContent>
             </AccordionItem>
 
@@ -1384,18 +1487,6 @@ function EventAdminPage() {
               </AccordionContent>
             </AccordionItem>
           </Accordion>
-
-          {/* Navigation back to event main page */}
-          <div className="flex justify-center">
-            <Button
-              onClick={() => navigate(`/event/${eventId}`)}
-              variant="secondary"
-              aria-label="Back to event page"
-            >
-              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-              Back to Event
-            </Button>
-          </div>
         </div>
       </div>
     </div>

@@ -13,7 +13,7 @@ const router = Router({ mergeParams: true });
  * Requires JWT authentication
  * 
  * Access control:
- * - Only available during active events (state: 'started' or 'paused')
+ * - Available during active events (state: 'started', 'paused', or 'completed')
  * - User must have rated at least 3 items
  */
 router.get('/similar-users', requireAuth, async (req, res) => {
@@ -31,7 +31,7 @@ router.get('/similar-users', requireAuth, async (req, res) => {
       });
     }
 
-    // Get event to check state (FR-010: only during active events)
+    // Get event to check state
     const event = await eventService.getEvent(eventId);
     if (!event) {
       return res.status(404).json({
@@ -39,10 +39,10 @@ router.get('/similar-users', requireAuth, async (req, res) => {
       });
     }
 
-    // Validate event state - only allow 'started' or 'paused' states
-    if (event.state !== 'started' && event.state !== 'paused') {
+    // Validate event state - allow 'started', 'paused', or 'completed' states
+    if (event.state !== 'started' && event.state !== 'paused' && event.state !== 'completed') {
       return res.status(400).json({
-        error: `Similar users feature is only available during active events. Current state: ${event.state}`
+        error: `Similar users feature is only available when event is started, paused, or completed. Current state: ${event.state}`
       });
     }
 
