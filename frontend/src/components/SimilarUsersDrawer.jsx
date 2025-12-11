@@ -249,7 +249,7 @@ function SimilarUsersDrawer({
               <div key={user.email || index} className="flex items-center gap-3">
                 <button
                   onClick={() => handleUserClick(user)}
-                  className="flex-1 flex items-center justify-between p-3 border rounded-lg cursor-pointer hover:opacity-90 transition-all text-left relative overflow-hidden group"
+                  className="flex-1 flex items-center justify-between p-2 border rounded-lg cursor-pointer hover:opacity-90 transition-all text-left relative overflow-hidden group"
                 >
                   {/* Progress bar background */}
                   <div 
