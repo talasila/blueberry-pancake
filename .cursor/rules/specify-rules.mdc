@@ -24,6 +24,8 @@ Auto-generated from all feature plans. Last updated: 2025-12-06
 - Node.js >=22.12.0 (backend), React 19.2.1 (frontend) + Express 5.2.1 (backend), React Router 7.10.1, Vite 6.0.5 (frontend), Tailwind CSS 4.1.17 (001-wine-note-suggestions)
 - File-based JSON storage (`data/events/{eventId}/config.json` for event config, `quotes.json` in root for quotes) (001-wine-note-suggestions)
 - File-based (event config JSON, ratings CSV files in `data/events/{eventId}/`), in-memory caching (010-dashboard-page)
+- Node.js >=22.12.0 (ES modules) + Express 5.2.1, React 19.2.1, React Router 7.10.1, Tailwind CSS 4.1.17 (001-similar-users)
+- File-based (CSV for ratings, JSON for event configs) via FileDataRepository (001-similar-users)
 
 - JavaScript (ES2020+), Node.js 18+ + React, Node.js, Express, shadcn UI, Tailwind CSS, Playwright, @cucumber/cucumber, Vitest, jsonwebtoken, csurf/csrf, node-cache, config package (001-baseline-setup)
 
@@ -44,9 +46,9 @@ npm test && npm run lint
 JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 
 ## Recent Changes
+- 001-similar-users: Added Node.js >=22.12.0 (ES modules) + Express 5.2.1, React 19.2.1, React Router 7.10.1, Tailwind CSS 4.1.17
 - 010-dashboard-page: Added Node.js >=22.12.0, JavaScript (ES modules)
 - 001-wine-note-suggestions: Added Node.js >=22.12.0 (backend), React 19.2.1 (frontend) + Express 5.2.1 (backend), React Router 7.10.1, Vite 6.0.5 (frontend), Tailwind CSS 4.1.17
-- 009-event-rating-page: Added Node.js >=22.12.0, JavaScript (ES modules)
 
 
 <!-- MANUAL ADDITIONS START -->

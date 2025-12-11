@@ -911,12 +911,12 @@ function EventAdminPage() {
                       </div>
                     )}
                   </div>
-                  <span className="text-sm text-muted-foreground font-normal">
-                    Configure how items are rated, including the rating scale, labels, and colors
-                  </span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4">
+                <span className="text-sm text-muted-foreground font-normal">
+                  Configure how items are rated, including the rating scale, labels, and colors
+                </span>
                 {event?.state !== 'created' && (
                   <Message type="info">
                     Rating configuration can only be edited when the event is in "created" state.
@@ -1106,12 +1106,12 @@ function EventAdminPage() {
                     <span className="font-semibold">State</span>
                     <StateBadge state={event.state} />
                   </div>
-                  <span className="text-sm text-muted-foreground font-normal">
-                    {getStateDescription(event.state)}
-                  </span>
                 </div>
               </AccordionTrigger>
               <AccordionContent className="space-y-4">
+                <span className="text-sm text-muted-foreground font-normal">
+                  Manage the state of this event. The event can be started, paused, or completed.
+                </span>
               {transitionError && (
                 <Message type="error">{transitionError}</Message>
               )}

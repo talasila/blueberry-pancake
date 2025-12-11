@@ -1,0 +1,143 @@
+openapi: 3.0.3
+info:
+  title: Similar Users Discovery API
+  description: API for discovering users with similar taste preferences
+  version: 1.0.0
+servers:
+  - url: /api/events/{eventId}
+    description: Event-specific endpoints
+paths:
+  /similar-users:
+    get:
+      summary: Get similar users
+      description: Retrieve list of users with similar taste preferences to the current authenticated user
+      operationId: getSimilarUsers
+      tags:
+        - Similar Users
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: '^[a-zA-Z0-9]{8}$'
+          description: 8-character alphanumeric event identifier
+      responses:
+        '200':
+          description: Successful response with similar users
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimilarUsersResponse'
+        '400':
+          description: Bad request - user has rated fewer than 3 items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "You need to rate at least 3 items before similar users can be found"
+        '401':
+          description: Unauthorized - missing or invalid authentication
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Authentication required"
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Event not found"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "Failed to retrieve similar users. Please try again."
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    SimilarUsersResponse:
+      type: object
+      required:
+        - similarUsers
+        - currentUserEmail
+        - eventId
+      properties:
+        similarUsers:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/SimilarUser'
+        currentUserEmail:
+          type: string
+          format: email
+        eventId:
+          type: string
+          pattern: '^[a-zA-Z0-9]{8}$'
+    SimilarUser:
+      type: object
+      required:
+        - email
+        - similarityScore
+        - commonItemsCount
+        - commonItems
+      properties:
+        email:
+          type: string
+          format: email
+        name:
+          type: string
+          nullable: true
+        similarityScore:
+          type: number
+          minimum: -1
+          maximum: 1
+          description: Pearson correlation coefficient
+        commonItemsCount:
+          type: integer
+          minimum: 3
+          description: Number of items both users have rated
+        commonItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/CommonItemRating'
+    CommonItemRating:
+      type: object
+      required:
+        - itemId
+        - userRating
+        - similarUserRating
+      properties:
+        itemId:
+          type: integer
+          minimum: 1
+        userRating:
+          type: integer
+          minimum: 1
+          description: Current user's rating for this item
+        similarUserRating:
+          type: integer
+          minimum: 1
+          description: Similar user's rating for this item
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Human-readable error message

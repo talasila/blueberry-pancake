@@ -8,8 +8,11 @@ import { ratingService } from '@/services/ratingService';
 import { getBookmarks } from '@/utils/bookmarkStorage';
 import ItemButton from '@/components/ItemButton';
 import RatingDrawer from '@/components/RatingDrawer';
+import SimilarUsersDrawer from '@/components/SimilarUsersDrawer';
 import RatingErrorBoundary from '@/components/RatingErrorBoundary';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import { Button } from '@/components/ui/button';
+import { Users } from 'lucide-react';
 import { useItemTerminology } from '@/utils/itemTerminology';
 
 /**
@@ -43,6 +46,7 @@ function EventPage() {
   const [error, setError] = useState(null);
   const [availableItemIds, setAvailableItemIds] = useState([]);
   const [openDrawerItemId, setOpenDrawerItemId] = useState(null);
+  const [isSimilarUsersDrawerOpen, setIsSimilarUsersDrawerOpen] = useState(false);
   const [ratings, setRatings] = useState([]);
   const [bookmarks, setBookmarks] = useState([]);
   const [ratingConfig, setRatingConfig] = useState(null);
@@ -274,6 +278,10 @@ function EventPage() {
 
   // Handle item button click - open drawer
   const handleItemClick = (itemId) => {
+    // Close similar users drawer if open
+    if (isSimilarUsersDrawerOpen) {
+      setIsSimilarUsersDrawerOpen(false);
+    }
     // Ensure only one drawer is open at a time
     if (openDrawerItemId && openDrawerItemId !== itemId) {
       // Close previous drawer first
@@ -289,6 +297,30 @@ function EventPage() {
   // Handle drawer close
   const handleDrawerClose = () => {
     setOpenDrawerItemId(null);
+  };
+
+  // Handle similar users drawer close
+  const handleSimilarUsersDrawerClose = () => {
+    setIsSimilarUsersDrawerOpen(false);
+  };
+
+  // Handle similar users button click
+  const handleSimilarUsersClick = () => {
+    // Close rating drawer if open
+    if (openDrawerItemId) {
+      setOpenDrawerItemId(null);
+      // Small delay to allow close animation
+      setTimeout(() => setIsSimilarUsersDrawerOpen(true), 100);
+    } else {
+      setIsSimilarUsersDrawerOpen(true);
+    }
+  };
+
+  // Check if user has rated at least 3 items (for button visibility)
+  const hasMinimumRatings = () => {
+    if (!userEmail || !ratings.length) return false;
+    const userRatings = ratings.filter(r => r.email.toLowerCase() === userEmail.toLowerCase());
+    return userRatings.length >= 3;
   };
 
   // Get user's rating for a specific item
@@ -402,8 +434,30 @@ function EventPage() {
               No {pluralLower} available for this event.
             </div>
           )}
+
+          {/* Find Similar Tastes button - only visible when user has 3+ ratings */}
+          {hasMinimumRatings() && (event?.state === 'started' || event?.state === 'paused') && (
+            <div className="flex justify-center mt-8">
+              <Button
+                onClick={handleSimilarUsersClick}
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <Users className="h-4 w-4" />
+                Find Similar Tastes
+              </Button>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Similar Users Drawer */}
+      <SimilarUsersDrawer
+        isOpen={isSimilarUsersDrawerOpen}
+        onClose={handleSimilarUsersDrawerClose}
+        eventId={eventId}
+        eventState={event?.state}
+      />
 
       {/* Rating Drawer - always render for animation */}
       <RatingDrawer

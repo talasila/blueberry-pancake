@@ -148,6 +148,8 @@ class RatingService {
     cacheService.del(`ratings:${eventId}`);
     // Invalidate dashboard cache when rating is submitted
     cacheService.del(`dashboard:${eventId}`);
+    // Invalidate similar users cache for all users (similarity may change when any rating is submitted)
+    cacheService.invalidate(`similarUsers:${eventId}:*`);
 
     loggerService.info(`Rating submitted for event ${eventId}, item ${itemId}, email ${normalizedEmail}`);
 

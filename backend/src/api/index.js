@@ -26,4 +26,8 @@ router.use('/events/:eventId', ratingsRouter);
 import dashboardRouter from './dashboard.js';
 router.use('/events/:eventId/dashboard', dashboardRouter);
 
+// Similar users routes - nested under events
+import similarUsersRouter from './similarUsers.js';
+router.use('/events/:eventId', similarUsersRouter);
+
 export default router;
