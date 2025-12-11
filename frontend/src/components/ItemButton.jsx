@@ -9,26 +9,39 @@ import { cn } from '@/lib/utils';
  * @param {number} props.itemId - Item identifier
  * @param {string} props.ratingColor - Optional color for rated items
  * @param {boolean} props.isBookmarked - Whether item is bookmarked
+ * @param {boolean} props.isWinner - Whether item is ranked #1 (winner)
  * @param {function} props.onClick - Click handler
  */
-function ItemButton({ itemId, ratingColor, isBookmarked, onClick }) {
+function ItemButton({ itemId, ratingColor, isBookmarked, isWinner, onClick }) {
   return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "relative w-14 h-14 rounded-full text-3xl font-normal",
-        "flex items-center justify-center",
-        "transition-all duration-200",
-        "hover:scale-105 active:scale-95",
-        "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
-        "shadow-md hover:shadow-lg",
-        ratingColor 
-          ? "text-white" 
-          : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+    <div className="relative inline-block">
+      {/* Glowing spinning circle for winner */}
+      {isWinner && (
+        <div className="absolute inset-0 -m-3 rounded-full overflow-hidden">
+          <div className="absolute inset-0 rounded-full border-[3px] border-yellow-400/80 animate-spin overflow-hidden" style={{ animationDuration: '2s' }}>
+            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-yellow-400/0 via-yellow-400/60 to-yellow-400/0 blur-md"></div>
+          </div>
+          <div className="absolute inset-0 rounded-full border-[3px] border-yellow-500/80 animate-spin overflow-hidden" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }}>
+            <div className="absolute inset-0 rounded-full bg-gradient-to-r from-yellow-500/0 via-yellow-500/70 to-yellow-500/0 blur-md"></div>
+          </div>
+        </div>
       )}
-      style={ratingColor ? { backgroundColor: ratingColor } : {}}
-      aria-label={`Item ${itemId}${isBookmarked ? ' (bookmarked)' : ''}`}
-    >
+      <button
+        onClick={onClick}
+        className={cn(
+          "relative w-14 h-14 rounded-full text-3xl font-normal",
+          "flex items-center justify-center",
+          "transition-all duration-200",
+          "hover:scale-105 active:scale-95",
+          "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+          "shadow-md hover:shadow-lg",
+          ratingColor 
+            ? "text-white" 
+            : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+        )}
+        style={ratingColor ? { backgroundColor: ratingColor } : {}}
+        aria-label={`Item ${itemId}${isBookmarked ? ' (bookmarked)' : ''}${isWinner ? ' (winner)' : ''}`}
+      >
       <span>{itemId}</span>
       
       {/* Bookmark indicator overlay */}
@@ -40,7 +53,9 @@ function ItemButton({ itemId, ratingColor, isBookmarked, onClick }) {
           />
         </div>
       )}
-    </button>
+
+      </button>
+    </div>
   );
 }
 

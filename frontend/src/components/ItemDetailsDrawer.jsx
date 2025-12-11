@@ -1,11 +1,13 @@
-import { X } from 'lucide-react';
+import { X, Medal } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import Message from '@/components/Message';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import RatingDistribution from '@/components/RatingDistribution';
 import itemService from '@/services/itemService';
 import { ratingService } from '@/services/ratingService';
+import dashboardService from '@/services/dashboardService';
 import { useItemTerminology } from '@/utils/itemTerminology';
 import { useEventContext } from '@/contexts/EventContext';
 import apiClient from '@/services/apiClient';
@@ -43,6 +45,8 @@ function ItemDetailsDrawer({
   const [ratings, setRatings] = useState([]);
   const [isLoadingRatings, setIsLoadingRatings] = useState(false);
   const [userEmail, setUserEmail] = useState(null);
+  const [cachedDashboardData, setCachedDashboardData] = useState(null);
+  const [isLoadingRanking, setIsLoadingRanking] = useState(false);
 
   // Track if drawer has ever been opened (for animation)
   useEffect(() => {
@@ -90,13 +94,35 @@ function ItemDetailsDrawer({
     }
   }, [isOpen, eventId]);
 
+  // Fetch dashboard data for ranking (cached per session)
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (!eventId || !isOpen || cachedDashboardData) return; // Already cached or drawer closed
+
+      setIsLoadingRanking(true);
+      try {
+        const data = await dashboardService.getDashboardData(eventId);
+        setCachedDashboardData(data);
+      } catch (err) {
+        console.error('Error fetching dashboard data for ranking:', err);
+        // Don't show error, just log it - ranking is optional
+      } finally {
+        setIsLoadingRanking(false);
+      }
+    };
+
+    if (isOpen && eventId && eventState === 'completed') {
+      fetchDashboardData();
+    }
+  }, [isOpen, eventId, eventState, cachedDashboardData]);
+
   // Fetch item details and ratings when drawer opens
   useEffect(() => {
     if (isOpen && eventId && itemId && eventState === 'completed') {
       fetchItemDetails();
       fetchRatings();
     } else {
-      // Reset state when drawer closes
+      // Reset state when drawer closes (but keep cached dashboard data)
       setItem(null);
       setError(null);
       setRatings([]);
@@ -112,7 +138,12 @@ function ItemDetailsDrawer({
       setItem(itemData);
     } catch (err) {
       console.error('Error fetching item details:', err);
-      setError(err.message || 'Failed to load item details');
+      // If item not found, don't set error - we'll still show the drawer with available info
+      if (err.message && err.message.includes('not found')) {
+        setItem(null); // Explicitly set to null to indicate no item registered
+      } else {
+        setError(err.message || 'Failed to load item details');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -206,6 +237,37 @@ function ItemDetailsDrawer({
     return ratings.find(r => r.email?.toLowerCase().trim() === normalizedUserEmail) || null;
   }, [ratings, userEmail]);
 
+  // Calculate item ranking based on weighted average
+  const itemRank = useMemo(() => {
+    if (!cachedDashboardData?.itemSummaries || !itemId) return null;
+
+    const itemSummaries = cachedDashboardData.itemSummaries;
+    
+    // Sort by weightedAverage descending (nulls go to end)
+    const sorted = [...itemSummaries].sort((a, b) => {
+      const aVal = a.weightedAverage ?? -1;
+      const bVal = b.weightedAverage ?? -1;
+      
+      // Handle nulls (put at end)
+      if (aVal === -1 && bVal === -1) return 0;
+      if (aVal === -1) return 1;
+      if (bVal === -1) return -1;
+      
+      // Sort descending
+      return bVal - aVal;
+    });
+
+    // Find position of current item
+    const rank = sorted.findIndex(item => item.itemId === itemId);
+    
+    // If item not found or has no weighted average, return null
+    if (rank === -1 || sorted[rank]?.weightedAverage === null) {
+      return null;
+    }
+
+    return rank + 1; // 1-based ranking
+  }, [cachedDashboardData, itemId]);
+
   // Get all comments (ratings with notes) sorted with user's comment first
   const comments = useMemo(() => {
     if (!ratings.length) return [];
@@ -268,7 +330,7 @@ function ItemDetailsDrawer({
           {/* Header with title and close button */}
           <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0">
             <h2 id="item-details-title" className="text-base font-semibold">
-              {item && item.itemId ? `${singular} ${item.itemId} Details` : `${singular.charAt(0).toUpperCase() + singular.slice(1)} Details`}
+              {item ? `${singular} ${item.itemId} Details` : `${singular} ${itemId} Details`}
             </h2>
             <Button
               variant="ghost"
@@ -289,32 +351,62 @@ function ItemDetailsDrawer({
               </div>
             ) : error ? (
               <Message type="error">{error}</Message>
-            ) : item ? (
+            ) : (
               <div className="space-y-4">
                 {/* Bottle Details Container */}
                 <div className="p-3 border rounded-md bg-muted/30">
                   <div className="space-y-3">
-                    {/* Name with price - name prominent, price de-emphasized */}
-                    <div className="flex items-baseline gap-2">
-                      <p className="text-lg font-semibold">{item.name}</p>
-                      {item.price !== null && item.price !== undefined && (
-                        <span className="text-sm text-muted-foreground">
-                          (${typeof item.price === 'number' ? item.price.toFixed(2) : item.price})
-                        </span>
+                    {/* Header with ranking badge */}
+                    <div className="flex items-start justify-between gap-3">
+                      {item ? (
+                        <>
+                          {/* Name with price - name prominent, price de-emphasized */}
+                          <div className="flex-1 min-w-0 flex items-baseline gap-2 flex-wrap">
+                            <p className="text-lg font-semibold break-words">{item.name}</p>
+                            {item.price !== null && item.price !== undefined && (
+                              <span className="text-sm text-muted-foreground whitespace-nowrap">
+                                (${typeof item.price === 'number' ? item.price.toFixed(2) : item.price})
+                              </span>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div className="flex-1">
+                          <p className="text-sm text-muted-foreground">No item registered for this ID</p>
+                        </div>
+                      )}
+                      {itemRank !== null && (
+                        <Badge 
+                          variant="default" 
+                          className={`text-sm font-semibold whitespace-nowrap flex-shrink-0 flex items-center gap-1 ${
+                            itemRank === 1
+                              ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-950 border-yellow-600 shadow-md dark:from-yellow-500 dark:to-yellow-600 dark:text-yellow-50 dark:border-yellow-700 hover:from-yellow-400 hover:to-yellow-500 hover:text-yellow-950 hover:border-yellow-600 dark:hover:from-yellow-500 dark:hover:to-yellow-600 dark:hover:text-yellow-50 dark:hover:border-yellow-700'
+                              : itemRank === 2
+                              ? 'bg-slate-300 text-slate-800 border-slate-400 dark:bg-slate-500 dark:text-slate-50 dark:border-slate-600 hover:bg-slate-300 hover:text-slate-800 hover:border-slate-400 dark:hover:bg-slate-500 dark:hover:text-slate-50 dark:hover:border-slate-600'
+                              : itemRank === 3
+                              ? 'bg-amber-700 text-amber-50 border-amber-800 dark:bg-amber-800 dark:text-amber-50 dark:border-amber-900 hover:bg-amber-700 hover:text-amber-50 hover:border-amber-800 dark:hover:bg-amber-800 dark:hover:text-amber-50 dark:hover:border-amber-900'
+                              : 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 hover:bg-gray-100 hover:text-gray-700 hover:border-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-300 dark:hover:border-gray-600'
+                          }`}
+                        >
+                          {itemRank === 1 && <Medal className="h-3 w-3" />}
+                          Ranked #{itemRank}
+                        </Badge>
                       )}
                     </div>
 
-                    {/* Owner - show name if available, otherwise email */}
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">
-                        {event?.users && event.users[item.ownerEmail]?.name
-                          ? `${event.users[item.ownerEmail].name} (${item.ownerEmail})`
-                          : item.ownerEmail}
-                      </span>
-                    </div>
+                    {/* Owner - show name if available, otherwise email (only if item exists) */}
+                    {item && (
+                      <div className="text-sm">
+                        <span className="text-muted-foreground">
+                          {event?.users && event.users[item.ownerEmail]?.name
+                            ? `${event.users[item.ownerEmail].name} (${item.ownerEmail})`
+                            : item.ownerEmail}
+                        </span>
+                      </div>
+                    )}
 
-                    {/* Description - if available */}
-                    {item.description && (
+                    {/* Description - if available (only if item exists) */}
+                    {item?.description && (
                       <div className="pt-2 border-t">
                         <p className="text-sm text-muted-foreground whitespace-pre-wrap">{item.description}</p>
                       </div>
@@ -464,7 +556,7 @@ function ItemDetailsDrawer({
                   </div>
                 )}
               </div>
-            ) : null}
+            )}
           </div>
         </div>
       </div>

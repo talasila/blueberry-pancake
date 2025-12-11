@@ -2,9 +2,10 @@ import { useEventContext } from '@/contexts/EventContext';
 import { usePIN } from '@/contexts/PINContext';
 import useEventPolling from '@/hooks/useEventPolling';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import apiClient from '@/services/apiClient';
 import { ratingService } from '@/services/ratingService';
+import dashboardService from '@/services/dashboardService';
 import { getBookmarks, loadBookmarksFromServer } from '@/utils/bookmarkStorage';
 import ItemButton from '@/components/ItemButton';
 import RatingDrawer from '@/components/RatingDrawer';
@@ -54,6 +55,7 @@ function EventPage() {
   const [ratingConfig, setRatingConfig] = useState(null);
   const [userEmail, setUserEmail] = useState(null);
   const [ratingsLoading, setRatingsLoading] = useState(false);
+  const [dashboardData, setDashboardData] = useState(null);
   const loadStartTimeRef = useRef(null);
 
   // Redirect to PIN entry if no authentication - must happen immediately
@@ -212,6 +214,63 @@ function EventPage() {
   useEffect(() => {
     loadRatings();
   }, [eventId, hasAuth, userEmail]);
+
+  // Fetch dashboard data when event is completed to determine winners
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      if (event?.state === 'completed' && eventId) {
+        try {
+          const data = await dashboardService.getDashboardData(eventId);
+          setDashboardData(data);
+        } catch (err) {
+          console.error('Error fetching dashboard data for winners:', err);
+          // Don't show error, just log it - winner display is optional
+        }
+      } else {
+        setDashboardData(null);
+      }
+    };
+
+    fetchDashboardData();
+  }, [event?.state, eventId]);
+
+  // Calculate winner item IDs (ranked #1, including ties)
+  const winnerItemIds = useMemo(() => {
+    if (!dashboardData?.itemSummaries || dashboardData.itemSummaries.length === 0) {
+      return new Set();
+    }
+
+    const itemSummaries = dashboardData.itemSummaries;
+    
+    // Sort by weightedAverage descending (nulls go to end)
+    const sorted = [...itemSummaries].sort((a, b) => {
+      const aVal = a.weightedAverage ?? -1;
+      const bVal = b.weightedAverage ?? -1;
+      
+      // Handle nulls (put at end)
+      if (aVal === -1 && bVal === -1) return 0;
+      if (aVal === -1) return 1;
+      if (bVal === -1) return -1;
+      
+      // Sort descending
+      return bVal - aVal;
+    });
+
+    // If no items have weighted averages, no winners
+    if (sorted.length === 0 || sorted[0].weightedAverage === null) {
+      return new Set();
+    }
+
+    // Get the highest weighted average
+    const highestWeightedAvg = sorted[0].weightedAverage;
+    
+    // Find all items with the same highest weighted average (ties)
+    const winners = sorted
+      .filter(item => item.weightedAverage === highestWeightedAvg && item.itemId !== null && item.itemId !== undefined)
+      .map(item => item.itemId);
+
+    return new Set(winners);
+  }, [dashboardData]);
 
   // Listen for rating submission events to refresh ratings
   useEffect(() => {
@@ -463,6 +522,7 @@ function EventPage() {
                       itemId={itemId}
                       ratingColor={getRatingColor(itemId)}
                       isBookmarked={bookmarks.includes(itemId)}
+                      isWinner={event?.state === 'completed' && winnerItemIds.has(itemId)}
                       onClick={() => handleItemClick(itemId)}
                     />
                   ))}
