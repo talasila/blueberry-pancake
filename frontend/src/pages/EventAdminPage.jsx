@@ -1,17 +1,16 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
-import { useState, useEffect, useCallback } from 'react';
-import { ArrowLeft, RefreshCw, Copy, Check, Trash2, PlayCircle, PauseCircle, CheckCircle2, CircleDot, Edit2, X, AlertTriangle, Download } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { ArrowLeft, RefreshCw, Copy, Check, Trash2, PlayCircle, PauseCircle, CheckCircle2, CircleDot, Edit2, X, AlertTriangle, Download, Search, Filter, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { Button } from '@/components/ui/button';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import Message from '@/components/Message';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import InfoField from '@/components/InfoField';
+import SideDrawer from '@/components/SideDrawer';
 import { isValidEmailFormat, clearSuccessMessage, downloadCSV } from '@/utils/helpers';
 import { calculateWeightedAverage } from '@/utils/bayesianAverage';
 import { useItemTerminology } from '@/utils/itemTerminology';
@@ -21,6 +20,7 @@ import DeleteEventDialog from '@/components/DeleteEventDialog';
 import DeleteRatingsDialog from '@/components/DeleteRatingsDialog';
 import DeleteAllUsersDialog from '@/components/DeleteAllUsersDialog';
 import DeleteUserDialog from '@/components/DeleteUserDialog';
+import { toast } from 'sonner';
 
 /**
  * State configuration mapping states to icons, colors, labels, and descriptions
@@ -189,6 +189,16 @@ function EventAdminPage() {
   const [items, setItems] = useState([]);
   const [isLoadingItems, setIsLoadingItems] = useState(false);
   const [itemsError, setItemsError] = useState('');
+  
+  // Drawer state
+  const [openDrawer, setOpenDrawer] = useState(null);
+  
+  // Item assignment state (for Items Management drawer)
+  const [assigningItemId, setAssigningItemId] = useState(null);
+  const [assignmentErrors, setAssignmentErrors] = useState({});
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'assigned', 'unassigned'
+  const [expandedItems, setExpandedItems] = useState(new Set());
   
   // Delete event state
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -1514,6 +1524,136 @@ function EventAdminPage() {
     }
   };
 
+  // Handle item ID assignment
+  const handleAssignItemId = async (itemId, itemIdToAssign) => {
+    if (!eventId) return;
+
+    setAssigningItemId(itemId);
+    setAssignmentErrors({});
+
+    try {
+      const updatedItem = await itemService.assignItemId(eventId, itemId, itemIdToAssign);
+      
+      // Update items list
+      setItems(items.map(item => 
+        item.id === itemId ? updatedItem : item
+      ));
+      
+      // Show success toast
+      if (itemIdToAssign === null) {
+        toast.success(`${itemTerminology.singular} ID assignment cleared`);
+      } else {
+        toast.success(`${itemTerminology.singular} ID ${itemIdToAssign} assigned successfully`);
+      }
+    } catch (error) {
+      const errorMessage = error.message || `Failed to assign ${itemTerminology.singularLower} ID`;
+      setAssignmentErrors({ [itemId]: errorMessage });
+      toast.error(errorMessage);
+    } finally {
+      setAssigningItemId(null);
+    }
+  };
+
+  // Get available item IDs for assignment (not excluded, not already assigned)
+  // If currentItemId is provided, include it in available IDs (for reassignment)
+  const getAvailableItemIds = (currentItemId = null) => {
+    if (!event || !event.itemConfiguration) return [];
+    
+    const numberOfItems = event.itemConfiguration.numberOfItems || 20;
+    const excludedItemIds = event.itemConfiguration.excludedItemIds || [];
+    const assignedItemIds = items
+      .filter(item => item.itemId !== null && item.itemId !== undefined)
+      .map(item => item.itemId);
+    
+    const available = [];
+    for (let i = 1; i <= numberOfItems; i++) {
+      // Include if not excluded and (not assigned OR is the current item's ID for reassignment)
+      if (!excludedItemIds.includes(i) && (!assignedItemIds.includes(i) || i === currentItemId)) {
+        available.push(i);
+      }
+    }
+    return available;
+  };
+
+  // Filter and search items
+  const filteredItems = useMemo(() => {
+    let filtered = items;
+
+    // Filter by status
+    if (statusFilter === 'assigned') {
+      filtered = filtered.filter(item => item.itemId !== null && item.itemId !== undefined);
+    } else if (statusFilter === 'unassigned') {
+      filtered = filtered.filter(item => item.itemId === null || item.itemId === undefined);
+    }
+
+    // Filter by search query (item name, owner name, and owner email)
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter(item => {
+        // Search in item name
+        if (item.name.toLowerCase().includes(query)) {
+          return true;
+        }
+        
+        // Search in owner email
+        if (item.ownerEmail.toLowerCase().includes(query)) {
+          return true;
+        }
+        
+        // Search in owner name (from event.users)
+        if (event?.users && event.users[item.ownerEmail]?.name) {
+          const ownerName = event.users[item.ownerEmail].name;
+          if (ownerName && typeof ownerName === 'string' && ownerName.toLowerCase().includes(query)) {
+            return true;
+          }
+        }
+        
+        return false;
+      });
+    }
+
+    return filtered;
+  }, [items, searchQuery, statusFilter, event]);
+
+  // Toggle item expansion
+  const toggleExpanded = (itemId) => {
+    setExpandedItems(prev => {
+      const next = new Set(prev);
+      if (next.has(itemId)) {
+        next.delete(itemId);
+      } else {
+        next.add(itemId);
+      }
+      return next;
+    });
+  };
+
+  // Refresh items when items management drawer opens
+  useEffect(() => {
+    if (openDrawer === 'items-management') {
+      const fetchItems = async () => {
+        if (!eventId) return;
+
+        setIsLoadingItems(true);
+        setItemsError('');
+
+        try {
+          const allItems = await itemService.getItems(eventId);
+          setItems(allItems || []);
+        } catch (error) {
+          console.error('Failed to fetch items:', error);
+          setItemsError(error.message || `Failed to load ${itemTerminology.pluralLower}`);
+        } finally {
+          setIsLoadingItems(false);
+        }
+      };
+
+      if (eventId) {
+        fetchItems();
+      }
+    }
+  }, [openDrawer, eventId, itemTerminology.pluralLower]);
+
   // Loading state
   if (isLoading) {
     return (
@@ -1657,1007 +1797,1256 @@ function EventAdminPage() {
             </div>
           </div>
 
-          {/* Item Configuration Section */}
-          <Accordion type="single" collapsible className="w-full">
-            <AccordionItem value="item-configuration">
-              <AccordionTrigger>
-                <div className="flex flex-col items-start text-left">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold">{itemTerminology.singular} Configuration</span>
-                    <Badge variant="outline" className="text-xs">
-                      {numberOfItems} 
-                      {excludedItemIdsInput && excludedItemIdsInput.trim() && (
-                        <span className="ml-1 text-muted-foreground">
-                          ({excludedItemIdsInput.split(',').filter(id => id.trim()).length} excluded)
-                        </span>
-                      )}
-                    </Badge>
-                  </div>
+          {/* Category Cards */}
+          <div className="w-full">
+            {/* Item Configuration Card */}
+            <button
+              onClick={() => setOpenDrawer('item-configuration')}
+              className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
+            >
+              <div className="flex flex-col items-start text-left">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">{itemTerminology.singular} Configuration</span>
+                  <Badge variant="outline" className="text-xs">
+                    {numberOfItems} 
+                    {excludedItemIdsInput && excludedItemIdsInput.trim() && (
+                      <span className="ml-1 text-muted-foreground">
+                        ({excludedItemIdsInput.split(',').filter(id => id.trim()).length} excluded)
+                      </span>
+                    )}
+                  </Badge>
                 </div>
-              </AccordionTrigger>
-              <AccordionContent className="space-y-4">
-              <div className="text-sm text-muted-foreground font-normal">
-                    Configure the number of {itemTerminology.pluralLower} and specify which {itemTerminology.singularLower} IDs to exclude from the event
               </div>
-              {/* Number of items input */}
-              <div>
-                <label className="text-sm font-medium">Number of {itemTerminology.plural}</label>
-                <Input
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={numberOfItems}
-                  onChange={(e) => {
-                    setNumberOfItems(e.target.value);
-                    setConfigError('');
-                  }}
-                  disabled={isSavingConfig}
-                  className="mt-1"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  {itemTerminology.plural} will be numbered from 1 to {numberOfItems || 20} (default: 20, max: 100)
-                </p>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
+
+            {/* Item Management Card */}
+            <button
+              onClick={() => setOpenDrawer('items-management')}
+              className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
+            >
+              <div className="flex flex-col items-start text-left">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">{itemTerminology.singular} Management</span>
+                  <Badge variant="outline" className="text-xs">
+                    {itemsSummary.total} registered
+                  </Badge>
+                </div>
               </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
 
-              {/* Excluded item IDs input */}
-              <div>
-                <label className="text-sm font-medium">Excluded {itemTerminology.singular} IDs</label>
-                <Input
-                  type="text"
-                  placeholder="5,10,15"
-                  value={excludedItemIdsInput}
-                  onChange={(e) => {
-                    setExcludedItemIdsInput(e.target.value);
-                    setConfigError('');
-                  }}
-                  disabled={isSavingConfig}
-                  className="mt-1"
-                />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Comma-separated list of {itemTerminology.singularLower} IDs to exclude (e.g., "5,10,15")
-                </p>
+            {/* Ratings Configuration Card */}
+            <button
+              onClick={() => setOpenDrawer('ratings-configuration')}
+              className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
+            >
+              <div className="flex flex-col items-start text-left">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">Rating Configuration</span>
+                  {ratings.length > 0 && (
+                    <div className="flex items-center gap-1">
+                      {ratings.map((rating) => (
+                        <div
+                          key={rating.value}
+                          className="w-4 h-4 rounded-full border border-gray-300"
+                          style={{ backgroundColor: rating.color }}
+                          title={`Rating ${rating.value}: ${rating.label}`}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
 
-              {/* Messages */}
-              {configError && (
-                <Message type="error">{configError}</Message>
-              )}
-              {configWarning && (
-                <Message type="warning">{configWarning}</Message>
-              )}
-              {configSuccess && (
-                <Message type="success">{configSuccess}</Message>
-              )}
+            {/* State Management Card */}
+            <button
+              onClick={() => setOpenDrawer('state')}
+              className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
+            >
+              <div className="flex flex-col items-start text-left">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">State</span>
+                  <StateBadge state={event.state} />
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
 
-              {/* Save button */}
-              <Button
-                onClick={handleSaveItemConfiguration}
-                disabled={isSavingConfig || !numberOfItems}
-                className="w-full"
+            {/* PIN Management Card */}
+            <button
+              onClick={() => setOpenDrawer('pin')}
+              className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
+            >
+              <div className="flex flex-col items-start text-left">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">PIN</span>
+                  {event.pin && (
+                    <Badge variant="outline" className="font-mono text-xs">
+                      {event.pin}
+                    </Badge>
+                  )}
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
+
+            {/* Administrators Management Card */}
+            <button
+              onClick={() => setOpenDrawer('administrators')}
+              className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
+            >
+              <div className="flex flex-col items-start text-left">
+                <span className="font-semibold">Administrators</span>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
+
+            {/* Export Data Card */}
+            {isCurrentUserAdministrator() && (
+              <button
+                onClick={() => setOpenDrawer('export-data')}
+                className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
               >
-                {isSavingConfig ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  'Save Configuration'
-                )}
-              </Button>
-              </AccordionContent>
-            </AccordionItem>
-
-            {/* Item Management Section */}
-            <AccordionItem value="items-management">
-              <AccordionTrigger>
                 <div className="flex flex-col items-start text-left">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold">{itemTerminology.singular} Management</span>
-                    <Badge variant="outline" className="text-xs">
-                      {itemsSummary.total} registered
-                    </Badge>
+                    <Download className="h-4 w-4" />
+                    <span className="font-semibold">Export Data</span>
                   </div>
                 </div>
-              </AccordionTrigger>
-              <AccordionContent className="space-y-4">
-                <div className="text-sm text-muted-foreground font-normal">
-                  Summary of registered {itemTerminology.pluralLower} and {itemTerminology.singularLower} ID assignments.
-                </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+            )}
 
-                {/* Items error */}
-                {itemsError && (
-                  <Message type="error">{itemsError}</Message>
-                )}
-
-                {/* Summary */}
-                {isLoadingItems ? (
-                  <div className="flex justify-center py-4">
-                    <LoadingSpinner />
-                  </div>
-                ) : itemsSummary.total === 0 ? (
-                  <div className="text-sm text-muted-foreground text-center py-4 border rounded-md">
-                    No {itemTerminology.pluralLower} registered yet.
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="text-sm space-y-1">
-                      <div>Total {itemTerminology.plural}: <strong>{itemsSummary.total}</strong></div>
-                      <div>Assigned: <strong>{itemsSummary.assigned}</strong></div>
-                      <div>Unassigned: <strong>{itemsSummary.unassigned}</strong></div>
-                    </div>
-
-                    {/* Link to assignment page */}
-                    <div className="flex justify-center">
-                      <Button
-                        variant="default"
-                        onClick={() => navigate(`/event/${eventId}/admin/items/assign`)}
-                        className="flex items-center gap-2"
-                      >
-                        Manage {itemTerminology.singular} ID Assignments
-                      </Button>
-                    </div>
-                  </div>
-                )}
-              </AccordionContent>
-            </AccordionItem>
-
-            {/* Ratings Configuration Section */}
-            <AccordionItem value="ratings-configuration">
-              <AccordionTrigger>
+            {/* Danger Zone Card */}
+            {isCurrentUserAdministrator() && (
+              <button
+                onClick={() => setOpenDrawer('danger-zone')}
+                className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
+              >
                 <div className="flex flex-col items-start text-left">
                   <div className="flex items-center gap-2">
-                    <span className="font-semibold">Rating Configuration</span>
-                    {ratings.length > 0 && (
-                      <div className="flex items-center gap-1">
-                        {ratings.map((rating) => (
-                          <div
-                            key={rating.value}
-                            className="w-4 h-4 rounded-full border border-gray-300"
-                            style={{ backgroundColor: rating.color }}
-                            title={`Rating ${rating.value}: ${rating.label}`}
-                          />
-                        ))}
+                    <AlertTriangle className="h-4 w-4 text-destructive" />
+                    <span className="font-semibold text-destructive">Danger Zone</span>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Side Drawers */}
+      {/* Item Configuration Drawer */}
+      <SideDrawer
+        isOpen={openDrawer === 'item-configuration'}
+        onClose={() => setOpenDrawer(null)}
+        title={`${itemTerminology.singular} Configuration`}
+      >
+        <div className="space-y-4">
+          <div className="text-sm text-muted-foreground font-normal">
+            Configure the number of {itemTerminology.pluralLower} and specify which {itemTerminology.singularLower} IDs to exclude from the event
+          </div>
+          {/* Number of items input */}
+          <div>
+            <label className="text-sm font-medium">Number of {itemTerminology.plural}</label>
+            <Input
+              type="number"
+              min="1"
+              max="100"
+              value={numberOfItems}
+              onChange={(e) => {
+                setNumberOfItems(e.target.value);
+                setConfigError('');
+              }}
+              disabled={isSavingConfig}
+              className="mt-1"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {itemTerminology.plural} will be numbered from 1 to {numberOfItems || 20} (default: 20, max: 100)
+            </p>
+          </div>
+
+          {/* Excluded item IDs input */}
+          <div>
+            <label className="text-sm font-medium">Excluded {itemTerminology.singular} IDs</label>
+            <Input
+              type="text"
+              placeholder="5,10,15"
+              value={excludedItemIdsInput}
+              onChange={(e) => {
+                setExcludedItemIdsInput(e.target.value);
+                setConfigError('');
+              }}
+              disabled={isSavingConfig}
+              className="mt-1"
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              Comma-separated list of {itemTerminology.singularLower} IDs to exclude (e.g., "5,10,15")
+            </p>
+          </div>
+
+          {/* Messages */}
+          {configError && (
+            <Message type="error">{configError}</Message>
+          )}
+          {configWarning && (
+            <Message type="warning">{configWarning}</Message>
+          )}
+          {configSuccess && (
+            <Message type="success">{configSuccess}</Message>
+          )}
+
+          {/* Save button */}
+          <Button
+            onClick={handleSaveItemConfiguration}
+            disabled={isSavingConfig || !numberOfItems}
+            className="w-full"
+          >
+            {isSavingConfig ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Save Configuration'
+            )}
+          </Button>
+        </div>
+      </SideDrawer>
+
+      {/* Items Management Drawer - includes full item assignment interface */}
+      <SideDrawer
+        isOpen={openDrawer === 'items-management'}
+        onClose={() => setOpenDrawer(null)}
+        title={`${itemTerminology.singular} Management`}
+        width="w-full max-w-4xl"
+      >
+        <div className="space-y-4">
+          <div className="text-sm text-muted-foreground font-normal">
+            Summary of registered {itemTerminology.pluralLower} and {itemTerminology.singularLower} ID assignments.
+          </div>
+
+          {/* Items error */}
+          {itemsError && (
+            <Message type="error">{itemsError}</Message>
+          )}
+
+          {/* State warning */}
+          {(() => {
+            const isPaused = event?.state === 'paused';
+            return !isPaused && (
+              <Message type="warning">
+                {itemTerminology.singular} ID assignment is only available when the event is in "paused" state.
+                Current state: <strong>{event?.state || 'unknown'}</strong>
+              </Message>
+            );
+          })()}
+
+          {/* Summary statistics */}
+          {items.length > 0 && (
+            <div className="text-sm space-y-1">
+              <div>Total {itemTerminology.plural}: <strong>{itemsSummary.total}</strong></div>
+              <div>Assigned: <strong>{itemsSummary.assigned}</strong></div>
+              <div>Unassigned: <strong>{itemsSummary.unassigned}</strong></div>
+              <div>Available IDs: <strong>{getAvailableItemIds().length}</strong></div>
+            </div>
+          )}
+
+          {/* Search and Filter Controls */}
+          {items.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row gap-3">
+                {/* Search Input */}
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    type="text"
+                    placeholder="Search by name or user..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                {/* Status Filter */}
+                <div className="relative flex-1">
+                  <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="h-9 pl-9 pr-3 text-sm border rounded-md bg-background w-full"
+                  >
+                    <option value="all">All {itemTerminology.plural}</option>
+                    <option value="assigned">Assigned Only</option>
+                    <option value="unassigned">Unassigned Only</option>
+                  </select>
+                </div>
+              </div>
+              <div className="text-sm text-muted-foreground">
+                Showing {filteredItems.length} of {items.length} {itemTerminology.pluralLower}
+              </div>
+            </div>
+          )}
+
+          {/* Items list */}
+          {isLoadingItems ? (
+            <div className="flex justify-center py-8">
+              <LoadingSpinner />
+            </div>
+          ) : items.length === 0 ? (
+            <div className="text-sm text-muted-foreground text-center py-8 border rounded-md">
+              No {itemTerminology.pluralLower} registered yet.
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="text-sm text-muted-foreground text-center py-8 border rounded-md">
+              No {itemTerminology.pluralLower} match your search criteria.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {(() => {
+                const isPaused = event?.state === 'paused';
+                return filteredItems.map((item) => {
+                  const isExpanded = expandedItems.has(item.id);
+                  const hasItemId = item.itemId !== null && item.itemId !== undefined;
+                
+                return (
+                  <div
+                    key={item.id}
+                    className="border rounded-md hover:shadow-sm transition-shadow"
+                  >
+                    {/* Compact Row */}
+                    <div
+                      className="flex items-center justify-between p-4 cursor-pointer"
+                      onClick={() => toggleExpanded(item.id)}
+                    >
+                      <div className="flex items-center gap-4 flex-1 min-w-0">
+                        <div className="flex-shrink-0">
+                          {isExpanded ? (
+                            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-3">
+                            <span className="font-medium text-sm truncate">{item.name}</span>
+                            {hasItemId ? (
+                              <Badge variant="outline" className="font-mono flex-shrink-0 bg-green-50 text-green-700 border-green-200 dark:bg-green-950 dark:text-green-300 dark:border-green-800">
+                                {itemTerminology.singular} ID: {item.itemId}
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="flex-shrink-0 bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-950 dark:text-yellow-300 dark:border-yellow-800">
+                                Not assigned
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {item.ownerEmail} • {new Date(item.registeredAt).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expanded Details */}
+                    {isExpanded && (
+                      <div className="border-t bg-muted/30 p-4 space-y-3">
+                        {/* Price */}
+                        {item.price !== null && item.price !== undefined && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-muted-foreground w-24">Price:</span>
+                            <span className="text-sm">
+                              ${typeof item.price === 'number' ? item.price.toFixed(2) : item.price}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Description */}
+                        {item.description && (
+                          <div>
+                            <span className="text-sm font-medium text-muted-foreground">Description:</span>
+                            <p className="text-sm mt-1">{item.description}</p>
+                          </div>
+                        )}
+
+                        {/* Assignment Section (only when paused) */}
+                        {isPaused && (
+                          <div className="pt-2">
+                            <div className="space-y-2">
+                              <label className="text-sm font-medium">
+                                {hasItemId ? 'Change' : 'Assign'} {itemTerminology.singular} ID:
+                              </label>
+                              <div className="flex items-center gap-2">
+                                <select
+                                  className="h-9 px-3 text-sm border rounded-md flex-1 max-w-xs"
+                                  value={hasItemId ? item.itemId : ''}
+                                  onChange={(e) => {
+                                    const value = e.target.value === '' ? null : parseInt(e.target.value, 10);
+                                    // Trigger assignment if value changed (including clearing)
+                                    if (value !== item.itemId) {
+                                      handleAssignItemId(item.id, value);
+                                    }
+                                  }}
+                                  disabled={assigningItemId === item.id}
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <option value="">{hasItemId ? 'Clear assignment' : 'Select ID'}</option>
+                                  {getAvailableItemIds(item.itemId).map(id => (
+                                    <option key={id} value={id}>
+                                      {id}{id === item.itemId ? ' (current)' : ''}
+                                    </option>
+                                  ))}
+                                </select>
+                                {assigningItemId === item.id && (
+                                  <RefreshCw className="h-4 w-4 animate-spin text-muted-foreground" />
+                                )}
+                              </div>
+                              {hasItemId && (
+                                <div className="text-xs text-muted-foreground">
+                                  Currently assigned: <strong>{item.itemId}</strong>. Select a different ID to change it, or select "Clear assignment" to remove it.
+                                </div>
+                              )}
+                              {assignmentErrors[item.id] && (
+                                <div className="text-xs text-destructive mt-1">
+                                  {assignmentErrors[item.id]}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="space-y-4">
-                <div className="text-sm text-muted-foreground font-normal">
-                  Configure how items are rated, including the rating scale, labels, and colors
-                </div>
-                {event?.state !== 'created' && (
-                  <Message type="info">
-                    Rating configuration can only be edited when the event is in "created" state.
-                  </Message>
-                )}
-                {/* Max Rating Input */}
-                <div>
-                  <label className="text-sm font-medium">Maximum Rating</label>
-                  <Input
-                    type="number"
-                    min="2"
-                    max="4"
-                    value={maxRating}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setMaxRating(value);
-                      setMaxRatingError('');
-                      setRatingConfigError('');
-                    }}
-                    onBlur={(e) => {
-                      const value = parseInt(e.target.value, 10);
-                      if (isNaN(value) || value < 2 || value > 4) {
-                        setMaxRatingError('Maximum rating must be between 2 and 4');
-                      } else {
-                        setMaxRatingError('');
-                      }
-                    }}
-                    disabled={isSavingRatingConfig || (event?.state !== 'created')}
-                    className="mt-1"
-                  />
-                  {maxRatingError && (
-                    <p className="text-xs text-red-600 mt-1">{maxRatingError}</p>
-                  )}
-                  {!maxRatingError && event?.state === 'created' && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Rating scale will be from 1 (lowest/worst) to {maxRating || 4} (highest/best)
-                    </p>
-                  )}
-                </div>
-
-                {/* Ratings Configuration */}
-                {ratings.length > 0 && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <label className="text-sm font-medium">Rating Levels</label>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={handleResetToDefaults}
-                        disabled={isSavingRatingConfig || (event?.state !== 'created')}
-                      >
-                        Reset to Defaults
-                      </Button>
-                    </div>
-                    <div className="space-y-3">
-                      {ratings.map((rating) => (
-                        <div key={rating.value} className="py-1">
-                          <div className="mb-2">
-                            <span className="text-sm font-medium">Rating {rating.value}</span>
-                          </div>
-                          <div className="flex items-start gap-2">
-                            <div className="flex-1">
-                              <Input
-                                type="text"
-                                value={rating.label}
-                                onChange={(e) => handleLabelChange(rating.value, e.target.value)}
-                                onBlur={(e) => handleLabelBlur(rating.value, e.target.value)}
-                                disabled={isSavingRatingConfig || (event?.state !== 'created')}
-                                maxLength={50}
-                                className="h-9"
-                              />
-                              {labelErrors[rating.value] && (
-                                <p className="text-xs text-red-600 mt-0.5">{labelErrors[rating.value]}</p>
-                              )}
-                              {!labelErrors[rating.value] && (
-                                <p className="text-xs text-muted-foreground mt-0.5">
-                                  {rating.label.length}/50 characters
-                                </p>
-                              )}
-                            </div>
-                            <div className="relative flex-shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => toggleColorDropdown(rating.value)}
-                                disabled={isSavingRatingConfig || (event?.state !== 'created')}
-                                className="flex h-9 w-12 items-center justify-center gap-1 rounded-md border border-input bg-transparent px-1.5 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                <div
-                                  className="w-5 h-5 rounded border border-gray-300"
-                                  style={{ backgroundColor: rating.color }}
-                                />
-                                <svg
-                                  className={`h-3 w-3 transition-transform ${openColorDropdowns[rating.value] ? 'rotate-180' : ''}`}
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                </svg>
-                              </button>
-                              {openColorDropdowns[rating.value] && (
-                                <>
-                                  <div
-                                    className="fixed inset-0 z-10"
-                                    onClick={() => toggleColorDropdown(rating.value)}
-                                  />
-                                  <div className="absolute z-20 right-0 mt-1 rounded-md border border-input bg-background shadow-lg p-1">
-                                    <div className="flex gap-1">
-                                      {COLOR_PALETTE.map((colorOption) => (
-                                        <button
-                                          key={colorOption.value}
-                                          type="button"
-                                          onClick={() => handleColorChange(rating.value, colorOption.value)}
-                                          className={`w-8 h-8 rounded border-2 transition-all flex-shrink-0 ${
-                                            rating.color === colorOption.value
-                                              ? 'border-gray-900 scale-110 ring-2 ring-gray-400'
-                                              : 'border-gray-300 hover:border-gray-500'
-                                          }`}
-                                          style={{ backgroundColor: colorOption.value }}
-                                          title={colorOption.label}
-                                        />
-                                      ))}
-                                    </div>
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                          {colorErrors[rating.value] && (
-                            <p className="text-xs text-red-600 mt-0.5">{colorErrors[rating.value]}</p>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Note Suggestions Toggle - Only for wine events */}
-                {event?.typeOfItem === 'wine' && (
-                  <div className="flex items-center justify-between py-3 border-t">
-                    <div className="flex flex-col">
-                      <label className="text-sm font-medium">Note Suggestions</label>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Enable contextual note suggestions when rating wine items
-                      </p>
-                    </div>
-                    <Switch
-                      checked={noteSuggestionsEnabled}
-                      onCheckedChange={setNoteSuggestionsEnabled}
-                      disabled={isSavingRatingConfig || (event?.state !== 'created')}
-                    />
-                  </div>
-                )}
-
-                {/* Messages */}
-                {ratingConfigError && (
-                  <Message type="error">{ratingConfigError}</Message>
-                )}
-                {ratingConfigSuccess && (
-                  <Message type="success">{ratingConfigSuccess}</Message>
-                )}
-
-                {/* Save button */}
-                <Button
-                  onClick={handleSaveRatingConfiguration}
-                  disabled={isSavingRatingConfig || !maxRating || maxRatingError || (event?.state !== 'created')}
-                  className="w-full"
-                >
-                  {isSavingRatingConfig ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Saving...
-                    </>
-                  ) : (
-                    'Save Rating Configuration'
-                  )}
-                </Button>
-              </AccordionContent>
-            </AccordionItem>
-
-            {/* State Management Section */}
-            <AccordionItem value="state">
-              <AccordionTrigger>
-                <div className="flex flex-col items-start text-left">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold">State</span>
-                    <StateBadge state={event.state} />
-                  </div>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="space-y-4">
-                <div className="text-sm text-muted-foreground font-normal">
-                  Manage the state of this event. The event can be started, paused, or completed.
-                </div>
-              {transitionError && (
-                <Message type="error">{transitionError}</Message>
-              )}
-              {transitionSuccess && (
-                <Message type="success">{transitionSuccess}</Message>
-              )}
-
-              {/* State Actions */}
-              {(() => {
-                const validTransitions = getValidTransitions(event.state);
-                const stateLabels = {
-                  started: 'Start',
-                  paused: 'Pause',
-                  completed: 'Complete'
-                };
-
-                if (validTransitions.length === 0) {
-                  return (
-                    <p className="text-sm text-muted-foreground">
-                      No state transitions available from current state.
-                    </p>
-                  );
-                }
-
-                return (
-                  <div className="space-y-2">
-                    {validTransitions.map(transition => {
-                      const config = getStateConfig(transition);
-                      const Icon = config.icon;
-                      
-                      return (
-                        <div key={transition} className="space-y-1">
-                          <Button
-                            onClick={() => handleStateTransition(transition)}
-                            disabled={isTransitioning}
-                            variant="default"
-                            className="w-full sm:w-auto"
-                          >
-                            {isTransitioning ? (
-                              <>
-                                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                                Transitioning...
-                              </>
-                            ) : (
-                              <>
-                                <Icon className="h-4 w-4 mr-2" />
-                                {stateLabels[transition] || transition}
-                              </>
-                            )}
-                          </Button>
-                          <p className="text-xs text-muted-foreground">
-                            {getTransitionDescription(event.state, transition)}
-                          </p>
-                        </div>
-                      );
-                    })}
-                  </div>
                 );
+                });
               })()}
-              </AccordionContent>
-            </AccordionItem>
+              {event?.state === 'paused' && (
+                <div className="text-xs text-muted-foreground p-3 bg-muted/50 rounded-md mt-4">
+                  <p className="font-medium mb-1">Available IDs: {getAvailableItemIds().join(', ') || 'None'}</p>
+                  <p>{itemTerminology.singular} ID assignment is only available when the event is in "paused" state.</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </SideDrawer>
 
-            {/* PIN Management Section */}
-            <AccordionItem value="pin">
-              <AccordionTrigger>
-                <div className="flex flex-col items-start text-left">
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold">PIN</span>
-                    {event.pin && (
-                      <Badge variant="outline" className="font-mono text-xs">
-                        {event.pin}
-                      </Badge>
+      {/* Ratings Configuration Drawer */}
+      <SideDrawer
+        isOpen={openDrawer === 'ratings-configuration'}
+        onClose={() => setOpenDrawer(null)}
+        title="Rating Configuration"
+      >
+        <div className="space-y-4">
+          <div className="text-sm text-muted-foreground font-normal">
+            Configure how items are rated, including the rating scale, labels, and colors
+          </div>
+          {event?.state !== 'created' && (
+            <Message type="info">
+              Rating configuration can only be edited when the event is in "created" state.
+            </Message>
+          )}
+          {/* Max Rating Input */}
+          <div>
+            <label className="text-sm font-medium">Maximum Rating</label>
+            <Input
+              type="number"
+              min="2"
+              max="4"
+              value={maxRating}
+              onChange={(e) => {
+                const value = e.target.value;
+                setMaxRating(value);
+                setMaxRatingError('');
+                setRatingConfigError('');
+              }}
+              onBlur={(e) => {
+                const value = parseInt(e.target.value, 10);
+                if (isNaN(value) || value < 2 || value > 4) {
+                  setMaxRatingError('Maximum rating must be between 2 and 4');
+                } else {
+                  setMaxRatingError('');
+                }
+              }}
+              disabled={isSavingRatingConfig || (event?.state !== 'created')}
+              className="mt-1"
+            />
+            {maxRatingError && (
+              <p className="text-xs text-red-600 mt-1">{maxRatingError}</p>
+            )}
+            {!maxRatingError && event?.state === 'created' && (
+              <p className="text-xs text-muted-foreground mt-1">
+                Rating scale will be from 1 (lowest/worst) to {maxRating || 4} (highest/best)
+              </p>
+            )}
+          </div>
+
+          {/* Ratings Configuration */}
+          {ratings.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Rating Levels</label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResetToDefaults}
+                  disabled={isSavingRatingConfig || (event?.state !== 'created')}
+                >
+                  Reset to Defaults
+                </Button>
+              </div>
+              <div className="space-y-3">
+                {ratings.map((rating) => (
+                  <div key={rating.value} className="py-1">
+                    <div className="mb-2">
+                      <span className="text-sm font-medium">Rating {rating.value}</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1">
+                        <Input
+                          type="text"
+                          value={rating.label}
+                          onChange={(e) => handleLabelChange(rating.value, e.target.value)}
+                          onBlur={(e) => handleLabelBlur(rating.value, e.target.value)}
+                          disabled={isSavingRatingConfig || (event?.state !== 'created')}
+                          maxLength={50}
+                          className="h-9"
+                        />
+                        {labelErrors[rating.value] && (
+                          <p className="text-xs text-red-600 mt-0.5">{labelErrors[rating.value]}</p>
+                        )}
+                        {!labelErrors[rating.value] && (
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {rating.label.length}/50 characters
+                          </p>
+                        )}
+                      </div>
+                      <div className="relative flex-shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => toggleColorDropdown(rating.value)}
+                          disabled={isSavingRatingConfig || (event?.state !== 'created')}
+                          className="flex h-9 w-12 items-center justify-center gap-1 rounded-md border border-input bg-transparent px-1.5 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <div
+                            className="w-5 h-5 rounded border border-gray-300"
+                            style={{ backgroundColor: rating.color }}
+                          />
+                          <svg
+                            className={`h-3 w-3 transition-transform ${openColorDropdowns[rating.value] ? 'rotate-180' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                        {openColorDropdowns[rating.value] && (
+                          <>
+                            <div
+                              className="fixed inset-0 z-10"
+                              onClick={() => toggleColorDropdown(rating.value)}
+                            />
+                            <div className="absolute z-20 right-0 mt-1 rounded-md border border-input bg-background shadow-lg p-1">
+                              <div className="flex gap-1">
+                                {COLOR_PALETTE.map((colorOption) => (
+                                  <button
+                                    key={colorOption.value}
+                                    type="button"
+                                    onClick={() => handleColorChange(rating.value, colorOption.value)}
+                                    className={`w-8 h-8 rounded border-2 transition-all flex-shrink-0 ${
+                                      rating.color === colorOption.value
+                                        ? 'border-gray-900 scale-110 ring-2 ring-gray-400'
+                                        : 'border-gray-300 hover:border-gray-500'
+                                    }`}
+                                    style={{ backgroundColor: colorOption.value }}
+                                    title={colorOption.label}
+                                  />
+                                ))}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {colorErrors[rating.value] && (
+                      <p className="text-xs text-red-600 mt-0.5">{colorErrors[rating.value]}</p>
                     )}
                   </div>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="space-y-4">
-              <div className="text-sm text-muted-foreground font-normal">
-                    Share this PIN with users to grant access to this event
+                ))}
               </div>
-              {/* PIN Display Section */}
-              {event.pin && (
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2">
-                    <p className="font-mono text-lg font-semibold">{event.pin}</p>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        navigator.clipboard.writeText(event.pin);
-                        setCopied(true);
-                        setTimeout(() => setCopied(false), 2000);
-                      }}
-                      className="h-8 w-8 p-0"
-                      aria-label="Copy PIN"
-                    >
-                      {copied ? (
-                        <Check className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <Copy className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
+            </div>
+          )}
+
+          {/* Note Suggestions Toggle - Only for wine events */}
+          {event?.typeOfItem === 'wine' && (
+            <div className="flex items-center justify-between py-3 border-t">
+              <div className="flex flex-col">
+                <label className="text-sm font-medium">Note Suggestions</label>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Enable contextual note suggestions when rating wine items
+                </p>
+              </div>
+              <Switch
+                checked={noteSuggestionsEnabled}
+                onCheckedChange={setNoteSuggestionsEnabled}
+                disabled={isSavingRatingConfig || (event?.state !== 'created')}
+              />
+            </div>
+          )}
+
+          {/* Messages */}
+          {ratingConfigError && (
+            <Message type="error">{ratingConfigError}</Message>
+          )}
+          {ratingConfigSuccess && (
+            <Message type="success">{ratingConfigSuccess}</Message>
+          )}
+
+          {/* Save button */}
+          <Button
+            onClick={handleSaveRatingConfiguration}
+            disabled={isSavingRatingConfig || !maxRating || maxRatingError || (event?.state !== 'created')}
+            className="w-full"
+          >
+            {isSavingRatingConfig ? (
+              <>
+                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              'Save Rating Configuration'
+            )}
+          </Button>
+        </div>
+      </SideDrawer>
+
+      {/* State Management Drawer */}
+      <SideDrawer
+        isOpen={openDrawer === 'state'}
+        onClose={() => setOpenDrawer(null)}
+        title="State"
+      >
+        <div className="space-y-4">
+          <div className="text-sm text-muted-foreground font-normal">
+            Manage the state of this event. The event can be started, paused, or completed.
+          </div>
+          {transitionError && (
+            <Message type="error">{transitionError}</Message>
+          )}
+          {transitionSuccess && (
+            <Message type="success">{transitionSuccess}</Message>
+          )}
+
+          {/* State Actions */}
+          {(() => {
+            const validTransitions = getValidTransitions(event.state);
+            const stateLabels = {
+              started: 'Start',
+              paused: 'Pause',
+              completed: 'Complete'
+            };
+
+            if (validTransitions.length === 0) {
+              return (
+                <p className="text-sm text-muted-foreground">
+                  No state transitions available from current state.
+                </p>
+              );
+            }
+
+            return (
+              <div className="space-y-2">
+                {validTransitions.map(transition => {
+                  const config = getStateConfig(transition);
+                  const Icon = config.icon;
+                  
+                  return (
+                    <div key={transition} className="space-y-1">
+                      <Button
+                        onClick={() => handleStateTransition(transition)}
+                        disabled={isTransitioning}
+                        variant="default"
+                        className="w-full sm:w-auto"
+                      >
+                        {isTransitioning ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Transitioning...
+                          </>
+                        ) : (
+                          <>
+                            <Icon className="h-4 w-4 mr-2" />
+                            {stateLabels[transition] || transition}
+                          </>
+                        )}
+                      </Button>
+                      <p className="text-xs text-muted-foreground">
+                        {getTransitionDescription(event.state, transition)}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
+        </div>
+      </SideDrawer>
+
+      {/* PIN Management Drawer */}
+      <SideDrawer
+        isOpen={openDrawer === 'pin'}
+        onClose={() => setOpenDrawer(null)}
+        title="PIN"
+      >
+        <div className="space-y-4">
+          <div className="text-sm text-muted-foreground font-normal">
+            Share this PIN with users to grant access to this event
+          </div>
+          {/* PIN Display Section */}
+          {event.pin && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <p className="font-mono text-lg font-semibold">{event.pin}</p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(event.pin);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="h-8 w-8 p-0"
+                  aria-label="Copy PIN"
+                >
+                  {copied ? (
+                    <Check className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <Copy className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          <div className="pt-2 space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground mb-4">
+                Regenerate the event PIN to revoke access for all users. Users will need to enter the new PIN to access the event.
+              </p>
+              
+              {regenerateError && (
+                <Message type="error" className="mb-4">
+                  {regenerateError}
+                </Message>
               )}
 
-              <div className="pt-2 space-y-4">
+              {regenerateSuccess && (
+                <Message type="success" className="mb-4">
+                  {regenerateSuccess}
+                </Message>
+              )}
+
+              <Button
+                onClick={async () => {
+                  setIsRegenerating(true);
+                  setRegenerateError('');
+                  setRegenerateSuccess('');
+
+                  try {
+                    const result = await apiClient.regeneratePIN(eventId);
+                    setRegenerateSuccess(`PIN regenerated successfully! New PIN: ${result.pin}`);
+                    
+                    // Update event state with new PIN
+                    setEvent(prev => ({
+                      ...prev,
+                      pin: result.pin,
+                      pinGeneratedAt: result.pinGeneratedAt,
+                      updatedAt: result.pinGeneratedAt
+                    }));
+                  } catch (err) {
+                    setRegenerateError(err.message || 'Failed to regenerate PIN. Please try again.');
+                  } finally {
+                    setIsRegenerating(false);
+                  }
+                }}
+                disabled={isRegenerating}
+                variant="default"
+                className="w-full"
+              >
+                <RefreshCw className={`h-4 w-4 mr-2 ${isRegenerating ? 'animate-spin' : ''}`} />
+                {isRegenerating ? 'Regenerating...' : 'Regenerate PIN'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </SideDrawer>
+
+      {/* Administrators Management Drawer */}
+      <SideDrawer
+        isOpen={openDrawer === 'administrators'}
+        onClose={() => setOpenDrawer(null)}
+        title="Administrators"
+      >
+        <div className="space-y-4">
+          <div className="text-sm text-muted-foreground font-normal">
+            Manage administrators for this event. The owner cannot be removed.
+          </div>
+          {/* Administrators list */}
+          {isLoadingAdministrators ? (
+            <div className="flex items-center justify-center py-4">
+              <LoadingSpinner />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {Object.keys(administrators).length === 0 ? (
+                <p className="text-sm text-muted-foreground">No administrators found</p>
+              ) : (
+                Object.entries(administrators).map(([email, data]) => (
+                  <div key={email} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 border rounded-lg">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium break-words">{email}</span>
+                        {data.owner && (
+                          <Badge variant="outline" className="flex-shrink-0">Owner</Badge>
+                        )}
+                      </div>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Added {new Date(data.assignedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    {!data.owner && (
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          if (window.confirm(`Are you sure you want to remove ${email} as an administrator?`)) {
+                            handleDeleteAdministrator(email);
+                          }
+                        }}
+                        disabled={isDeletingAdmin}
+                        aria-label={`Delete administrator ${email}`}
+                        className="self-start sm:self-center flex-shrink-0"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Add administrator form */}
+          <div className="space-y-2 pt-4">
+            <div>
+              <p className="text-sm text-muted-foreground mb-2">
+                Add an administrator to this event
+              </p>
+              <Input
+                type="email"
+                placeholder="Enter email address"
+                value={newAdminEmail}
+                onChange={(e) => {
+                  setNewAdminEmail(e.target.value);
+                  setAddAdminError('');
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !isAddingAdmin) {
+                    handleAddAdministrator();
+                  }
+                }}
+                disabled={isAddingAdmin}
+                aria-label="New administrator email"
+              />
+            </div>
+
+            {addAdminError && (
+              <Message type="error">{addAdminError}</Message>
+            )}
+
+            {addAdminSuccess && (
+              <Message type="success">{addAdminSuccess}</Message>
+            )}
+
+            {deleteAdminError && (
+              <Message type="error">{deleteAdminError}</Message>
+            )}
+
+            {deleteAdminSuccess && (
+              <Message type="success">{deleteAdminSuccess}</Message>
+            )}
+
+            <Button
+              onClick={handleAddAdministrator}
+              disabled={!newAdminEmail.trim() || isAddingAdmin}
+              className="w-full"
+            >
+              {isAddingAdmin ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                'Add Administrator'
+              )}
+            </Button>
+          </div>
+        </div>
+      </SideDrawer>
+
+      {/* Export Data Drawer */}
+      {isCurrentUserAdministrator() && (
+        <SideDrawer
+          isOpen={openDrawer === 'export-data'}
+          onClose={() => setOpenDrawer(null)}
+          title="Export Data"
+        >
+          <div className="space-y-4">
+            <div className="text-sm text-muted-foreground font-normal">
+              Export event data as CSV files for analysis and backup purposes.
+            </div>
+
+            {exportRatingsError && (
+              <Message type="error">{exportRatingsError}</Message>
+            )}
+
+            {exportRatingsSuccess && (
+              <Message type="success">{exportRatingsSuccess}</Message>
+            )}
+
+            {exportMatrixError && (
+              <Message type="error">{exportMatrixError}</Message>
+            )}
+
+            {exportMatrixSuccess && (
+              <Message type="success">{exportMatrixSuccess}</Message>
+            )}
+
+            {exportUsersError && (
+              <Message type="error">{exportUsersError}</Message>
+            )}
+
+            {exportUsersSuccess && (
+              <Message type="success">{exportUsersSuccess}</Message>
+            )}
+
+            {exportItemsError && (
+              <Message type="error">{exportItemsError}</Message>
+            )}
+
+            {exportItemsSuccess && (
+              <Message type="success">{exportItemsSuccess}</Message>
+            )}
+
+            {/* Raw Ratings Data Export */}
+            <div className="p-4 border rounded-lg">
+              <div className="space-y-3">
                 <div>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Regenerate the event PIN to revoke access for all users. Users will need to enter the new PIN to access the event.
+                  <h4 className="font-semibold mb-1">Raw Ratings Data</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Export all ratings data including username, email, timestamp, {itemTerminology.singularLower} ID, rating, and notes.
                   </p>
+                </div>
+                <Button
+                  onClick={handleExportRatings}
+                  disabled={isExportingRatings || isExportingMatrix || isExportingUsers || isExportingItems}
+                  className="w-full sm:w-auto"
+                >
+                  {isExportingRatings ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export Ratings Data
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Ratings Matrix Export */}
+            <div className="p-4 border rounded-lg">
+              <div className="space-y-3">
+                <div>
+                  <h4 className="font-semibold mb-1">Ratings Matrix</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Export a matrix showing {itemTerminology.singularLower}-to-user ratings with average and weighted ratings for each {itemTerminology.singularLower}. Weighted rating uses the Bayesian formula (same as dashboard) that accounts for {itemTerminology.pluralLower} with fewer ratings.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleExportMatrix}
+                  disabled={isExportingMatrix || isExportingRatings || isExportingUsers || isExportingItems}
+                  className="w-full sm:w-auto"
+                >
+                  {isExportingMatrix ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export Ratings Matrix
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* User Data Export */}
+            <div className="p-4 border rounded-lg">
+              <div className="space-y-3">
+                <div>
+                  <h4 className="font-semibold mb-1">User Data</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Export all user data including email, username, registration date, administrator status, {itemTerminology.pluralLower} registered (with IDs and names), ratings given, and average rating given.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleExportUsers}
+                  disabled={isExportingUsers || isExportingRatings || isExportingMatrix || isExportingItems}
+                  className="w-full sm:w-auto"
+                >
+                  {isExportingUsers ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export User Data
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+
+            {/* Item Details Export */}
+            <div className="p-4 border rounded-lg">
+              <div className="space-y-3">
+                <div>
+                  <h4 className="font-semibold mb-1">{itemTerminology.singular} Details</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Export all {itemTerminology.pluralLower} (including unregistered) with details including {itemTerminology.singularLower} ID, name, price, description, owner information, and complete rating statistics (number of raters, average rating, weighted average, rating progression, and rating distribution). Unregistered {itemTerminology.pluralLower} will have empty values for name, price, description, and owner information.
+                  </p>
+                </div>
+                <Button
+                  onClick={handleExportItems}
+                  disabled={isExportingItems || isExportingRatings || isExportingMatrix || isExportingUsers}
+                  className="w-full sm:w-auto"
+                >
+                  {isExportingItems ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Exporting...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Export {itemTerminology.singular} Details
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </SideDrawer>
+      )}
+
+      {/* Danger Zone Drawer */}
+      {isCurrentUserAdministrator() && (
+        <SideDrawer
+          isOpen={openDrawer === 'danger-zone'}
+          onClose={() => setOpenDrawer(null)}
+          title="Danger Zone"
+        >
+          <div className="space-y-4">
+            <div className="text-sm text-muted-foreground font-normal">
+              Irreversible and destructive actions. Only event administrators can perform these actions.
+            </div>
+
+            {deleteEventError && (
+              <Message type="error">{deleteEventError}</Message>
+            )}
+
+            {deleteRatingsError && (
+              <Message type="error">{deleteRatingsError}</Message>
+            )}
+
+            {deleteRatingsSuccess && (
+              <Message type="success">{deleteRatingsSuccess}</Message>
+            )}
+
+            {deleteUsersError && (
+              <Message type="error">{deleteUsersError}</Message>
+            )}
+
+            {deleteUsersSuccess && (
+              <Message type="success">{deleteUsersSuccess}</Message>
+            )}
+
+            {deleteUserError && (
+              <Message type="error">{deleteUserError}</Message>
+            )}
+
+            {deleteUserSuccess && (
+              <Message type="success">{deleteUserSuccess}</Message>
+            )}
+
+            {/* Users Management Section */}
+            {isCurrentUserAdministrator() && (
+              <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+                <div className="space-y-3">
+                  <div>
+                    <h4 className="font-semibold text-destructive mb-1">Users Management</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Delete individual users and all their associated data. Administrators can be deleted except the owner or last administrator.
+                    </p>
+                  </div>
                   
-                  {regenerateError && (
-                    <Message type="error" className="mb-4">
-                      {regenerateError}
-                    </Message>
+                  {getAllUsersWithStats().length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-2">
+                      No users found.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      <select
+                        className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        value={selectedUserEmail}
+                        onChange={(e) => setSelectedUserEmail(e.target.value)}
+                        disabled={isDeletingUser}
+                      >
+                        <option value="">Select a user to delete...</option>
+                        {getAllUsersWithStats().map((user) => {
+                          const canDelete = !user.isOwner && 
+                            !(user.isAdministrator && Object.keys(administrators || {}).length <= 1);
+                          
+                          if (!canDelete) return null;
+                          
+                          const displayText = user.name 
+                            ? `${user.name} (${user.email})`
+                            : user.email;
+                          
+                          return (
+                            <option key={user.email} value={user.email}>
+                              {displayText}
+                            </option>
+                          );
+                        })}
+                      </select>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => {
+                          if (selectedUserEmail) {
+                            const user = getAllUsersWithStats().find(u => u.email === selectedUserEmail);
+                            if (user) {
+                              handleOpenDeleteUserDialog(user.email, user.name, user.isAdministrator);
+                              setSelectedUserEmail('');
+                            }
+                          }
+                        }}
+                        disabled={!selectedUserEmail || isDeletingUser}
+                        className="w-full sm:w-auto"
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete User
+                      </Button>
+                    </div>
                   )}
+                </div>
+              </div>
+            )}
 
-                  {regenerateSuccess && (
-                    <Message type="success" className="mb-4">
-                      {regenerateSuccess}
-                    </Message>
-                  )}
-
+            {/* Delete All Users Section */}
+            {isCurrentUserAdministrator() && (
+              <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+                <div className="space-y-3">
+                  <div>
+                    <h4 className="font-semibold text-destructive mb-1">Delete All Users</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Permanently delete all users (excluding administrators) and all their associated data including items, ratings, bookmarks, and profiles.
+                    </p>
+                    {getNonAdminUserCount() > 0 && (
+                      <p className="text-sm font-medium text-foreground mt-1">
+                        {getNonAdminUserCount()} user(s) will be deleted.
+                      </p>
+                    )}
+                  </div>
                   <Button
-                    onClick={async () => {
-                      setIsRegenerating(true);
-                      setRegenerateError('');
-                      setRegenerateSuccess('');
-
-                      try {
-                        const result = await apiClient.regeneratePIN(eventId);
-                        setRegenerateSuccess(`PIN regenerated successfully! New PIN: ${result.pin}`);
-                        
-                        // Update event state with new PIN
-                        setEvent(prev => ({
-                          ...prev,
-                          pin: result.pin,
-                          pinGeneratedAt: result.pinGeneratedAt,
-                          updatedAt: result.pinGeneratedAt
-                        }));
-                      } catch (err) {
-                        setRegenerateError(err.message || 'Failed to regenerate PIN. Please try again.');
-                      } finally {
-                        setIsRegenerating(false);
-                      }
-                    }}
-                    disabled={isRegenerating}
-                    variant="default"
-                    className="w-full"
+                    variant="destructive"
+                    onClick={() => setIsDeleteUsersDialogOpen(true)}
+                    disabled={isDeletingUsers || getNonAdminUserCount() === 0}
+                    className="w-full sm:w-auto"
                   >
-                    <RefreshCw className={`h-4 w-4 mr-2 ${isRegenerating ? 'animate-spin' : ''}`} />
-                    {isRegenerating ? 'Regenerating...' : 'Regenerate PIN'}
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete All Users
+                  </Button>
+                  {getNonAdminUserCount() === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      No users to delete (only administrators exist).
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Delete All Ratings Section */}
+            {isCurrentUserAdministrator() && (
+              <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+                <div className="space-y-3">
+                  <div>
+                    <h4 className="font-semibold text-destructive mb-1">Delete All Ratings</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Permanently delete all ratings and bookmarks for this event. Event configuration and items will remain unchanged.
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    onClick={() => setIsDeleteRatingsDialogOpen(true)}
+                    disabled={isDeletingRatings}
+                    className="w-full sm:w-auto"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete All Ratings
                   </Button>
                 </div>
               </div>
-              </AccordionContent>
-            </AccordionItem>
-
-            {/* Administrators Management Section */}
-            <AccordionItem value="administrators">
-              <AccordionTrigger>
-                <div className="flex flex-col items-start text-left">
-                  <span className="font-semibold">Administrators</span>
-                </div>
-              </AccordionTrigger>
-              <AccordionContent className="space-y-4">
-              <div className="text-sm text-muted-foreground font-normal">
-                    Manage administrators for this event. The owner cannot be removed.
-              </div>
-              {/* Administrators list */}
-              {isLoadingAdministrators ? (
-                <div className="flex items-center justify-center py-4">
-                  <LoadingSpinner />
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {Object.keys(administrators).length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No administrators found</p>
-                  ) : (
-                    Object.entries(administrators).map(([email, data]) => (
-                      <div key={email} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 border rounded-lg">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="font-medium break-words">{email}</span>
-                            {data.owner && (
-                              <Badge variant="outline" className="flex-shrink-0">Owner</Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-1">
-                            Added {new Date(data.assignedAt).toLocaleDateString()}
-                          </p>
-                        </div>
-                        {!data.owner && (
-                          <Button
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => {
-                              if (window.confirm(`Are you sure you want to remove ${email} as an administrator?`)) {
-                                handleDeleteAdministrator(email);
-                              }
-                            }}
-                            disabled={isDeletingAdmin}
-                            aria-label={`Delete administrator ${email}`}
-                            className="self-start sm:self-center flex-shrink-0"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-
-              {/* Add administrator form */}
-              <div className="space-y-2 pt-4">
-                <div>
-                  <p className="text-sm text-muted-foreground mb-2">
-                    Add an administrator to this event
-                  </p>
-                  <Input
-                    type="email"
-                    placeholder="Enter email address"
-                    value={newAdminEmail}
-                    onChange={(e) => {
-                      setNewAdminEmail(e.target.value);
-                      setAddAdminError('');
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !isAddingAdmin) {
-                        handleAddAdministrator();
-                      }
-                    }}
-                    disabled={isAddingAdmin}
-                    aria-label="New administrator email"
-                  />
-                </div>
-
-                {addAdminError && (
-                  <Message type="error">{addAdminError}</Message>
-                )}
-
-                {addAdminSuccess && (
-                  <Message type="success">{addAdminSuccess}</Message>
-                )}
-
-                {deleteAdminError && (
-                  <Message type="error">{deleteAdminError}</Message>
-                )}
-
-                {deleteAdminSuccess && (
-                  <Message type="success">{deleteAdminSuccess}</Message>
-                )}
-
-                <Button
-                  onClick={handleAddAdministrator}
-                  disabled={!newAdminEmail.trim() || isAddingAdmin}
-                  className="w-full"
-                >
-                  {isAddingAdmin ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Adding...
-                    </>
-                  ) : (
-                    'Add Administrator'
-                  )}
-                </Button>
-              </div>
-              </AccordionContent>
-            </AccordionItem>
-
-            {/* Export Data Section */}
-            {isCurrentUserAdministrator() && (
-              <AccordionItem value="export-data">
-                <AccordionTrigger>
-                  <div className="flex flex-col items-start text-left">
-                    <div className="flex items-center gap-2">
-                      <Download className="h-4 w-4" />
-                      <span className="font-semibold">Export Data</span>
-                    </div>
-                  </div>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-4">
-                  <div className="text-sm text-muted-foreground font-normal">
-                    Export event data as CSV files for analysis and backup purposes.
-                  </div>
-
-                  {exportRatingsError && (
-                    <Message type="error">{exportRatingsError}</Message>
-                  )}
-
-                  {exportRatingsError && (
-                    <Message type="error">{exportRatingsError}</Message>
-                  )}
-
-                  {exportRatingsSuccess && (
-                    <Message type="success">{exportRatingsSuccess}</Message>
-                  )}
-
-                  {exportMatrixError && (
-                    <Message type="error">{exportMatrixError}</Message>
-                  )}
-
-                  {exportMatrixSuccess && (
-                    <Message type="success">{exportMatrixSuccess}</Message>
-                  )}
-
-                  {exportUsersError && (
-                    <Message type="error">{exportUsersError}</Message>
-                  )}
-
-                  {exportUsersSuccess && (
-                    <Message type="success">{exportUsersSuccess}</Message>
-                  )}
-
-                  {exportItemsError && (
-                    <Message type="error">{exportItemsError}</Message>
-                  )}
-
-                  {exportItemsSuccess && (
-                    <Message type="success">{exportItemsSuccess}</Message>
-                  )}
-
-                  {/* Raw Ratings Data Export */}
-                  <div className="p-4 border rounded-lg">
-                    <div className="space-y-3">
-                      <div>
-                        <h4 className="font-semibold mb-1">Raw Ratings Data</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Export all ratings data including username, email, timestamp, {itemTerminology.singularLower} ID, rating, and notes.
-                        </p>
-                      </div>
-                      <Button
-                        onClick={handleExportRatings}
-                        disabled={isExportingRatings || isExportingMatrix || isExportingUsers || isExportingItems}
-                        className="w-full sm:w-auto"
-                      >
-                        {isExportingRatings ? (
-                          <>
-                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                            Exporting...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="h-4 w-4 mr-2" />
-                            Export Ratings Data
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Ratings Matrix Export */}
-                  <div className="p-4 border rounded-lg">
-                    <div className="space-y-3">
-                      <div>
-                        <h4 className="font-semibold mb-1">Ratings Matrix</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Export a matrix showing {itemTerminology.singularLower}-to-user ratings with average and weighted ratings for each {itemTerminology.singularLower}. Weighted rating uses the Bayesian formula (same as dashboard) that accounts for {itemTerminology.pluralLower} with fewer ratings.
-                        </p>
-                      </div>
-                      <Button
-                        onClick={handleExportMatrix}
-                        disabled={isExportingMatrix || isExportingRatings || isExportingUsers || isExportingItems}
-                        className="w-full sm:w-auto"
-                      >
-                        {isExportingMatrix ? (
-                          <>
-                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                            Exporting...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="h-4 w-4 mr-2" />
-                            Export Ratings Matrix
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* User Data Export */}
-                  <div className="p-4 border rounded-lg">
-                    <div className="space-y-3">
-                      <div>
-                        <h4 className="font-semibold mb-1">User Data</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Export all user data including email, username, registration date, administrator status, {itemTerminology.pluralLower} registered (with IDs and names), ratings given, and average rating given.
-                        </p>
-                      </div>
-                      <Button
-                        onClick={handleExportUsers}
-                        disabled={isExportingUsers || isExportingRatings || isExportingMatrix || isExportingItems}
-                        className="w-full sm:w-auto"
-                      >
-                        {isExportingUsers ? (
-                          <>
-                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                            Exporting...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="h-4 w-4 mr-2" />
-                            Export User Data
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-
-                  {/* Item Details Export */}
-                  <div className="p-4 border rounded-lg">
-                    <div className="space-y-3">
-                      <div>
-                        <h4 className="font-semibold mb-1">{itemTerminology.singular} Details</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Export all {itemTerminology.pluralLower} (including unregistered) with details including {itemTerminology.singularLower} ID, name, price, description, owner information, and complete rating statistics (number of raters, average rating, weighted average, rating progression, and rating distribution). Unregistered {itemTerminology.pluralLower} will have empty values for name, price, description, and owner information.
-                        </p>
-                      </div>
-                      <Button
-                        onClick={handleExportItems}
-                        disabled={isExportingItems || isExportingRatings || isExportingMatrix || isExportingUsers}
-                        className="w-full sm:w-auto"
-                      >
-                        {isExportingItems ? (
-                          <>
-                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                            Exporting...
-                          </>
-                        ) : (
-                          <>
-                            <Download className="h-4 w-4 mr-2" />
-                            Export {itemTerminology.singular} Details
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
             )}
 
-            {/* Danger Zone Section */}
-            {isCurrentUserAdministrator() && (
-              <AccordionItem value="danger-zone">
-                <AccordionTrigger>
-                  <div className="flex flex-col items-start text-left">
-                    <div className="flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-destructive" />
-                      <span className="font-semibold text-destructive">Danger Zone</span>
-                    </div>
+            {/* Delete Event Section - Owner Only */}
+            {isCurrentUserOwner() && (
+              <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+                <div className="space-y-3">
+                  <div>
+                    <h4 className="font-semibold text-destructive mb-1">Delete Event</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Permanently delete this event and all of its data. This action cannot be undone.
+                    </p>
                   </div>
-                </AccordionTrigger>
-                <AccordionContent className="space-y-4">
-                  <div className="text-sm text-muted-foreground font-normal">
-                    Irreversible and destructive actions. Only event administrators can perform these actions.
-                  </div>
-
-                  {deleteEventError && (
-                    <Message type="error">{deleteEventError}</Message>
-                  )}
-
-                  {deleteRatingsError && (
-                    <Message type="error">{deleteRatingsError}</Message>
-                  )}
-
-                  {deleteRatingsSuccess && (
-                    <Message type="success">{deleteRatingsSuccess}</Message>
-                  )}
-
-                  {deleteUsersError && (
-                    <Message type="error">{deleteUsersError}</Message>
-                  )}
-
-                  {deleteUsersSuccess && (
-                    <Message type="success">{deleteUsersSuccess}</Message>
-                  )}
-
-                  {deleteUserError && (
-                    <Message type="error">{deleteUserError}</Message>
-                  )}
-
-                  {deleteUserSuccess && (
-                    <Message type="success">{deleteUserSuccess}</Message>
-                  )}
-
-                  {/* Users Management Section */}
-                  {isCurrentUserAdministrator() && (
-                    <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
-                      <div className="space-y-3">
-                        <div>
-                          <h4 className="font-semibold text-destructive mb-1">Users Management</h4>
-                          <p className="text-sm text-muted-foreground">
-                            Delete individual users and all their associated data. Administrators can be deleted except the owner or last administrator.
-                          </p>
-                        </div>
-                        
-                        {getAllUsersWithStats().length === 0 ? (
-                          <p className="text-sm text-muted-foreground text-center py-2">
-                            No users found.
-                          </p>
-                        ) : (
-                          <div className="space-y-2">
-                            <select
-                              className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                              value={selectedUserEmail}
-                              onChange={(e) => setSelectedUserEmail(e.target.value)}
-                              disabled={isDeletingUser}
-                            >
-                              <option value="">Select a user to delete...</option>
-                              {getAllUsersWithStats().map((user) => {
-                                const canDelete = !user.isOwner && 
-                                  !(user.isAdministrator && Object.keys(administrators || {}).length <= 1);
-                                
-                                if (!canDelete) return null;
-                                
-                                const displayText = user.name 
-                                  ? `${user.name} (${user.email})`
-                                  : user.email;
-                                
-                                return (
-                                  <option key={user.email} value={user.email}>
-                                    {displayText}
-                                  </option>
-                                );
-                              })}
-                            </select>
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={() => {
-                                if (selectedUserEmail) {
-                                  const user = getAllUsersWithStats().find(u => u.email === selectedUserEmail);
-                                  if (user) {
-                                    handleOpenDeleteUserDialog(user.email, user.name, user.isAdministrator);
-                                    setSelectedUserEmail('');
-                                  }
-                                }
-                              }}
-                              disabled={!selectedUserEmail || isDeletingUser}
-                              className="w-full sm:w-auto"
-                            >
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete User
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Delete All Users Section */}
-                  {isCurrentUserAdministrator() && (
-                    <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
-                      <div className="space-y-3">
-                        <div>
-                          <h4 className="font-semibold text-destructive mb-1">Delete All Users</h4>
-                          <p className="text-sm text-muted-foreground">
-                            Permanently delete all users (excluding administrators) and all their associated data including items, ratings, bookmarks, and profiles.
-                          </p>
-                          {getNonAdminUserCount() > 0 && (
-                            <p className="text-sm font-medium text-foreground mt-1">
-                              {getNonAdminUserCount()} user(s) will be deleted.
-                            </p>
-                          )}
-                        </div>
-                        <Button
-                          variant="destructive"
-                          onClick={() => setIsDeleteUsersDialogOpen(true)}
-                          disabled={isDeletingUsers || getNonAdminUserCount() === 0}
-                          className="w-full sm:w-auto"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete All Users
-                        </Button>
-                        {getNonAdminUserCount() === 0 && (
-                          <p className="text-xs text-muted-foreground">
-                            No users to delete (only administrators exist).
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Delete All Ratings Section */}
-                  {isCurrentUserAdministrator() && (
-                    <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
-                      <div className="space-y-3">
-                        <div>
-                          <h4 className="font-semibold text-destructive mb-1">Delete All Ratings</h4>
-                          <p className="text-sm text-muted-foreground">
-                            Permanently delete all ratings and bookmarks for this event. Event configuration and items will remain unchanged.
-                          </p>
-                        </div>
-                        <Button
-                          variant="destructive"
-                          onClick={() => setIsDeleteRatingsDialogOpen(true)}
-                          disabled={isDeletingRatings}
-                          className="w-full sm:w-auto"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete All Ratings
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Delete Event Section - Owner Only */}
-                  {isCurrentUserOwner() && (
-                    <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
-                      <div className="space-y-3">
-                        <div>
-                          <h4 className="font-semibold text-destructive mb-1">Delete Event</h4>
-                          <p className="text-sm text-muted-foreground">
-                            Permanently delete this event and all of its data. This action cannot be undone.
-                          </p>
-                        </div>
-                        <Button
-                          variant="destructive"
-                          onClick={() => setIsDeleteDialogOpen(true)}
-                          disabled={isDeletingEvent}
-                          className="w-full sm:w-auto"
-                        >
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete Event
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </AccordionContent>
-              </AccordionItem>
+                  <Button
+                    variant="destructive"
+                    onClick={() => setIsDeleteDialogOpen(true)}
+                    disabled={isDeletingEvent}
+                    className="w-full sm:w-auto"
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Event
+                  </Button>
+                </div>
+              </div>
             )}
-          </Accordion>
-        </div>
-      </div>
+          </div>
+        </SideDrawer>
+      )}
 
       {/* Delete Event Dialog */}
       <DeleteEventDialog
