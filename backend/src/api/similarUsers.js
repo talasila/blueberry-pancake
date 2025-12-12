@@ -87,7 +87,8 @@ router.get('/similar-users', requireAuth, async (req, res) => {
     }
 
     // Find similar users
-    const similarUsers = await similarityService.findSimilarUsers(eventId, userEmail, 5);
+    // Get all similar users (no limit)
+    const similarUsers = await similarityService.findSimilarUsers(eventId, userEmail, Infinity);
 
     // Add user names to response (show name if available, otherwise email per clarification)
     const similarUsersWithNames = similarUsers.map(user => ({

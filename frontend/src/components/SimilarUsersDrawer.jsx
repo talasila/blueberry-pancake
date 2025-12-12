@@ -163,7 +163,10 @@ function SimilarUsersDrawer({
     content = (
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-        People who like what you like! The colored bar shows how well your tastes match. <strong>Click to view details.</strong>
+        People who like what you like! The colored bar shows how well your tastes match.
+        </p>
+        <p className="text-sm text-muted-foreground">
+        <strong>Click to view details.</strong>
         </p>
         <div className="space-y-2">
           {similarUsers.map((user, index) => {

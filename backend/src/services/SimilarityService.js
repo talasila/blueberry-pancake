@@ -121,8 +121,10 @@ class SimilarityService {
         return a.email.localeCompare(b.email); // Alphabetical
       });
 
-      // Limit to top N users
-      const result = similarUsers.slice(0, limit);
+      // Limit to top N users (if limit is specified and not Infinity)
+      const result = limit === Infinity || limit === undefined 
+        ? similarUsers 
+        : similarUsers.slice(0, limit);
 
       // Cache for 30 seconds
       cacheService.set(cacheKey, result, 30);
