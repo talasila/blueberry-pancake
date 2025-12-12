@@ -446,14 +446,15 @@ function EventPage() {
       ).length;
     }
 
-    // Get all ratings in order (sorted by itemId for sparkline)
+    // Get all ratings in order (sorted by timestamp, oldest to newest for sparkline)
     const sortedRatings = [...ratings]
       .sort((a, b) => {
-        const aId = parseInt(a.itemId, 10);
-        const bId = parseInt(b.itemId, 10);
-        if (isNaN(aId)) return 1;
-        if (isNaN(bId)) return -1;
-        return aId - bId;
+        // Sort by timestamp (oldest to newest)
+        const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+        const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+        if (isNaN(aTime)) return 1;
+        if (isNaN(bTime)) return -1;
+        return aTime - bTime; // Ascending order (oldest first)
       })
       .map(rating => {
         const ratingValue = parseInt(rating.rating, 10);

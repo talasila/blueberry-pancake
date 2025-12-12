@@ -8,12 +8,15 @@ import Sparkline from './Sparkline';
  * Combines three charts to visualize a user's rating progress:
  * 1. Progress bar showing percentage of items rated
  * 2. Rating distribution chart
- * 3. Sparkline showing all ratings in order
+ * 3. Sparkline showing all ratings in chronological order (oldest to newest)
+ * 
+ * IMPORTANT: The ratings array must be sorted chronologically by timestamp (oldest to newest)
+ * before being passed to this component. The component does not perform sorting.
  * 
  * @param {object} props
  * @param {number} props.ratingProgression - Percentage of items rated (0-100)
  * @param {object} props.ratingDistribution - Object with rating values as keys and counts as values
- * @param {Array} props.ratings - Array of rating values in order (for sparkline)
+ * @param {Array<number>} props.ratings - Array of rating values sorted chronologically (oldest to newest) for sparkline
  * @param {Array} props.ratingConfiguration - Array of rating config objects with value, label, and color
  * @param {number} props.totalRatings - Total number of ratings
  */
