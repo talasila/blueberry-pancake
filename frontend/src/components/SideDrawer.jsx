@@ -21,6 +21,9 @@ function SideDrawer({
 }) {
   const [isAnimating, setIsAnimating] = useState(false);
   const hasBeenOpenedRef = useRef(false);
+  
+  // Set viewport height for mobile browsers (accounts for browser UI)
+  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
 
   // Track if drawer has ever been opened (for animation)
   useEffect(() => {
@@ -36,6 +39,26 @@ function SideDrawer({
       setIsAnimating(false);
     }
   }, [isOpen]);
+
+  // Update viewport height for mobile browsers
+  useEffect(() => {
+    const updateViewportHeight = () => {
+      setViewportHeight(window.innerHeight);
+    };
+    
+    // Update on resize and orientation change
+    window.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('orientationchange', updateViewportHeight);
+    
+    // Initial update after a short delay to ensure accurate measurement
+    const timer = setTimeout(updateViewportHeight, 100);
+    
+    return () => {
+      window.removeEventListener('resize', updateViewportHeight);
+      window.removeEventListener('orientationchange', updateViewportHeight);
+      clearTimeout(timer);
+    };
+  }, []);
 
   // Prevent body scroll when drawer is open
   useEffect(() => {
@@ -59,10 +82,10 @@ function SideDrawer({
       {/* Backdrop with fade animation */}
       {isOpen && (
         <div
-          className="fixed top-16 left-0 right-0 bottom-0 bg-black/50 z-[99] transition-opacity duration-300 ease-in-out"
+          className="fixed top-16 left-0 right-0 bg-black/50 z-[99] transition-opacity duration-300 ease-in-out"
           onClick={onClose}
           aria-hidden="true"
-          style={{ zIndex: 99 }}
+          style={{ zIndex: 99, height: `${viewportHeight - 64}px`, bottom: 0 }}
         />
       )}
       
@@ -70,7 +93,7 @@ function SideDrawer({
       {isOpen && (
         <div
           className={`
-            fixed top-16 right-0 h-[calc(100vh-4rem)] ${width}
+            fixed top-16 right-0 ${width}
             bg-background shadow-xl z-[100]
             transform transition-transform duration-300 ease-out
             ${isAnimating ? 'translate-x-0' : 'translate-x-full'}
@@ -78,7 +101,7 @@ function SideDrawer({
           role="dialog"
           aria-modal="true"
           aria-labelledby="drawer-title"
-          style={{ zIndex: 100 }}
+          style={{ zIndex: 100, height: `${viewportHeight - 64}px` }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex flex-col h-full">
