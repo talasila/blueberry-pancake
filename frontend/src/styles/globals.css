@@ -161,10 +161,12 @@
   /* Prevent body from scrolling - only main content area scrolls */
   html, body {
     height: 100%;
+    height: -webkit-fill-available; /* iOS Safari */
     overflow: hidden;
   }
   #root {
     height: 100%;
+    height: -webkit-fill-available; /* iOS Safari */
     overflow: hidden;
   }
   /* Prevent scrollbar from appearing above fixed header */

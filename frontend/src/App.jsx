@@ -115,10 +115,35 @@ function AppLayout() {
   const eventIdMatch = location.pathname.match(/^\/event\/([A-Za-z0-9]{8})/);
   const eventId = eventIdMatch ? eventIdMatch[1] : null;
   
+  // Set viewport height for mobile browsers (accounts for browser UI)
+  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
+  
+  useEffect(() => {
+    const updateViewportHeight = () => {
+      setViewportHeight(window.innerHeight);
+    };
+    
+    // Update on resize and orientation change
+    window.addEventListener('resize', updateViewportHeight);
+    window.addEventListener('orientationchange', updateViewportHeight);
+    
+    // Initial update after a short delay to ensure accurate measurement
+    const timer = setTimeout(updateViewportHeight, 100);
+    
+    return () => {
+      window.removeEventListener('resize', updateViewportHeight);
+      window.removeEventListener('orientationchange', updateViewportHeight);
+      clearTimeout(timer);
+    };
+  }, []);
+  
   const content = (
-    <div className="h-screen bg-background flex flex-col overflow-hidden">
+    <div 
+      className="bg-background flex flex-col overflow-hidden"
+      style={{ height: `${viewportHeight}px` }}
+    >
       <Header />
-      <main className="flex-1 overflow-y-auto pt-16">
+      <main className="flex-1 overflow-y-auto pt-16 min-h-0">
         <Routes>
           {/* Public routes - no authentication required */}
           <Route path="/" element={<LandingPage />} />
