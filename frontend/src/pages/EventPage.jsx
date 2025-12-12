@@ -12,6 +12,7 @@ import SimilarUsersDrawer from '@/components/SimilarUsersDrawer';
 import ItemDetailsDrawer from '@/components/ItemDetailsDrawer';
 import RatingErrorBoundary from '@/components/RatingErrorBoundary';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import UserRatingProgress from '@/components/UserRatingProgress';
 import { Button } from '@/components/ui/button';
 import { Users } from 'lucide-react';
 import { useItemTerminology } from '@/utils/itemTerminology';
@@ -413,6 +414,61 @@ function EventPage() {
     }
   };
 
+  // Calculate user rating progress data
+  const userRatingProgressData = useMemo(() => {
+    if (!ratings || ratings.length === 0 || !availableItemIds.length) {
+      return null;
+    }
+
+    const totalItems = availableItemIds.length;
+    
+    // Count unique items rated
+    const uniqueItemsRated = new Set();
+    ratings.forEach(rating => {
+      const itemId = parseInt(rating.itemId, 10);
+      if (!isNaN(itemId)) {
+        uniqueItemsRated.add(itemId);
+      }
+    });
+    const numberOfItemsRated = uniqueItemsRated.size;
+
+    // Calculate rating progression (percentage of items rated)
+    const ratingProgression = totalItems > 0 
+      ? (numberOfItemsRated / totalItems) * 100 
+      : 0;
+
+    // Calculate rating distribution
+    const ratingDistribution = {};
+    const maxRating = ratingConfig?.maxRating || 4;
+    for (let ratingValue = 1; ratingValue <= maxRating; ratingValue++) {
+      ratingDistribution[ratingValue] = ratings.filter(
+        r => parseInt(r.rating, 10) === ratingValue
+      ).length;
+    }
+
+    // Get all ratings in order (sorted by itemId for sparkline)
+    const sortedRatings = [...ratings]
+      .sort((a, b) => {
+        const aId = parseInt(a.itemId, 10);
+        const bId = parseInt(b.itemId, 10);
+        if (isNaN(aId)) return 1;
+        if (isNaN(bId)) return -1;
+        return aId - bId;
+      })
+      .map(rating => {
+        const ratingValue = parseInt(rating.rating, 10);
+        return isNaN(ratingValue) ? null : ratingValue;
+      })
+      .filter(rating => rating !== null);
+
+    return {
+      ratingProgression: parseFloat(ratingProgression.toFixed(2)),
+      ratingDistribution,
+      ratings: sortedRatings,
+      totalRatings: ratings.length
+    };
+  }, [ratings, availableItemIds, ratingConfig]);
+
   // Check if user has rated at least 3 items (for button visibility)
   const hasMinimumRatings = () => {
     if (!userEmail || !ratings.length) return false;
@@ -544,6 +600,19 @@ function EventPage() {
                 <Users className="h-4 w-4" />
                 Find Similar Tastes
               </Button>
+            </div>
+          )}
+
+          {/* Your Rating Progress - only visible when user has at least 1 rating */}
+          {userRatingProgressData && (
+            <div className="mt-6">
+              <UserRatingProgress
+                ratingProgression={userRatingProgressData.ratingProgression}
+                ratingDistribution={userRatingProgressData.ratingDistribution}
+                ratings={userRatingProgressData.ratings}
+                ratingConfiguration={ratingConfig?.ratings || []}
+                totalRatings={userRatingProgressData.totalRatings}
+              />
             </div>
           )}
         </div>

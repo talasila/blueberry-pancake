@@ -1,10 +1,12 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { RefreshCw } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import StatisticsCard from '@/components/StatisticsCard';
 import ItemRatingsTable from '@/components/ItemRatingsTable';
+import UserRatingsTable from '@/components/UserRatingsTable';
 import ItemDetailsDrawer from '@/components/ItemDetailsDrawer';
 import dashboardService from '@/services/dashboardService';
 import { useEventContext } from '@/contexts/EventContext';
@@ -158,23 +160,42 @@ function DashboardPage() {
         </div>
       )}
 
-      {/* Item Ratings Table */}
+      {/* Tabs and Ratings Tables */}
       <div className="mt-6">
-        <h2 className="text-lg font-semibold mb-2">{singular} Ratings</h2>
-        <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 border border-border rounded-md space-y-1">
-          <div><strong>Progress:</strong> Percentage of users who have rated this item.</div>
-          <div><strong>Avg.:</strong> Arithmetic mean of all ratings.</div>
-          <div><strong>Wt. Avg.:</strong> Bayesian weighted average that accounts for items with fewer ratings.</div>
-        </div>
-        <ItemRatingsTable 
-          itemSummaries={dashboardData?.itemSummaries || []}
-          ratingConfiguration={dashboardData?.ratingConfiguration?.ratings || []}
-          onRowClick={(itemId) => {
-            if (event?.state === 'completed') {
-              setOpenItemDetailsItemId(itemId);
-            }
-          }}
-        />
+        <Tabs defaultValue="bottles" className="w-full">
+          <TabsList>
+            <TabsTrigger value="bottles">{singular} Ratings</TabsTrigger>
+            <TabsTrigger value="users">User Ratings</TabsTrigger>
+          </TabsList>
+          
+          <TabsContent value="bottles">
+            <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 border border-border rounded-md space-y-1">
+              <div><strong>Progress:</strong> Percentage of users who have rated this item.</div>
+              <div><strong>Avg.:</strong> Arithmetic mean of all ratings.</div>
+              <div><strong>Wt. Avg.:</strong> Bayesian weighted average that accounts for items with fewer ratings.</div>
+            </div>
+            <ItemRatingsTable 
+              itemSummaries={dashboardData?.itemSummaries || []}
+              ratingConfiguration={dashboardData?.ratingConfiguration?.ratings || []}
+              onRowClick={(itemId) => {
+                if (event?.state === 'completed') {
+                  setOpenItemDetailsItemId(itemId);
+                }
+              }}
+            />
+          </TabsContent>
+          
+          <TabsContent value="users">
+            <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 border border-border rounded-md space-y-1">
+              <div><strong>Progress:</strong> Three charts showing number of {pluralLower} rated, rating distribution, and sparkline of all ratings.</div>
+              <div><strong>Avg. Rating:</strong> Average rating across all {pluralLower} the user has rated.</div>
+            </div>
+            <UserRatingsTable 
+              userSummaries={dashboardData?.userSummaries || []}
+              ratingConfiguration={dashboardData?.ratingConfiguration?.ratings || []}
+            />
+          </TabsContent>
+        </Tabs>
       </div>
 
       {/* Item Details Drawer - only render when event is completed */}

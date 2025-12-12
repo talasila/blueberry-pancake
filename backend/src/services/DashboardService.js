@@ -47,6 +47,13 @@ class DashboardService {
         statistics.totalUsers
       );
 
+      // Calculate user summaries
+      const userSummaries = this.calculateUserSummaries(
+        event,
+        ratings,
+        statistics.totalItems
+      );
+
       // Get rating configuration for colors
       const ratingConfig = event.ratingConfiguration || {};
 
@@ -54,6 +61,7 @@ class DashboardService {
       const dashboardData = {
         statistics,
         itemSummaries,
+        userSummaries,
         globalAverage: globalAverage !== null && globalAverage !== undefined ? globalAverage : null,
         ratingConfiguration: ratingConfig
       };
@@ -207,6 +215,106 @@ class DashboardService {
         ratingDistribution
       });
     }
+
+    return summaries;
+  }
+
+  /**
+   * Calculate user rating summaries
+   * @param {object} event - Event configuration
+   * @param {Array} ratings - Array of rating objects
+   * @param {number} totalItems - Total number of items (excluding excluded items)
+   * @returns {Array} Array of user rating summary objects
+   */
+  calculateUserSummaries(event, ratings, totalItems) {
+    const users = event.users || {};
+    const summaries = [];
+
+    // Group ratings by user email
+    const ratingsByUser = {};
+    ratings.forEach(rating => {
+      if (!rating.email) return;
+      const email = rating.email.toLowerCase().trim();
+      if (!ratingsByUser[email]) {
+        ratingsByUser[email] = [];
+      }
+      ratingsByUser[email].push(rating);
+    });
+
+    // Process each user
+    for (const email in users) {
+      const userData = users[email];
+      const userRatings = ratingsByUser[email] || [];
+
+      // Get user name (may be null/undefined)
+      const userName = userData?.name || null;
+
+      // Count unique items rated
+      const uniqueItemsRated = new Set();
+      userRatings.forEach(rating => {
+        const itemId = parseInt(rating.itemId, 10);
+        if (!isNaN(itemId)) {
+          uniqueItemsRated.add(itemId);
+        }
+      });
+      const numberOfBottlesRated = uniqueItemsRated.size;
+
+      // Calculate rating progression (percentage of items rated)
+      let ratingProgression = 0;
+      if (totalItems > 0) {
+        ratingProgression = (numberOfBottlesRated / totalItems) * 100;
+        ratingProgression = parseFloat(ratingProgression.toFixed(2));
+      }
+
+      // Calculate average rating across all bottles they've tasted
+      let averageRating = null;
+      if (userRatings.length > 0) {
+        const sum = userRatings.reduce((acc, rating) => {
+          const ratingValue = parseInt(rating.rating, 10);
+          return acc + (isNaN(ratingValue) ? 0 : ratingValue);
+        }, 0);
+        averageRating = sum / userRatings.length;
+        averageRating = isNaN(averageRating) ? null : parseFloat(averageRating.toFixed(2));
+      }
+
+      // Get all ratings in order (sorted by itemId for sparkline)
+      const sortedRatings = [...userRatings]
+        .sort((a, b) => {
+          const aId = parseInt(a.itemId, 10);
+          const bId = parseInt(b.itemId, 10);
+          if (isNaN(aId)) return 1;
+          if (isNaN(bId)) return -1;
+          return aId - bId;
+        })
+        .map(rating => {
+          const ratingValue = parseInt(rating.rating, 10);
+          return isNaN(ratingValue) ? null : ratingValue;
+        })
+        .filter(rating => rating !== null);
+
+      // Calculate rating distribution for user's ratings
+      const ratingDistribution = {};
+      const maxRating = event.ratingConfiguration?.maxRating || 4;
+      for (let ratingValue = 1; ratingValue <= maxRating; ratingValue++) {
+        ratingDistribution[ratingValue] = userRatings.filter(
+          r => parseInt(r.rating, 10) === ratingValue
+        ).length;
+      }
+
+      summaries.push({
+        email,
+        name: userName,
+        numberOfBottlesRated,
+        ratingProgression,
+        averageRating,
+        ratings: sortedRatings,
+        ratingDistribution,
+        totalRatings: userRatings.length
+      });
+    }
+
+    // Sort by email for consistent ordering
+    summaries.sort((a, b) => a.email.localeCompare(b.email));
 
     return summaries;
   }
