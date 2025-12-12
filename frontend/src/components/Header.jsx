@@ -129,12 +129,36 @@ function Header() {
     navigate('/', { replace: true });
   };
 
+  // Handle logo click - navigate to main event page if logged in, else landing page
+  const handleLogoClick = () => {
+    if (authState) {
+      // If logged in and we have an eventId, navigate to main event page
+      const currentEventId = eventId || pathEventId;
+      if (currentEventId) {
+        navigate(`/event/${currentEventId}`);
+      } else {
+        // If logged in but no eventId, go to landing page
+        navigate('/');
+      }
+    } else {
+      // If not logged in, go to landing page
+      navigate('/');
+    }
+  };
+
   return (
     <header className="fixed top-0 left-0 right-0 z-[9999] bg-background border-b border-border shadow-md" style={{ width: '100vw', marginRight: 'calc(100% - 100vw)' }}>
       <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-2">
         <div className="w-full max-w-md flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <Logo size={32} className="text-foreground flex-shrink-0" />
+            <button
+              onClick={handleLogoClick}
+              className="flex-shrink-0 p-1 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 touch-manipulation"
+              aria-label="Go to main event page"
+              type="button"
+            >
+              <Logo size={32} className="text-foreground" />
+            </button>
             {isEventRoute && eventName && (
               <span className="text-sm font-medium truncate max-w-[200px]">
                 {eventName}
