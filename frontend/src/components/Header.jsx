@@ -1,9 +1,11 @@
-import { User } from 'lucide-react';
-import { useLocation, Link } from 'react-router-dom';
+import { Menu, User, BarChart3, Shield, LogOut } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useMemo, useState, useEffect } from 'react';
 import Logo from './Logo.jsx';
 import { useEventContext } from '@/contexts/EventContext';
 import apiClient from '@/services/apiClient';
+import DropdownMenu, { DropdownMenuItem } from './DropdownMenu';
+import { clearAllBookmarks } from '@/utils/bookmarkStorage';
 
 /**
  * Header Component
@@ -19,8 +21,10 @@ import apiClient from '@/services/apiClient';
  */
 function Header() {
   const location = useLocation();
-  const { event, eventId } = useEventContext();
+  const navigate = useNavigate();
+  const { event, eventId, isAdmin } = useEventContext();
   const [authState, setAuthState] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
   
   // Check if we're in an event route
   const isEventRoute = location.pathname.startsWith('/event/');
@@ -78,6 +82,62 @@ function Header() {
     return '/profile';
   }, [isEventRoute, pathEventId]);
 
+  // Check if dashboard is available
+  const isDashboardAvailable = useMemo(() => {
+    if (!isEventRoute || !event) return false;
+    return isAdmin || event.state === 'completed';
+  }, [isEventRoute, event, isAdmin]);
+
+  // Handle menu item clicks
+  const handleProfileClick = () => {
+    setIsMenuOpen(false);
+    navigate(profilePath);
+  };
+
+  const handleDashboardClick = () => {
+    if (pathEventId && isDashboardAvailable) {
+      setIsMenuOpen(false);
+      navigate(`/event/${pathEventId}/dashboard`);
+    }
+  };
+
+  const handleAdminClick = () => {
+    if (pathEventId && isAdmin) {
+      setIsMenuOpen(false);
+      navigate(`/event/${pathEventId}/admin`);
+    }
+  };
+
+  const handleLogout = () => {
+    setIsMenuOpen(false);
+    
+    // Clear JWT token
+    apiClient.clearJWTToken();
+    
+    // Clear PIN session for current event if it exists
+    if (pathEventId) {
+      localStorage.removeItem(`pin:session:${pathEventId}`);
+      // Clear email from sessionStorage
+      sessionStorage.removeItem(`event:${pathEventId}:email`);
+    }
+    
+    // Clear all PIN sessions (in case user was logged into multiple events)
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('pin:session:')) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    // Clear all bookmarks from sessionStorage
+    clearAllBookmarks();
+    
+    // Navigate to landing page
+    navigate('/', { replace: true });
+  };
+
   return (
     <header className="fixed top-0 left-0 right-0 z-[9999] bg-background border-b border-border shadow-md" style={{ width: '100vw', marginRight: 'calc(100% - 100vw)' }}>
       <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-2">
@@ -90,15 +150,55 @@ function Header() {
               </span>
             )}
           </div>
-          {/* Show profile link only if authenticated and not on landing page */}
+          {/* Show menu only if authenticated and not on landing page */}
           {authState && !isLandingPage && (
-            <Link
-              to={profilePath}
-              className="p-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0"
-              aria-label="View profile"
+            <DropdownMenu
+              isOpen={isMenuOpen}
+              onClose={() => setIsMenuOpen(false)}
+              align="right"
+              trigger={
+                <button
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                  className="p-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation"
+                  aria-label="Open menu"
+                  aria-expanded={isMenuOpen}
+                >
+                  <Menu className="h-5 w-5" />
+                </button>
+              }
             >
-              <User className="h-5 w-5" />
-            </Link>
+              <DropdownMenuItem
+                onClick={handleProfileClick}
+                icon={<User className="h-4 w-4" />}
+              >
+                Profile
+              </DropdownMenuItem>
+              
+              {isDashboardAvailable && pathEventId && (
+                <DropdownMenuItem
+                  onClick={handleDashboardClick}
+                  icon={<BarChart3 className="h-4 w-4" />}
+                >
+                  Dashboard
+                </DropdownMenuItem>
+              )}
+              
+              {isAdmin && pathEventId && (
+                <DropdownMenuItem
+                  onClick={handleAdminClick}
+                  icon={<Shield className="h-4 w-4" />}
+                >
+                  Admin
+                </DropdownMenuItem>
+              )}
+              
+              <DropdownMenuItem
+                onClick={handleLogout}
+                icon={<LogOut className="h-4 w-4" />}
+              >
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenu>
           )}
         </div>
       </div>

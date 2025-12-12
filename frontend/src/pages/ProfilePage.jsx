@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Settings, LogOut, BarChart3, Plus, X, Edit2, Trash2, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Plus, X, Edit2, Trash2, RefreshCw } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import apiClient from '@/services/apiClient';
 import { useEventContext } from '@/contexts/EventContext';
@@ -55,55 +55,6 @@ function ProfilePage() {
   const [editFormLoading, setEditFormLoading] = useState(false);
   const [deletingItemId, setDeletingItemId] = useState(null);
 
-  const handleBack = () => {
-    // Navigate back to previous page, or to event page if on event route
-    if (eventId) {
-      navigate(`/event/${eventId}`);
-    } else {
-      navigate(-1);
-    }
-  };
-
-  const handleAdminClick = () => {
-    if (eventId) {
-      navigate(`/event/${eventId}/admin`);
-    }
-  };
-
-  const handleDashboardClick = () => {
-    if (eventId) {
-      navigate(`/event/${eventId}/dashboard`);
-    }
-  };
-
-  const handleLogout = () => {
-    // Clear JWT token
-    apiClient.clearJWTToken();
-    
-    // Clear PIN session for current event if it exists
-    if (eventId) {
-      localStorage.removeItem(`pin:session:${eventId}`);
-      // Clear email from sessionStorage
-      sessionStorage.removeItem(`event:${eventId}:email`);
-    }
-    
-    // Clear all PIN sessions (in case user was logged into multiple events)
-    // Iterate through localStorage keys and remove all pin:session:* items
-    const keysToRemove = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('pin:session:')) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach(key => localStorage.removeItem(key));
-    
-    // Clear all bookmarks from sessionStorage (in case user was logged into multiple events)
-    clearAllBookmarks();
-    
-    // Navigate to landing page
-    navigate('/', { replace: true });
-  };
 
   // Extract user email from JWT token or PIN session, and load user profile
   useEffect(() => {
@@ -441,51 +392,21 @@ function ProfilePage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-4">
       <div className="max-w-md mx-auto w-full">
-        <div className="space-y-2">
-          {/* Navigation buttons */}
-          <div className="flex items-center gap-2">
+        {/* Back to Event button */}
+        {eventId && (
+          <div className="mb-6">
             <Button
-              variant="ghost"
-              onClick={handleBack}
-              className="-ml-2 min-h-[44px] active:bg-accent active:opacity-70 touch-manipulation"
-              aria-label="Go back"
+              onClick={() => navigate(`/event/${eventId}`)}
+              variant="outline"
+              className="flex items-center gap-2"
             >
-              Back
-            </Button>
-            {/* Admin link (only for administrators) */}
-            {isAdmin && eventId && (
-              <Button
-                variant="ghost"
-                onClick={handleAdminClick}
-                className="-ml-2 min-h-[44px] active:bg-accent active:opacity-70 touch-manipulation"
-                aria-label="Go to admin page"
-              >
-                Admin
-              </Button>
-            )}
-            {/* Dashboard link (for administrators at all times, or regular users when event is completed) */}
-            {eventId && (isAdmin || event?.state === 'completed') && (
-              <Button
-                variant="ghost"
-                onClick={handleDashboardClick}
-                className="-ml-2 min-h-[44px] active:bg-accent active:opacity-70 touch-manipulation"
-                aria-label="Go to dashboard"
-              >
-                Dashboard
-              </Button>
-            )}
-            {/* Logout button */}
-            <Button
-              variant="ghost"
-              onClick={handleLogout}
-              className="-ml-2 min-h-[44px] active:bg-accent active:opacity-70 touch-manipulation"
-              aria-label="Logout"
-            >
-              Logout
+              <ArrowLeft className="h-4 w-4" />
+              Back to Event
             </Button>
           </div>
+        )}
 
-          <Card>
+        <Card>
             <CardHeader>
               <CardTitle>Profile</CardTitle>
               <CardDescription>
@@ -821,7 +742,6 @@ function ProfilePage() {
             </CardContent>
           </Card>
           )}
-        </div>
       </div>
     </div>
   );
