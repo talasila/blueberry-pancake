@@ -1,9 +1,9 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Plus, X, Edit2, Trash2, RefreshCw } from 'lucide-react';
+import { Plus, X, Edit2, Trash2, RefreshCw } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import apiClient from '@/services/apiClient';
 import { useEventContext } from '@/contexts/EventContext';
@@ -393,29 +393,14 @@ function ProfilePage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-4">
       <div className="max-w-md mx-auto w-full">
-        {/* Back to Event button */}
-        {eventId && (
-          <div className="mb-6">
-            <Button
-              onClick={() => navigate(`/event/${eventId}`)}
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Event
-            </Button>
-          </div>
-        )}
+        {/* Header */}
+        <div className="mb-6">
+          <h4 className="text-xl font-bold">Profile</h4>
+        </div>
 
         <div className="space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle>Profile</CardTitle>
-              <CardDescription>
-                Manage your profile details for this event
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
+            <CardContent className="pt-6">
               <form onSubmit={handleSave} className="space-y-4">
                 {/* Email (read-only) */}
                 {userEmail && (
@@ -477,14 +462,9 @@ function ProfilePage() {
           {/* My Items Section - only show if eventId is valid */}
           {eventId && /^[A-Za-z0-9]{8}$/.test(eventId) && (
           <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>My {plural}</CardTitle>
-                  <CardDescription>
-                    {plural} you're bringing to this event
-                  </CardDescription>
-                </div>
+            <CardContent className="pt-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">My {plural}</h3>
                 {canRegisterItems && (
                   <Button
                     variant="outline"
@@ -506,8 +486,6 @@ function ProfilePage() {
                   </Button>
                 )}
               </div>
-            </CardHeader>
-            <CardContent>
               {/* Item registration form */}
               {showItemForm && canRegisterItems && (
                 <form onSubmit={handleItemSubmit} className="space-y-4 mb-6 pb-6 border-b">

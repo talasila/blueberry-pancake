@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, ArrowLeft } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import StatisticsCard from '@/components/StatisticsCard';
 import ItemRatingsTable from '@/components/ItemRatingsTable';
@@ -115,18 +115,6 @@ function DashboardPage() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-4">
-      {/* Navigation back to event main page */}
-      <div className="mb-6">
-        <Button
-          onClick={() => navigate(`/event/${eventId}`)}
-          variant="outline"
-          className="flex items-center gap-2"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Event
-        </Button>
-      </div>
-      
       {/* Header with title and refresh button */}
       <div className="flex items-center justify-between">
         <h4 className="text-xl font-bold">Dashboard</h4>

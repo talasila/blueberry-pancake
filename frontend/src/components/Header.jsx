@@ -1,4 +1,4 @@
-import { Menu, User, BarChart3, Shield, LogOut } from 'lucide-react';
+import { Menu, User, BarChart3, Shield, LogOut, ArrowLeft } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMemo, useState, useEffect } from 'react';
 import Logo from './Logo.jsx';
@@ -76,7 +76,22 @@ function Header() {
     return isAdmin || event.state === 'completed';
   }, [isEventRoute, event, isAdmin]);
 
+  // Check if we're on the main event page (not on profile, dashboard, or admin)
+  const isMainEventPage = useMemo(() => {
+    if (!isEventRoute || !pathEventId) return false;
+    // Main event page is exactly /event/:eventId (no additional path segments)
+    const pathMatch = location.pathname.match(/^\/event\/([A-Za-z0-9]{8})$/);
+    return !!pathMatch && pathMatch[1] === pathEventId;
+  }, [location.pathname, isEventRoute, pathEventId]);
+
   // Handle menu item clicks
+  const handleBackToEventClick = () => {
+    if (pathEventId) {
+      setIsMenuOpen(false);
+      navigate(`/event/${pathEventId}`);
+    }
+  };
+
   const handleProfileClick = () => {
     setIsMenuOpen(false);
     navigate(profilePath);
@@ -143,6 +158,16 @@ function Header() {
                 </button>
               }
             >
+              {/* Back to Event - show only if not on main event page */}
+              {!isMainEventPage && pathEventId && (
+                <DropdownMenuItem
+                  onClick={handleBackToEventClick}
+                  icon={<ArrowLeft className="h-4 w-4" />}
+                >
+                  Back to Event
+                </DropdownMenuItem>
+              )}
+              
               <DropdownMenuItem
                 onClick={handleProfileClick}
                 icon={<User className="h-4 w-4" />}
