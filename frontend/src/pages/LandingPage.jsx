@@ -9,14 +9,11 @@ import { clearSuccessMessage } from '@/utils/helpers';
 /**
  * LandingPage Component
  * 
- * A view-only landing page component that displays:
+ * Landing page component that displays:
  * 1. Join an event card with event ID input and Join button
  * 2. Create an event card with Create button
  * 
  * Note: The header is now handled by the App component and is reusable across all pages.
- * 
- * All buttons provide visual feedback but no functional behavior (no navigation,
- * API calls, or state changes beyond visual feedback).
  * 
  * @returns {JSX.Element} The landing page component
  */
@@ -38,11 +35,15 @@ function LandingPage() {
   }, [location.state]);
 
   /**
-   * Handle Join button click - provides visual feedback only, no functional behavior
+   * Handle Join button click or form submission
+   * Navigates to event page, which will redirect to email entry if not authenticated
    */
   const handleJoinClick = (e) => {
     e.preventDefault();
-    // No functional action - visual feedback handled by CSS
+    // Only navigate if eventId has a value
+    if (eventId && eventId.length > 0) {
+      navigate(`/event/${eventId}`);
+    }
   };
 
   /**
@@ -85,14 +86,17 @@ function LandingPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Input
-                  id="event-id"
-                  type="text"
-                  value={eventId}
-                  onChange={(e) => setEventId(e.target.value)}
-                  placeholder="Enter event ID"
-                  maxLength={1000}
-                />
+                <form onSubmit={handleJoinClick}>
+                  <Input
+                    id="event-id"
+                    type="text"
+                    value={eventId}
+                    onChange={(e) => setEventId(e.target.value)}
+                    placeholder="Enter event ID"
+                    maxLength={1000}
+                    autoComplete="off"
+                  />
+                </form>
               </CardContent>
               <CardFooter>
                 <Button
@@ -100,6 +104,7 @@ function LandingPage() {
                   onClick={handleJoinClick}
                   className="w-full"
                   aria-label="Join event button"
+                  disabled={!eventId || eventId.length === 0}
                 >
                   Join
                 </Button>
