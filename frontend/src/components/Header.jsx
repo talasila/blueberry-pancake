@@ -41,21 +41,9 @@ function Header() {
   // Check authentication state and update when location or eventId changes
   useEffect(() => {
     const checkAuth = () => {
-      // Check for JWT token (admin or OTP-authenticated user)
+      // Check for JWT token
       const jwtToken = apiClient.getJWTToken();
-      if (jwtToken) {
-        setAuthState(true);
-        return;
-      }
-      
-      // Check for PIN session if on an event route
-      if (isEventRoute && pathEventId) {
-        const pinSession = apiClient.getPINSessionId(pathEventId);
-        setAuthState(!!pinSession);
-        return;
-      }
-      
-      setAuthState(false);
+      setAuthState(!!jwtToken);
     };
 
     checkAuth();
@@ -114,22 +102,10 @@ function Header() {
     // Clear JWT token
     apiClient.clearJWTToken();
     
-    // Clear PIN session for current event if it exists
+    // Clear email from sessionStorage for current event if it exists
     if (pathEventId) {
-      localStorage.removeItem(`pin:session:${pathEventId}`);
-      // Clear email from sessionStorage
       sessionStorage.removeItem(`event:${pathEventId}:email`);
     }
-    
-    // Clear all PIN sessions (in case user was logged into multiple events)
-    const keysToRemove = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('pin:session:')) {
-        keysToRemove.push(key);
-      }
-    }
-    keysToRemove.forEach(key => localStorage.removeItem(key));
     
     // Clear all bookmarks from sessionStorage
     clearAllBookmarks();

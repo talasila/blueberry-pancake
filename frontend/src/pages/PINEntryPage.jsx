@@ -75,11 +75,6 @@ function PINEntryPage() {
         apiClient.setJWTToken(response.token);
       }
 
-      // Store PIN session ID in localStorage (for backward compatibility)
-      if (response.sessionId) {
-        localStorage.setItem(`pin:session:${eventId}`, response.sessionId);
-      }
-
       // Clear email from sessionStorage
       sessionStorage.removeItem(`event:${eventId}:email`);
 

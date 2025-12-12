@@ -84,12 +84,14 @@ router.post('/', async (req, res) => {
 /**
  * GET /api/events/:eventId/items
  * Retrieve items for an event
- * Returns all items for administrators, or only user's own items for regular users
+ * Returns all items for administrators (unless ownItemsOnly=true), or only user's own items for regular users
+ * Query parameter: ownItemsOnly - if true, returns only user's own items even for administrators
  */
 router.get('/', async (req, res) => {
   try {
     const { eventId } = req.params;
     const userEmail = req.user?.email;
+    const ownItemsOnly = req.query.ownItemsOnly === 'true';
 
     if (!userEmail) {
       return res.status(401).json({
@@ -108,8 +110,10 @@ router.get('/', async (req, res) => {
     const event = await eventService.getEvent(eventId);
     const isAdministrator = eventService.isAdministrator(event, userEmail);
 
-    // Get items (all for admin, filtered for regular users)
-    const items = await itemService.getItems(eventId, userEmail, isAdministrator);
+    // If ownItemsOnly is true, force filtering by user email even for admins
+    // Otherwise, return all items for admins, filtered for regular users
+    const shouldFilterByUser = ownItemsOnly || !isAdministrator;
+    const items = await itemService.getItems(eventId, userEmail, !shouldFilterByUser);
 
     res.json(items);
   } catch (error) {

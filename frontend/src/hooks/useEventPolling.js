@@ -29,10 +29,9 @@ function useEventPolling(eventId, intervalMs = 30000) {
     }
 
     // Check authentication before attempting to fetch - CRITICAL: must check every time
-    // Must have a valid (non-empty) token or session
+    // Must have a valid (non-empty) JWT token
     const jwtToken = apiClient.getJWTToken();
-    const pinSession = apiClient.getPINSessionId(eventId);
-    const hasAuth = !!(jwtToken && jwtToken.trim()) || !!(pinSession && pinSession.trim());
+    const hasAuth = !!(jwtToken && jwtToken.trim());
     
     if (!hasAuth) {
       // Don't fetch if no authentication - stop polling interval if it exists
@@ -81,10 +80,9 @@ function useEventPolling(eventId, intervalMs = 30000) {
     }
 
     // Check authentication before setting up polling
-    // Must have a valid (non-empty) token or session
+    // Must have a valid (non-empty) JWT token
     const jwtToken = apiClient.getJWTToken();
-    const pinSession = apiClient.getPINSessionId(eventId);
-    const hasAuth = !!(jwtToken && jwtToken.trim()) || !!(pinSession && pinSession.trim());
+    const hasAuth = !!(jwtToken && jwtToken.trim());
     
     if (!hasAuth) {
       // Don't start polling if no authentication

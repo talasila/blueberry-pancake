@@ -83,7 +83,7 @@ function RatingDrawer({
         }
       }
       
-      const newState = await toggleBookmark(eventId, itemId, email);
+      const newState = await toggleBookmark(eventId, itemId);
       setBookmarked(newState);
       // Trigger event to update bookmark indicator on EventPage
       window.dispatchEvent(new CustomEvent('bookmarkToggled', { 

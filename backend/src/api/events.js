@@ -4,9 +4,8 @@ import pinService from '../services/PINService.js';
 import ratingService from '../services/RatingService.js';
 import { toCSV } from '../utils/csvParser.js';
 import loggerService from '../logging/Logger.js';
-import { jwtAuth, generateToken } from '../middleware/jwtAuth.js';
+import { generateToken } from '../middleware/jwtAuth.js';
 import requireAuth from '../middleware/requireAuth.js';
-import requirePIN from '../middleware/requirePIN.js';
 
 const router = Router();
 
@@ -225,49 +224,11 @@ router.get('/:eventId/check-admin', async (req, res) => {
 });
 
 /**
- * Middleware to check PIN session OR JWT token for event access
- */
-function requirePINOrAuth(req, res, next) {
-  const { eventId } = req.params;
-  const sessionId = req.headers['x-pin-session-id'];
-  const authHeader = req.headers.authorization;
-
-  // Check PIN session first
-  if (sessionId) {
-    const pinVerified = pinService.checkPINSession(eventId, sessionId);
-    if (pinVerified) {
-      req.pinVerified = true;
-      req.eventId = eventId;
-      return next();
-    }
-  }
-
-  // If no valid PIN session, check JWT token
-  if (authHeader) {
-    // Use jwtAuth middleware to validate JWT
-    return jwtAuth(req, res, (err) => {
-      if (err) {
-        // JWT invalid - check if we had a PIN session attempt
-        if (sessionId) {
-          return res.status(401).json({ error: 'PIN verification expired or invalid' });
-        }
-        return res.status(401).json({ error: 'Authentication required' });
-      }
-      // JWT valid
-      next();
-    });
-  }
-
-  // No PIN session and no JWT token
-  return res.status(401).json({ error: 'PIN verification or authentication required' });
-}
-
-/**
  * GET /api/events/:eventId
  * Retrieve event by ID
- * Requires either PIN verification session OR OTP authentication (JWT token)
+ * Requires JWT token authentication
  */
-router.get('/:eventId', requirePINOrAuth, async (req, res) => {
+router.get('/:eventId', requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
 
@@ -1032,7 +993,7 @@ router.patch('/:eventId/rating-configuration', requireAuth, async (req, res) => 
  * Get bookmarks for the current user in an event
  * Requires either PIN verification session OR OTP authentication (JWT token)
  */
-router.get('/:eventId/bookmarks', requirePINOrAuth, async (req, res) => {
+router.get('/:eventId/bookmarks', requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
 
@@ -1043,18 +1004,12 @@ router.get('/:eventId/bookmarks', requirePINOrAuth, async (req, res) => {
       });
     }
 
-    // Get user email from JWT token (if authenticated via OTP) or from query string (for PIN auth)
-    let userEmail = req.user?.email;
-    
-    // If no email from JWT, try to get from query string (for PIN auth)
-    // Note: GET requests don't have a body, so we use query string
-    if (!userEmail) {
-      userEmail = req.query?.email;
-    }
+    // Get user email from JWT token
+    const userEmail = req.user?.email;
 
     if (!userEmail || typeof userEmail !== 'string') {
-      return res.status(400).json({
-        error: 'Email address is required'
+      return res.status(401).json({
+        error: 'Authentication required'
       });
     }
 
@@ -1102,7 +1057,7 @@ router.get('/:eventId/bookmarks', requirePINOrAuth, async (req, res) => {
  * Get user profile (name) for an event
  * Requires PIN or JWT authentication
  */
-router.get('/:eventId/profile', requirePINOrAuth, async (req, res) => {
+router.get('/:eventId/profile', requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
 
@@ -1113,17 +1068,12 @@ router.get('/:eventId/profile', requirePINOrAuth, async (req, res) => {
       });
     }
 
-    // Get user email from JWT token (if authenticated via OTP) or from query string (for PIN auth)
-    let userEmail = req.user?.email;
-    
-    // If no email from JWT, try to get from query string (for PIN auth)
-    if (!userEmail) {
-      userEmail = req.query?.email;
-    }
+    // Get user email from JWT token
+    const userEmail = req.user?.email;
 
     if (!userEmail || typeof userEmail !== 'string') {
-      return res.status(400).json({
-        error: 'Email address is required'
+      return res.status(401).json({
+        error: 'Authentication required'
       });
     }
 
@@ -1162,7 +1112,7 @@ router.get('/:eventId/profile', requirePINOrAuth, async (req, res) => {
  * Update user profile (name) for an event
  * Requires PIN or JWT authentication
  */
-router.put('/:eventId/profile', requirePINOrAuth, async (req, res) => {
+router.put('/:eventId/profile', requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
     const { name } = req.body;
@@ -1174,13 +1124,8 @@ router.put('/:eventId/profile', requirePINOrAuth, async (req, res) => {
       });
     }
 
-    // Get user email from JWT token (if authenticated via OTP) or from request body (for PIN auth)
-    let userEmail = req.user?.email;
-    
-    // If no email from JWT, try to get from request body (for PIN auth)
-    if (!userEmail) {
-      userEmail = req.body?.email;
-    }
+    // Get user email from JWT token
+    const userEmail = req.user?.email;
 
     if (!userEmail || typeof userEmail !== 'string') {
       return res.status(400).json({
@@ -1226,7 +1171,7 @@ router.put('/:eventId/profile', requirePINOrAuth, async (req, res) => {
   }
 });
 
-router.put('/:eventId/bookmarks', requirePINOrAuth, async (req, res) => {
+router.put('/:eventId/bookmarks', requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
     const { bookmarks } = req.body;
@@ -1238,17 +1183,12 @@ router.put('/:eventId/bookmarks', requirePINOrAuth, async (req, res) => {
       });
     }
 
-    // Get user email from JWT token (if authenticated via OTP) or from request body (for PIN auth)
-    let userEmail = req.user?.email;
-    
-    // If no email from JWT, try to get from request body (for PIN auth)
-    if (!userEmail) {
-      userEmail = req.body?.email;
-    }
+    // Get user email from JWT token
+    const userEmail = req.user?.email;
 
     if (!userEmail || typeof userEmail !== 'string') {
-      return res.status(400).json({
-        error: 'Email address is required'
+      return res.status(401).json({
+        error: 'Authentication required'
       });
     }
 

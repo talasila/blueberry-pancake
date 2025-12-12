@@ -32,10 +32,9 @@ function EventRouteWrapper({ children }) {
   const { eventId } = useParams();
   
   // Check authentication before fetching
-  // Must have a valid (non-empty) token or session
+  // Must have a valid (non-empty) JWT token
   const jwtToken = apiClient.getJWTToken();
-  const pinSession = eventId ? apiClient.getPINSessionId(eventId) : null;
-  const hasAuth = !!(jwtToken && jwtToken.trim()) || !!(pinSession && pinSession.trim());
+  const hasAuth = !!(jwtToken && jwtToken.trim());
   
   const { event: initialEvent } = useEvent();
   // Only poll if we have authentication
@@ -239,10 +238,9 @@ function EventContextProviderForRoute({ eventId, children }) {
   const [currentEvent, setCurrentEvent] = useState(null);
   
   // Check authentication before polling
-  // Must have a valid (non-empty) token or session
+  // Must have a valid (non-empty) JWT token
   const jwtToken = apiClient.getJWTToken();
-  const pinSession = eventId ? apiClient.getPINSessionId(eventId) : null;
-  const hasAuth = !!(jwtToken && jwtToken.trim()) || !!(pinSession && pinSession.trim());
+  const hasAuth = !!(jwtToken && jwtToken.trim());
   
   // Only poll if we have authentication
   const { event: polledEvent } = useEventPolling(hasAuth ? eventId : null);
@@ -252,10 +250,9 @@ function EventContextProviderForRoute({ eventId, children }) {
     if (!eventId) return;
     
     // Check authentication before attempting to fetch
-    // Must have a valid (non-empty) token or session
+    // Must have a valid (non-empty) JWT token
     const jwtToken = apiClient.getJWTToken();
-    const pinSession = apiClient.getPINSessionId(eventId);
-    const hasAuth = !!(jwtToken && jwtToken.trim()) || !!(pinSession && pinSession.trim());
+    const hasAuth = !!(jwtToken && jwtToken.trim());
     
     if (!hasAuth) {
       // Don't fetch if no authentication - let the page component handle redirect

@@ -117,15 +117,6 @@ class ApiClient {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    // Add PIN session ID if available for event endpoints
-    const eventId = this.getEventIdFromUrl(endpoint);
-    if (eventId) {
-      const pinSessionId = this.getPINSessionId(eventId);
-      if (pinSessionId) {
-        headers['X-PIN-Session-Id'] = pinSessionId;
-      }
-    }
-
     // Add CSRF token for state-changing requests
     if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method?.toUpperCase())) {
       if (!this.csrfToken) {
@@ -448,65 +439,39 @@ class ApiClient {
   /**
    * Get bookmarks for the current user in an event
    * @param {string} eventId - Event identifier
-   * @param {string} email - User email address (required for PIN auth)
    * @returns {Promise<any>} Response data with bookmarks array
    */
-  async getBookmarks(eventId, email = null) {
-    const endpoint = `/events/${eventId}/bookmarks`;
-    if (email) {
-      // For PIN auth, include email in query string
-      return this.get(`${endpoint}?email=${encodeURIComponent(email)}`);
-    }
-    return this.get(endpoint);
+  async getBookmarks(eventId) {
+    return this.get(`/events/${eventId}/bookmarks`);
   }
 
   /**
    * Save bookmarks for the current user in an event
    * @param {string} eventId - Event identifier
    * @param {Array<number>} bookmarks - Array of bookmarked item IDs
-   * @param {string} email - User email address (required for PIN auth)
    * @returns {Promise<any>} Response data with saved bookmarks
    */
-  async saveBookmarks(eventId, bookmarks, email = null) {
-    const endpoint = `/events/${eventId}/bookmarks`;
-    const body = { bookmarks };
-    if (email) {
-      // For PIN auth, include email in body
-      body.email = email;
-    }
-    return this.put(endpoint, body);
+  async saveBookmarks(eventId, bookmarks) {
+    return this.put(`/events/${eventId}/bookmarks`, { bookmarks });
   }
 
   /**
    * Get user profile (name) for the current user in an event
    * @param {string} eventId - Event identifier
-   * @param {string} email - User email address (required for PIN auth)
    * @returns {Promise<any>} Response data with user profile
    */
-  async getUserProfile(eventId, email = null) {
-    const endpoint = `/events/${eventId}/profile`;
-    if (email) {
-      // For PIN auth, include email in query string
-      return this.get(`${endpoint}?email=${encodeURIComponent(email)}`);
-    }
-    return this.get(endpoint);
+  async getUserProfile(eventId) {
+    return this.get(`/events/${eventId}/profile`);
   }
 
   /**
    * Update user profile (name) for the current user in an event
    * @param {string} eventId - Event identifier
    * @param {string} name - User name
-   * @param {string} email - User email address (required for PIN auth)
    * @returns {Promise<any>} Response data with updated user profile
    */
-  async updateUserProfile(eventId, name, email = null) {
-    const endpoint = `/events/${eventId}/profile`;
-    const body = { name };
-    if (email) {
-      // For PIN auth, include email in body
-      body.email = email;
-    }
-    return this.put(endpoint, body);
+  async updateUserProfile(eventId, name) {
+    return this.put(`/events/${eventId}/profile`, { name });
   }
 
   /**

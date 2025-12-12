@@ -1,5 +1,4 @@
 import { useEventContext } from '@/contexts/EventContext';
-import { usePIN } from '@/contexts/PINContext';
 import useEventPolling from '@/hooks/useEventPolling';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef, useMemo } from 'react';
@@ -35,13 +34,11 @@ function EventPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
   const { event: contextEvent, isAdmin } = useEventContext();
-  const { pinVerified, sessionId } = usePIN();
   const { pluralLower } = useItemTerminology(contextEvent);
   
   // Check authentication synchronously before any API calls
   const jwtToken = apiClient.getJWTToken();
-  const pinSession = eventId ? apiClient.getPINSessionId(eventId) : null;
-  const hasAuth = !!(jwtToken || pinSession || pinVerified);
+  const hasAuth = !!jwtToken;
   
   const [event, setEvent] = useState(contextEvent);
   const [isLoading, setIsLoading] = useState(!contextEvent);
@@ -66,17 +63,16 @@ function EventPage() {
     if (!eventId || redirectCheckedRef.current) return;
     
     const currentJwtToken = apiClient.getJWTToken();
-    const currentPinSession = apiClient.getPINSessionId(eventId);
     
-    // If no JWT token and no PIN session, redirect to email entry immediately
-    if (!currentJwtToken && !currentPinSession && !pinVerified) {
+    // If no JWT token, redirect to email entry immediately
+    if (!currentJwtToken) {
       redirectCheckedRef.current = true;
       navigate(`/event/${eventId}/email`, { replace: true });
       return;
     }
     
     redirectCheckedRef.current = true;
-  }, [eventId, navigate, pinVerified]);
+  }, [eventId, navigate]);
 
   // Only start polling if we have authentication - pass null to prevent fetching
   // Wait for redirect check to complete before starting polling
@@ -84,13 +80,13 @@ function EventPage() {
     hasAuth && redirectCheckedRef.current ? eventId : null
   );
 
-  // Handle invalid PIN sessions - clear session and redirect if API returns 401
+  // Handle invalid authentication - redirect if API returns 401
   useEffect(() => {
-    if (error && error.includes('PIN verification') || error?.includes('401')) {
-      // Clear invalid PIN session
+    if (error && error.includes('401')) {
+      // Clear JWT token and redirect to email entry
       if (eventId) {
-        localStorage.removeItem(`pin:session:${eventId}`);
-        navigate(`/event/${eventId}/pin`, { replace: true });
+        apiClient.clearJWTToken();
+        navigate(`/event/${eventId}/email`, { replace: true });
       }
     }
   }, [error, eventId, navigate]);
@@ -292,7 +288,7 @@ function EventPage() {
       if (event.detail.eventId === eventId && userEmail) {
         // Reload from server to ensure sync
         try {
-          const bookmarkedItems = await loadBookmarksFromServer(eventId, userEmail);
+          const bookmarkedItems = await loadBookmarksFromServer(eventId);
           setBookmarks(bookmarkedItems);
         } catch (error) {
           console.error('Error reloading bookmarks after toggle:', error);
@@ -316,7 +312,7 @@ function EventPage() {
   // Load bookmarks from server on mount
   useEffect(() => {
     if (eventId && userEmail) {
-      loadBookmarksFromServer(eventId, userEmail)
+      loadBookmarksFromServer(eventId)
         .then(bookmarkedItems => {
           setBookmarks(bookmarkedItems);
         })

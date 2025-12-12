@@ -1,8 +1,7 @@
 import { Router } from 'express';
 import dashboardService from '../services/DashboardService.js';
 import eventService from '../services/EventService.js';
-import { jwtAuth } from '../middleware/jwtAuth.js';
-import requirePIN from '../middleware/requirePIN.js';
+import requireAuth from '../middleware/requireAuth.js';
 import loggerService from '../logging/Logger.js';
 
 const router = Router({ mergeParams: true });
@@ -16,10 +15,9 @@ const router = Router({ mergeParams: true });
  * - Regular users can only access when event is in "completed" state
  * 
  * Authentication:
- * - JWT token (for administrators)
- * - PIN session (for regular users)
+ * - JWT token (required)
  */
-router.get('/', async (req, res) => {
+router.get('/', requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
 
@@ -39,29 +37,16 @@ router.get('/', async (req, res) => {
       });
     }
 
-    // Extract user email from JWT token (if available)
-    let userEmail = null;
-    let isAdmin = false;
-
-    // Try to get user email from JWT token
-    try {
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.substring(7);
-        const parts = token.split('.');
-        if (parts.length === 3) {
-          const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-          userEmail = payload.email;
-        }
-      }
-    } catch (error) {
-      // JWT parsing failed, continue with PIN authentication check
+    // Get user email from JWT token
+    const userEmail = req.user?.email;
+    if (!userEmail) {
+      return res.status(401).json({
+        error: 'Authentication required'
+      });
     }
 
     // Check if user is administrator
-    if (userEmail) {
-      isAdmin = eventService.isAdministrator(event, userEmail);
-    }
+    const isAdmin = eventService.isAdministrator(event, userEmail);
 
     // Access control: Regular users can only access when event is "completed"
     if (!isAdmin && event.state !== 'completed') {

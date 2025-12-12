@@ -75,11 +75,11 @@ function ProfilePage() {
         }
       }
       
-      // If no email from JWT, try to get from PIN session (for regular users)
+      // If no email from JWT, try to get from sessionStorage (stored during email entry)
       if (!email && eventId) {
-        const pinEmail = sessionStorage.getItem(`event:${eventId}:email`);
-        if (pinEmail) {
-          email = pinEmail;
+        const storedEmail = sessionStorage.getItem(`event:${eventId}:email`);
+        if (storedEmail) {
+          email = storedEmail;
         }
       }
       
@@ -88,7 +88,7 @@ function ProfilePage() {
         
         // Load user profile data from backend
         try {
-          const profile = await apiClient.getUserProfile(eventId, email);
+          const profile = await apiClient.getUserProfile(eventId);
           if (profile.name) {
             setName(profile.name);
           }
@@ -145,7 +145,8 @@ function ProfilePage() {
           return;
         }
         
-        const userItems = await itemService.getItems(validatedEventId);
+        // Always fetch only user's own items on profile page, even for admins
+        const userItems = await itemService.getItems(validatedEventId, true);
         setItems(userItems || []);
       } catch (err) {
         // Log all errors for debugging, but handle validation errors specially
@@ -181,7 +182,7 @@ function ProfilePage() {
       }
 
       // Update user name via API
-      await apiClient.updateUserProfile(eventId, name, userEmail);
+      await apiClient.updateUserProfile(eventId, name);
       
       setSuccess('Profile updated successfully!');
       setLoading(false);
@@ -406,7 +407,8 @@ function ProfilePage() {
           </div>
         )}
 
-        <Card>
+        <div className="space-y-6">
+          <Card>
             <CardHeader>
               <CardTitle>Profile</CardTitle>
               <CardDescription>
@@ -742,6 +744,7 @@ function ProfilePage() {
             </CardContent>
           </Card>
           )}
+        </div>
       </div>
     </div>
   );

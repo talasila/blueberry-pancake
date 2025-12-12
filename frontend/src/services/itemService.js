@@ -32,15 +32,17 @@ export const itemService = {
    * Get items for an event
    * Returns all items for administrators, or only user's own items for regular users
    * @param {string} eventId - Event identifier
+   * @param {boolean} ownItemsOnly - If true, returns only user's own items even for administrators
    * @returns {Promise<Array<object>>} Array of item objects
    */
-  async getItems(eventId) {
+  async getItems(eventId, ownItemsOnly = false) {
     if (!eventId || eventId === 'undefined' || eventId === 'null' || eventId.trim() === '') {
       throw new Error('Event ID is required');
     }
 
     try {
-      const response = await apiClient.get(`/events/${eventId}/items`);
+      const queryParam = ownItemsOnly ? '?ownItemsOnly=true' : '';
+      const response = await apiClient.get(`/events/${eventId}/items${queryParam}`);
       return response;
     } catch (error) {
       console.error('Error getting items:', error);

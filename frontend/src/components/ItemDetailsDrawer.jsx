@@ -82,11 +82,11 @@ function ItemDetailsDrawer({
         }
       }
       
-      // If no email from JWT, try PIN session
+      // If no email from JWT, try sessionStorage (stored during email entry)
       if (!email && eventId) {
-        const pinEmail = sessionStorage.getItem(`event:${eventId}:email`);
-        if (pinEmail) {
-          email = pinEmail;
+        const storedEmail = sessionStorage.getItem(`event:${eventId}:email`);
+        if (storedEmail) {
+          email = storedEmail;
         }
       }
       

@@ -42,16 +42,15 @@ export function getBookmarks(eventId) {
 /**
  * Load bookmarks from server for an event
  * @param {string} eventId - Event identifier
- * @param {string} userEmail - User email address (optional, for PIN auth)
  * @returns {Promise<Array<number>>} Array of bookmarked item IDs
  */
-export async function loadBookmarksFromServer(eventId, userEmail = null) {
+export async function loadBookmarksFromServer(eventId) {
   if (!eventId) {
     return [];
   }
 
   try {
-    const response = await apiClient.getBookmarks(eventId, userEmail);
+    const response = await apiClient.getBookmarks(eventId);
     const bookmarks = response.bookmarks || [];
     
     // Cache in sessionStorage
@@ -70,10 +69,9 @@ export async function loadBookmarksFromServer(eventId, userEmail = null) {
  * Add a bookmark for an item
  * @param {string} eventId - Event identifier
  * @param {number} itemId - Item identifier
- * @param {string} userEmail - User email address (optional, for server sync)
  * @returns {Promise<void>}
  */
-export async function addBookmark(eventId, itemId, userEmail = null) {
+export async function addBookmark(eventId, itemId) {
   if (!eventId || !itemId) {
     return;
   }
@@ -86,13 +84,11 @@ export async function addBookmark(eventId, itemId, userEmail = null) {
       sessionStorage.setItem(key, JSON.stringify(bookmarks));
       
       // Sync with server
-      if (userEmail) {
-        try {
-          await apiClient.saveBookmarks(eventId, bookmarks, userEmail);
-        } catch (error) {
-          console.error('Error syncing bookmark to server:', error);
-          // Continue even if server sync fails
-        }
+      try {
+        await apiClient.saveBookmarks(eventId, bookmarks);
+      } catch (error) {
+        console.error('Error syncing bookmark to server:', error);
+        // Continue even if server sync fails
       }
     }
   } catch (error) {
@@ -104,10 +100,9 @@ export async function addBookmark(eventId, itemId, userEmail = null) {
  * Remove a bookmark for an item
  * @param {string} eventId - Event identifier
  * @param {number} itemId - Item identifier
- * @param {string} userEmail - User email address (optional, for server sync)
  * @returns {Promise<void>}
  */
-export async function removeBookmark(eventId, itemId, userEmail = null) {
+export async function removeBookmark(eventId, itemId) {
   if (!eventId || !itemId) {
     return;
   }
@@ -118,13 +113,11 @@ export async function removeBookmark(eventId, itemId, userEmail = null) {
     sessionStorage.setItem(key, JSON.stringify(bookmarks));
     
     // Sync with server
-    if (userEmail) {
-      try {
-        await apiClient.saveBookmarks(eventId, bookmarks, userEmail);
-      } catch (error) {
-        console.error('Error syncing bookmark removal to server:', error);
-        // Continue even if server sync fails
-      }
+    try {
+      await apiClient.saveBookmarks(eventId, bookmarks);
+    } catch (error) {
+      console.error('Error syncing bookmark removal to server:', error);
+      // Continue even if server sync fails
     }
   } catch (error) {
     console.error('Error removing bookmark:', error);
@@ -150,15 +143,14 @@ export function isBookmarked(eventId, itemId) {
  * Toggle bookmark state for an item
  * @param {string} eventId - Event identifier
  * @param {number} itemId - Item identifier
- * @param {string} userEmail - User email address (optional, for server sync)
  * @returns {Promise<boolean>} New bookmark state (true if bookmarked, false if unbookmarked)
  */
-export async function toggleBookmark(eventId, itemId, userEmail = null) {
+export async function toggleBookmark(eventId, itemId) {
   if (isBookmarked(eventId, itemId)) {
-    await removeBookmark(eventId, itemId, userEmail);
+    await removeBookmark(eventId, itemId);
     return false;
   } else {
-    await addBookmark(eventId, itemId, userEmail);
+    await addBookmark(eventId, itemId);
     return true;
   }
 }
