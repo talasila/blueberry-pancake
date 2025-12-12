@@ -135,19 +135,19 @@ function ItemRatingsTable({ itemSummaries = [], ratingConfiguration = [], onRowC
               </div>
             </th>
             <th
-              className="text-left p-2 font-medium cursor-pointer hover:bg-muted/50 text-sm"
+              className="text-center p-2 font-medium cursor-pointer hover:bg-muted/50 text-sm"
               onClick={() => handleSort('averageRating')}
             >
-              <div className="flex items-center">
+              <div className="flex items-center justify-center">
                 Avg.
                 {renderSortIcon('averageRating')}
               </div>
             </th>
             <th
-              className="text-left p-2 font-medium cursor-pointer hover:bg-muted/50 text-sm"
+              className="text-center p-2 font-medium cursor-pointer hover:bg-muted/50 text-sm"
               onClick={() => handleSort('weightedAverage')}
             >
-              <div className="flex items-center">
+              <div className="flex items-center justify-center">
                 Wt.Avg.
                 {renderSortIcon('weightedAverage')}
               </div>
@@ -176,8 +176,8 @@ function ItemRatingsTable({ itemSummaries = [], ratingConfiguration = [], onRowC
                     />
                   </div>
                 </td>
-                <td className="p-2 text-sm">
-                  <div className="flex items-center gap-2">
+                <td className="p-2 text-sm text-center">
+                  <div className="flex items-center justify-center gap-2">
                     <span>{formatValue(item.averageRating)}</span>
                     {avgRatingTooltip && (
                       <div className="group relative">
@@ -191,8 +191,8 @@ function ItemRatingsTable({ itemSummaries = [], ratingConfiguration = [], onRowC
                     )}
                   </div>
                 </td>
-                <td className="p-2 text-sm">
-                  <div className="flex items-center gap-2">
+                <td className="p-2 text-sm text-center">
+                  <div className="flex items-center justify-center gap-2">
                     <span>{formatValue(item.weightedAverage)}</span>
                     {weightedAvgTooltip && (
                       <div className="group relative">

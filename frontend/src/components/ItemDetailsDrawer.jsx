@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Message from '@/components/Message';
 import LoadingSpinner from '@/components/LoadingSpinner';
+import ProgressBar from '@/components/ProgressBar';
 import RatingDistribution from '@/components/RatingDistribution';
 import itemService from '@/services/itemService';
 import { ratingService } from '@/services/ratingService';
@@ -237,6 +238,24 @@ function ItemDetailsDrawer({
     return ratings.find(r => r.email?.toLowerCase().trim() === normalizedUserEmail) || null;
   }, [ratings, userEmail]);
 
+  // Calculate progress percentage (percentage of users who rated this item)
+  const ratingProgression = useMemo(() => {
+    if (!totalUsers || totalUsers === 0) return 0;
+    
+    // Count unique users who rated this item
+    const uniqueRaters = new Set();
+    ratings.forEach(rating => {
+      if (rating.email) {
+        uniqueRaters.add(rating.email.toLowerCase().trim());
+      }
+    });
+    const numberOfRaters = uniqueRaters.size;
+    
+    // Calculate percentage
+    const progress = (numberOfRaters / totalUsers) * 100;
+    return Math.max(0, Math.min(100, progress)); // Clamp between 0 and 100
+  }, [ratings, totalUsers]);
+
   // Calculate item ranking based on weighted average
   const itemRank = useMemo(() => {
     if (!cachedDashboardData?.itemSummaries || !itemId) return null;
@@ -451,6 +470,13 @@ function ItemDetailsDrawer({
                           </div>
                         )}
                       </div>
+
+                      {/* Progress Bar */}
+                      {totalUsers > 0 && (
+                        <div className="w-full [&>div]:h-2">
+                          <ProgressBar percentage={ratingProgression} />
+                        </div>
+                      )}
 
                       {/* Enhanced distribution with inline counts */}
                       {totalRatings > 0 ? (

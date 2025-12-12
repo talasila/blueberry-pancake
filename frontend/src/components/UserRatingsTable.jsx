@@ -147,10 +147,10 @@ function UserRatingsTable({ userSummaries = [], ratingConfiguration = [] }) {
               </div>
             </th>
             <th
-              className="text-left p-2 font-medium cursor-pointer hover:bg-muted/50 text-sm"
+              className="text-center p-2 font-medium cursor-pointer hover:bg-muted/50 text-sm"
               onClick={() => handleSort('averageRating')}
             >
-              <div className="flex items-center">
+              <div className="flex items-center justify-center">
                 Avg. Rating
                 {renderSortIcon('averageRating')}
               </div>
