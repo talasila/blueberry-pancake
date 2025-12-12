@@ -115,6 +115,29 @@ function DashboardPage() {
   // Get item terminology based on event type
   const { singular, plural, pluralLower } = useItemTerminology(event);
 
+  // Calculate progress percentage for Total Ratings
+  // Progress = (totalRatings / expectedRatings) * 100
+  // Expected ratings = totalUsers * totalItems
+  const calculateRatingsProgress = () => {
+    const totalUsers = statistics?.totalUsers ?? 0;
+    const totalItems = statistics?.totalItems ?? 0;
+    const totalRatings = statistics?.totalRatings ?? 0;
+    
+    if (totalUsers === 0 || totalItems === 0) {
+      return null; // Can't calculate progress if no users or items
+    }
+    
+    const expectedRatings = totalUsers * totalItems;
+    if (expectedRatings === 0) {
+      return null;
+    }
+    
+    const progress = (totalRatings / expectedRatings) * 100;
+    return Math.max(0, Math.min(100, progress)); // Clamp between 0 and 100
+  };
+
+  const ratingsProgress = calculateRatingsProgress();
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-4">
       {/* Header with title and refresh button */}
@@ -145,6 +168,7 @@ function DashboardPage() {
         <StatisticsCard
           title="Total Ratings"
           value={statistics?.totalRatings ?? null}
+          progressPercentage={ratingsProgress}
         />
         <StatisticsCard
           title={`Average Ratings per ${singular}`}

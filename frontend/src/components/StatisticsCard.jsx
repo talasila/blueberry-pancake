@@ -1,23 +1,39 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Info } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 /**
  * StatisticsCard Component
  * 
  * Displays a single statistic with title and value.
  * Handles null values by displaying "N/A" with optional tooltip.
+ * Supports optional progress fill background (left to right).
  * 
  * @param {string} title - Title of the statistic
  * @param {number|null} value - Value to display (null shows "N/A")
  * @param {string} tooltipMessage - Optional tooltip message for "N/A" values
+ * @param {number} progressPercentage - Optional progress percentage (0-100) for fill background
  */
-function StatisticsCard({ title, value, tooltipMessage }) {
+function StatisticsCard({ title, value, tooltipMessage, progressPercentage }) {
   const isNullValue = value === null || value === undefined;
   const displayValue = isNullValue ? 'N/A' : value;
+  
+  // Clamp progress percentage between 0 and 100
+  const clampedProgress = progressPercentage !== undefined && progressPercentage !== null
+    ? Math.max(0, Math.min(100, progressPercentage))
+    : null;
 
   return (
-    <Card className="h-full">
-      <CardContent className="pt-6 pb-4">
+    <Card className="h-full relative overflow-hidden">
+      {/* Progress fill background - fills from left to right */}
+      {clampedProgress !== null && (
+        <div
+          className="absolute inset-0 bg-primary/10 dark:bg-primary/20 transition-all duration-300"
+          style={{ width: `${clampedProgress}%` }}
+          aria-label={`${clampedProgress.toFixed(0)}% progress`}
+        />
+      )}
+      <CardContent className="pt-6 pb-4 relative z-10">
         <div className="flex flex-col items-center justify-center gap-2">
           <div className="flex items-center gap-2">
             <div className="text-4xl font-bold tracking-tight">
