@@ -178,8 +178,9 @@ function SimilarUsersDrawer({
               return 'from-orange-500 to-red-400';
             };
             
-            // Generate sparkline for this user
+            // Generate sparkline for this user (removed - not showing sparkline)
             const generateSparkline = () => {
+              return null;
               if (!user.commonItems || user.commonItems.length < 2) return null;
               
               const sortedItems = sortItemsById(user.commonItems);
@@ -300,9 +301,6 @@ function SimilarUsersDrawer({
                     )}
                   </div>
                 </button>
-                
-                {/* Sparkline outside button */}
-                {generateSparkline()}
               </div>
             );
           })}
