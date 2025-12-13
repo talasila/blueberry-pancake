@@ -8,6 +8,7 @@ import StatisticsCard from '@/components/StatisticsCard';
 import ItemRatingsTable from '@/components/ItemRatingsTable';
 import UserRatingsTable from '@/components/UserRatingsTable';
 import ItemDetailsDrawer from '@/components/ItemDetailsDrawer';
+import UserDetailsDrawer from '@/components/UserDetailsDrawer';
 import dashboardService from '@/services/dashboardService';
 import { useEventContext } from '@/contexts/EventContext';
 import { useItemTerminology } from '@/utils/itemTerminology';
@@ -29,6 +30,7 @@ function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [openItemDetailsItemId, setOpenItemDetailsItemId] = useState(null);
+  const [openUserDetailsEmail, setOpenUserDetailsEmail] = useState(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -217,6 +219,9 @@ function DashboardPage() {
             <UserRatingsTable 
               userSummaries={dashboardData?.userSummaries || []}
               ratingConfiguration={dashboardData?.ratingConfiguration?.ratings || []}
+              onRowClick={(userEmail) => {
+                setOpenUserDetailsEmail(userEmail);
+              }}
             />
           </TabsContent>
         </Tabs>
@@ -232,6 +237,16 @@ function DashboardPage() {
           eventState={event?.state}
         />
       )}
+
+      {/* User Details Drawer */}
+      <UserDetailsDrawer
+        isOpen={!!openUserDetailsEmail}
+        onClose={() => setOpenUserDetailsEmail(null)}
+        eventId={eventId}
+        userEmail={openUserDetailsEmail}
+        ratingConfig={dashboardData?.ratingConfiguration || null}
+        availableItemIds={dashboardData?.itemSummaries?.map(item => item.itemId) || []}
+      />
     </div>
   );
 }

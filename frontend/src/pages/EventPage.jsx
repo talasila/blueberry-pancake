@@ -10,11 +10,11 @@ import ItemButton from '@/components/ItemButton';
 import RatingDrawer from '@/components/RatingDrawer';
 import SimilarUsersDrawer from '@/components/SimilarUsersDrawer';
 import ItemDetailsDrawer from '@/components/ItemDetailsDrawer';
+import UserDetailsDrawer from '@/components/UserDetailsDrawer';
 import RatingErrorBoundary from '@/components/RatingErrorBoundary';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import UserRatingProgress from '@/components/UserRatingProgress';
 import { Button } from '@/components/ui/button';
-import { Users } from 'lucide-react';
+import { Users, BarChart3 } from 'lucide-react';
 import { useItemTerminology } from '@/utils/itemTerminology';
 
 /**
@@ -48,6 +48,7 @@ function EventPage() {
   const [openDrawerItemId, setOpenDrawerItemId] = useState(null);
   const [openItemDetailsItemId, setOpenItemDetailsItemId] = useState(null);
   const [isSimilarUsersDrawerOpen, setIsSimilarUsersDrawerOpen] = useState(false);
+  const [isUserDetailsDrawerOpen, setIsUserDetailsDrawerOpen] = useState(false);
   const [ratings, setRatings] = useState([]);
   const [bookmarks, setBookmarks] = useState([]);
   const [ratingConfig, setRatingConfig] = useState(null);
@@ -414,6 +415,24 @@ function EventPage() {
     }
   };
 
+  // Handle user details drawer close
+  const handleUserDetailsDrawerClose = () => {
+    setIsUserDetailsDrawerOpen(false);
+  };
+
+  // Handle my progress button click
+  const handleMyProgressClick = () => {
+    // Close other drawers if open
+    if (openDrawerItemId) {
+      setOpenDrawerItemId(null);
+    }
+    if (isSimilarUsersDrawerOpen) {
+      setIsSimilarUsersDrawerOpen(false);
+    }
+    // Small delay to allow close animation
+    setTimeout(() => setIsUserDetailsDrawerOpen(true), 100);
+  };
+
   // Calculate user rating progress data
   const userRatingProgressData = useMemo(() => {
     if (!ratings || ratings.length === 0 || !availableItemIds.length) {
@@ -590,30 +609,41 @@ function EventPage() {
             </div>
           )}
 
-          {/* Find Similar Tastes button - only visible when user has 3+ ratings */}
+          {/* Similar Tastes and My Progress buttons - only visible when user has 3+ ratings */}
           {hasMinimumRatings() && (event?.state === 'started' || event?.state === 'paused' || event?.state === 'completed') && (
-            <div className="flex justify-center mt-8">
+            <div className="flex justify-center gap-3 mt-8">
               <Button
                 onClick={handleSimilarUsersClick}
                 variant="outline"
                 className="flex items-center gap-2"
               >
                 <Users className="h-4 w-4" />
-                Find Similar Tastes
+                Similar Tastes
               </Button>
+              {userRatingProgressData && (
+                <Button
+                  onClick={handleMyProgressClick}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  My Progress
+                </Button>
+              )}
             </div>
           )}
 
-          {/* Your Rating Progress - only visible when user has at least 1 rating */}
-          {userRatingProgressData && (
-            <div className="mt-6">
-              <UserRatingProgress
-                ratingProgression={userRatingProgressData.ratingProgression}
-                ratingDistribution={userRatingProgressData.ratingDistribution}
-                ratings={userRatingProgressData.ratings}
-                ratingConfiguration={ratingConfig?.ratings || []}
-                totalRatings={userRatingProgressData.totalRatings}
-              />
+          {/* My Progress button - visible when user has at least 1 rating but less than 3 */}
+          {!hasMinimumRatings() && userRatingProgressData && (
+            <div className="flex justify-center mt-8">
+              <Button
+                onClick={handleMyProgressClick}
+                variant="outline"
+                className="flex items-center gap-2"
+              >
+                <BarChart3 className="h-4 w-4" />
+                My Progress
+              </Button>
             </div>
           )}
         </div>
@@ -625,6 +655,16 @@ function EventPage() {
         onClose={handleSimilarUsersDrawerClose}
         eventId={eventId}
         eventState={event?.state}
+      />
+
+      {/* User Details Drawer */}
+      <UserDetailsDrawer
+        isOpen={isUserDetailsDrawerOpen}
+        onClose={handleUserDetailsDrawerClose}
+        eventId={eventId}
+        userEmail={userEmail}
+        ratingConfig={ratingConfig}
+        availableItemIds={availableItemIds}
       />
 
       {/* Rating Drawer - only render when event is not completed */}

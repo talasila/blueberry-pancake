@@ -14,12 +14,14 @@ import { useItemTerminology } from '@/utils/itemTerminology';
  * 
  * Default sort: Email ascending
  * All columns are sortable (ascending/descending)
+ * Rows are clickable to open user details drawer
  * 
  * @param {object} props
  * @param {Array} props.userSummaries - Array of user summary objects
  * @param {Array} props.ratingConfiguration - Rating configuration array
+ * @param {function} props.onRowClick - Callback when a row is clicked, receives user email
  */
-function UserRatingsTable({ userSummaries = [], ratingConfiguration = [] }) {
+function UserRatingsTable({ userSummaries = [], ratingConfiguration = [], onRowClick }) {
   const { event } = useEventContext();
   const { pluralLower } = useItemTerminology(event);
   const [sortColumn, setSortColumn] = useState('email');
@@ -162,7 +164,8 @@ function UserRatingsTable({ userSummaries = [], ratingConfiguration = [] }) {
             return (
               <tr 
                 key={user.email} 
-                className="border-b hover:bg-muted/50"
+                className={`border-b hover:bg-muted/50 ${onRowClick ? 'cursor-pointer' : ''}`}
+                onClick={() => onRowClick && onRowClick(user.email)}
               >
                 <td className="p-2 text-sm">
                   <div className="flex flex-col">
