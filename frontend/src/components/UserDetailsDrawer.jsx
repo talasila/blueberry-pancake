@@ -2,10 +2,6 @@ import { X, ArrowUpDown, ArrowUp, ArrowDown, Bookmark } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import LoadingSpinner from '@/components/LoadingSpinner';
-import UserRatingProgress from './UserRatingProgress';
-import ProgressBar from './ProgressBar';
-import RatingDistribution from './RatingDistribution';
-import Sparkline from './Sparkline';
 import { ratingService } from '@/services/ratingService';
 import { useEventContext } from '@/contexts/EventContext';
 import { useItemTerminology } from '@/utils/itemTerminology';
@@ -417,7 +413,7 @@ function UserDetailsDrawer({
                   <div>
                     <h3 className="text-sm font-medium mb-3">Rating Progress</h3>
                     <div className="space-y-4">
-                      {/* Progress Bar with number */}
+                      {/* Combined Progress and History Bar */}
                       <div>
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-xs text-muted-foreground">Progress</span>
@@ -425,7 +421,51 @@ function UserDetailsDrawer({
                             {userRatingProgressData.ratingProgression.toFixed(1)}% ({Math.round((userRatingProgressData.ratingProgression / 100) * itemIds.length)} of {itemIds.length} {pluralLower})
                           </span>
                         </div>
-                        <ProgressBar percentage={userRatingProgressData.ratingProgression} />
+                        {userRatingProgressData.totalRatings > 0 ? (
+                          <div
+                            className="w-full h-5 bg-muted rounded-full overflow-hidden relative"
+                            role="progressbar"
+                            aria-valuenow={userRatingProgressData.ratingProgression}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-label={`${userRatingProgressData.ratingProgression.toFixed(0)}% complete`}
+                          >
+                            {/* Container for the filled portion (progress width) */}
+                            <div
+                              className="h-full flex"
+                              style={{ width: `${userRatingProgressData.ratingProgression}%` }}
+                            >
+                              {/* Chronological history segments within the filled portion */}
+                              {userRatingProgressData.ratings.map((ratingValue, index) => {
+                                const ratingConfig = ratingConfiguration?.ratings?.find(r => r.value === ratingValue);
+                                const color = ratingConfig?.color || '#6B7280';
+                                const segmentWidth = 100 / userRatingProgressData.ratings.length;
+                                
+                                return (
+                                  <div
+                                    key={index}
+                                    className="h-full transition-all"
+                                    style={{
+                                      width: `${segmentWidth}%`,
+                                      backgroundColor: color,
+                                      minWidth: '2px'
+                                    }}
+                                    title={`Rating ${ratingValue}${ratingConfig?.label ? `: ${ratingConfig.label}` : ''}`}
+                                  />
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : (
+                          <div
+                            className="w-full h-5 bg-muted rounded-full"
+                            role="progressbar"
+                            aria-valuenow={0}
+                            aria-valuemin={0}
+                            aria-valuemax={100}
+                            aria-label="0% complete"
+                          />
+                        )}
                       </div>
 
                       {/* Rating Distribution with numbers inside chart */}
@@ -494,20 +534,6 @@ function UserDetailsDrawer({
                             <div className="text-xs text-muted-foreground mt-1 text-center">No ratings</div>
                           </div>
                         )}
-                      </div>
-
-                      {/* Sparkline with number */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs text-muted-foreground">History</span>
-                          <span className="text-xs font-medium">
-                            {userRatingProgressData.totalRatings} {userRatingProgressData.totalRatings === 1 ? 'rating' : 'ratings'} (chronological order)
-                          </span>
-                        </div>
-                        <Sparkline
-                          ratings={userRatingProgressData.ratings}
-                          ratingConfiguration={ratingConfiguration?.ratings || []}
-                        />
                       </div>
                     </div>
                   </div>

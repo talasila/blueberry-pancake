@@ -11,9 +11,7 @@
 function RatingDistribution({ ratingDistribution = {}, ratingConfiguration = [], totalRatings = 0 }) {
   if (!ratingDistribution || totalRatings === 0) {
     return (
-      <div className="w-full h-2 bg-muted rounded-full">
-        <div className="text-xs text-muted-foreground mt-1">No ratings</div>
-      </div>
+      <div className="w-full h-2 bg-muted rounded-full" />
     );
   }
 
@@ -53,9 +51,7 @@ function RatingDistribution({ ratingDistribution = {}, ratingConfiguration = [],
 
   if (segments.length === 0) {
     return (
-      <div className="w-full h-2 bg-muted rounded-full">
-        <div className="text-xs text-muted-foreground mt-1">No ratings</div>
-      </div>
+      <div className="w-full h-2 bg-muted rounded-full" />
     );
   }
 
