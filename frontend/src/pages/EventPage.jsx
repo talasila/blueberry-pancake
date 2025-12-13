@@ -624,10 +624,59 @@ function EventPage() {
                 <Button
                   onClick={handleMyProgressClick}
                   variant="outline"
-                  className="flex items-center gap-2"
+                  className="flex items-center gap-2 relative overflow-hidden"
                 >
-                  <BarChart3 className="h-4 w-4" />
-                  My Progress
+                  {/* Progress/history visualization at bottom 10% */}
+                  {userRatingProgressData.totalRatings > 0 ? (
+                    <div
+                      className="absolute bottom-0 left-0 right-0 flex"
+                      style={{ height: '10%' }}
+                      role="progressbar"
+                      aria-valuenow={userRatingProgressData.ratingProgression}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label={`${userRatingProgressData.ratingProgression.toFixed(0)}% complete`}
+                    >
+                      <div
+                        className="h-full flex"
+                        style={{ width: `${userRatingProgressData.ratingProgression}%` }}
+                      >
+                        {userRatingProgressData.ratings.map((ratingValue, index) => {
+                          const ratingOption = ratingConfig?.ratings?.find(r => r.value === ratingValue);
+                          const color = ratingOption?.color || '#6B7280';
+                          const segmentWidth = 100 / userRatingProgressData.ratings.length;
+                          
+                          return (
+                            <div
+                              key={index}
+                              className="h-full transition-all"
+                              style={{
+                                width: `${segmentWidth}%`,
+                                backgroundColor: color,
+                                minWidth: '2px'
+                              }}
+                              title={`Rating ${ratingValue}${ratingOption?.label ? `: ${ratingOption.label}` : ''}`}
+                            />
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div
+                      className="absolute bottom-0 left-0 right-0 bg-muted"
+                      style={{ height: '10%' }}
+                      role="progressbar"
+                      aria-valuenow={0}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      aria-label="0% complete"
+                    />
+                  )}
+                  {/* Icon and text - always visible */}
+                  <div className="relative z-10 flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4" />
+                    <span>My Progress</span>
+                  </div>
                 </Button>
               )}
             </div>
@@ -639,10 +688,59 @@ function EventPage() {
               <Button
                 onClick={handleMyProgressClick}
                 variant="outline"
-                className="flex items-center gap-2"
+                className="flex items-center gap-2 relative overflow-hidden"
               >
-                <BarChart3 className="h-4 w-4" />
-                My Progress
+                {/* Progress/history visualization at bottom 10% */}
+                {userRatingProgressData.totalRatings > 0 ? (
+                  <div
+                    className="absolute bottom-0 left-0 right-0 flex"
+                    style={{ height: '10%' }}
+                    role="progressbar"
+                    aria-valuenow={userRatingProgressData.ratingProgression}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={`${userRatingProgressData.ratingProgression.toFixed(0)}% complete`}
+                  >
+                    <div
+                      className="h-full flex"
+                      style={{ width: `${userRatingProgressData.ratingProgression}%` }}
+                    >
+                      {userRatingProgressData.ratings.map((ratingValue, index) => {
+                        const ratingOption = ratingConfig?.ratings?.find(r => r.value === ratingValue);
+                        const color = ratingOption?.color || '#6B7280';
+                        const segmentWidth = 100 / userRatingProgressData.ratings.length;
+                        
+                        return (
+                          <div
+                            key={index}
+                            className="h-full transition-all"
+                            style={{
+                              width: `${segmentWidth}%`,
+                              backgroundColor: color,
+                              minWidth: '2px'
+                            }}
+                            title={`Rating ${ratingValue}${ratingOption?.label ? `: ${ratingOption.label}` : ''}`}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className="absolute bottom-0 left-0 right-0 bg-muted"
+                    style={{ height: '10%' }}
+                    role="progressbar"
+                    aria-valuenow={0}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label="0% complete"
+                  />
+                )}
+                {/* Icon and text - always visible */}
+                <div className="relative z-10 flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" />
+                  <span>My Progress</span>
+                </div>
               </Button>
             </div>
           )}
