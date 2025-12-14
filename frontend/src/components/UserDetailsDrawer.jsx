@@ -584,8 +584,8 @@ function UserDetailsDrawer({
                                 key={`${rating.itemId}-${rating.timestamp}-${index}`}
                                 className="border-b"
                               >
-                                <td className="p-2">
-                                  <div className="flex items-center gap-2">
+                                <td className="p-2 align-top">
+                                  <div className="flex items-start gap-2">
                                     <span className="font-medium">
                                       {rating.itemId}
                                     </span>
