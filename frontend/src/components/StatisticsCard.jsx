@@ -33,6 +33,14 @@ function StatisticsCard({ title, value, tooltipMessage, progressPercentage }) {
           aria-label={`${clampedProgress.toFixed(0)}% progress`}
         />
       )}
+      {/* Vertical lines at 25%, 50%, 75% */}
+      {clampedProgress !== null && (
+        <>
+          <div className="absolute top-0 bottom-0 w-px bg-border/30" style={{ left: '25%' }} />
+          <div className="absolute top-0 bottom-0 w-px bg-border/30" style={{ left: '50%' }} />
+          <div className="absolute top-0 bottom-0 w-px bg-border/30" style={{ left: '75%' }} />
+        </>
+      )}
       <CardContent className="pt-6 pb-4 relative z-10">
         <div className="flex flex-col items-center justify-center gap-2">
           <div className="flex items-center gap-2">
