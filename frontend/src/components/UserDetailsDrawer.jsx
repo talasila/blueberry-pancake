@@ -418,7 +418,7 @@ function UserDetailsDrawer({
                         <div className="flex items-center justify-between mb-1">
                           <span className="text-xs text-muted-foreground">Progress</span>
                           <span className="text-xs font-medium">
-                            {userRatingProgressData.ratingProgression.toFixed(1)}% ({Math.round((userRatingProgressData.ratingProgression / 100) * itemIds.length)} of {itemIds.length} {pluralLower})
+                            {userRatingProgressData.ratingProgression.toFixed(1)}%
                           </span>
                         </div>
                         {userRatingProgressData.totalRatings > 0 ? (
