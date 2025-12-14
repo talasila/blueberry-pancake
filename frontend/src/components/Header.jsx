@@ -151,14 +151,21 @@ function Header() {
       <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-2">
         <div className="w-full max-w-md flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">
-            <button
+            <div
               onClick={handleLogoClick}
-              className="flex-shrink-0 p-1 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 touch-manipulation"
+              className="flex-shrink-0 cursor-pointer focus:outline-none touch-manipulation"
               aria-label="Go to main event page"
-              type="button"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleLogoClick();
+                }
+              }}
             >
               <Logo size={32} className="text-foreground" />
-            </button>
+            </div>
             {isEventRoute && eventName && (
               <span className="text-sm font-medium truncate max-w-[200px]">
                 {eventName}
@@ -172,14 +179,22 @@ function Header() {
               onClose={() => setIsMenuOpen(false)}
               align="right"
               trigger={
-                <button
+                <div
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  className="p-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation"
+                  className="cursor-pointer focus:outline-none flex-shrink-0 flex items-center justify-center touch-manipulation"
                   aria-label="Open menu"
                   aria-expanded={isMenuOpen}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      setIsMenuOpen(!isMenuOpen);
+                    }
+                  }}
                 >
                   <Menu className="h-5 w-5" />
-                </button>
+                </div>
               }
             >
               {/* Back to Event - show only if not on main event page */}
