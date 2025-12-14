@@ -628,14 +628,25 @@ function SimilarUsersDrawer({
                           const userColor = getRatingColor(item.userRating);
                           const similarColor = getRatingColor(item.similarUserRating);
                           const alignment = getAlignmentIndicator(item.userRating, item.similarUserRating);
-                          const isAligned = areRatingsAligned(item.userRating, item.similarUserRating);
+                          const diff = Math.abs(item.userRating - item.similarUserRating);
+                          
+                          // Determine background color based on match type
+                          const getRowBackgroundClass = () => {
+                            if (diff === 0) {
+                              return 'bg-green-50 dark:bg-green-950/20'; // Perfect match - greenish
+                            } else if (diff === 1) {
+                              return 'bg-blue-50 dark:bg-blue-950/20'; // Close match - bluish
+                            } else {
+                              return 'bg-red-50 dark:bg-red-950/20'; // Different opinions - reddish
+                            }
+                          };
 
                           return (
                             <tr 
                               key={itemIndex}
                               className={`
                                 border-b transition-colors
-                                ${isAligned ? 'bg-green-50 dark:bg-green-950/20' : ''}
+                                ${getRowBackgroundClass()}
                               `}
                             >
                               <td className="py-2 px-3 font-medium">
