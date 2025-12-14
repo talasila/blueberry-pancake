@@ -52,22 +52,48 @@ export function calculateMeanAbsoluteError(user1Ratings, user2Ratings) {
 
 /**
  * Convert MAE to similarity score (0 to 1, where 1 = perfect match)
+ * Includes confidence weighting based on number of common items.
+ * More common items = higher confidence = slight boost to similarity score.
+ * 
  * @param {number} mae - Mean Absolute Error
  * @param {number} maxRating - Maximum rating value (e.g., 4 for scale 1-4)
+ * @param {number} commonItemsCount - Number of common items (default: 3, minimum)
  * @returns {number} Similarity score from 0 to 1
  */
-export function maeToSimilarityScore(mae, maxRating) {
+export function maeToSimilarityScore(mae, maxRating, commonItemsCount = 3) {
   if (mae === null || !isFinite(mae) || maxRating <= 0) {
     return 0;
   }
   
-  // Convert MAE to similarity: similarity = 1 - (MAE / maxRating)
+  // Base similarity from MAE: similarity = 1 - (MAE / maxRating)
   // MAE of 0 (perfect match) → similarity of 1
   // MAE of maxRating (worst match) → similarity of 0
-  const similarity = 1 - (mae / maxRating);
+  const baseSimilarity = 1 - (mae / maxRating);
+  
+  // Confidence factor based on number of common items
+  // Uses logarithmic scale: more items = higher confidence, but with diminishing returns
+  // Formula: confidence = 1 - (1 / (1 + log(n/minItems)))
+  // This gives:
+  // - 3 items (minimum): confidence ≈ 0.85
+  // - 10 items: confidence ≈ 0.95
+  // - 20 items: confidence ≈ 0.98
+  // - 50+ items: confidence ≈ 1.0
+  const minItems = 3;
+  if (commonItemsCount < minItems) {
+    // If somehow we have fewer than minimum, use base similarity without boost
+    return Math.max(0, Math.min(1, baseSimilarity));
+  }
+  
+  const confidenceFactor = 1 - (1 / (1 + Math.log(commonItemsCount / minItems)));
+  
+  // Adjusted similarity: base similarity weighted by confidence
+  // More common items = higher confidence = slight boost to score
+  // Formula: adjusted = base * (0.9 + 0.1 * confidence)
+  // This gives a boost of 0-10% based on confidence
+  const adjustedSimilarity = baseSimilarity * (0.9 + 0.1 * confidenceFactor);
   
   // Ensure result is within valid range [0, 1]
-  return Math.max(0, Math.min(1, similarity));
+  return Math.max(0, Math.min(1, adjustedSimilarity));
 }
 
 /**

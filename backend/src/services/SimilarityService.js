@@ -71,9 +71,11 @@ class SimilarityService {
         }
 
         // Convert MAE to similarity score (0 to 1, where 1 = perfect match)
+        // Includes confidence weighting based on number of common items
         // MAE of 0 (perfect match) → similarity of 1
         // MAE of maxRating (worst match) → similarity of 0
-        const similarityScore = maeToSimilarityScore(mae, maxRating);
+        // More common items = higher confidence = slight boost to similarity score
+        const similarityScore = maeToSimilarityScore(mae, maxRating, commonItems.length);
 
         // Build common items array for response
         const commonItemsForResponse = commonItems.map(item => ({

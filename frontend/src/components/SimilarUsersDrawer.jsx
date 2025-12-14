@@ -472,6 +472,10 @@ function SimilarUsersDrawer({
                                 <span> (MAE: {maeValue})</span>
                               )}
                             </p>
+                            <p className="text-xs text-muted-foreground mt-1 italic">
+                              Based on how close your ratings are across {totalItems} common {totalItems === 1 ? singular.toLowerCase() : `${singular.toLowerCase()}s`}. 
+                              {totalItems > 3 && ' More common ratings make the match more reliable.'}
+                            </p>
                             {position > 1 && topMatch && (
                               <p className="text-xs text-muted-foreground mt-1">
                                 {scoreDifference > 0.3 
