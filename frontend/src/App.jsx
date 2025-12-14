@@ -18,81 +18,30 @@ import { EventContextProvider } from './contexts/EventContext.jsx';
 import { PINProvider } from './contexts/PINContext.jsx';
 import { Toaster } from './components/ui/sonner';
 import { useParams } from 'react-router-dom';
-import useEvent from './hooks/useEvent.js';
-import useEventPolling from './hooks/useEventPolling.js';
+import useEventPolling from '@/hooks/useEventPolling';
 import { useEffect, useState } from 'react';
 import apiClient from './services/apiClient.js';
 
 /**
  * EventRouteWrapper Component
  * 
- * Wraps event routes to provide EventContext with event data and polling updates
+ * Wraps event routes. Uses event data from outer EventContextProviderForRoute
+ * (which handles polling). This component is a pass-through since the outer
+ * context already provides all needed event data.
  */
 function EventRouteWrapper({ children }) {
-  const { eventId } = useParams();
-  
-  // Check authentication before fetching
-  // Must have a valid (non-empty) JWT token
-  const jwtToken = apiClient.getJWTToken();
-  const hasAuth = !!(jwtToken && jwtToken.trim());
-  
-  const { event: initialEvent } = useEvent();
-  // Only poll if we have authentication
-  const { event: polledEvent } = useEventPolling(hasAuth ? eventId : null);
-  const [currentEvent, setCurrentEvent] = useState(initialEvent);
-  
-  // Update current event when initial load or polling updates
-  useEffect(() => {
-    if (polledEvent) {
-      setCurrentEvent(polledEvent);
-    } else if (initialEvent) {
-      setCurrentEvent(initialEvent);
-    }
-  }, [initialEvent, polledEvent]);
-  
-  // Extract user email from JWT token for admin check
-  const getUserId = () => {
-    try {
-      const token = apiClient.getJWTToken();
-      if (token) {
-        const parts = token.split('.');
-        if (parts.length === 3) {
-          const payload = JSON.parse(atob(parts[1]));
-          return payload.email?.toLowerCase() || null;
-        }
-      }
-    } catch (error) {
-      console.error('Error extracting user email from token:', error);
-    }
-    return null;
-  };
-
-  const userEmail = getUserId();
-  let isAdmin = false;
-  
-  if (userEmail && currentEvent?.administrators) {
-    // Check if user email exists in administrators object (case-insensitive)
-    const normalizedUserEmail = userEmail.toLowerCase();
-    isAdmin = Object.keys(currentEvent.administrators).some(
-      adminEmail => adminEmail.toLowerCase() === normalizedUserEmail
-    );
-  } else if (userEmail && currentEvent?.administrator) {
-    // Fallback: support old administrator field for backward compatibility
-    const adminEmail = currentEvent.administrator?.toLowerCase();
-    isAdmin = userEmail === adminEmail;
-  }
-
-  return (
-    <EventContextProvider event={currentEvent} eventId={eventId} isAdmin={isAdmin}>
-      {children}
-    </EventContextProvider>
-  );
+  // EventRouteWrapper is nested inside EventContextProviderForRoute,
+  // so it can access the outer context. Since the outer context already
+  // provides event data with polling, we just pass through children.
+  // The outer context handles all event data and polling.
+  return <>{children}</>;
 }
 
 /**
  * EventLayout Component
  * 
- * Wraps event routes with EventContextProvider so Header can access event data
+ * Wraps event routes. EventContext is provided by EventContextProviderForRoute
+ * at the app level, so this is just a wrapper component for consistency.
  */
 function EventLayout({ children }) {
   return (

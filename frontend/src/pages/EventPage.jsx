@@ -23,7 +23,7 @@ import { useItemTerminology } from '@/utils/itemTerminology';
  * and participate in rating items/bottles.
  * 
  * Features:
- * - Displays event data from context (provided by EventRouteWrapper, which handles polling)
+ * - Displays event data from context (provided by EventContextProviderForRoute, which handles polling)
  * - Shows loading state while fetching
  * - Handles error states (404, network errors)
  * - Displays event information (name, state, typeOfItem)
@@ -102,7 +102,7 @@ function EventPage() {
     }
   }, [event, isLoading]);
 
-  // Update event when context updates (context is already being polled by EventRouteWrapper)
+  // Update event when context updates (context is already being polled by EventContextProviderForRoute)
   useEffect(() => {
     if (contextEvent) {
       setEvent(contextEvent);
