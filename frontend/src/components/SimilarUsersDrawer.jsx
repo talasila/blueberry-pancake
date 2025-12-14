@@ -274,6 +274,8 @@ function SimilarUsersDrawer({
               );
             };
             
+            const commonItemsCount = user.commonItemsCount || (user.commonItems ? user.commonItems.length : 0);
+            
             return (
               <div key={user.email || index} className="flex items-center gap-3">
                 <button
@@ -288,9 +290,14 @@ function SimilarUsersDrawer({
                   
                   {/* Content overlay */}
                   <div className="relative z-10 flex items-center justify-between w-full">
-                    <span className="font-medium truncate flex-1 min-w-0">
-                      {user.name || user.email}
-                    </span>
+                    <div className="flex flex-col flex-1 min-w-0">
+                      <span className="font-medium truncate text-sm">
+                        {user.name || user.email}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {commonItemsCount} common {commonItemsCount === 1 ? singular.toLowerCase() : `${singular.toLowerCase()}s`}
+                      </span>
+                    </div>
                     {user.similarityScore !== null && (
                       <div className="flex items-center gap-2 shrink-0">
                         {/* Sparkle icon for high matches */}
