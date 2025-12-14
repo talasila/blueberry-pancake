@@ -1,5 +1,4 @@
 import { useEventContext } from '@/contexts/EventContext';
-import useEventPolling from '@/hooks/useEventPolling';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import apiClient from '@/services/apiClient';
@@ -24,8 +23,7 @@ import { useItemTerminology } from '@/utils/itemTerminology';
  * and participate in rating items/bottles.
  * 
  * Features:
- * - Displays event data from context (provided by EventRouteWrapper)
- * - Polls for event state updates
+ * - Displays event data from context (provided by EventRouteWrapper, which handles polling)
  * - Shows loading state while fetching
  * - Handles error states (404, network errors)
  * - Displays event information (name, state, typeOfItem)
@@ -56,6 +54,7 @@ function EventPage() {
   const [ratingsLoading, setRatingsLoading] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
   const loadStartTimeRef = useRef(null);
+  const ratingConfigFetchedRef = useRef(null); // Track which eventId we've fetched rating config for
 
   // Redirect to PIN entry if no authentication - must happen immediately
   // Use a ref to track if we've already checked to avoid multiple redirects
@@ -75,12 +74,6 @@ function EventPage() {
     
     redirectCheckedRef.current = true;
   }, [eventId, navigate]);
-
-  // Only start polling if we have authentication - pass null to prevent fetching
-  // Wait for redirect check to complete before starting polling
-  const { event: polledEvent, refetch } = useEventPolling(
-    hasAuth && redirectCheckedRef.current ? eventId : null
-  );
 
   // Handle invalid authentication - redirect if API returns 401
   useEffect(() => {
@@ -109,18 +102,14 @@ function EventPage() {
     }
   }, [event, isLoading]);
 
-  // Update event when context or polling updates
+  // Update event when context updates (context is already being polled by EventRouteWrapper)
   useEffect(() => {
-    if (polledEvent) {
-      setEvent(polledEvent);
-      setIsLoading(false);
-      setError(null);
-    } else if (contextEvent) {
+    if (contextEvent) {
       setEvent(contextEvent);
       setIsLoading(false);
       setError(null);
     }
-  }, [contextEvent, polledEvent]);
+  }, [contextEvent]);
 
   // Generate available item IDs based on itemConfiguration
   useEffect(() => {
@@ -164,27 +153,68 @@ function EventPage() {
     setUserEmail(null);
   }, [eventId]);
 
-  // Load rating configuration
+  // Load rating configuration - optimized to avoid refetching on every event update
   useEffect(() => {
-    if (eventId && event) {
-      apiClient.getRatingConfiguration(eventId)
-        .then(config => {
-          setRatingConfig(config);
-        })
-        .catch(err => {
-          console.error('Error loading rating configuration:', err);
-          // Use defaults if API fails
-          setRatingConfig({
-            maxRating: 4,
-            ratings: [
-              { value: 1, label: 'What is this crap?', color: '#FF3B30' },
-              { value: 2, label: 'Meh...', color: '#FFCC00' },
-              { value: 3, label: 'Not bad...', color: '#34C759' },
-              { value: 4, label: 'Give me more...', color: '#28A745' }
-            ]
-          });
-        });
+    if (!eventId) {
+      ratingConfigFetchedRef.current = null;
+      return;
     }
+
+    // Reset ref when eventId changes
+    if (ratingConfigFetchedRef.current !== null && ratingConfigFetchedRef.current !== eventId) {
+      ratingConfigFetchedRef.current = null;
+    }
+
+    // First, try to use ratingConfiguration from the event object if available
+    if (event?.ratingConfiguration) {
+      const config = {
+        maxRating: event.ratingConfiguration.maxRating ?? 4,
+        ratings: event.ratingConfiguration.ratings ?? [
+          { value: 1, label: 'What is this crap?', color: '#FF3B30' },
+          { value: 2, label: 'Meh...', color: '#FFCC00' },
+          { value: 3, label: 'Not bad...', color: '#34C759' },
+          { value: 4, label: 'Give me more...', color: '#28A745' }
+        ]
+      };
+      
+      // Include noteSuggestionsEnabled if applicable (wine events)
+      if (event.typeOfItem === 'wine' && event.ratingConfiguration.noteSuggestionsEnabled !== undefined) {
+        config.noteSuggestionsEnabled = event.ratingConfiguration.noteSuggestionsEnabled;
+      } else if (event.typeOfItem === 'wine') {
+        // Default to true for wine events if not set
+        config.noteSuggestionsEnabled = true;
+      }
+      
+      setRatingConfig(config);
+      ratingConfigFetchedRef.current = eventId;
+      return;
+    }
+
+    // Only fetch from API if we haven't fetched for this eventId yet
+    if (ratingConfigFetchedRef.current === eventId) {
+      return; // Already fetched for this eventId
+    }
+
+    // Fetch from API as fallback
+    apiClient.getRatingConfiguration(eventId)
+      .then(config => {
+        setRatingConfig(config);
+        ratingConfigFetchedRef.current = eventId;
+      })
+      .catch(err => {
+        console.error('Error loading rating configuration:', err);
+        // Use defaults if API fails
+        setRatingConfig({
+          maxRating: 4,
+          ratings: [
+            { value: 1, label: 'What is this crap?', color: '#FF3B30' },
+            { value: 2, label: 'Meh...', color: '#FFCC00' },
+            { value: 3, label: 'Not bad...', color: '#34C759' },
+            { value: 4, label: 'Give me more...', color: '#28A745' }
+          ]
+        });
+        ratingConfigFetchedRef.current = eventId;
+      });
   }, [eventId, event]);
 
   // Load user's ratings (T082 - with loading state)
