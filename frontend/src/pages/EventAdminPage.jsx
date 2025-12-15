@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import Message from '@/components/Message';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import SideDrawer from '@/components/SideDrawer';
@@ -125,6 +126,7 @@ function EventAdminPage() {
   // Drawer state
   const [openDrawer, setOpenDrawer] = useState(null);
   const isHandlingPopStateRef = useRef(false); // Prevent infinite loops when handling popstate
+  const [itemsTab, setItemsTab] = useState('configuration'); // 'configuration' or 'assignment'
   
   // Item assignment state (for Items Management drawer)
   const [assigningItemId, setAssigningItemId] = useState(null);
@@ -1592,9 +1594,9 @@ function EventAdminPage() {
     });
   };
 
-  // Refresh items when items management drawer opens
+  // Refresh items when items drawer opens
   useEffect(() => {
-    if (openDrawer === 'items-management') {
+    if (openDrawer === 'items') {
       const fetchItems = async () => {
         if (!eventId) return;
 
@@ -1751,43 +1753,21 @@ function EventAdminPage() {
 
           {/* Category Cards */}
           <div className="w-full">
-            {/* Item Configuration Card */}
+            {/* Items (Configuration & Management) Card */}
             <button
               onClick={() => {
-                setOpenDrawer('item-configuration');
+                setOpenDrawer('items');
                 // Add to history for browser back navigation
-                history.pushState({ drawer: 'item-configuration' }, '', window.location.pathname);
+                history.pushState({ drawer: 'items' }, '', window.location.pathname);
               }}
               className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
             >
               <div className="flex flex-col items-start text-left">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold">{itemTerminology.singular} Configuration</span>
+                  <span className="font-semibold">{itemTerminology.plural}</span>
                   <Badge variant="outline" className="text-xs">
-                    {numberOfItems} 
-                    {excludedItemIdsInput && excludedItemIdsInput.trim() && (
-                      <span className="ml-1 text-muted-foreground">
-                        ({excludedItemIdsInput.split(',').filter(id => id.trim()).length} excluded)
-                      </span>
-                    )}
+                    {numberOfItems} total
                   </Badge>
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-            </button>
-
-            {/* Item Management Card */}
-            <button
-              onClick={() => {
-                setOpenDrawer('items-management');
-                // Add to history for browser back navigation
-                history.pushState({ drawer: 'items-management' }, '', window.location.pathname);
-              }}
-              className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
-            >
-              <div className="flex flex-col items-start text-left">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold">{itemTerminology.singular} Management</span>
                   <Badge variant="outline" className="text-xs">
                     {itemsSummary.total} registered
                   </Badge>
@@ -1807,7 +1787,7 @@ function EventAdminPage() {
             >
               <div className="flex flex-col items-start text-left">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold">Rating Configuration</span>
+                  <span className="font-semibold">Ratings</span>
                   {ratings.length > 0 && (
                     <div className="flex items-center gap-1">
                       {ratings.map((rating) => (
@@ -1922,9 +1902,9 @@ function EventAdminPage() {
       </div>
 
       {/* Side Drawers */}
-      {/* Item Configuration Drawer */}
+      {/* Items Drawer (Configuration & Assignment Tabs) */}
       <SideDrawer
-        isOpen={openDrawer === 'item-configuration'}
+        isOpen={openDrawer === 'items'}
         onClose={() => {
           // Check if current history state has a drawer that matches the open drawer
           // Only go back if we're on a drawer state we created
@@ -1934,99 +1914,92 @@ function EventAdminPage() {
             setOpenDrawer(null);
           }
         }}
-        title={`${itemTerminology.singular} Configuration`}
-      >
-        <div className="space-y-4">
-          <div className="text-sm text-muted-foreground font-normal">
-            Configure the number of {itemTerminology.pluralLower} and specify which {itemTerminology.singularLower} IDs to exclude from the event
-          </div>
-          {/* Number of items input */}
-          <div>
-            <label className="text-sm font-medium">Number of {itemTerminology.plural}</label>
-            <Input
-              type="number"
-              min="1"
-              max="100"
-              value={numberOfItems}
-              onChange={(e) => {
-                setNumberOfItems(e.target.value);
-                setConfigError('');
-              }}
-              disabled={isSavingConfig}
-              className="mt-1"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              {itemTerminology.plural} will be numbered from 1 to {numberOfItems || 20} (default: 20, max: 100)
-            </p>
-          </div>
-
-          {/* Excluded item IDs input */}
-          <div>
-            <label className="text-sm font-medium">Excluded {itemTerminology.singular} IDs</label>
-            <Input
-              type="text"
-              placeholder="5,10,15"
-              value={excludedItemIdsInput}
-              onChange={(e) => {
-                setExcludedItemIdsInput(e.target.value);
-                setConfigError('');
-              }}
-              disabled={isSavingConfig}
-              className="mt-1"
-            />
-            <p className="text-xs text-muted-foreground mt-1">
-              Comma-separated list of {itemTerminology.singularLower} IDs to exclude (e.g., "5,10,15")
-            </p>
-          </div>
-
-          {/* Messages */}
-          {configError && (
-            <Message type="error">{configError}</Message>
-          )}
-          {configWarning && (
-            <Message type="warning">{configWarning}</Message>
-          )}
-          {configSuccess && (
-            <Message type="success">{configSuccess}</Message>
-          )}
-
-          {/* Save button */}
-          <Button
-            onClick={handleSaveItemConfiguration}
-            disabled={isSavingConfig || !numberOfItems}
-            className="w-full"
-          >
-            {isSavingConfig ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              'Save Configuration'
-            )}
-          </Button>
-        </div>
-      </SideDrawer>
-
-      {/* Items Management Drawer - includes full item assignment interface */}
-      <SideDrawer
-        isOpen={openDrawer === 'items-management'}
-        onClose={() => {
-          // Check if current history state has a drawer that matches the open drawer
-          // Only go back if we're on a drawer state we created
-          if (history.state?.drawer === openDrawer) {
-            history.back();
-          } else {
-            setOpenDrawer(null);
-          }
-        }}
-        title={`${itemTerminology.singular} Management`}
+        title={itemTerminology.plural}
         width="w-full max-w-4xl"
       >
-        <div className="space-y-4">
-          <div className="text-sm text-muted-foreground font-normal">
-            Summary of registered {itemTerminology.pluralLower} and {itemTerminology.singularLower} ID assignments.
-          </div>
+        <Tabs value={itemsTab} onValueChange={setItemsTab} className="w-full">
+          <TabsList className="w-full mb-4">
+            <TabsTrigger value="configuration" className="flex-1">Configuration</TabsTrigger>
+            <TabsTrigger value="assignment" className="flex-1">Assignment</TabsTrigger>
+          </TabsList>
+
+          {/* Configuration Tab */}
+          <TabsContent value="configuration" className="space-y-4">
+            <div className="text-sm text-muted-foreground font-normal">
+              Configure the number of {itemTerminology.pluralLower} and specify which {itemTerminology.singularLower} IDs to exclude from the event
+            </div>
+            {/* Number of items input */}
+            <div>
+              <label className="text-sm font-medium">Number of {itemTerminology.plural}</label>
+              <Input
+                type="number"
+                min="1"
+                max="100"
+                value={numberOfItems}
+                onChange={(e) => {
+                  setNumberOfItems(e.target.value);
+                  setConfigError('');
+                }}
+                disabled={isSavingConfig}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                {itemTerminology.plural} will be numbered from 1 to {numberOfItems || 20} (default: 20, max: 100)
+              </p>
+            </div>
+
+            {/* Excluded item IDs input */}
+            <div>
+              <label className="text-sm font-medium">Excluded {itemTerminology.singular} IDs</label>
+              <Input
+                type="text"
+                placeholder="5,10,15"
+                value={excludedItemIdsInput}
+                onChange={(e) => {
+                  setExcludedItemIdsInput(e.target.value);
+                  setConfigError('');
+                }}
+                disabled={isSavingConfig}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Comma-separated list of {itemTerminology.singularLower} IDs to exclude (e.g., "5,10,15")
+              </p>
+            </div>
+
+            {/* Messages */}
+            {configError && (
+              <Message type="error">{configError}</Message>
+            )}
+            {configWarning && (
+              <Message type="warning">{configWarning}</Message>
+            )}
+            {configSuccess && (
+              <Message type="success">{configSuccess}</Message>
+            )}
+
+            {/* Save button */}
+            <Button
+              onClick={handleSaveItemConfiguration}
+              disabled={isSavingConfig || !numberOfItems}
+              className="w-full"
+            >
+              {isSavingConfig ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save Configuration'
+              )}
+            </Button>
+          </TabsContent>
+
+          {/* Assignment Tab */}
+          <TabsContent value="assignment" className="space-y-4">
+            <div className="text-sm text-muted-foreground font-normal">
+              Summary of registered {itemTerminology.pluralLower} and {itemTerminology.singularLower} ID assignments.
+            </div>
 
           {/* Items error */}
           {itemsError && (
@@ -2228,7 +2201,8 @@ function EventAdminPage() {
               )}
             </div>
           )}
-        </div>
+          </TabsContent>
+        </Tabs>
       </SideDrawer>
 
       {/* Ratings Configuration Drawer */}
