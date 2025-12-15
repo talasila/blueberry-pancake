@@ -183,7 +183,7 @@ function DashboardPage() {
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-4">
       {/* Header with title and refresh button */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-6">
         <h4 className="text-xl font-bold">Dashboard</h4>
         <Button
           variant="outline"
@@ -197,80 +197,119 @@ function DashboardPage() {
         </Button>
       </div>
 
-      {/* Summary Statistics - 2 columns grid (always 2 columns) */}
-      <div className="grid grid-cols-2 gap-4 py-4">
-        <StatisticsCard
-          title="Total Users"
-          value={statistics?.totalUsers ?? null}
-        />
-        <StatisticsCard
-          title={`Total ${plural}`}
-          value={statistics?.totalItems ?? null}
-        />
-        <StatisticsCard
-          title="Total Ratings"
-          value={statistics?.totalRatings ?? null}
-          progressPercentage={ratingsProgress}
-        />
-        <StatisticsCard
-          title={`Ratings per ${singular}`}
-          value={statistics?.averageRatingsPerItem ?? null}
-          tooltipMessage={statistics?.totalItems === 0 ? `No ${pluralLower} configured` : undefined}
-        />
-      </div>
-
-      {/* Error message overlay (if error occurred but data exists) */}
+      {/* Error message (if error occurred but data exists) */}
       {error && (
-        <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+        <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md mb-4">
           {error}
         </div>
       )}
 
-      {/* Tabs and Ratings Tables */}
-      <div className="mt-6">
-        <Tabs defaultValue="bottles" className="w-full">
-          <TabsList>
-            <TabsTrigger value="bottles">{singular} Ratings</TabsTrigger>
-            <TabsTrigger value="users">User Ratings</TabsTrigger>
-          </TabsList>
-          
-          <TabsContent value="bottles">
-            <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 border border-border rounded-md space-y-1">
-              <div><strong>Progress:</strong> Percentage of users who have rated this item.</div>
-              <div><strong>Avg.:</strong> Arithmetic mean of all ratings.</div>
-              <div><strong>Wt. Avg.:</strong> Bayesian weighted average that accounts for items with fewer ratings.</div>
-            </div>
-            <ItemRatingsTable 
-              itemSummaries={dashboardData?.itemSummaries || []}
-              ratingConfiguration={dashboardData?.ratingConfiguration?.ratings || []}
-              onRowClick={(itemId) => {
-                // Allow admins to open drawer at any time, or anyone when event is completed
-                if (event?.state === 'completed' || isAdmin) {
-                  setOpenItemDetailsItemId(itemId);
-                  // Add to history for browser back navigation
-                  history.pushState({ drawer: 'item', itemId }, '', window.location.pathname);
-                }
-              }}
+      {/* Main Tabs */}
+      <Tabs defaultValue="summary" className="w-full">
+        <TabsList>
+          <TabsTrigger value="summary">Summary</TabsTrigger>
+          <TabsTrigger value="items">{plural}</TabsTrigger>
+          <TabsTrigger value="users">Users</TabsTrigger>
+        </TabsList>
+        
+        {/* Tab 1: Summary - Statistics Cards */}
+        <TabsContent value="summary">
+          <div className="grid grid-cols-2 gap-4 py-4">
+            <StatisticsCard
+              title="Total Users"
+              value={statistics?.totalUsers ?? null}
             />
-          </TabsContent>
-          
-          <TabsContent value="users">
-            <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 border border-border rounded-md space-y-1">
-              <div><strong>Progress:</strong> Three visualizations showing number of {pluralLower} rated, rated {pluralLower} with rating colors, and sparkline of all ratings.</div>
-              <div><strong>Avg. Rating:</strong> Average rating across all {pluralLower} the user has rated.</div>
-            </div>
-            <UserRatingsTable 
-              userSummaries={dashboardData?.userSummaries || []}
-              ratingConfiguration={dashboardData?.ratingConfiguration?.ratings || []}
-              onRowClick={(userEmail) => {
-                setOpenUserDetailsEmail(userEmail);
+            <StatisticsCard
+              title={`Total ${plural}`}
+              value={statistics?.totalItems ?? null}
+            />
+            <StatisticsCard
+              title="Total Ratings"
+              value={statistics?.totalRatings ?? null}
+              progressPercentage={ratingsProgress}
+            />
+            <StatisticsCard
+              title={`Ratings per ${singular}`}
+              value={statistics?.averageRatingsPerItem ?? null}
+              tooltipMessage={statistics?.totalItems === 0 ? `No ${pluralLower} configured` : undefined}
+            />
+            
+            {/* Most Controversial Item - only show if data exists */}
+            {dashboardData.mostControversial && (
+              <StatisticsCard
+                title="Most Controversial"
+                value={`${dashboardData.mostControversial.itemId}`}
+                onClick={() => {
+                  if (event?.state === 'completed' || isAdmin) {
+                    setOpenItemDetailsItemId(dashboardData.mostControversial.itemId);
+                    history.pushState(
+                      { drawer: 'item', itemId: dashboardData.mostControversial.itemId }, 
+                      '', 
+                      window.location.pathname
+                    );
+                  }
+                }}
+              />
+            )}
+            
+            {/* Least Controversial Item - only show if data exists */}
+            {dashboardData.leastControversial && (
+              <StatisticsCard
+                title="Least Controversial"
+                value={`${dashboardData.leastControversial.itemId}`}
+                onClick={() => {
+                  if (event?.state === 'completed' || isAdmin) {
+                    setOpenItemDetailsItemId(dashboardData.leastControversial.itemId);
+                    history.pushState(
+                      { drawer: 'item', itemId: dashboardData.leastControversial.itemId }, 
+                      '', 
+                      window.location.pathname
+                    );
+                  }
+                }}
+              />
+            )}
+          </div>
+        </TabsContent>
+        
+        {/* Tab 2: Item Ratings */}
+        <TabsContent value="items">
+          <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 border border-border rounded-md space-y-1">
+            <div><strong>Progress:</strong> Percentage of users who have rated this item.</div>
+            <div><strong>Avg.:</strong> Arithmetic mean of all ratings.</div>
+            <div><strong>Wt. Avg.:</strong> Bayesian weighted average that accounts for items with fewer ratings.</div>
+          </div>
+          <ItemRatingsTable 
+            itemSummaries={dashboardData?.itemSummaries || []}
+            ratingConfiguration={dashboardData?.ratingConfiguration?.ratings || []}
+            onRowClick={(itemId) => {
+              // Allow admins to open drawer at any time, or anyone when event is completed
+              if (event?.state === 'completed' || isAdmin) {
+                setOpenItemDetailsItemId(itemId);
                 // Add to history for browser back navigation
-                history.pushState({ drawer: 'user', userEmail }, '', window.location.pathname);
-              }}
-            />
-          </TabsContent>
-        </Tabs>
-      </div>
+                history.pushState({ drawer: 'item', itemId }, '', window.location.pathname);
+              }
+            }}
+          />
+        </TabsContent>
+        
+        {/* Tab 3: User Ratings */}
+        <TabsContent value="users">
+          <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 border border-border rounded-md space-y-1">
+            <div><strong>Progress:</strong> Three visualizations showing number of {pluralLower} rated, rated {pluralLower} with rating colors, and sparkline of all ratings.</div>
+            <div><strong>Avg. Rating:</strong> Average rating across all {pluralLower} the user has rated.</div>
+          </div>
+          <UserRatingsTable 
+            userSummaries={dashboardData?.userSummaries || []}
+            ratingConfiguration={dashboardData?.ratingConfiguration?.ratings || []}
+            onRowClick={(userEmail) => {
+              setOpenUserDetailsEmail(userEmail);
+              // Add to history for browser back navigation
+              history.pushState({ drawer: 'user', userEmail }, '', window.location.pathname);
+            }}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Item Details Drawer - render when event is completed OR for admins */}
       {(event?.state === 'completed' || isAdmin) && (

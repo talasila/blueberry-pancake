@@ -57,13 +57,18 @@ class DashboardService {
       // Get rating configuration for colors
       const ratingConfig = event.ratingConfiguration || {};
 
+      // Find most and least controversial items (min 3 ratings required)
+      const controversialItems = this.findControversialItems(itemSummaries);
+
       // Build response
       const dashboardData = {
         statistics,
         itemSummaries,
         userSummaries,
         globalAverage: globalAverage !== null && globalAverage !== undefined ? globalAverage : null,
-        ratingConfiguration: ratingConfig
+        ratingConfiguration: ratingConfig,
+        mostControversial: controversialItems.most,
+        leastControversial: controversialItems.least
       };
 
       // Cache for 30 seconds
@@ -206,13 +211,27 @@ class DashboardService {
         ).length;
       }
 
+      // Calculate standard deviation for controversy metric
+      let standardDeviation = null;
+      if (itemRatings.length > 0 && averageRating !== null) {
+        const squaredDiffs = itemRatings.map(rating => {
+          const ratingValue = parseInt(rating.rating, 10);
+          if (isNaN(ratingValue)) return 0;
+          return Math.pow(ratingValue - averageRating, 2);
+        });
+        const variance = squaredDiffs.reduce((acc, val) => acc + val, 0) / itemRatings.length;
+        standardDeviation = Math.sqrt(variance);
+        standardDeviation = parseFloat(standardDeviation.toFixed(2));
+      }
+
       summaries.push({
         itemId,
         numberOfRaters,
         averageRating,
         weightedAverage: weightedAverageFormatted,
         ratingProgression,
-        ratingDistribution
+        ratingDistribution,
+        standardDeviation
       });
     }
 
@@ -318,6 +337,52 @@ class DashboardService {
     summaries.sort((a, b) => a.email.localeCompare(b.email));
 
     return summaries;
+  }
+
+  /**
+   * Find most and least controversial items based on standard deviation
+   * Requires minimum 3 ratings per item
+   * @param {Array} itemSummaries - Array of item summary objects with standardDeviation
+   * @returns {object} Object with most and least controversial items (or null if not enough data)
+   */
+  findControversialItems(itemSummaries) {
+    // Filter items with at least 3 ratings and valid standard deviation
+    const eligibleItems = itemSummaries.filter(
+      item => item.numberOfRaters >= 3 && 
+              item.standardDeviation !== null && 
+              item.standardDeviation !== undefined
+    );
+
+    // If no eligible items, return nulls
+    if (eligibleItems.length === 0) {
+      return {
+        most: null,
+        least: null
+      };
+    }
+
+    // Sort by standard deviation (descending for most controversial)
+    const sortedByStdDev = [...eligibleItems].sort(
+      (a, b) => b.standardDeviation - a.standardDeviation
+    );
+
+    // Most controversial = highest standard deviation
+    const most = {
+      itemId: sortedByStdDev[0].itemId,
+      standardDeviation: sortedByStdDev[0].standardDeviation,
+      numberOfRaters: sortedByStdDev[0].numberOfRaters,
+      averageRating: sortedByStdDev[0].averageRating
+    };
+
+    // Least controversial = lowest standard deviation
+    const least = {
+      itemId: sortedByStdDev[sortedByStdDev.length - 1].itemId,
+      standardDeviation: sortedByStdDev[sortedByStdDev.length - 1].standardDeviation,
+      numberOfRaters: sortedByStdDev[sortedByStdDev.length - 1].numberOfRaters,
+      averageRating: sortedByStdDev[sortedByStdDev.length - 1].averageRating
+    };
+
+    return { most, least };
   }
 }
 
