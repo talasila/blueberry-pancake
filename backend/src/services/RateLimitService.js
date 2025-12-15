@@ -3,12 +3,22 @@ import cacheService from '../cache/CacheService.js';
 /**
  * Rate Limiting Service
  * Implements sliding window rate limiting for email addresses and IP addresses
- * Limits: 3 requests per email per 15 minutes, 5 requests per IP per 15 minutes
+ * 
+ * Production limits: 3 requests per email per 15 minutes, 5 requests per IP per 15 minutes
+ * Development limits: 10 requests per email per 15 minutes, 20 requests per IP per 15 minutes
+ * 
+ * Rate limiting is ALWAYS enabled (security best practice), but with higher limits in development
+ * to allow for testing without being blocked.
  */
 class RateLimitService {
   constructor() {
-    this.EMAIL_LIMIT = 3;
-    this.IP_LIMIT = 5;
+    // Determine environment for rate limit configuration
+    const isProduction = process.env.NODE_ENV === 'production';
+    
+    // Production limits are stricter for security
+    // Development limits are more relaxed for testing
+    this.EMAIL_LIMIT = isProduction ? 3 : 10;
+    this.IP_LIMIT = isProduction ? 5 : 20;
     this.WINDOW_MINUTES = 15;
     this.WINDOW_MS = this.WINDOW_MINUTES * 60 * 1000;
     this.WINDOW_SECONDS = this.WINDOW_MINUTES * 60;

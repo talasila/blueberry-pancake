@@ -1,6 +1,10 @@
 /**
  * API client service for backend communication
- * Handles JWT token management and XSRF token handling
+ * Handles JWT token management via httpOnly cookies (secure) and XSRF token handling
+ * 
+ * Security Note: JWT tokens are now stored in httpOnly cookies set by the server.
+ * This protects against XSS attacks as JavaScript cannot access httpOnly cookies.
+ * The localStorage fallback is maintained for backward compatibility during migration.
  */
 
 // In development, use Vite proxy (relative path)
@@ -10,17 +14,21 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ||
 
 class ApiClient {
   constructor() {
+    // In-memory token cache for backward compatibility
+    // The primary token storage is now httpOnly cookies (set by server)
     this.jwtToken = null;
     this.csrfToken = null;
   }
 
   /**
-   * Set JWT token
+   * Set JWT token (for backward compatibility)
+   * Note: Primary JWT storage is now via httpOnly cookies set by the server
    * @param {string} token - JWT token
    */
   setJWTToken(token) {
     this.jwtToken = token;
-    // Also store in localStorage for persistence
+    // Store in localStorage as fallback during migration
+    // This will be removed in a future version once httpOnly cookie auth is fully adopted
     if (token) {
       localStorage.setItem('jwtToken', token);
     } else {
@@ -29,11 +37,12 @@ class ApiClient {
   }
 
   /**
-   * Get JWT token
+   * Get JWT token (for decoding/checking expiration only)
+   * Note: The actual authentication is handled via httpOnly cookies sent with requests
    * @returns {string|null} JWT token
    */
   getJWTToken() {
-    // Try memory first, then localStorage
+    // Try memory first, then localStorage (fallback)
     if (this.jwtToken) {
       return this.jwtToken;
     }
@@ -46,11 +55,86 @@ class ApiClient {
   }
 
   /**
-   * Clear JWT token
+   * Clear JWT token and call logout endpoint to clear httpOnly cookie
    */
-  clearJWTToken() {
+  async clearJWTToken() {
     this.jwtToken = null;
     localStorage.removeItem('jwtToken');
+    
+    // Call logout endpoint to clear httpOnly cookie on server
+    try {
+      await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (error) {
+      // Ignore logout errors - user is logging out anyway
+      console.warn('Logout request failed:', error);
+    }
+  }
+
+  /**
+   * Check if user is currently authenticated (has valid JWT token)
+   * @returns {boolean} True if authenticated
+   */
+  isAuthenticated() {
+    const token = this.getJWTToken();
+    if (!token) return false;
+    
+    // Check if token is expired
+    const payload = this.decodeJWTPayload(token);
+    if (!payload) return false;
+    
+    // Check expiration (exp is in seconds)
+    if (payload.exp && payload.exp * 1000 < Date.now()) {
+      this.clearJWTToken();
+      return false;
+    }
+    
+    return true;
+  }
+
+  /**
+   * Decode JWT token payload without verification
+   * Note: This only decodes, does not verify signature
+   * @param {string} token - JWT token (optional, uses stored token if not provided)
+   * @returns {object|null} Decoded payload or null if invalid
+   */
+  decodeJWTPayload(token = null) {
+    const jwtToken = token || this.getJWTToken();
+    if (!jwtToken) return null;
+    
+    try {
+      const parts = jwtToken.split('.');
+      if (parts.length !== 3) return null;
+      
+      // Decode base64url payload (middle part)
+      const payload = parts[1];
+      const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+      return JSON.parse(decoded);
+    } catch (error) {
+      console.error('Failed to decode JWT payload:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get user email from JWT token
+   * @returns {string|null} User email or null if not authenticated
+   */
+  getUserEmail() {
+    const payload = this.decodeJWTPayload();
+    return payload?.email || null;
+  }
+
+  /**
+   * Get token expiration time
+   * @returns {Date|null} Expiration date or null if not available
+   */
+  getTokenExpiration() {
+    const payload = this.decodeJWTPayload();
+    if (!payload?.exp) return null;
+    return new Date(payload.exp * 1000);
   }
 
   /**
@@ -99,12 +183,43 @@ class ApiClient {
   }
 
   /**
-   * Make API request with error handling
+   * Attempt to refresh the JWT token using refresh token cookie
+   * @returns {Promise<boolean>} True if refresh was successful
+   */
+  async refreshToken() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include', // Include cookies for refresh token
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Update in-memory token for backward compatibility
+        if (data.token) {
+          this.jwtToken = data.token;
+          localStorage.setItem('jwtToken', data.token);
+        }
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.warn('Token refresh failed:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Make API request with error handling and automatic token refresh
    * @param {string} endpoint - API endpoint
    * @param {object} options - Fetch options
+   * @param {boolean} isRetry - Whether this is a retry after token refresh
    * @returns {Promise<Response>} Fetch response
    */
-  async request(endpoint, options = {}) {
+  async request(endpoint, options = {}, isRetry = false) {
     const url = `${API_BASE_URL}${endpoint}`;
     const headers = {
       'Content-Type': 'application/json',
@@ -112,6 +227,7 @@ class ApiClient {
     };
 
     // Add JWT token if available (check both memory and localStorage)
+    // Note: Primary authentication is via httpOnly cookies, this is for backward compatibility
     const token = this.getJWTToken();
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -131,12 +247,22 @@ class ApiClient {
       const response = await fetch(url, {
         ...options,
         headers,
-        credentials: 'include', // Include cookies for CSRF
+        credentials: 'include', // Include cookies for httpOnly JWT and CSRF
       });
 
-      // Handle 401 Unauthorized (token expired or invalid)
-      if (response.status === 401) {
-        this.clearJWTToken();
+      // Handle 401 Unauthorized - attempt token refresh
+      if (response.status === 401 && !isRetry) {
+        // Try to refresh the token
+        const refreshed = await this.refreshToken();
+        
+        if (refreshed) {
+          // Retry the original request
+          return this.request(endpoint, options, true);
+        }
+        
+        // Refresh failed - clear tokens and handle redirect
+        this.jwtToken = null;
+        localStorage.removeItem('jwtToken');
         
         // Don't redirect for event pages - they can use PIN authentication
         // Only redirect to landing page for other protected endpoints
@@ -363,20 +489,8 @@ class ApiClient {
    * @returns {Promise<any>} Response data with updated event
    */
   async transitionEventState(eventId, state, currentState) {
-    const response = await this.request(`/events/${eventId}/state`, {
-      method: 'PATCH',
-      body: JSON.stringify({ state, currentState }),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Failed to transition state' }));
-      const err = new Error(error.error || 'Failed to transition state');
-      err.status = response.status;
-      err.currentState = error.currentState;
-      throw err;
-    }
-    
-    return response.json();
+    // Use patch() which handles error throwing via request()
+    return this.patch(`/events/${eventId}/state`, { state, currentState });
   }
 
   /**
@@ -419,21 +533,8 @@ class ApiClient {
     if (expectedUpdatedAt) {
       body.expectedUpdatedAt = expectedUpdatedAt;
     }
-    
-    const response = await this.request(`/events/${eventId}/rating-configuration`, {
-      method: 'PATCH',
-      body: JSON.stringify(body),
-    });
-    
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Failed to update rating configuration' }));
-      const err = new Error(error.error || 'Failed to update rating configuration');
-      err.status = response.status;
-      err.currentUpdatedAt = error.currentUpdatedAt;
-      throw err;
-    }
-    
-    return response.json();
+    // Use patch() which handles error throwing via request()
+    return this.patch(`/events/${eventId}/rating-configuration`, body);
   }
 
   /**

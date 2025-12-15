@@ -1,5 +1,4 @@
 import { customAlphabet } from 'nanoid';
-import dataRepository from '../data/FileDataRepository.js';
 import eventService from './EventService.js';
 import loggerService from '../logging/Logger.js';
 import cacheService from '../cache/CacheService.js';
@@ -250,11 +249,8 @@ class ItemService {
     event.items.push(item);
     event.updatedAt = new Date().toISOString();
 
-    // Persist updated event
-    await dataRepository.writeEventConfig(eventId, event);
-
-    // Invalidate cache
-    cacheService.del(getEventConfigKey(eventId));
+    // Persist updated event (write-through)
+    await cacheService.setWithPersist(getEventConfigKey(eventId), event, 'config', eventId);
 
     loggerService.info(`Item registered for event: ${eventId}, itemId: ${itemId}, owner: ${normalizedEmail}`);
 
@@ -350,11 +346,8 @@ class ItemService {
       foundItem.itemId = null;
       event.updatedAt = new Date().toISOString();
 
-      // Persist updated event
-      await dataRepository.writeEventConfig(eventId, event);
-
-      // Invalidate cache
-      cacheService.del(getEventConfigKey(eventId));
+      // Persist updated event (write-through)
+      await cacheService.setWithPersist(getEventConfigKey(eventId), event, 'config', eventId);
 
       loggerService.info(`Item ID cleared for event: ${eventId}, itemId: ${itemId}, admin: ${normalizedEmail}`);
 
@@ -381,11 +374,8 @@ class ItemService {
     foundItem.itemId = itemIdToAssign;
     event.updatedAt = new Date().toISOString();
 
-    // Persist updated event
-    await dataRepository.writeEventConfig(eventId, event);
-
-    // Invalidate cache
-    cacheService.del(getEventConfigKey(eventId));
+    // Persist updated event (write-through)
+    await cacheService.setWithPersist(getEventConfigKey(eventId), event, 'config', eventId);
 
     loggerService.info(`Item ID assigned for event: ${eventId}, itemId: ${itemId}, assigned itemId: ${itemIdToAssign}, admin: ${normalizedEmail}`);
 
@@ -515,11 +505,8 @@ class ItemService {
 
     event.updatedAt = new Date().toISOString();
 
-    // Persist updated event
-    await dataRepository.writeEventConfig(eventId, event);
-
-    // Invalidate cache
-    cacheService.del(getEventConfigKey(eventId));
+    // Persist updated event (write-through)
+    await cacheService.setWithPersist(getEventConfigKey(eventId), event, 'config', eventId);
 
     loggerService.info(`Item updated for event: ${eventId}, itemId: ${itemId}, owner: ${normalizedEmail}`);
 
@@ -575,11 +562,8 @@ class ItemService {
     event.items.splice(itemIndex, 1);
     event.updatedAt = new Date().toISOString();
 
-    // Persist updated event
-    await dataRepository.writeEventConfig(eventId, event);
-
-    // Invalidate cache
-    cacheService.del(getEventConfigKey(eventId));
+    // Persist updated event (write-through)
+    await cacheService.setWithPersist(getEventConfigKey(eventId), event, 'config', eventId);
 
     loggerService.info(`Item deleted for event: ${eventId}, itemId: ${itemId}, owner: ${normalizedEmail}`);
 

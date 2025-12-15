@@ -36,7 +36,7 @@ function Header() {
     if (eventId) return eventId;
     const match = location.pathname.match(/^\/event\/([A-Za-z0-9]{8})/);
     return match ? match[1] : null;
-  }, [location.pathname, eventId]);
+  }, [location.pathname, eventId]); // eventId is needed to return it when available
 
   // Check authentication state and update when location or eventId changes
   useEffect(() => {
@@ -58,7 +58,7 @@ function Header() {
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [location.pathname, isEventRoute, pathEventId]);
+  }, [location.pathname]); // isEventRoute and pathEventId are derived from location.pathname
 
   // Determine profile link path
   const profilePath = useMemo(() => {
@@ -111,11 +111,11 @@ function Header() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsMenuOpen(false);
     
-    // Clear JWT token
-    apiClient.clearJWTToken();
+    // Clear JWT token (also calls logout endpoint to clear httpOnly cookie)
+    await apiClient.clearJWTToken();
     
     // Clear email from sessionStorage for current event if it exists
     if (pathEventId) {

@@ -30,25 +30,8 @@ function DashboardRoute({ children }) {
       return;
     }
 
-    // Extract user email from JWT token
-    const getUserEmail = () => {
-      try {
-        const token = apiClient.getJWTToken();
-        if (token) {
-          const parts = token.split('.');
-          if (parts.length === 3) {
-            const payload = JSON.parse(atob(parts[1]));
-            return payload.email?.toLowerCase() || null;
-          }
-        }
-      } catch (error) {
-        console.error('Error extracting user email from token:', error);
-      }
-      return null;
-    };
-
-    // Check if user is administrator
-    const userEmail = getUserEmail();
+    // Get user email from JWT token using apiClient utility
+    const userEmail = apiClient.getUserEmail()?.toLowerCase();
     let isAdmin = false;
     
     if (userEmail && event.administrators) {

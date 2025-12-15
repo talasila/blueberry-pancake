@@ -2,10 +2,19 @@ import { Router } from 'express';
 import eventService from '../services/EventService.js';
 import pinService from '../services/PINService.js';
 import ratingService from '../services/RatingService.js';
-import { toCSV } from '../utils/csvParser.js';
 import loggerService from '../logging/Logger.js';
-import { generateToken } from '../middleware/jwtAuth.js';
+import { 
+  generateToken, 
+  generateRefreshToken,
+  JWT_COOKIE_NAME, 
+  REFRESH_COOKIE_NAME,
+  getJWTCookieOptions,
+  getRefreshCookieOptions
+} from '../middleware/jwtAuth.js';
 import requireAuth from '../middleware/requireAuth.js';
+import { validateEventId } from '../utils/validators.js';
+import { handleApiError, badRequestError, unauthorizedError } from '../utils/apiErrorHandler.js';
+import { isValidEmail } from '../utils/emailUtils.js';
 
 const router = Router();
 
@@ -20,9 +29,7 @@ router.post('/', requireAuth, async (req, res) => {
     const administratorEmail = req.user?.email;
 
     if (!administratorEmail) {
-      return res.status(401).json({
-        error: 'Authentication required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     const { name, typeOfItem } = req.body;
@@ -33,37 +40,7 @@ router.post('/', requireAuth, async (req, res) => {
     // Return created event
     res.status(201).json(event);
   } catch (error) {
-    // Log full error details for debugging
-    loggerService.error(`Event creation error: ${error.message}`, error).catch(() => {});
-    if (error.stack) {
-      loggerService.error(`Stack trace: ${error.stack}`).catch(() => {});
-    }
-
-    // Handle validation errors (400)
-    if (error.message.includes('required') || 
-        error.message.includes('invalid') || 
-        error.message.includes('cannot be empty') ||
-        error.message.includes('characters') ||
-        error.message.includes('must be')) {
-      return res.status(400).json({
-        error: error.message
-      });
-    }
-
-    // Handle configuration errors
-    if (error.message.includes('dataDirectory') || error.message.includes('configuration')) {
-      return res.status(500).json({
-        error: 'Server configuration error. Please contact support.'
-      });
-    }
-
-    // Handle server errors (500)
-    // In development, include more error details
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to create event. Please try again.',
-      ...(isDevelopment && { details: error.message, stack: error.stack })
-    });
+    return handleApiError(res, error, 'create event');
   }
 });
 
@@ -80,36 +57,32 @@ router.post('/:eventId/verify-pin', async (req, res) => {
     const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
 
     // Validate event ID format
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return res.status(400).json({
-        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
-      });
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Validate email is provided
     if (!email || typeof email !== 'string' || !email.trim()) {
-      return res.status(400).json({
-        error: 'Email address is required'
-      });
+      return badRequestError(res, 'Email address is required');
     }
 
     // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim())) {
-      return res.status(400).json({
-        error: 'Invalid email format'
-      });
+    if (!isValidEmail(email)) {
+      return badRequestError(res, 'Invalid email format');
     }
 
-    // Validate PIN is provided
-    if (!pin) {
-      return res.status(400).json({
-        error: 'PIN is required'
-      });
+    // Validate PIN format using centralized validation
+    const pinFormatValidation = pinService.validatePINFormat(pin);
+    if (!pinFormatValidation.valid) {
+      return badRequestError(res, pinFormatValidation.error);
     }
 
-    // Verify PIN
-    const result = await pinService.verifyPIN(eventId, pin, ipAddress);
+    // Get user agent for session fingerprinting
+    const userAgent = req.headers['user-agent'] || 'unknown';
+
+    // Verify PIN (includes client fingerprinting for security)
+    const result = await pinService.verifyPIN(eventId, pin, ipAddress, userAgent);
 
     if (!result.valid) {
       // Determine appropriate status code based on error type
@@ -120,20 +93,19 @@ router.post('/:eventId/verify-pin', async (req, res) => {
         return res.status(404).json({ error: result.error });
       }
       if (result.error.includes('must be exactly 6 digits')) {
-        return res.status(400).json({ error: result.error });
+        return badRequestError(res, result.error);
       }
       // Default to 401 for invalid PIN
-      return res.status(401).json({ error: result.error });
+      return unauthorizedError(res, result.error);
     }
 
     // PIN verified successfully - register user for the event
     try {
       await eventService.registerUser(eventId, email.trim());
-      loggerService.info(`User registered for event ${eventId}: ${email.trim()}`);
     } catch (registrationError) {
       // Log registration error but don't fail the PIN verification
       // User can still access the event even if registration fails
-      loggerService.error(`Failed to register user for event ${eventId}: ${registrationError.message}`, registrationError);
+      loggerService.warn(`User registration failed for event ${eventId}: ${registrationError.message}`);
     }
 
     // Generate JWT token for PIN-authenticated user
@@ -141,33 +113,26 @@ router.post('/:eventId/verify-pin', async (req, res) => {
     try {
       token = generateToken({ email: email.trim() });
     } catch (tokenError) {
-      loggerService.error(`Failed to generate JWT token for PIN auth: ${tokenError.message}`, tokenError).catch(() => {});
-      return res.status(500).json({
-        error: 'Authentication service configuration error. Please contact support.'
-      });
+      return handleApiError(res, tokenError, 'generate authentication token');
     }
+
+    // Generate refresh token for session persistence
+    const refreshToken = generateRefreshToken(email.trim());
+
+    // Set JWT as httpOnly cookie for security
+    res.cookie(JWT_COOKIE_NAME, token, getJWTCookieOptions());
+    // Set refresh token as httpOnly cookie
+    res.cookie(REFRESH_COOKIE_NAME, refreshToken, getRefreshCookieOptions());
 
     // PIN verified successfully
     res.json({
       sessionId: result.sessionId,
       eventId,
-      token,
+      token, // Still return token for backward compatibility
       message: 'PIN verified successfully'
     });
   } catch (error) {
-    loggerService.error(`PIN verification error: ${error.message}`, error).catch(() => {});
-    
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to verify PIN. Please try again.',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'verify PIN');
   }
 });
 
@@ -176,6 +141,8 @@ router.post('/:eventId/verify-pin', async (req, res) => {
  * Check if an email is an administrator for an event
  * Public endpoint - no authentication required
  * Used to determine which authentication flow to use (PIN vs OTP)
+ * 
+ * Rate limited to prevent user enumeration attacks
  */
 router.get('/:eventId/check-admin', async (req, res) => {
   try {
@@ -184,15 +151,26 @@ router.get('/:eventId/check-admin', async (req, res) => {
 
     // Validate inputs
     if (!email || typeof email !== 'string') {
-      return res.status(400).json({
-        error: 'Email address is required'
-      });
+      return badRequestError(res, 'Email address is required');
     }
 
     // Validate event ID format
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return res.status(400).json({
-        error: 'Invalid event ID format'
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, 'Invalid event ID format');
+    }
+
+    // Rate limit check to prevent user enumeration
+    // Import rateLimitService dynamically to avoid circular dependencies
+    const rateLimitService = (await import('../services/RateLimitService.js')).default;
+    const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
+    const ipLimit = rateLimitService.checkIPLimit(clientIP);
+    
+    if (!ipLimit.allowed) {
+      const retryMinutes = Math.ceil((ipLimit.retryAfter || 900) / 60);
+      return res.status(429).json({
+        error: `Too many requests. Please try again in ${retryMinutes} minute(s).`,
+        retryAfter: ipLimit.retryAfter
       });
     }
 
@@ -205,21 +183,7 @@ router.get('/:eventId/check-admin', async (req, res) => {
     // Return result (don't expose other event data)
     res.json({ isAdmin });
   } catch (error) {
-    loggerService.error(`Check admin error: ${error.message}`, error).catch(() => {});
-
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({
-        error: 'Event not found'
-      });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to check administrator status',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'check administrator status');
   }
 });
 
@@ -232,11 +196,10 @@ router.get('/:eventId', requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
 
-    // Validate event ID format before processing (8-character alphanumeric)
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return res.status(400).json({
-        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
-      });
+    // Validate event ID format
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Get event using EventService (lazy migration happens in getEvent)
@@ -255,34 +218,7 @@ router.get('/:eventId', requireAuth, async (req, res) => {
     // Return full event data including PIN for administrators
     res.json(event);
   } catch (error) {
-    // Log full error details for debugging
-    loggerService.error(`Event retrieval error: ${error.message}`, error).catch(() => {});
-    if (error.stack) {
-      loggerService.error(`Stack trace: ${error.stack}`).catch(() => {});
-    }
-
-    // Handle event not found (404)
-    if (error.message.includes('not found') || error.message.includes('Event not found')) {
-      return res.status(404).json({
-        error: 'Event not found'
-      });
-    }
-
-    // Handle validation errors (400)
-    if (error.message.includes('Invalid event ID format') || 
-        error.message.includes('Event ID is required')) {
-      return res.status(400).json({
-        error: error.message
-      });
-    }
-
-    // Handle server errors (500)
-    // In development, include more error details
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to retrieve event. Please try again.',
-      ...(isDevelopment && { details: error.message, stack: error.stack })
-    });
+    return handleApiError(res, error, 'retrieve event');
   }
 });
 
@@ -297,16 +233,13 @@ router.get('/:eventId/administrators', requireAuth, async (req, res) => {
     const requesterEmail = req.user?.email;
 
     if (!requesterEmail) {
-      return res.status(401).json({
-        error: 'Authentication required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     // Validate event ID format
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return res.status(400).json({
-        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
-      });
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Get administrators
@@ -314,24 +247,7 @@ router.get('/:eventId/administrators', requireAuth, async (req, res) => {
 
     res.json({ administrators });
   } catch (error) {
-    loggerService.error(`Get administrators error: ${error.message}`, error).catch(() => {});
-    
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    // Handle authorization errors
-    if (error.message.includes('Unauthorized')) {
-      return res.status(403).json({ error: error.message });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to retrieve administrators. Please try again.',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'retrieve administrators');
   }
 });
 
@@ -347,22 +263,17 @@ router.post('/:eventId/administrators', requireAuth, async (req, res) => {
     const requesterEmail = req.user?.email;
 
     if (!requesterEmail) {
-      return res.status(401).json({
-        error: 'Authentication required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     if (!email || typeof email !== 'string' || !email.trim()) {
-      return res.status(400).json({
-        error: 'Email address is required'
-      });
+      return badRequestError(res, 'Email address is required');
     }
 
     // Validate event ID format
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return res.status(400).json({
-        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
-      });
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Add administrator
@@ -370,31 +281,7 @@ router.post('/:eventId/administrators', requireAuth, async (req, res) => {
 
     res.json({ administrators: event.administrators });
   } catch (error) {
-    loggerService.error(`Add administrator error: ${error.message}`, error).catch(() => {});
-    
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    // Handle authorization errors
-    if (error.message.includes('Unauthorized')) {
-      return res.status(403).json({ error: error.message });
-    }
-
-    // Handle validation errors
-    if (error.message.includes('required') || 
-        error.message.includes('Invalid') ||
-        error.message.includes('already exists')) {
-      return res.status(400).json({ error: error.message });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to add administrator. Please try again.',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'add administrator');
   }
 });
 
@@ -409,25 +296,20 @@ router.delete('/:eventId/administrators/:email', requireAuth, async (req, res) =
     const requesterEmail = req.user?.email;
 
     if (!requesterEmail) {
-      return res.status(401).json({
-        error: 'Authentication required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     // Validate event ID format
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return res.status(400).json({
-        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
-      });
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Decode email from URL
     const emailToDelete = decodeURIComponent(email);
 
     if (!emailToDelete || typeof emailToDelete !== 'string' || !emailToDelete.trim()) {
-      return res.status(400).json({
-        error: 'Email address is required'
-      });
+      return badRequestError(res, 'Email address is required');
     }
 
     // Delete administrator
@@ -435,35 +317,7 @@ router.delete('/:eventId/administrators/:email', requireAuth, async (req, res) =
 
     res.json({ success: true });
   } catch (error) {
-    loggerService.error(`Delete administrator error: ${error.message}`, error).catch(() => {});
-    
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({ error: error.message });
-    }
-
-    // Handle authorization errors
-    if (error.message.includes('Unauthorized')) {
-      return res.status(403).json({ error: error.message });
-    }
-
-    // Handle owner deletion prevention
-    if (error.message.includes('Cannot delete owner')) {
-      return res.status(400).json({ error: error.message });
-    }
-
-    // Handle validation errors
-    if (error.message.includes('required') || 
-        error.message.includes('last administrator')) {
-      return res.status(400).json({ error: error.message });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to delete administrator. Please try again.',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'delete administrator');
   }
 });
 
@@ -478,16 +332,13 @@ router.post('/:eventId/regenerate-pin', requireAuth, async (req, res) => {
     const administratorEmail = req.user?.email;
 
     if (!administratorEmail) {
-      return res.status(401).json({
-        error: 'Authentication required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     // Validate event ID format
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return res.status(400).json({
-        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
-      });
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Regenerate PIN
@@ -495,24 +346,7 @@ router.post('/:eventId/regenerate-pin', requireAuth, async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    loggerService.error(`PIN regeneration error: ${error.message}`, error).catch(() => {});
-    
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    // Handle authorization errors
-    if (error.message.includes('administrator')) {
-      return res.status(401).json({ error: error.message });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to regenerate PIN. Please try again.',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'regenerate PIN');
   }
 });
 
@@ -538,31 +372,24 @@ router.patch('/:eventId', requireAuth, async (req, res) => {
     const { name } = req.body;
 
     if (!requesterEmail) {
-      return res.status(401).json({
-        error: 'Authentication required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     // Validate event ID format
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return res.status(400).json({
-        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
-      });
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Validate name is provided
     if (!name || typeof name !== 'string' || !name.trim()) {
-      return res.status(400).json({
-        error: 'Event name is required'
-      });
+      return badRequestError(res, 'Event name is required');
     }
 
     // Validate name length
     const trimmedName = name.trim();
     if (trimmedName.length > 100) {
-      return res.status(400).json({
-        error: 'Event name must be 100 characters or less'
-      });
+      return badRequestError(res, 'Event name must be 100 characters or less');
     }
 
     // Get event to check authorization
@@ -585,28 +412,7 @@ router.patch('/:eventId', requireAuth, async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    loggerService.error(`Update event name error: ${error.message}`, error).catch(() => {});
-
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({
-        error: 'Event not found'
-      });
-    }
-
-    // Handle validation errors
-    if (error.message.includes('Invalid event ID') || error.message.includes('Event ID is required')) {
-      return res.status(400).json({
-        error: error.message
-      });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to update event name. Please try again.',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'update event name');
   }
 });
 
@@ -644,23 +450,18 @@ router.patch('/:eventId/state', requireAuth, async (req, res) => {
     const administratorEmail = req.user?.email;
 
     if (!administratorEmail) {
-      return res.status(401).json({
-        error: 'Authentication required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     // Validate event ID format
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return res.status(400).json({
-        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
-      });
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Validate request body
     if (!state || !currentState) {
-      return res.status(400).json({
-        error: 'Both state and currentState are required'
-      });
+      return badRequestError(res, 'Both state and currentState are required');
     }
 
     // Transition state
@@ -676,41 +477,7 @@ router.patch('/:eventId/state', requireAuth, async (req, res) => {
 
     res.json(event);
   } catch (error) {
-    loggerService.error(`State transition error: ${error.message}`, error).catch(() => {});
-
-    // Handle optimistic locking conflict
-    if (error.message.includes('state has changed')) {
-      return res.status(409).json({
-        error: error.message,
-        currentState: error.currentState
-      });
-    }
-
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    // Handle authorization errors
-    if (error.message.includes('Unauthorized') || error.message.includes('administrator')) {
-      return res.status(403).json({ error: error.message });
-    }
-
-    // Handle validation errors (400)
-    if (error.message.includes('Invalid state') || 
-        error.message.includes('Invalid transition') ||
-        error.message.includes('required')) {
-      return res.status(400).json({
-        error: error.message
-      });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to transition event state. Please try again.',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'transition event state');
   }
 });
 
@@ -736,9 +503,7 @@ router.get('/:eventId/item-configuration', requireAuth, async (req, res) => {
     const requesterEmail = req.user?.email;
 
     if (!requesterEmail) {
-      return res.status(401).json({
-        error: 'Authentication required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     // Get event to check authorization
@@ -756,24 +521,7 @@ router.get('/:eventId/item-configuration', requireAuth, async (req, res) => {
 
     res.json(config);
   } catch (error) {
-    loggerService.error(`Get item configuration error: ${error.message}`, error).catch(() => {});
-
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    // Handle authorization errors
-    if (error.message.includes('Unauthorized') || error.message.includes('administrator')) {
-      return res.status(403).json({ error: error.message });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to get item configuration. Please try again.',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'get item configuration');
   }
 });
 
@@ -805,9 +553,7 @@ router.patch('/:eventId/item-configuration', requireAuth, async (req, res) => {
     const { numberOfItems, excludedItemIds } = req.body;
 
     if (!requesterEmail) {
-      return res.status(401).json({
-        error: 'Authentication required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     // Update item configuration
@@ -819,33 +565,7 @@ router.patch('/:eventId/item-configuration', requireAuth, async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    loggerService.error(`Update item configuration error: ${error.message}`, error).catch(() => {});
-
-    // Handle validation errors (400)
-    if (error.message.includes('must be') || 
-        error.message.includes('required') ||
-        error.message.includes('invalid')) {
-      return res.status(400).json({
-        error: error.message
-      });
-    }
-
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    // Handle authorization errors
-    if (error.message.includes('Unauthorized') || error.message.includes('administrator')) {
-      return res.status(403).json({ error: error.message });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to update item configuration. Please try again.',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'update item configuration');
   }
 });
 
@@ -867,31 +587,18 @@ router.get('/:eventId/rating-configuration', async (req, res) => {
   try {
     const { eventId } = req.params;
 
+    // Validate event ID format
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
+    }
+
     // Get rating configuration
     const ratingConfig = await eventService.getRatingConfiguration(eventId);
 
     res.json(ratingConfig);
   } catch (error) {
-    loggerService.error(`Get rating configuration error: ${error.message}`, error).catch(() => {});
-
-    // Handle validation errors (400)
-    if (error.message.includes('Invalid event ID') || error.message.includes('format')) {
-      return res.status(400).json({
-        error: error.message
-      });
-    }
-
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to get rating configuration. Please try again.',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'get rating configuration');
   }
 });
 
@@ -927,9 +634,7 @@ router.patch('/:eventId/rating-configuration', requireAuth, async (req, res) => 
     const { maxRating, ratings, noteSuggestionsEnabled, expectedUpdatedAt } = req.body;
 
     if (!requesterEmail) {
-      return res.status(401).json({
-        error: 'Authentication required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     // Update rating configuration
@@ -942,49 +647,7 @@ router.patch('/:eventId/rating-configuration', requireAuth, async (req, res) => 
 
     res.json(result);
   } catch (error) {
-    loggerService.error(`Update rating configuration error: ${error.message}`, error).catch(() => {});
-
-    // Handle optimistic locking conflicts (409)
-    if (error.code === 'OPTIMISTIC_LOCK_CONFLICT') {
-      return res.status(409).json({
-        error: error.message,
-        currentUpdatedAt: error.currentUpdatedAt
-      });
-    }
-
-    // Handle state restriction errors (400)
-    if (error.message.includes('can only be changed when event is in "created" state')) {
-      return res.status(400).json({
-        error: error.message
-      });
-    }
-
-    // Handle validation errors (400)
-    if (error.message.includes('must be') || 
-        error.message.includes('required') ||
-        error.message.includes('invalid') ||
-        error.message.includes('format')) {
-      return res.status(400).json({
-        error: error.message
-      });
-    }
-
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    // Handle authorization errors
-    if (error.message.includes('Unauthorized') || error.message.includes('administrator')) {
-      return res.status(403).json({ error: error.message });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to update rating configuration. Please try again.',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'update rating configuration');
   }
 });
 
@@ -998,19 +661,16 @@ router.get('/:eventId/bookmarks', requireAuth, async (req, res) => {
     const { eventId } = req.params;
 
     // Validate event ID format
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return res.status(400).json({
-        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
-      });
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Get user email from JWT token
     const userEmail = req.user?.email;
 
     if (!userEmail || typeof userEmail !== 'string') {
-      return res.status(401).json({
-        error: 'Authentication required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     // Get bookmarks for user
@@ -1022,36 +682,10 @@ router.get('/:eventId/bookmarks', requireAuth, async (req, res) => {
       bookmarks
     });
   } catch (error) {
-    loggerService.error(`Get bookmarks error: ${error.message}`, error).catch(() => {});
-
-    // Handle validation errors (400)
-    if (error.message.includes('required') || 
-        error.message.includes('Invalid') ||
-        error.message.includes('format')) {
-      return res.status(400).json({
-        error: error.message
-      });
-    }
-
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to retrieve bookmarks. Please try again.',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'retrieve bookmarks');
   }
 });
 
-/**
- * PUT /api/events/:eventId/bookmarks
- * Save bookmarks for the current user in an event
- * Requires either PIN verification session OR OTP authentication (JWT token)
- */
 /**
  * GET /api/events/:eventId/profile
  * Get user profile (name) for an event
@@ -1062,19 +696,16 @@ router.get('/:eventId/profile', requireAuth, async (req, res) => {
     const { eventId } = req.params;
 
     // Validate event ID format
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return res.status(400).json({
-        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
-      });
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Get user email from JWT token
     const userEmail = req.user?.email;
 
     if (!userEmail || typeof userEmail !== 'string') {
-      return res.status(401).json({
-        error: 'Authentication required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     // Get user profile
@@ -1082,28 +713,7 @@ router.get('/:eventId/profile', requireAuth, async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    loggerService.error(`Get user profile error: ${error.message}`, error).catch(() => {});
-
-    // Handle validation errors (400)
-    if (error.message.includes('required') || 
-        error.message.includes('Invalid') ||
-        error.message.includes('format')) {
-      return res.status(400).json({
-        error: error.message
-      });
-    }
-
-    // Handle not found errors (404)
-    if (error.message.includes('not found')) {
-      return res.status(404).json({
-        error: error.message
-      });
-    }
-
-    // Handle all other errors (500)
-    res.status(500).json({
-      error: 'Failed to retrieve user profile. Please try again.'
-    });
+    return handleApiError(res, error, 'retrieve user profile');
   }
 });
 
@@ -1118,26 +728,21 @@ router.put('/:eventId/profile', requireAuth, async (req, res) => {
     const { name } = req.body;
 
     // Validate event ID format
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return res.status(400).json({
-        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
-      });
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Get user email from JWT token
     const userEmail = req.user?.email;
 
     if (!userEmail || typeof userEmail !== 'string') {
-      return res.status(400).json({
-        error: 'Email address is required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     // Validate name (optional, but if provided must be a string)
     if (name !== undefined && typeof name !== 'string') {
-      return res.status(400).json({
-        error: 'Name must be a string'
-      });
+      return badRequestError(res, 'Name must be a string');
     }
 
     // Update user name
@@ -1145,58 +750,36 @@ router.put('/:eventId/profile', requireAuth, async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    loggerService.error(`Update user profile error: ${error.message}`, error).catch(() => {});
-
-    // Handle validation errors (400)
-    if (error.message.includes('required') || 
-        error.message.includes('Invalid') ||
-        error.message.includes('must be') ||
-        error.message.includes('format')) {
-      return res.status(400).json({
-        error: error.message
-      });
-    }
-
-    // Handle not found errors (404)
-    if (error.message.includes('not found')) {
-      return res.status(404).json({
-        error: error.message
-      });
-    }
-
-    // Handle all other errors (500)
-    res.status(500).json({
-      error: 'Failed to update user profile. Please try again.'
-    });
+    return handleApiError(res, error, 'update user profile');
   }
 });
 
+/**
+ * PUT /api/events/:eventId/bookmarks
+ * Save bookmarks for the current user in an event
+ * Requires either PIN verification session OR OTP authentication (JWT token)
+ */
 router.put('/:eventId/bookmarks', requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
     const { bookmarks } = req.body;
 
     // Validate event ID format
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return res.status(400).json({
-        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
-      });
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Get user email from JWT token
     const userEmail = req.user?.email;
 
     if (!userEmail || typeof userEmail !== 'string') {
-      return res.status(401).json({
-        error: 'Authentication required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     // Validate bookmarks
     if (!Array.isArray(bookmarks)) {
-      return res.status(400).json({
-        error: 'Bookmarks must be an array'
-      });
+      return badRequestError(res, 'Bookmarks must be an array');
     }
 
     // Save bookmarks for user
@@ -1204,29 +787,7 @@ router.put('/:eventId/bookmarks', requireAuth, async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    loggerService.error(`Save bookmarks error: ${error.message}`, error).catch(() => {});
-
-    // Handle validation errors (400)
-    if (error.message.includes('required') || 
-        error.message.includes('Invalid') ||
-        error.message.includes('must be') ||
-        error.message.includes('format')) {
-      return res.status(400).json({
-        error: error.message
-      });
-    }
-
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to save bookmarks. Please try again.',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'save bookmarks');
   }
 });
 
@@ -1242,16 +803,13 @@ router.delete('/:eventId', requireAuth, async (req, res) => {
     const requesterEmail = req.user?.email;
 
     if (!requesterEmail) {
-      return res.status(401).json({
-        error: 'Authentication required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     // Validate event ID format
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return res.status(400).json({
-        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
-      });
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Delete event
@@ -1259,31 +817,7 @@ router.delete('/:eventId', requireAuth, async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    loggerService.error(`Delete event error: ${error.message}`, error).catch(() => {});
-    
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({ error: error.message });
-    }
-
-    // Handle authorization errors
-    if (error.message.includes('Unauthorized') || error.message.includes('owner')) {
-      return res.status(403).json({ error: error.message });
-    }
-
-    // Handle validation errors
-    if (error.message.includes('required') || 
-        error.message.includes('Invalid') ||
-        error.message.includes('format')) {
-      return res.status(400).json({ error: error.message });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to delete event. Please try again.',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'delete event');
   }
 });
 
@@ -1299,16 +833,13 @@ router.delete('/:eventId/ratings', requireAuth, async (req, res) => {
     const requesterEmail = req.user?.email;
 
     if (!requesterEmail) {
-      return res.status(401).json({
-        error: 'Authentication required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     // Validate event ID format
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return res.status(400).json({
-        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
-      });
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Delete all ratings and bookmarks
@@ -1316,31 +847,7 @@ router.delete('/:eventId/ratings', requireAuth, async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    loggerService.error(`Delete all ratings error: ${error.message}`, error).catch(() => {});
-    
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({ error: error.message });
-    }
-
-    // Handle authorization errors
-    if (error.message.includes('Unauthorized') || error.message.includes('administrator')) {
-      return res.status(403).json({ error: error.message });
-    }
-
-    // Handle validation errors
-    if (error.message.includes('required') || 
-        error.message.includes('Invalid') ||
-        error.message.includes('format')) {
-      return res.status(400).json({ error: error.message });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to delete ratings and bookmarks. Please try again.',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'delete ratings and bookmarks');
   }
 });
 
@@ -1357,25 +864,20 @@ router.delete('/:eventId/users/:email', requireAuth, async (req, res) => {
     const requesterEmail = req.user?.email;
 
     if (!requesterEmail) {
-      return res.status(401).json({
-        error: 'Authentication required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     // Validate event ID format
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return res.status(400).json({
-        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
-      });
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Decode email from URL
     const userEmailToDelete = decodeURIComponent(email);
 
     if (!userEmailToDelete || typeof userEmailToDelete !== 'string' || !userEmailToDelete.trim()) {
-      return res.status(400).json({
-        error: 'User email is required'
-      });
+      return badRequestError(res, 'User email is required');
     }
 
     // Delete user
@@ -1383,36 +885,7 @@ router.delete('/:eventId/users/:email', requireAuth, async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    loggerService.error(`Delete user error: ${error.message}`, error).catch(() => {});
-    
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({ error: error.message });
-    }
-
-    // Handle authorization errors
-    if (error.message.includes('Unauthorized') || error.message.includes('administrator')) {
-      return res.status(403).json({ error: error.message });
-    }
-
-    // Handle owner/last admin protection
-    if (error.message.includes('Cannot delete owner') || error.message.includes('Cannot delete last administrator')) {
-      return res.status(400).json({ error: error.message });
-    }
-
-    // Handle validation errors
-    if (error.message.includes('required') || 
-        error.message.includes('Invalid') ||
-        error.message.includes('format')) {
-      return res.status(400).json({ error: error.message });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to delete user. Please try again.',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'delete user');
   }
 });
 
@@ -1428,16 +901,13 @@ router.delete('/:eventId/users', requireAuth, async (req, res) => {
     const requesterEmail = req.user?.email;
 
     if (!requesterEmail) {
-      return res.status(401).json({
-        error: 'Authentication required'
-      });
+      return unauthorizedError(res, 'Authentication required');
     }
 
     // Validate event ID format
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return res.status(400).json({
-        error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
-      });
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Delete all users
@@ -1445,31 +915,7 @@ router.delete('/:eventId/users', requireAuth, async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    loggerService.error(`Delete all users error: ${error.message}`, error).catch(() => {});
-    
-    // Handle event not found
-    if (error.message.includes('not found')) {
-      return res.status(404).json({ error: error.message });
-    }
-
-    // Handle authorization errors
-    if (error.message.includes('Unauthorized') || error.message.includes('administrator')) {
-      return res.status(403).json({ error: error.message });
-    }
-
-    // Handle validation errors
-    if (error.message.includes('required') || 
-        error.message.includes('Invalid') ||
-        error.message.includes('format')) {
-      return res.status(400).json({ error: error.message });
-    }
-
-    // Handle server errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    res.status(500).json({
-      error: 'Failed to delete users. Please try again.',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'delete users');
   }
 });
 

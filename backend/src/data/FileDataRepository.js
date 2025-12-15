@@ -2,16 +2,14 @@ import { promises as fs } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import DataRepository from './DataRepository.js';
-import cacheService from '../cache/CacheService.js';
 import configLoader from '../config/configLoader.js';
-import { getEventConfigKey, getEventDataKey } from '../cache/cacheKeys.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
  * File-based data repository implementation
- * Extends DataRepository for file system operations with caching
+ * Pure file I/O operations - no caching logic (handled by CacheService)
  */
 class FileDataRepository extends DataRepository {
   constructor() {
@@ -44,7 +42,6 @@ class FileDataRepository extends DataRepository {
 
     // Ensure data directory exists
     await this.ensureDirectory(this.dataDirectory);
-    // events directory will be created per-event, no need to create it here
 
     this.initialized = true;
   }
@@ -62,30 +59,13 @@ class FileDataRepository extends DataRepository {
   }
 
   /**
-   * Read file with cache check
+   * Read file (raw, no caching)
    * @param {string} path - File path
-   * @param {string} cacheKey - Optional cache key
    * @returns {Promise<string>} File contents
    */
-  async readFile(path, cacheKey = null) {
-    // Check cache first
-    if (cacheKey) {
-      const cached = cacheService.get(cacheKey);
-      if (cached !== undefined) {
-        return cached;
-      }
-    }
-
-    // Read from file system
+  async readFileRaw(path) {
     try {
-      const content = await fs.readFile(path, 'utf-8');
-      
-      // Store in cache
-      if (cacheKey) {
-        cacheService.set(cacheKey, content);
-      }
-      
-      return content;
+      return await fs.readFile(path, 'utf-8');
     } catch (error) {
       if (error.code === 'ENOENT') {
         throw new Error(`File not found: ${path}`);
@@ -95,26 +75,24 @@ class FileDataRepository extends DataRepository {
   }
 
   /**
-   * Write file and invalidate cache
+   * Write file (raw, no cache invalidation)
    * @param {string} path - File path
    * @param {string} content - File content
-   * @param {string|Array<string>} cacheKeys - Cache keys to invalidate
    */
-  async writeFile(path, content, cacheKeys = null) {
+  async writeFileRaw(path, content) {
     // Ensure directory exists
     await this.ensureDirectory(dirname(path));
-
-    // Write to file system
     await fs.writeFile(path, content, 'utf-8');
+  }
 
-    // Invalidate cache
-    if (cacheKeys) {
-      if (Array.isArray(cacheKeys)) {
-        cacheKeys.forEach(key => cacheService.del(key));
-      } else {
-        cacheService.del(cacheKeys);
-      }
-    }
+  /**
+   * Append to file
+   * @param {string} path - File path
+   * @param {string} content - Content to append
+   */
+  async appendFileRaw(path, content) {
+    await this.ensureDirectory(dirname(path));
+    await fs.appendFile(path, content, 'utf-8');
   }
 
   /**
@@ -173,41 +151,6 @@ class FileDataRepository extends DataRepository {
   }
 
   /**
-   * Read event configuration
-   * @param {string} eventId - Event identifier
-   * @returns {Promise<object>} Event configuration
-   */
-  async readEventConfig(eventId) {
-    await this.initialize();
-    const path = this.getEventConfigPath(eventId);
-    const cacheKey = getEventConfigKey(eventId);
-    
-    try {
-      const content = await this.readFile(path, cacheKey);
-      return JSON.parse(content);
-    } catch (error) {
-      if (error.message.includes('not found')) {
-        throw new Error(`Event configuration not found: ${eventId}`);
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Write event configuration
-   * @param {string} eventId - Event identifier
-   * @param {object} config - Configuration object
-   * @returns {Promise<void>}
-   */
-  async writeEventConfig(eventId, config) {
-    await this.initialize();
-    const path = this.getEventConfigPath(eventId);
-    const cacheKey = getEventConfigKey(eventId);
-    
-    await this.writeFile(path, JSON.stringify(config, null, 2), cacheKey);
-  }
-
-  /**
    * List all events
    * @returns {Promise<Array<string>>} Array of event IDs
    */
@@ -218,151 +161,31 @@ class FileDataRepository extends DataRepository {
   }
 
   /**
-   * Read event data (CSV)
+   * Check if event exists
    * @param {string} eventId - Event identifier
-   * @returns {Promise<string>} CSV data
+   * @returns {Promise<boolean>} True if event exists
    */
-  async readEventData(eventId) {
+  async eventExists(eventId) {
     await this.initialize();
-    const path = this.getEventDataPath(eventId);
-    const cacheKey = getEventDataKey(eventId);
-    
     try {
-      return await this.readFile(path, cacheKey);
-    } catch (error) {
-      if (error.message.includes('not found')) {
-        // Return empty CSV with header if file doesn't exist
-        return 'participantId,timestamp,itemId,rating,notes\n';
-      }
-      throw error;
+      await fs.access(this.getEventConfigPath(eventId));
+      return true;
+    } catch {
+      return false;
     }
   }
 
   /**
-   * Append data to event CSV
+   * Delete an event directory and all its contents
    * @param {string} eventId - Event identifier
-   * @param {string} data - CSV row data
-   * @returns {Promise<void>}
    */
-  async appendEventData(eventId, data) {
-    await this.initialize();
-    const path = this.getEventDataPath(eventId);
-    const cacheKey = getEventDataKey(eventId);
-    
-    // Append to file
-    await fs.appendFile(path, data + '\n', 'utf-8');
-    
-    // Invalidate cache
-    cacheService.del(cacheKey);
-  }
-
-  /**
-   * Read event ratings (ratings.csv)
-   * @param {string} eventId - Event identifier
-   * @returns {Promise<string>} CSV data
-   */
-  async readEventRatings(eventId) {
-    await this.initialize();
-    const path = this.getEventRatingsPath(eventId);
-    const cacheKey = `ratings:${eventId}`;
-    
-    try {
-      return await this.readFile(path, cacheKey);
-    } catch (error) {
-      if (error.message.includes('not found')) {
-        // Return empty CSV with header if file doesn't exist
-        return 'email,timestamp,itemId,rating,note\n';
-      }
-      throw error;
-    }
-  }
-
-  /**
-   * Write event ratings (ratings.csv) - replaces entire file
-   * @param {string} eventId - Event identifier
-   * @param {string} csvContent - Complete CSV content (with header)
-   * @returns {Promise<void>}
-   */
-  async writeEventRatings(eventId, csvContent) {
-    await this.initialize();
-    const path = this.getEventRatingsPath(eventId);
-    const cacheKey = `ratings:${eventId}`;
-    
-    await this.writeFile(path, csvContent, cacheKey);
-  }
-
-  /**
-   * Create a new event
-   * Stores event data in data/events/{eventId}/config.json
-   * @param {object} eventData - Event data object (must include eventId)
-   * @returns {Promise<object>} Created event data
-   */
-  async createEvent(eventData) {
-    await this.initialize();
-    const { eventId } = eventData;
-    
-    if (!eventId) {
-      throw new Error('Event ID is required');
-    }
-
-    // Check if event already exists by trying to read config
-    try {
-      await this.readEventConfig(eventId);
-      // Event exists, throw error
-      throw new Error(`Event with ID ${eventId} already exists`);
-    } catch (error) {
-      // If error is "already exists", re-throw it
-      if (error.message.includes('already exists')) {
-        throw error;
-      }
-      // If error is "not found", that's expected - event doesn't exist yet, continue
-      if (!error.message.includes('not found')) {
-        // Some other error occurred, re-throw it
-        throw error;
-      }
-      // Event doesn't exist, which is what we want - continue
-    }
-
-    // Write event config using existing method
-    // This will create the event directory and config.json file
-    await this.writeEventConfig(eventId, eventData);
-
-    return eventData;
-  }
-
-  /**
-   * Get event by ID
-   * Reads event data from data/events/{eventId}/config.json
-   * @param {string} eventId - Event identifier
-   * @returns {Promise<object>} Event data
-   */
-  async getEvent(eventId) {
-    await this.initialize();
-    // Use existing readEventConfig method
-    return await this.readEventConfig(eventId);
-  }
-
-  /**
-   * Delete an event and all its data
-   * Deletes the entire event directory including config.json, data.csv, ratings.csv, and any other files
-   * @param {string} eventId - Event identifier
-   * @returns {Promise<void>}
-   */
-  async deleteEvent(eventId) {
+  async deleteEventDirectory(eventId) {
     await this.initialize();
     const eventDir = this.getEventDirectory(eventId);
     
     try {
-      // Check if directory exists
       await fs.access(eventDir);
-      
-      // Delete entire directory recursively
       await fs.rm(eventDir, { recursive: true, force: true });
-      
-      // Invalidate all cache entries for this event
-      cacheService.del(getEventConfigKey(eventId));
-      cacheService.del(getEventDataKey(eventId));
-      cacheService.del(`ratings:${eventId}`);
     } catch (error) {
       if (error.code === 'ENOENT') {
         throw new Error(`Event not found: ${eventId}`);

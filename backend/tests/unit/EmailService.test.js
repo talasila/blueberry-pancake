@@ -86,11 +86,37 @@ describe('EmailService', () => {
     });
 
     it('should handle missing API key gracefully', async () => {
-      // Don't initialize - simulate missing API key
-      const result = await emailService.sendOTP('test@example.com', '123456');
+      // Test production behavior where API key is required
+      const originalEnv = process.env.NODE_ENV;
+      process.env.NODE_ENV = 'production';
       
-      expect(result.success).toBe(false);
-      expect(result.error).toContain('not configured');
+      // Clear any existing API key env vars
+      const originalApiKey = process.env.RESEND_API_KEY;
+      delete process.env.RESEND_API_KEY;
+      
+      // Import configLoader to override mock for this test
+      const configLoader = await import('../../src/config/configLoader.js');
+      const originalGet = configLoader.default.get;
+      configLoader.default.get = vi.fn((path) => {
+        if (path === 'email.resendApiKey') return ''; // Return empty API key
+        if (path === 'email.fromAddress') return 'test@example.com';
+        return null;
+      });
+      
+      try {
+        // Reset service state to force re-initialization
+        emailService.initialized = false;
+        emailService.resend = null;
+        
+        const result = await emailService.sendOTP('test@example.com', '123456');
+        
+        expect(result.success).toBe(false);
+        expect(result.error).toContain('not configured');
+      } finally {
+        process.env.NODE_ENV = originalEnv;
+        if (originalApiKey) process.env.RESEND_API_KEY = originalApiKey;
+        configLoader.default.get = originalGet;
+      }
     });
 
     it('should use environment variable for API key when set', async () => {

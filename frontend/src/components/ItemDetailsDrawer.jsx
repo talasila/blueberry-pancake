@@ -210,7 +210,7 @@ function ItemDetailsDrawer({
     const uniqueUsers = new Set();
     allRatings.forEach(r => {
       if (r.email) {
-        uniqueUsers.add(r.email.toLowerCase().trim());
+        uniqueUsers.add(r.email.trim().toLowerCase());
       }
     });
     const totalUsersCount = uniqueUsers.size;
@@ -234,8 +234,8 @@ function ItemDetailsDrawer({
   // Get current user's rating for this item
   const userRating = useMemo(() => {
     if (!userEmail || !ratings.length) return null;
-    const normalizedUserEmail = userEmail.toLowerCase().trim();
-    return ratings.find(r => r.email?.toLowerCase().trim() === normalizedUserEmail) || null;
+    const normalizedUserEmail = userEmail.trim().toLowerCase();
+    return ratings.find(r => r.email?.trim().toLowerCase() === normalizedUserEmail) || null;
   }, [ratings, userEmail]);
 
   // Calculate progress percentage (percentage of users who rated this item)
@@ -246,7 +246,7 @@ function ItemDetailsDrawer({
     const uniqueRaters = new Set();
     ratings.forEach(rating => {
       if (rating.email) {
-        uniqueRaters.add(rating.email.toLowerCase().trim());
+        uniqueRaters.add(rating.email.trim().toLowerCase());
       }
     });
     const numberOfRaters = uniqueRaters.size;
@@ -302,10 +302,10 @@ function ItemDetailsDrawer({
       });
 
     // Sort: user's comment first, then others by timestamp (newest first)
-    const normalizedUserEmail = userEmail?.toLowerCase().trim();
+    const normalizedUserEmail = userEmail?.trim().toLowerCase();
     return commentsWithData.sort((a, b) => {
-      const aIsUser = a.email?.toLowerCase().trim() === normalizedUserEmail;
-      const bIsUser = b.email?.toLowerCase().trim() === normalizedUserEmail;
+      const aIsUser = a.email?.trim().toLowerCase() === normalizedUserEmail;
+      const bIsUser = b.email?.trim().toLowerCase() === normalizedUserEmail;
       
       if (aIsUser && !bIsUser) return -1;
       if (!aIsUser && bIsUser) return 1;
@@ -552,7 +552,7 @@ function ItemDetailsDrawer({
                     </div>
                     <div className="space-y-3">
                       {comments.map((comment, index) => {
-                        const isCurrentUser = userEmail && comment.email?.toLowerCase().trim() === userEmail.toLowerCase().trim();
+                        const isCurrentUser = userEmail && comment.email?.trim().toLowerCase() === userEmail.trim().toLowerCase();
                         const ratingColor = ratingConfiguration.find(r => r.value === comment.rating)?.color || '#6B7280';
                         
                         return (

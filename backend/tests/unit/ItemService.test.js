@@ -22,7 +22,13 @@ vi.mock('../../src/services/EventService.js', () => ({
 
 vi.mock('../../src/cache/CacheService.js', () => ({
   default: {
-    delete: vi.fn()
+    del: vi.fn(),
+    get: vi.fn(),
+    set: vi.fn(),
+    setDirty: vi.fn(),
+    setWithPersist: vi.fn().mockResolvedValue(true),
+    ensureEventConfigLoaded: vi.fn(),
+    ensureRatingsLoaded: vi.fn()
   }
 }));
 
@@ -343,7 +349,7 @@ describe('ItemService', () => {
       };
 
       eventService.getEvent.mockResolvedValue(mockEvent);
-      dataRepository.writeEventConfig.mockResolvedValue(undefined);
+      cacheService.setWithPersist.mockResolvedValue(true);
 
       const itemData = {
         name: 'Test Item',
@@ -360,7 +366,7 @@ describe('ItemService', () => {
       expect(result.ownerEmail).toBe('user@example.com');
       expect(result).toHaveProperty('registeredAt');
       expect(result.itemId).toBeNull();
-      expect(dataRepository.writeEventConfig).toHaveBeenCalled();
+      expect(cacheService.setWithPersist).toHaveBeenCalled();
     });
 
     it('should initialize items array if it does not exist', async () => {
@@ -371,7 +377,7 @@ describe('ItemService', () => {
       };
 
       eventService.getEvent.mockResolvedValue(mockEvent);
-      dataRepository.writeEventConfig.mockResolvedValue(undefined);
+      cacheService.setWithPersist.mockResolvedValue(true);
 
       const itemData = { name: 'Test Item' };
       await itemService.registerItem('A5ohYrHe', itemData, 'user@example.com');
@@ -443,12 +449,12 @@ describe('ItemService', () => {
       };
 
       eventService.getEvent.mockResolvedValue(mockEvent);
-      dataRepository.writeEventConfig.mockResolvedValue(undefined);
+      cacheService.setWithPersist.mockResolvedValue(true);
 
       const result = await itemService.registerItem('A5ohYrHe', { name: 'Test' }, 'user@example.com');
 
       expect(result).toHaveProperty('id');
-      expect(dataRepository.writeEventConfig).toHaveBeenCalled();
+      expect(cacheService.setWithPersist).toHaveBeenCalled();
     });
 
     it('should generate unique item ID', async () => {
@@ -460,7 +466,7 @@ describe('ItemService', () => {
       };
 
       eventService.getEvent.mockResolvedValue(mockEvent);
-      dataRepository.writeEventConfig.mockResolvedValue(undefined);
+      cacheService.setWithPersist.mockResolvedValue(true);
 
       const item1 = await itemService.registerItem('A5ohYrHe', { name: 'Item 1' }, 'user@example.com');
       const item2 = await itemService.registerItem('A5ohYrHe', { name: 'Item 2' }, 'user@example.com');
@@ -479,7 +485,7 @@ describe('ItemService', () => {
       };
 
       eventService.getEvent.mockResolvedValue(mockEvent);
-      dataRepository.writeEventConfig.mockResolvedValue(undefined);
+      cacheService.setWithPersist.mockResolvedValue(true);
 
       const result = await itemService.registerItem('A5ohYrHe', { name: 'Test' }, 'User@Example.com');
 
@@ -590,12 +596,12 @@ describe('ItemService', () => {
 
       eventService.getEvent.mockResolvedValue(mockEvent);
       eventService.isAdministrator.mockReturnValue(true);
-      dataRepository.writeEventConfig.mockResolvedValue(undefined);
+      cacheService.setWithPersist.mockResolvedValue(true);
 
       const result = await itemService.assignItemId('A5ohYrHe', 'item1', 5, 'admin@example.com');
 
       expect(result.itemId).toBe(5);
-      expect(dataRepository.writeEventConfig).toHaveBeenCalled();
+      expect(cacheService.setWithPersist).toHaveBeenCalled();
     });
 
     it('should throw error when event is not in paused state', async () => {
@@ -702,7 +708,7 @@ describe('ItemService', () => {
       };
 
       eventService.getEvent.mockResolvedValue(mockEvent);
-      dataRepository.writeEventConfig.mockResolvedValue(undefined);
+      cacheService.setWithPersist.mockResolvedValue(true);
 
       const result = await itemService.updateItem('A5ohYrHe', 'item1', {
         name: 'Updated Item',
@@ -713,7 +719,7 @@ describe('ItemService', () => {
       expect(result.name).toBe('Updated Item');
       expect(result.price).toBe(60);
       expect(result.description).toBe('New description');
-      expect(dataRepository.writeEventConfig).toHaveBeenCalled();
+      expect(cacheService.setWithPersist).toHaveBeenCalled();
     });
 
     it('should throw error when user is not owner', async () => {
@@ -766,13 +772,13 @@ describe('ItemService', () => {
       };
 
       eventService.getEvent.mockResolvedValue(mockEvent);
-      dataRepository.writeEventConfig.mockResolvedValue(undefined);
+      cacheService.setWithPersist.mockResolvedValue(true);
 
       const result = await itemService.deleteItem('A5ohYrHe', 'item1', 'user@example.com');
 
       expect(result.message).toBe('Item deleted successfully');
       expect(mockEvent.items).toHaveLength(0);
-      expect(dataRepository.writeEventConfig).toHaveBeenCalled();
+      expect(cacheService.setWithPersist).toHaveBeenCalled();
     });
 
     it('should handle itemId reassignment when item with assigned itemId is deleted', async () => {
@@ -786,7 +792,7 @@ describe('ItemService', () => {
       };
 
       eventService.getEvent.mockResolvedValue(mockEvent);
-      dataRepository.writeEventConfig.mockResolvedValue(undefined);
+      cacheService.setWithPersist.mockResolvedValue(true);
 
       await itemService.deleteItem('A5ohYrHe', 'item1', 'user@example.com');
 

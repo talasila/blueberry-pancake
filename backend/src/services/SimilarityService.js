@@ -3,6 +3,7 @@ import cacheService from '../cache/CacheService.js';
 import eventService from './EventService.js';
 import { calculateMeanAbsoluteError, maeToSimilarityScore } from '../utils/meanAbsoluteError.js';
 import loggerService from '../logging/Logger.js';
+import { normalizeEmail as normalizeEmailUtil } from '../utils/emailUtils.js';
 
 /**
  * SimilarityService
@@ -224,14 +225,12 @@ class SimilarityService {
 
   /**
    * Normalize email address (lowercase, trim)
+   * Delegates to centralized emailUtils for consistency
    * @param {string} email - Email address
    * @returns {string} Normalized email
    */
   normalizeEmail(email) {
-    if (!email || typeof email !== 'string') {
-      return '';
-    }
-    return email.trim().toLowerCase();
+    return normalizeEmailUtil(email);
   }
 }
 

@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import ratingService from '../services/RatingService.js';
 import { toCSV } from '../utils/csvParser.js';
-import loggerService from '../logging/Logger.js';
 import requireAuth from '../middleware/requireAuth.js';
-import eventService from '../services/EventService.js';
+import { isValidEmail } from '../utils/emailUtils.js';
+import { validateEventId, validateNumericItemId, validateAuthentication } from '../utils/validators.js';
+import { handleApiError, badRequestError, unauthorizedError } from '../utils/apiErrorHandler.js';
 
 const router = Router({ mergeParams: true });
 
@@ -15,8 +16,11 @@ const router = Router({ mergeParams: true });
 router.get('/ratings', requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
-    if (!eventId) {
-      return res.status(400).json({ error: 'Event ID is required' });
+    
+    // Validate event ID format
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Get ratings as CSV
@@ -26,15 +30,7 @@ router.get('/ratings', requireAuth, async (req, res) => {
     res.setHeader('Content-Type', 'text/csv');
     res.send(csvContent);
   } catch (error) {
-    loggerService.error(`Error getting ratings: ${error.message}`, error).catch(() => {});
-
-    if (error.message.includes('not found')) {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-
-    res.status(500).json({
-      error: 'Failed to retrieve ratings'
-    });
+    return handleApiError(res, error, 'retrieve ratings');
   }
 });
 
@@ -46,38 +42,34 @@ router.get('/ratings', requireAuth, async (req, res) => {
 router.post('/ratings', requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
-    if (!eventId) {
-      return res.status(400).json({ error: 'Event ID is required' });
+    
+    // Validate event ID format
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
+    
     const { itemId, rating, note } = req.body;
 
     // Get user email from JWT token only
     const userEmail = req.user?.email;
-    if (!userEmail) {
-      return res.status(401).json({
-        error: 'Email is required for rating submission'
-      });
+    const authValidation = validateAuthentication(userEmail);
+    if (!authValidation.valid) {
+      return unauthorizedError(res, 'Email is required for rating submission');
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(userEmail.trim())) {
-      return res.status(400).json({
-        error: 'Invalid email format'
-      });
+    // Validate email format using shared utility
+    if (!isValidEmail(userEmail)) {
+      return badRequestError(res, 'Invalid email format');
     }
 
     // Validate required fields
     if (itemId === undefined || itemId === null) {
-      return res.status(400).json({
-        error: 'Item ID is required'
-      });
+      return badRequestError(res, 'Item ID is required');
     }
 
     if (rating === undefined || rating === null) {
-      return res.status(400).json({
-        error: 'Rating is required'
-      });
+      return badRequestError(res, 'Rating is required');
     }
 
     // Submit rating
@@ -85,33 +77,7 @@ router.post('/ratings', requireAuth, async (req, res) => {
 
     res.status(201).json(savedRating);
   } catch (error) {
-    loggerService.error(`Error submitting rating: ${error.message}`, error).catch(() => {});
-
-    // Handle validation errors
-    if (error.message.includes('not in started state') || 
-        error.message.includes('not available')) {
-      return res.status(400).json({
-        error: error.message
-      });
-    }
-
-    if (error.message.includes('Invalid') || 
-        error.message.includes('required') ||
-        error.message.includes('exceed')) {
-      return res.status(400).json({
-        error: error.message
-      });
-    }
-
-    if (error.message.includes('not found')) {
-      return res.status(404).json({
-        error: 'Event not found'
-      });
-    }
-
-    res.status(500).json({
-      error: 'Failed to submit rating. Please try again.'
-    });
+    return handleApiError(res, error, 'submit rating');
   }
 });
 
@@ -123,36 +89,33 @@ router.post('/ratings', requireAuth, async (req, res) => {
 router.get('/ratings/:itemId', requireAuth, async (req, res) => {
   try {
     const { eventId, itemId } = req.params;
-    if (!eventId) {
-      return res.status(400).json({ error: 'Event ID is required' });
+    
+    // Validate event ID format
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Get user email from JWT token only
     const userEmail = req.user?.email;
-    if (!userEmail) {
-      return res.status(401).json({
-        error: 'Email is required'
-      });
+    const authValidation = validateAuthentication(userEmail);
+    if (!authValidation.valid) {
+      return unauthorizedError(res, 'Email is required');
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(userEmail.trim())) {
-      return res.status(400).json({
-        error: 'Invalid email format'
-      });
+    // Validate email format using shared utility
+    if (!isValidEmail(userEmail)) {
+      return badRequestError(res, 'Invalid email format');
     }
 
-    // Parse itemId
-    const itemIdNum = parseInt(itemId, 10);
-    if (isNaN(itemIdNum)) {
-      return res.status(400).json({
-        error: 'Invalid item ID'
-      });
+    // Validate itemId
+    const itemIdValidation = validateNumericItemId(itemId);
+    if (!itemIdValidation.valid) {
+      return badRequestError(res, 'Invalid item ID');
     }
 
     // Get rating
-    const rating = await ratingService.getRating(eventId, itemIdNum, userEmail);
+    const rating = await ratingService.getRating(eventId, itemIdValidation.value, userEmail);
 
     if (!rating) {
       return res.status(404).json({
@@ -162,17 +125,7 @@ router.get('/ratings/:itemId', requireAuth, async (req, res) => {
 
     res.json(rating);
   } catch (error) {
-    loggerService.error(`Error getting rating: ${error.message}`, error).catch(() => {});
-
-    if (error.message.includes('not found')) {
-      return res.status(404).json({
-        error: 'Event not found'
-      });
-    }
-
-    res.status(500).json({
-      error: 'Failed to retrieve rating'
-    });
+    return handleApiError(res, error, 'retrieve rating');
   }
 });
 
@@ -184,36 +137,33 @@ router.get('/ratings/:itemId', requireAuth, async (req, res) => {
 router.delete('/ratings/:itemId', requireAuth, async (req, res) => {
   try {
     const { eventId, itemId } = req.params;
-    if (!eventId) {
-      return res.status(400).json({ error: 'Event ID is required' });
+    
+    // Validate event ID format
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Get user email from JWT token only
     const userEmail = req.user?.email;
-    if (!userEmail) {
-      return res.status(401).json({
-        error: 'Email is required'
-      });
+    const authValidation = validateAuthentication(userEmail);
+    if (!authValidation.valid) {
+      return unauthorizedError(res, 'Email is required');
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(userEmail.trim())) {
-      return res.status(400).json({
-        error: 'Invalid email format'
-      });
+    // Validate email format using shared utility
+    if (!isValidEmail(userEmail)) {
+      return badRequestError(res, 'Invalid email format');
     }
 
-    // Parse itemId
-    const itemIdNum = parseInt(itemId, 10);
-    if (isNaN(itemIdNum)) {
-      return res.status(400).json({
-        error: 'Invalid item ID'
-      });
+    // Validate itemId
+    const itemIdValidation = validateNumericItemId(itemId);
+    if (!itemIdValidation.valid) {
+      return badRequestError(res, 'Invalid item ID');
     }
 
     // Delete rating
-    const deleted = await ratingService.deleteRating(eventId, itemIdNum, userEmail);
+    const deleted = await ratingService.deleteRating(eventId, itemIdValidation.value, userEmail);
 
     if (!deleted) {
       return res.status(404).json({
@@ -223,29 +173,7 @@ router.delete('/ratings/:itemId', requireAuth, async (req, res) => {
 
     res.status(200).json({ message: 'Rating deleted successfully' });
   } catch (error) {
-    loggerService.error(`Error deleting rating: ${error.message}`, error).catch(() => {});
-
-    if (error.message.includes('not found')) {
-      return res.status(404).json({
-        error: 'Event not found'
-      });
-    }
-
-    if (error.message.includes('not in started state')) {
-      return res.status(400).json({
-        error: error.message
-      });
-    }
-
-    if (error.message.includes('Invalid') || error.message.includes('required')) {
-      return res.status(400).json({
-        error: error.message
-      });
-    }
-
-    res.status(500).json({
-      error: 'Failed to delete rating. Please try again.'
-    });
+    return handleApiError(res, error, 'delete rating');
   }
 });
 

@@ -6,7 +6,6 @@ import RatingForm from './RatingForm';
 import { toggleBookmark, isBookmarked } from '@/utils/bookmarkStorage';
 import { useEventContext } from '@/contexts/EventContext';
 import { useItemTerminology } from '@/utils/itemTerminology';
-import apiClient from '@/services/apiClient';
 
 /**
  * RatingDrawer Component
@@ -69,20 +68,6 @@ function RatingDrawer({
   // Handle bookmark toggle
   const handleBookmarkToggle = async () => {
     if (eventId && itemId) {
-      // Get user email if not provided as prop (try to get from JWT token)
-      let email = userEmail;
-      if (!email) {
-        const token = apiClient.getJWTToken();
-        if (token) {
-          try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            email = payload.email || null;
-          } catch (err) {
-            console.error('Error decoding JWT token:', err);
-          }
-        }
-      }
-      
       const newState = await toggleBookmark(eventId, itemId);
       setBookmarked(newState);
       // Trigger event to update bookmark indicator on EventPage

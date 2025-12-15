@@ -8,14 +8,17 @@
   "cache": {
     "enabled": true,
     "ttl": 3600,
-    "maxSize": 100
+    "flushInterval": 60,
+    "maxSize": 1000
   },
   "security": {
     "jwtSecret": "CHANGE_THIS_IN_PRODUCTION_USE_ENV_VAR",
-    "jwtExpiration": "24h",
+    "jwtExpiration": "4h",
+    "refreshTokenExpiration": "7d",
     "xsrfEnabled": true
   },
   "frontend": {
+    "url": "http://localhost:3000",
     "apiBaseUrl": "http://localhost:3001/api"
   },
   "logging": {

@@ -2,8 +2,10 @@ import { Router } from 'express';
 import similarityService from '../services/SimilarityService.js';
 import ratingService from '../services/RatingService.js';
 import eventService from '../services/EventService.js';
-import loggerService from '../logging/Logger.js';
 import requireAuth from '../middleware/requireAuth.js';
+import { isValidEmail } from '../utils/emailUtils.js';
+import { validateEventId, validateAuthentication } from '../utils/validators.js';
+import { handleApiError, badRequestError, unauthorizedError, notFoundError } from '../utils/apiErrorHandler.js';
 
 const router = Router({ mergeParams: true });
 
@@ -19,60 +21,45 @@ const router = Router({ mergeParams: true });
 router.get('/similar-users', requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
-    if (!eventId) {
-      return res.status(400).json({ error: 'Event ID is required' });
-    }
-
+    
     // Validate event ID format
-    const idValidation = eventService.validateEventId(eventId);
-    if (!idValidation.valid) {
-      return res.status(400).json({
-        error: idValidation.error
-      });
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
     }
 
     // Get event to check state
     const event = await eventService.getEvent(eventId);
     if (!event) {
-      return res.status(404).json({
-        error: 'Event not found'
-      });
+      return notFoundError(res, 'Event not found');
     }
 
     // Validate event state - allow 'started', 'paused', or 'completed' states
     if (event.state !== 'started' && event.state !== 'paused' && event.state !== 'completed') {
-      return res.status(400).json({
-        error: `Similar users feature is only available when event is started, paused, or completed. Current state: ${event.state}`
-      });
+      return badRequestError(res, `Similar users feature is only available when event is started, paused, or completed. Current state: ${event.state}`);
     }
 
     // Get user email from JWT token
     const userEmail = req.user?.email;
-    if (!userEmail) {
-      return res.status(401).json({
-        error: 'Email is required for similar users lookup'
-      });
+    const authValidation = validateAuthentication(userEmail);
+    if (!authValidation.valid) {
+      return unauthorizedError(res, 'Email is required for similar users lookup');
     }
 
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(userEmail.trim())) {
-      return res.status(400).json({
-        error: 'Invalid email format'
-      });
+    // Validate email format using shared utility
+    if (!isValidEmail(userEmail)) {
+      return badRequestError(res, 'Invalid email format');
     }
 
     // Check if user has rated at least 3 items (FR-002, FR-008)
     const allRatings = await ratingService.getRatings(eventId);
     const userRatings = allRatings.filter(rating => {
-      const normalizedEmail = rating.email?.toLowerCase().trim();
-      return normalizedEmail === userEmail.toLowerCase().trim();
+      const normalizedEmail = rating.email?.trim().toLowerCase();
+      return normalizedEmail === userEmail.trim().toLowerCase();
     });
 
     if (userRatings.length < 3) {
-      return res.status(400).json({
-        error: 'You need to rate at least 3 items before similar users can be found'
-      });
+      return badRequestError(res, 'You need to rate at least 3 items before similar users can be found');
     }
 
     // Get user names from event config if available
@@ -102,18 +89,7 @@ router.get('/similar-users', requireAuth, async (req, res) => {
       eventId
     });
   } catch (error) {
-    loggerService.error(`Error getting similar users: ${error.message}`, error).catch(() => {});
-
-    // Handle specific error cases
-    if (error.message.includes('not found')) {
-      return res.status(404).json({
-        error: 'Event not found'
-      });
-    }
-
-    res.status(500).json({
-      error: 'Failed to retrieve similar users. Please try again.'
-    });
+    return handleApiError(res, error, 'retrieve similar users');
   }
 });
 

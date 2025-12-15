@@ -8,7 +8,10 @@ import loggerService from '../logging/Logger.js';
  * Uses csrf package (replacement for deprecated csurf)
  */
 let csrfTokens = null;
-const secretKey = process.env.CSRF_SECRET || 'csrf-secret-key-change-in-production';
+
+// CSRF secret must be set via environment variable in production
+const CSRF_DEFAULT_SECRET = 'csrf-secret-for-development-only';
+const secretKey = process.env.CSRF_SECRET || CSRF_DEFAULT_SECRET;
 
 /**
  * Initialize CSRF protection
@@ -19,6 +22,13 @@ export function initializeXSRF() {
   if (!xsrfEnabled) {
     loggerService.info('XSRF protection is disabled in configuration').catch(() => {});
     return null;
+  }
+
+  // In production, require CSRF_SECRET environment variable
+  const isProduction = process.env.NODE_ENV === 'production';
+  if (isProduction && (!process.env.CSRF_SECRET || process.env.CSRF_SECRET === CSRF_DEFAULT_SECRET)) {
+    loggerService.error('SECURITY ERROR: CSRF_SECRET environment variable must be set in production').catch(() => {});
+    throw new Error('CSRF_SECRET environment variable must be set in production');
   }
 
   // Initialize CSRF token generator

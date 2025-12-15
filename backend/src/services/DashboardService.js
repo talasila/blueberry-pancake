@@ -157,7 +157,7 @@ class DashboardService {
       const uniqueRaters = new Set();
       itemRatings.forEach(rating => {
         if (rating.email) {
-          uniqueRaters.add(rating.email.toLowerCase().trim());
+          uniqueRaters.add(rating.email.trim().toLowerCase());
         }
       });
       const numberOfRaters = uniqueRaters.size;
@@ -234,7 +234,7 @@ class DashboardService {
     const ratingsByUser = {};
     ratings.forEach(rating => {
       if (!rating.email) return;
-      const email = rating.email.toLowerCase().trim();
+      const email = rating.email.trim().toLowerCase();
       if (!ratingsByUser[email]) {
         ratingsByUser[email] = [];
       }

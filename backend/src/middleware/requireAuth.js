@@ -7,14 +7,9 @@ import { jwtAuth } from './jwtAuth.js';
  */
 export function requireAuth(req, res, next) {
   // Use existing JWT auth middleware
-  jwtAuth(req, res, (err) => {
-    if (err) {
-      // jwtAuth already sends 401 response, just pass through
-      return;
-    }
-    // Authentication successful, continue to next middleware
-    next();
-  });
+  // Note: jwtAuth sends its own error responses (401, 500) and doesn't call next with error
+  // It only calls next() on success, so we can directly pass next to it
+  jwtAuth(req, res, next);
 }
 
 export default requireAuth;

@@ -155,7 +155,7 @@ function ItemAssignmentPage() {
 
     // Filter by search query (item name, owner name, and owner email)
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
+      const query = searchQuery.trim().toLowerCase();
       filtered = filtered.filter(item => {
         // Search in item name
         if (item.name.toLowerCase().includes(query)) {

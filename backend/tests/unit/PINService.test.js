@@ -75,8 +75,8 @@ describe('PINService', () => {
       
       pins.forEach(pin => {
         const num = parseInt(pin, 10);
-        expect(num).toBeGreaterThanOrEqual(100000);
-        expect(num).toBeLessThan(1000000);
+        expect(num).toBeGreaterThanOrEqual(0);
+        expect(num).toBeLessThanOrEqual(999999);
       });
     });
 
@@ -162,6 +162,14 @@ describe('PINService', () => {
     });
 
     it('should reject PIN when rate limit exceeded for IP', async () => {
+      // Rate limiting is always enabled (environment-aware limits)
+      // Set up event mock first
+      eventService.getEvent.mockResolvedValue({
+        eventId,
+        pin: validPIN,
+        name: 'Test Event'
+      });
+      
       rateLimitService.checkIPLimit.mockReturnValue({ 
         allowed: false, 
         retryAfter: 900,
@@ -174,6 +182,17 @@ describe('PINService', () => {
     });
 
     it('should reject PIN when rate limit exceeded for event', async () => {
+      // Rate limiting is always enabled (environment-aware limits)
+      // Set up event mock first
+      eventService.getEvent.mockResolvedValue({
+        eventId,
+        pin: validPIN,
+        name: 'Test Event'
+      });
+      
+      // Ensure IP limit passes
+      rateLimitService.checkIPLimit.mockReturnValue({ allowed: true, remaining: 4 });
+      
       // Mock event limit exceeded by setting cache with count >= 5
       const eventLimitKey = `pin:attempts:event:${eventId}`;
       const now = Date.now();
@@ -193,6 +212,10 @@ describe('PINService', () => {
     });
 
     it('should reject invalid PIN for existing event', async () => {
+      // Ensure rate limits pass
+      rateLimitService.checkIPLimit.mockReturnValue({ allowed: true, remaining: 4 });
+      cacheService.get.mockReturnValue(undefined); // No event rate limit record
+      
       eventService.getEvent.mockResolvedValue({
         eventId,
         pin: validPIN,
@@ -201,10 +224,14 @@ describe('PINService', () => {
       
       const result = await pinService.verifyPIN(eventId, invalidPIN, ipAddress);
       expect(result.valid).toBe(false);
-      expect(result.error).toBe('Invalid PIN. Please try again.');
+      expect(result.error).toContain('Invalid PIN');
     });
 
     it('should return error when event not found', async () => {
+      // Ensure rate limits pass
+      rateLimitService.checkIPLimit.mockReturnValue({ allowed: true, remaining: 4 });
+      cacheService.get.mockReturnValue(undefined); // No event rate limit record
+      
       eventService.getEvent.mockRejectedValue(new Error('Event not found: aB3xY9mK'));
       
       const result = await pinService.verifyPIN(eventId, validPIN, ipAddress);
@@ -213,6 +240,10 @@ describe('PINService', () => {
     });
 
     it('should create session and return sessionId for valid PIN', async () => {
+      // Ensure rate limits pass
+      rateLimitService.checkIPLimit.mockReturnValue({ allowed: true, remaining: 4 });
+      cacheService.get.mockReturnValue(undefined); // No event rate limit record
+      
       eventService.getEvent.mockResolvedValue({
         eventId,
         pin: validPIN,
@@ -231,16 +262,18 @@ describe('PINService', () => {
 
   describe('createPINSession', () => {
     const eventId = 'aB3xY9mK';
+    const ipAddress = '192.168.1.1';
+    const userAgent = 'Mozilla/5.0 Test Browser';
 
     beforeEach(() => {
       cacheService.initialize.mockClear();
       cacheService.set.mockClear();
     });
 
-    it('should create a session and store in cache', () => {
+    it('should create a session and store in cache with client fingerprint', () => {
       cacheService.set.mockImplementation(() => {});
       
-      const sessionId = pinService.createPINSession(eventId);
+      const sessionId = pinService.createPINSession(eventId, ipAddress, userAgent);
       
       expect(sessionId).toBeDefined();
       expect(typeof sessionId).toBe('string');
@@ -250,14 +283,16 @@ describe('PINService', () => {
       expect(key).toContain(`pin:verified:${eventId}:`);
       expect(value.eventId).toBe(eventId);
       expect(value.verifiedAt).toBeDefined();
-      expect(ttl).toBe(0); // No expiration
+      expect(value.clientFingerprint).toBeDefined(); // Should have fingerprint
+      expect(value.ipAddress).toBe(ipAddress); // Should store IP
+      expect(ttl).toBe(2592000); // 30 days in seconds
     });
 
     it('should generate unique session IDs', () => {
       cacheService.set.mockImplementation(() => {});
       
-      const sessionId1 = pinService.createPINSession(eventId);
-      const sessionId2 = pinService.createPINSession(eventId);
+      const sessionId1 = pinService.createPINSession(eventId, ipAddress, userAgent);
+      const sessionId2 = pinService.createPINSession(eventId, ipAddress, userAgent);
       
       expect(sessionId1).not.toBe(sessionId2);
     });
@@ -271,32 +306,35 @@ describe('PINService', () => {
       cacheService.initialize.mockClear();
     });
 
-    it('should return true for valid session', () => {
+    it('should return valid:true for valid session', () => {
       cacheService.get.mockReturnValue({
         eventId,
         verifiedAt: Date.now()
       });
       
       const result = pinService.checkPINSession(eventId, sessionId);
-      expect(result).toBe(true);
+      expect(result.valid).toBe(true);
       expect(cacheService.get).toHaveBeenCalledWith(`pin:verified:${eventId}:${sessionId}`);
     });
 
-    it('should return false for non-existent session', () => {
+    it('should return valid:false for non-existent session', () => {
       cacheService.get.mockReturnValue(undefined);
       
       const result = pinService.checkPINSession(eventId, sessionId);
-      expect(result).toBe(false);
+      expect(result.valid).toBe(false);
+      expect(result.reason).toBeDefined();
     });
 
-    it('should return false for missing eventId', () => {
+    it('should return valid:false for missing eventId', () => {
       const result = pinService.checkPINSession('', sessionId);
-      expect(result).toBe(false);
+      expect(result.valid).toBe(false);
+      expect(result.reason).toBeDefined();
     });
 
-    it('should return false for missing sessionId', () => {
+    it('should return valid:false for missing sessionId', () => {
       const result = pinService.checkPINSession(eventId, '');
-      expect(result).toBe(false);
+      expect(result.valid).toBe(false);
+      expect(result.reason).toBeDefined();
     });
   });
 

@@ -1169,7 +1169,7 @@ function EventAdminPage() {
         const uniqueRaters = new Set();
         itemRatings.forEach(rating => {
           if (rating.email) {
-            uniqueRaters.add(rating.email.toLowerCase().trim());
+            uniqueRaters.add(rating.email.trim().toLowerCase());
           }
         });
         const numberOfRaters = uniqueRaters.size;
@@ -1414,7 +1414,7 @@ function EventAdminPage() {
         const uniqueRaters = new Set();
         itemRatings.forEach(rating => {
           if (rating.email) {
-            uniqueRaters.add(rating.email.toLowerCase().trim());
+            uniqueRaters.add(rating.email.trim().toLowerCase());
           }
         });
         const numberOfRaters = uniqueRaters.size;
@@ -1620,7 +1620,7 @@ function EventAdminPage() {
 
     // Filter by search query (item name, owner name, and owner email)
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
+      const query = searchQuery.trim().toLowerCase();
       filtered = filtered.filter(item => {
         // Search in item name
         if (item.name.toLowerCase().includes(query)) {

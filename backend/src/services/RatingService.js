@@ -1,57 +1,15 @@
-import dataRepository from '../data/FileDataRepository.js';
 import eventService from './EventService.js';
-import { parseCSV, toCSV } from '../utils/csvParser.js';
 import cacheService from '../cache/CacheService.js';
+import { getRatingsKey } from '../cache/cacheKeys.js';
 import loggerService from '../logging/Logger.js';
+import { normalizeEmail, isValidEmail } from '../utils/emailUtils.js';
 
 /**
  * RatingService
- * Handles rating business logic, CSV operations, and validation
+ * Handles rating business logic with write-back caching
+ * All reads from cache, writes marked dirty for periodic flush
  */
 class RatingService {
-  constructor() {
-    // Periodic cache refresh interval (30 seconds)
-    this.cacheRefreshInterval = null;
-    this.refreshIntervals = new Set(); // Track intervals per event
-  }
-
-  /**
-   * Initialize periodic cache refresh for an event (T077)
-   * @param {string} eventId - Event identifier
-   */
-  startCacheRefresh(eventId) {
-    // Clear existing interval for this event if any
-    if (this.refreshIntervals.has(eventId)) {
-      this.stopCacheRefresh(eventId);
-    }
-
-    // Store interval ID for proper cleanup
-    const intervalId = setInterval(() => {
-      // Invalidate ratings cache for this event
-      cacheService.del(`ratings:${eventId}`);
-      loggerService.debug(`Periodic cache refresh for event ${eventId}`).catch(() => {});
-    }, 30000); // 30 seconds
-
-    // Store interval ID mapped to eventId for proper cleanup
-    if (!this.eventIntervals) {
-      this.eventIntervals = new Map();
-    }
-    this.eventIntervals.set(eventId, intervalId);
-    this.refreshIntervals.add(eventId);
-  }
-
-  /**
-   * Stop periodic cache refresh for an event
-   * @param {string} eventId - Event identifier
-   */
-  stopCacheRefresh(eventId) {
-    if (this.eventIntervals && this.eventIntervals.has(eventId)) {
-      clearInterval(this.eventIntervals.get(eventId));
-      this.eventIntervals.delete(eventId);
-    }
-    this.refreshIntervals.delete(eventId);
-  }
-
   /**
    * Get all ratings for an event
    * @param {string} eventId - Event identifier
@@ -59,13 +17,13 @@ class RatingService {
    */
   async getRatings(eventId) {
     try {
-      const csvData = await dataRepository.readEventRatings(eventId);
-      const ratings = parseCSV(csvData);
+      // Ensure ratings are loaded in cache
+      await cacheService.ensureRatingsLoaded(eventId);
       
-      // Start periodic refresh if not already started
-      this.startCacheRefresh(eventId);
+      const ratingsKey = getRatingsKey(eventId);
+      const ratings = cacheService.get(ratingsKey);
       
-      return ratings;
+      return ratings || [];
     } catch (error) {
       loggerService.error(`Error reading ratings for event ${eventId}: ${error.message}`, error);
       throw error;
@@ -82,10 +40,10 @@ class RatingService {
   async getRating(eventId, itemId, email) {
     try {
       const ratings = await this.getRatings(eventId);
-      const normalizedEmail = this.normalizeEmail(email);
+      const normalizedUserEmail = normalizeEmail(email);
       
       const rating = ratings.find(
-        r => r.itemId === itemId && this.normalizeEmail(r.email) === normalizedEmail
+        r => r.itemId === itemId && normalizeEmail(r.email) === normalizedUserEmail
       );
       
       return rating || null;
@@ -115,18 +73,18 @@ class RatingService {
     // Validate inputs (async validation)
     await this.validateRatingInputAsync(eventId, itemId, rating, note, email, event);
 
-    // Get all ratings
+    // Get all ratings from cache
     const ratings = await this.getRatings(eventId);
-    const normalizedEmail = this.normalizeEmail(email);
+    const normalizedUserEmail = normalizeEmail(email);
 
     // Find existing rating for this user/item combination
     const existingIndex = ratings.findIndex(
-      r => r.itemId === itemId && this.normalizeEmail(r.email) === normalizedEmail
+      r => r.itemId === itemId && normalizeEmail(r.email) === normalizedUserEmail
     );
 
     // Create new rating object
     const newRating = {
-      email: normalizedEmail,
+      email: normalizedUserEmail,
       timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'), // ISO 8601 format
       itemId: parseInt(itemId, 10),
       rating: parseInt(rating, 10),
@@ -140,18 +98,15 @@ class RatingService {
       ratings.push(newRating);
     }
 
-    // Write back entire CSV file
-    const csvContent = toCSV(ratings);
-    await dataRepository.writeEventRatings(eventId, csvContent);
+    // Update cache and mark as dirty (write-back)
+    const ratingsKey = getRatingsKey(eventId);
+    cacheService.setDirty(ratingsKey, ratings, 'ratings', eventId);
 
-    // Invalidate cache
-    cacheService.del(`ratings:${eventId}`);
-    // Invalidate dashboard cache when rating is submitted
+    // Invalidate computed caches (dashboard, similar users)
     cacheService.del(`dashboard:${eventId}`);
-    // Invalidate similar users cache for all users (similarity may change when any rating is submitted)
     cacheService.invalidate(`similarUsers:${eventId}:*`);
 
-    loggerService.info(`Rating submitted for event ${eventId}, item ${itemId}, email ${normalizedEmail}`);
+    loggerService.info(`Rating submitted for event ${eventId}, item ${itemId}, email ${normalizedUserEmail}`);
 
     return newRating;
   }
@@ -167,8 +122,8 @@ class RatingService {
    * @throws {Error} If validation fails
    */
   async validateRatingInputAsync(eventId, itemId, rating, note, email, event) {
-    // Validate email
-    if (!email || typeof email !== 'string' || !this.isValidEmail(email)) {
+    // Validate email using shared utility
+    if (!isValidEmail(email)) {
       throw new Error('Valid email is required');
     }
 
@@ -195,31 +150,6 @@ class RatingService {
   }
 
   /**
-   * Normalize email address
-   * @param {string} email - Email address
-   * @returns {string} Normalized email
-   */
-  normalizeEmail(email) {
-    if (!email || typeof email !== 'string') {
-      return '';
-    }
-    return email.trim().toLowerCase();
-  }
-
-  /**
-   * Validate email format
-   * @param {string} email - Email address
-   * @returns {boolean} True if valid
-   */
-  isValidEmail(email) {
-    if (!email || typeof email !== 'string') {
-      return false;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email.trim());
-  }
-
-  /**
    * Delete a rating (remove existing rating)
    * @param {string} eventId - Event identifier
    * @param {number} itemId - Item identifier
@@ -233,8 +163,8 @@ class RatingService {
       throw new Error(`Event is not in started state. Rating deletion is not available. Current state: ${event.state}`);
     }
 
-    // Validate email
-    if (!email || typeof email !== 'string' || !this.isValidEmail(email)) {
+    // Validate email using shared utility
+    if (!isValidEmail(email)) {
       throw new Error('Valid email is required');
     }
 
@@ -244,13 +174,13 @@ class RatingService {
       throw new Error(`Invalid item ID. Must be between 1 and ${itemConfig.numberOfItems}`);
     }
 
-    // Get all ratings
+    // Get all ratings from cache
     const ratings = await this.getRatings(eventId);
-    const normalizedEmail = this.normalizeEmail(email);
+    const normalizedUserEmail = normalizeEmail(email);
 
     // Find existing rating for this user/item combination
     const existingIndex = ratings.findIndex(
-      r => r.itemId === itemId && this.normalizeEmail(r.email) === normalizedEmail
+      r => r.itemId === itemId && normalizeEmail(r.email) === normalizedUserEmail
     );
 
     if (existingIndex < 0) {
@@ -261,44 +191,49 @@ class RatingService {
     // Remove the rating
     ratings.splice(existingIndex, 1);
 
-    // Write back entire CSV file
-    const csvContent = toCSV(ratings);
-    await dataRepository.writeEventRatings(eventId, csvContent);
+    // Update cache and mark as dirty (write-back)
+    const ratingsKey = getRatingsKey(eventId);
+    cacheService.setDirty(ratingsKey, ratings, 'ratings', eventId);
 
-    // Invalidate cache
-    cacheService.del(`ratings:${eventId}`);
+    // Invalidate computed caches
+    cacheService.del(`dashboard:${eventId}`);
+    cacheService.invalidate(`similarUsers:${eventId}:*`);
 
-    loggerService.info(`Rating deleted for event ${eventId}, item ${itemId}, email ${normalizedEmail}`);
+    loggerService.info(`Rating deleted for event ${eventId}, item ${itemId}, email ${normalizedUserEmail}`);
 
     return true;
   }
 
   /**
-   * Invalidate cache for an event (called on event state change)
-   * @param {string} eventId - Event identifier
-   */
-  invalidateCache(eventId) {
-    cacheService.del(`ratings:${eventId}`);
-  }
-
-  /**
    * Delete all ratings for an event
-   * Clears the ratings.csv file, leaving only the header
+   * Clears ratings in cache and marks for flush
    * @param {string} eventId - Event identifier
    * @returns {Promise<void>}
    */
   async deleteAllRatings(eventId) {
-    // Write empty CSV with just the header
-    const emptyCSV = 'email,timestamp,itemId,rating,note\n';
-    await dataRepository.writeEventRatings(eventId, emptyCSV);
-    
-    // Invalidate ratings cache
-    cacheService.del(`ratings:${eventId}`);
+    // Clear ratings to empty array
+    const ratingsKey = getRatingsKey(eventId);
+    cacheService.setDirty(ratingsKey, [], 'ratings', eventId);
     
     // Invalidate dashboard cache (depends on ratings)
     cacheService.del(`dashboard:${eventId}`);
     
     loggerService.info(`All ratings deleted for event ${eventId}`);
+  }
+
+  /**
+   * Invalidate all caches related to ratings for an event
+   * Called when event state changes to ensure fresh data
+   * @param {string} eventId - Event identifier
+   */
+  invalidateCache(eventId) {
+    // Invalidate dashboard cache (depends on ratings)
+    cacheService.del(`dashboard:${eventId}`);
+    
+    // Invalidate similar users cache
+    cacheService.invalidate(`similarUsers:${eventId}:*`);
+    
+    loggerService.debug(`Rating caches invalidated for event ${eventId}`);
   }
 }
 

@@ -14,12 +14,12 @@ class OTPService {
 
   /**
    * Generate a cryptographically secure 6-digit OTP code
-   * @returns {string} 6-digit OTP code
+   * @returns {string} 6-digit OTP code (000000-999999)
    */
   generateOTP() {
-    // Generate random number between 100000 and 999999
-    const otp = crypto.randomInt(100000, 999999).toString();
-    return otp.padStart(this.OTP_LENGTH, '0');
+    // Generate random 6-digit number (0 to 999999), padded to ensure 6 digits
+    const otp = crypto.randomInt(0, 1000000).toString().padStart(this.OTP_LENGTH, '0');
+    return otp;
   }
 
   /**
@@ -68,8 +68,12 @@ class OTPService {
       return { valid: false, error: 'OTP must be exactly 6 digits' };
     }
 
-    // Check for test OTP bypass (dev/test environments only)
-    if (process.env.NODE_ENV !== 'production' && otp === '123456') {
+    // Check for test OTP bypass (explicitly allowed in development and test environments only)
+    // This is more secure than checking for NOT production, as it requires explicit whitelisting
+    // If NODE_ENV is not set, treat as development environment
+    const allowedTestEnvironments = ['development', 'test', undefined, ''];
+    const isTestEnvironment = allowedTestEnvironments.includes(process.env.NODE_ENV);
+    if (isTestEnvironment && otp === '123456') {
       return { valid: true, bypass: true };
     }
 

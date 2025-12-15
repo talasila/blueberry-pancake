@@ -28,3 +28,12 @@ export function getEventConfigKey(eventId) {
 export function getEventDataKey(eventId) {
   return `data:event:${eventId}`;
 }
+
+/**
+ * Generate cache key for event ratings
+ * @param {string} eventId - Event identifier
+ * @returns {string} Cache key
+ */
+export function getRatingsKey(eventId) {
+  return `ratings:${eventId}`;
+}

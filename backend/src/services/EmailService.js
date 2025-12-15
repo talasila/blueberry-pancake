@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import configLoader from '../config/configLoader.js';
 import loggerService from '../logging/Logger.js';
+import { isValidEmail as isValidEmailUtil } from '../utils/emailUtils.js';
 
 /**
  * Email service for sending OTP codes via Resend
@@ -45,17 +46,12 @@ class EmailService {
 
   /**
    * Validate email address format
+   * Delegates to centralized emailUtils for consistency
    * @param {string} email - Email address to validate
    * @returns {boolean} True if valid email format
    */
   isValidEmail(email) {
-    if (!email || typeof email !== 'string') {
-      return false;
-    }
-
-    // Basic email validation regex
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(email.trim());
+    return isValidEmailUtil(email);
   }
 
   /**

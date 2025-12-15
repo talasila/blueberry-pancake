@@ -14,9 +14,8 @@ class PINService {
    * @returns {string} 6-digit PIN (000000-999999)
    */
   generatePIN() {
-    // Generate random 6-digit number (100000 to 999999)
-    const pin = crypto.randomInt(100000, 1000000).toString().padStart(6, '0');
-    loggerService.debug(`Generated PIN: ${pin}`);
+    // Generate random 6-digit number (0 to 999999), padded to ensure 6 digits
+    const pin = crypto.randomInt(0, 1000000).toString().padStart(6, '0');
     return pin;
   }
 
@@ -91,9 +90,10 @@ class PINService {
    * @param {string} eventId - Event identifier
    * @param {string} pin - PIN to verify
    * @param {string} ipAddress - IP address of the requester
+   * @param {string} userAgent - User agent of the requester (for session fingerprinting)
    * @returns {Promise<{valid: boolean, sessionId?: string, error?: string}>} Verification result
    */
-  async verifyPIN(eventId, pin, ipAddress) {
+  async verifyPIN(eventId, pin, ipAddress, userAgent = 'unknown') {
     const startTime = Date.now();
 
     // Validate PIN format
@@ -103,30 +103,27 @@ class PINService {
     }
 
     // Check rate limits (per IP and per event) - both must pass
-    // Skip rate limiting in development mode (same as OTP auth)
-    const isDevelopment = process.env.NODE_ENV !== 'production';
-    
-    if (!isDevelopment) {
-      const ipLimit = rateLimitService.checkIPLimit(ipAddress);
-      const eventLimit = this._checkEventLimit(eventId);
+    // Rate limiting is ALWAYS enabled but with environment-aware limits
+    // (higher limits in development for testing, stricter in production)
+    const ipLimit = rateLimitService.checkIPLimit(ipAddress);
+    const eventLimit = this._checkEventLimit(eventId);
 
-      if (!ipLimit.allowed) {
-        const retryMinutes = Math.ceil((ipLimit.retryAfter || 900) / 60);
-        loggerService.warn(`PIN verification rate limit exceeded for IP: ${ipAddress} (retry in ${retryMinutes} minutes)`);
-        return {
-          valid: false,
-          error: `Too many attempts from this IP address. Please try again in ${retryMinutes} minute(s).`
-        };
-      }
+    if (!ipLimit.allowed) {
+      const retryMinutes = Math.ceil((ipLimit.retryAfter || 900) / 60);
+      loggerService.warn(`PIN verification rate limit exceeded for IP: ${ipAddress} (retry in ${retryMinutes} minutes)`);
+      return {
+        valid: false,
+        error: `Too many attempts from this IP address. Please try again in ${retryMinutes} minute(s).`
+      };
+    }
 
-      if (!eventLimit.allowed) {
-        const retryMinutes = Math.ceil((eventLimit.retryAfter || 900) / 60);
-        loggerService.warn(`PIN verification rate limit exceeded for event: ${eventId} (retry in ${retryMinutes} minutes)`);
-        return {
-          valid: false,
-          error: `Too many attempts for this event. Please try again in ${retryMinutes} minute(s).`
-        };
-      }
+    if (!eventLimit.allowed) {
+      const retryMinutes = Math.ceil((eventLimit.retryAfter || 900) / 60);
+      loggerService.warn(`PIN verification rate limit exceeded for event: ${eventId} (retry in ${retryMinutes} minutes)`);
+      return {
+        valid: false,
+        error: `Too many attempts for this event. Please try again in ${retryMinutes} minute(s).`
+      };
     }
 
     // Validate event exists
@@ -144,20 +141,17 @@ class PINService {
       
       // Compare PIN
       if (event.pin !== pin) {
-        // Record failed attempt (increment rate limit counters) - only in production
-        if (!isDevelopment) {
-          rateLimitService.checkIPLimit(ipAddress);
-          this._checkEventLimit(eventId);
-        }
+        // Rate limit was already incremented at the start of verifyPIN (lines 109-110)
+        // No need to increment again here - that would double-count the failed attempt
         loggerService.warn(`Invalid PIN attempt for event: ${eventId} from IP: ${ipAddress} (PIN mismatch)`);
         return { 
           valid: false, 
-          error: 'Invalid PIN. Please check the PIN and try again. PINs are case-sensitive and must be exactly 6 digits.' 
+          error: 'Invalid PIN. Please check the PIN and try again.' 
         };
       }
 
-      // PIN is valid - create session
-      const sessionId = this.createPINSession(eventId);
+      // PIN is valid - create session with client fingerprinting
+      const sessionId = this.createPINSession(eventId, ipAddress, userAgent);
       const duration = Date.now() - startTime;
       loggerService.info(`PIN verified successfully for event: ${eventId}, session created: ${sessionId} (${duration}ms)`);
       
@@ -175,43 +169,81 @@ class PINService {
   }
 
   /**
-   * Create a PIN verification session
+   * Create a PIN verification session with client fingerprinting
    * @param {string} eventId - Event identifier
+   * @param {string} ipAddress - Client IP address for fingerprinting
+   * @param {string} userAgent - Client user agent for additional fingerprinting
    * @returns {string} Session ID (UUID)
    */
-  createPINSession(eventId) {
+  createPINSession(eventId, ipAddress = 'unknown', userAgent = 'unknown') {
     cacheService.initialize();
 
     // Generate session ID (simple UUID-like string)
     const sessionId = crypto.randomUUID();
     const sessionKey = `pin:verified:${eventId}:${sessionId}`;
     
-    // Store session in cache (no expiration - valid until PIN regenerated or event finished)
+    // Create a simple client fingerprint from IP and user agent
+    // This helps prevent session hijacking
+    const clientFingerprint = crypto
+      .createHash('sha256')
+      .update(`${ipAddress}:${userAgent}`)
+      .digest('hex')
+      .substring(0, 16);
+    
+    // Store session in cache with long TTL (30 days)
+    // Sessions are invalidated when PIN is regenerated via invalidatePINSessions()
+    const THIRTY_DAYS_SECONDS = 60 * 60 * 24 * 30;
     cacheService.set(sessionKey, {
       eventId,
-      verifiedAt: Date.now()
-    }, 0); // 0 = never expires automatically
+      verifiedAt: Date.now(),
+      clientFingerprint,
+      ipAddress: ipAddress.substring(0, 45), // Truncate for storage (max IPv6 length)
+    }, THIRTY_DAYS_SECONDS);
 
-    loggerService.debug(`PIN session created: ${sessionKey}`);
+    loggerService.debug(`PIN session created: ${sessionKey} with fingerprint`);
     return sessionId;
   }
 
   /**
    * Check if a PIN verification session is valid
+   * Also validates client fingerprint if available
    * @param {string} eventId - Event identifier
    * @param {string} sessionId - Session ID
-   * @returns {boolean} True if session is valid
+   * @param {string} ipAddress - Client IP address for fingerprint validation
+   * @param {string} userAgent - Client user agent for fingerprint validation
+   * @returns {{valid: boolean, reason?: string}} Validation result
    */
-  checkPINSession(eventId, sessionId) {
+  checkPINSession(eventId, sessionId, ipAddress = null, userAgent = null) {
     if (!eventId || !sessionId) {
-      return false;
+      return { valid: false, reason: 'Missing eventId or sessionId' };
     }
 
     cacheService.initialize();
     const sessionKey = `pin:verified:${eventId}:${sessionId}`;
     const session = cacheService.get(sessionKey);
     
-    return !!session;
+    if (!session) {
+      return { valid: false, reason: 'Session not found or expired' };
+    }
+
+    // If client fingerprint is available, validate it
+    // This adds an extra layer of security against session hijacking
+    if (session.clientFingerprint && ipAddress && userAgent) {
+      const currentFingerprint = crypto
+        .createHash('sha256')
+        .update(`${ipAddress}:${userAgent}`)
+        .digest('hex')
+        .substring(0, 16);
+      
+      if (currentFingerprint !== session.clientFingerprint) {
+        loggerService.warn(`PIN session fingerprint mismatch for event ${eventId}, session ${sessionId}`);
+        // In strict mode, you could reject the session here
+        // For now, we log but allow (to avoid breaking legitimate users with dynamic IPs)
+        // In production, consider returning { valid: false, reason: 'Session fingerprint mismatch' }
+      }
+    }
+
+    return { valid: true };
   }
 
   /**

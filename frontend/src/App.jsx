@@ -17,39 +17,9 @@ import DashboardRoute from './components/DashboardRoute.jsx';
 import { EventContextProvider } from './contexts/EventContext.jsx';
 import { PINProvider } from './contexts/PINContext.jsx';
 import { Toaster } from './components/ui/sonner';
-import { useParams } from 'react-router-dom';
 import useEventPolling from '@/hooks/useEventPolling';
 import { useEffect, useState } from 'react';
 import apiClient from './services/apiClient.js';
-
-/**
- * EventRouteWrapper Component
- * 
- * Wraps event routes. Uses event data from outer EventContextProviderForRoute
- * (which handles polling). This component is a pass-through since the outer
- * context already provides all needed event data.
- */
-function EventRouteWrapper({ children }) {
-  // EventRouteWrapper is nested inside EventContextProviderForRoute,
-  // so it can access the outer context. Since the outer context already
-  // provides event data with polling, we just pass through children.
-  // The outer context handles all event data and polling.
-  return <>{children}</>;
-}
-
-/**
- * EventLayout Component
- * 
- * Wraps event routes. EventContext is provided by EventContextProviderForRoute
- * at the app level, so this is just a wrapper component for consistency.
- */
-function EventLayout({ children }) {
-  return (
-    <EventRouteWrapper>
-      {children}
-    </EventRouteWrapper>
-  );
-}
 
 /**
  * AppLayout Component
@@ -130,9 +100,7 @@ function AppLayout() {
             path="/event/:eventId" 
             element={
               <PINProvider>
-                <EventLayout>
-                  <EventPage />
-                </EventLayout>
+                <EventPage />
               </PINProvider>
             } 
           />
@@ -141,11 +109,9 @@ function AppLayout() {
             element={
               <ProtectedRoute>
                 <PINProvider>
-                  <EventLayout>
-                    <AdminRoute>
-                      <EventAdminPage />
-                    </AdminRoute>
-                  </EventLayout>
+                  <AdminRoute>
+                    <EventAdminPage />
+                  </AdminRoute>
                 </PINProvider>
               </ProtectedRoute>
             } 
@@ -155,11 +121,9 @@ function AppLayout() {
             element={
               <ProtectedRoute>
                 <PINProvider>
-                  <EventLayout>
-                    <AdminRoute>
-                      <ItemAssignmentPage />
-                    </AdminRoute>
-                  </EventLayout>
+                  <AdminRoute>
+                    <ItemAssignmentPage />
+                  </AdminRoute>
                 </PINProvider>
               </ProtectedRoute>
             } 
@@ -168,9 +132,7 @@ function AppLayout() {
             path="/event/:eventId/profile" 
             element={
               <PINProvider>
-                <EventLayout>
-                  <ProfilePage />
-                </EventLayout>
+                <ProfilePage />
               </PINProvider>
             } 
           />
@@ -178,11 +140,9 @@ function AppLayout() {
             path="/event/:eventId/dashboard" 
             element={
               <PINProvider>
-                <EventLayout>
-                  <DashboardRoute>
-                    <DashboardPage />
-                  </DashboardRoute>
-                </EventLayout>
+                <DashboardRoute>
+                  <DashboardPage />
+                </DashboardRoute>
               </PINProvider>
             } 
           />

@@ -99,16 +99,16 @@ describe('OTPService', () => {
     });
 
     it('should reject expired OTP', () => {
-      // Set expired OTP
+      // Set expired OTP - use a different code to avoid '123456' dev bypass
       const pastTime = Date.now() - 11 * 60 * 1000;
       cacheService.set('otp:expired@example.com', {
-        code: '123456',
+        code: '654321',
         email: 'expired@example.com',
         createdAt: pastTime,
         expiresAt: pastTime + 10 * 60 * 1000
       });
 
-      const result = otpService.validateOTP('expired@example.com', '123456');
+      const result = otpService.validateOTP('expired@example.com', '654321');
       expect(result.valid).toBe(false);
       expect(result.expired).toBe(true);
     });

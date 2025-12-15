@@ -3,7 +3,8 @@ import dataRepository from '../data/FileDataRepository.js';
 import loggerService from '../logging/Logger.js';
 import pinService from './PINService.js';
 import cacheService from '../cache/CacheService.js';
-import { getEventConfigKey } from '../cache/cacheKeys.js';
+import { getEventConfigKey, getRatingsKey } from '../cache/cacheKeys.js';
+import { normalizeEmail as normalizeEmailUtil, isValidEmail as isValidEmailUtil } from '../utils/emailUtils.js';
 
 // Use alphanumeric alphabet (A-Z, a-z, 0-9) for 8-character IDs
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 8);
@@ -88,20 +89,21 @@ class EventService {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const eventId = nanoid();
 
-      // Check if event already exists
-      try {
-        await dataRepository.getEvent(eventId);
-        // Event exists, try again
+      // Check if event already exists (check cache first, then file)
+      const cachedEvent = cacheService.get(getEventConfigKey(eventId));
+      if (cachedEvent) {
         loggerService.warn(`Event ID collision detected: ${eventId}, retrying...`);
         continue;
-      } catch (error) {
-        // Event doesn't exist, this ID is available
-        if (error.message.includes('not found')) {
-          return eventId;
-        }
-        // Other error, throw it
-        throw error;
       }
+      
+      // Also check file system in case event exists but isn't cached
+      const exists = await dataRepository.eventExists(eventId);
+      if (exists) {
+        loggerService.warn(`Event ID collision detected: ${eventId}, retrying...`);
+        continue;
+      }
+      
+      return eventId;
     }
 
     throw new Error('Failed to generate unique event ID after maximum retries');
@@ -166,9 +168,9 @@ class EventService {
       updatedAt: now
     };
 
-    // Persist event
+    // Persist event (write-through: cache + file)
     try {
-      await dataRepository.createEvent(event);
+      await cacheService.setWithPersist(getEventConfigKey(eventId), event, 'config', eventId);
       loggerService.info(`Event created: ${eventId} by ${administratorEmail}`);
       return event;
     } catch (error) {
@@ -246,6 +248,7 @@ class EventService {
 
   /**
    * Get event by ID
+   * Reads from cache first, lazy-loads from file if not cached
    * @param {string} eventId - Event identifier
    * @returns {Promise<object>} Event data
    */
@@ -257,8 +260,12 @@ class EventService {
     }
 
     try {
-      // Retrieve event from data repository
-      const event = await dataRepository.getEvent(eventId);
+      // Try cache first, lazy-load from file if needed
+      const event = await cacheService.ensureEventConfigLoaded(eventId);
+      
+      if (!event) {
+        throw new Error(`Event not found: ${eventId}`);
+      }
       
       let migrationOccurred = false;
       
@@ -274,9 +281,9 @@ class EventService {
         loggerService.info(`Migrated legacy "finished" state to "completed" for event: ${eventId}`);
       }
       
-      // Save migrated event if any migration occurred
+      // Persist migration immediately (write-through for critical changes)
       if (migrationOccurred) {
-        await dataRepository.writeEventConfig(eventId, event);
+        await cacheService.setWithPersist(getEventConfigKey(eventId), event, 'config', eventId);
       }
       
       return event;
@@ -293,6 +300,7 @@ class EventService {
 
   /**
    * Update event configuration
+   * Uses write-through caching (updates cache AND persists to file immediately)
    * @param {string} eventId - Event identifier
    * @param {object} event - Updated event object
    * @returns {Promise<object>} Updated event data
@@ -308,8 +316,8 @@ class EventService {
     event.updatedAt = new Date().toISOString();
 
     try {
-      // Write updated event configuration
-      await dataRepository.writeEventConfig(eventId, event);
+      // Write-through: update cache AND persist to file immediately
+      await cacheService.setWithPersist(getEventConfigKey(eventId), event, 'config', eventId);
       loggerService.info(`Event updated: ${eventId}`);
       return event;
     } catch (error) {
@@ -417,8 +425,8 @@ class EventService {
     const registrationTimestamp = new Date().toISOString();
 
     try {
-      // Get current event
-      const event = await dataRepository.getEvent(eventId);
+      // Get current event from cache
+      const event = await this.getEvent(eventId);
 
       // Initialize users map if it doesn't exist
       if (!event.users || typeof event.users !== 'object' || Array.isArray(event.users)) {
@@ -490,11 +498,11 @@ class EventService {
     }
 
     // Normalize email to lowercase
-    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedEmail = email.trim().toLowerCase();
 
     try {
-      // Get current event
-      const event = await dataRepository.getEvent(eventId);
+      // Get current event from cache
+      const event = await this.getEvent(eventId);
 
       // Initialize users map if it doesn't exist
       if (!event.users || typeof event.users !== 'object' || Array.isArray(event.users)) {
@@ -562,11 +570,11 @@ class EventService {
     }
 
     // Normalize email to lowercase
-    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedEmail = email.trim().toLowerCase();
 
     try {
-      // Get current event
-      const event = await dataRepository.getEvent(eventId);
+      // Get current event from cache
+      const event = await this.getEvent(eventId);
 
       // Initialize users map if it doesn't exist
       if (!event.users || typeof event.users !== 'object' || Array.isArray(event.users)) {
@@ -616,8 +624,8 @@ class EventService {
     const normalizedEmail = email.trim().toLowerCase();
 
     try {
-      // Get current event
-      const event = await dataRepository.getEvent(eventId);
+      // Get current event from cache
+      const event = await this.getEvent(eventId);
 
       // Initialize users map if it doesn't exist
       if (!event.users || typeof event.users !== 'object' || Array.isArray(event.users)) {
@@ -676,8 +684,8 @@ class EventService {
     const normalizedEmail = email.trim().toLowerCase();
 
     try {
-      // Get current event
-      const event = await dataRepository.getEvent(eventId);
+      // Get current event from cache
+      const event = await this.getEvent(eventId);
 
       // Initialize users map if it doesn't exist
       if (!event.users || typeof event.users !== 'object' || Array.isArray(event.users)) {
@@ -931,10 +939,8 @@ class EventService {
         return true; // Keep rating
       });
 
-      // Write back filtered ratings
-      const { toCSV } = await import('../utils/csvParser.js');
-      const csvContent = toCSV(ratingsToKeep);
-      await dataRepository.writeEventRatings(eventId, csvContent);
+      // Update ratings in cache and mark as dirty (write-back)
+      cacheService.setDirty(getRatingsKey(eventId), ratingsToKeep, 'ratings', eventId);
     } catch (error) {
       // If ratings file doesn't exist or error reading, that's okay
       loggerService.warn(`Error processing ratings during user deletion: ${error.message}`);
@@ -947,13 +953,11 @@ class EventService {
       }
     }
 
-    // Update event
+    // Update event (write-through)
     event.updatedAt = new Date().toISOString();
     await this.updateEvent(eventId, event);
 
-    // Invalidate caches
-    cacheService.del(getEventConfigKey(eventId));
-    cacheService.del(`ratings:${eventId}`);
+    // Invalidate computed caches
     cacheService.del(`dashboard:${eventId}`);
     
     // Invalidate similar users cache for deleted users
@@ -1069,10 +1073,8 @@ class EventService {
         return true; // Keep rating
       });
 
-      // Write back filtered ratings
-      const { toCSV } = await import('../utils/csvParser.js');
-      const csvContent = toCSV(ratingsToKeep);
-      await dataRepository.writeEventRatings(eventId, csvContent);
+      // Update ratings in cache and mark as dirty (write-back)
+      cacheService.setDirty(getRatingsKey(eventId), ratingsToKeep, 'ratings', eventId);
     } catch (error) {
       // If ratings file doesn't exist or error reading, that's okay
       loggerService.warn(`Error processing ratings during user deletion: ${error.message}`);
@@ -1086,13 +1088,11 @@ class EventService {
     // Delete user entry from event.users
     delete event.users[normalizedUserEmail];
 
-    // Update event
+    // Update event (write-through)
     event.updatedAt = new Date().toISOString();
     await this.updateEvent(eventId, event);
 
-    // Invalidate caches
-    cacheService.del(getEventConfigKey(eventId));
-    cacheService.del(`ratings:${eventId}`);
+    // Invalidate computed caches
     cacheService.del(`dashboard:${eventId}`);
     cacheService.del(`similarUsers:${eventId}:${normalizedUserEmail}`);
 
@@ -1186,31 +1186,22 @@ class EventService {
 
   /**
    * Normalize email address (lowercase and trim)
+   * Delegates to shared utility for consistency
    * @param {string} email - Email address
    * @returns {string} Normalized email address
    */
   normalizeEmail(email) {
-    if (!email || typeof email !== 'string') {
-      return '';
-    }
-    return email.trim().toLowerCase();
+    return normalizeEmailUtil(email);
   }
 
   /**
    * Validate email format
+   * Delegates to shared utility for consistency
    * @param {string} email - Email address to validate
    * @returns {boolean} True if email format is valid
    */
   isValidEmail(email) {
-    if (!email || typeof email !== 'string') {
-      return false;
-    }
-    const normalizedEmail = this.normalizeEmail(email);
-    if (normalizedEmail.length === 0) {
-      return false;
-    }
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(normalizedEmail);
+    return isValidEmailUtil(email);
   }
 
   /**
@@ -1696,9 +1687,23 @@ class EventService {
     // HSL format: hsl(h, s%, l%) or hsl(h,s%,l%)
     const hslMatch = trimmed.match(/^hsl\s*\(\s*(\d+)\s*,\s*(\d+)%\s*,\s*(\d+)%\s*\)$/i);
     if (hslMatch) {
-      const h = parseInt(hslMatch[1], 10) / 360;
-      const s = parseInt(hslMatch[2], 10) / 100;
-      const l = parseInt(hslMatch[3], 10) / 100;
+      const hue = parseInt(hslMatch[1], 10);
+      const sat = parseInt(hslMatch[2], 10);
+      const light = parseInt(hslMatch[3], 10);
+      
+      if (hue < 0 || hue > 360) {
+        throw new Error('HSL hue value must be between 0 and 360');
+      }
+      if (sat < 0 || sat > 100) {
+        throw new Error('HSL saturation value must be between 0 and 100');
+      }
+      if (light < 0 || light > 100) {
+        throw new Error('HSL lightness value must be between 0 and 100');
+      }
+      
+      const h = hue / 360;
+      const s = sat / 100;
+      const l = light / 100;
       
       // Convert HSL to RGB
       const c = (1 - Math.abs(2 * l - 1)) * s;
@@ -2090,8 +2095,13 @@ class EventService {
       throw new Error('Unauthorized: Only the event owner can delete the event');
     }
 
-    // Delete event directory and all its contents
-    await dataRepository.deleteEvent(eventId);
+    // Delete event directory and all its contents from disk
+    await dataRepository.deleteEventDirectory(eventId);
+
+    // Clear all cache entries for this event
+    cacheService.invalidateEvent(eventId);
+    cacheService.del(`dashboard:${eventId}`);
+    cacheService.invalidate(`similarUsers:${eventId}:*`);
 
     // Invalidate PIN sessions for this event
     pinService.invalidatePINSessions(eventId);

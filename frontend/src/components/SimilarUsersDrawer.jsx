@@ -66,12 +66,36 @@ function SimilarUsersDrawer({
   // Handle user selection - open details drawer
   const handleUserClick = (user) => {
     setSelectedUser(user);
+    // Push a history state so back button works
+    window.history.pushState({ detailsDrawerOpen: true }, '');
   };
 
   // Close details drawer
-  const handleCloseDetails = () => {
+  const handleCloseDetails = (e) => {
+    if (e) {
+      e.stopPropagation();
+    }
     setSelectedUser(null);
+    // If we're closing via button click (not back button), go back in history
+    if (e && window.history.state?.detailsDrawerOpen) {
+      window.history.back();
+    }
   };
+
+  // Handle browser back button for details drawer
+  useEffect(() => {
+    const handlePopState = (event) => {
+      // If details drawer is open and back is pressed, close it
+      if (selectedUser && !event.state?.detailsDrawerOpen) {
+        setSelectedUser(null);
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [selectedUser]);
 
   const fetchSimilarUsers = async () => {
     setIsLoading(true);
@@ -163,7 +187,7 @@ function SimilarUsersDrawer({
     content = (
       <div className="space-y-3">
         <p className="text-sm text-muted-foreground">
-        People who like what you like! The colored bar shows how well your tastes match.
+        People who like what you like! The bar shows how well your tastes match.
         </p>
         <p className="text-sm text-muted-foreground">
         <strong>Click to view details.</strong>
@@ -171,12 +195,6 @@ function SimilarUsersDrawer({
         <div className="space-y-2">
           {similarUsers.map((user, index) => {
             const matchPercentage = user.similarityScore !== null ? user.similarityScore * 100 : 0;
-            const getProgressColor = () => {
-              if (matchPercentage >= 80) return 'from-green-500 to-emerald-400';
-              if (matchPercentage >= 60) return 'from-blue-500 to-cyan-400';
-              if (matchPercentage >= 40) return 'from-yellow-500 to-amber-400';
-              return 'from-orange-500 to-red-400';
-            };
             
             // Generate sparkline for this user (removed - not showing sparkline)
             const generateSparkline = () => {
@@ -284,12 +302,16 @@ function SimilarUsersDrawer({
                 >
                   {/* Progress bar background */}
                   <div 
-                    className={`absolute left-0 top-0 bottom-0 bg-gradient-to-r ${getProgressColor()} transition-all duration-1000 ease-out opacity-20 group-hover:opacity-30`}
+                    className="absolute left-0 top-0 bottom-0 bg-gray-200 dark:bg-gray-800 transition-all duration-1000 ease-out"
                     style={{ width: `${matchPercentage}%` }}
                   />
                   
                   {/* Content overlay */}
-                  <div className="relative z-10 flex items-center justify-between w-full">
+                  <div className="relative z-10 flex items-center gap-3 w-full">
+                    {/* Match number */}
+                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm shrink-0">
+                      {index + 1}
+                    </div>
                     <div className="flex flex-col flex-1 min-w-0">
                       <span className="font-medium truncate text-sm">
                         {user.name || user.email}
@@ -343,6 +365,7 @@ function SimilarUsersDrawer({
         aria-labelledby="drawer-title"
         aria-describedby="drawer-description"
         aria-hidden={!isOpen}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex flex-col h-full max-h-[75vh]">
           {/* Header with title and close button */}
@@ -384,7 +407,10 @@ function SimilarUsersDrawer({
           {/* Backdrop */}
           <div
             className="fixed inset-0 bg-black/50 z-50 transition-opacity duration-300 ease-in-out opacity-100"
-            onClick={handleCloseDetails}
+            onClick={(e) => {
+              e.stopPropagation();
+              handleCloseDetails(e);
+            }}
             aria-hidden="true"
           />
           
@@ -394,6 +420,7 @@ function SimilarUsersDrawer({
             role="dialog"
             aria-modal="true"
             aria-labelledby="details-drawer-title"
+            onClick={(e) => e.stopPropagation()}
           >
             <div className="flex flex-col h-full max-h-[75vh]">
               {/* Header */}
@@ -410,7 +437,10 @@ function SimilarUsersDrawer({
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8"
-                  onClick={handleCloseDetails}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleCloseDetails(e);
+                  }}
                   aria-label="Close details drawer"
                 >
                   <X className="h-4 w-4" />
@@ -539,8 +569,12 @@ function SimilarUsersDrawer({
                             return (
                               <div className="pt-3 border-t">
                                 <p className="text-xs font-medium text-muted-foreground mb-2">Rating differences (relative to you):</p>
-                                <div className="relative">
-                                  <svg width={width} height={height} className="overflow-visible">
+                                <div className="relative w-full">
+                                  <svg 
+                                    viewBox={`0 0 ${width} ${height}`} 
+                                    className="w-full h-auto overflow-visible"
+                                    preserveAspectRatio="xMidYMid meet"
+                                  >
                                     {/* Baseline (your ratings) - extends beyond chart */}
                                     <line
                                       x1={0}

@@ -43,21 +43,10 @@ function UserDetailsDrawer({
   const [sortDirection, setSortDirection] = useState('asc');
   const [bookmarks, setBookmarks] = useState([]);
 
-  // Get current user email from JWT token
+  // Get current user email from JWT token using apiClient utility
   useEffect(() => {
-    const token = apiClient.getJWTToken();
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        if (payload.email) {
-          setCurrentUserEmail(payload.email);
-          return;
-        }
-      } catch (err) {
-        console.error('Error decoding JWT token:', err);
-      }
-    }
-    setCurrentUserEmail(null);
+    const email = apiClient.getUserEmail();
+    setCurrentUserEmail(email);
   }, []);
 
   // Use provided userEmail or fall back to current user

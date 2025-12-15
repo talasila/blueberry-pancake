@@ -135,23 +135,10 @@ function EventPage() {
     }
   }, [event]);
 
-  // Get user email from JWT token
+  // Get user email from JWT token using apiClient utility
   useEffect(() => {
-    const token = apiClient.getJWTToken();
-    if (token) {
-      try {
-        // Decode JWT token to get email (simple base64 decode, no verification needed for reading)
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        if (payload.email) {
-          setUserEmail(payload.email);
-          return;
-        }
-      } catch (err) {
-        console.error('Error decoding JWT token:', err);
-      }
-    }
-
-    setUserEmail(null);
+    const email = apiClient.getUserEmail();
+    setUserEmail(email);
   }, [eventId]);
 
   // Load rating configuration - optimized to avoid refetching on every event update
@@ -409,34 +396,6 @@ function EventPage() {
     }
   }, [eventId, userEmail]);
 
-  // Validate event state before allowing actions (e.g., rating)
-  const validateEventState = (action) => {
-    if (!event) {
-      return { valid: false, error: 'Event data not available' };
-    }
-
-    if (event.state === 'paused' || event.state === 'finished') {
-      return { valid: false, error: 'Event is paused. Rating is not available.' };
-    }
-
-    if (event.state === 'completed' || event.state === 'finished') {
-      return { valid: false, error: 'Event is completed. Rating is no longer available.' };
-    }
-
-    if (event.state === 'created') {
-      // Event is in created state - rating might not be available yet
-      // This is a placeholder for future rating functionality
-      return { valid: false, error: 'Event has not started yet. Rating is not available.' };
-    }
-
-    // Only "started" state allows feedback
-    if (event.state === 'started') {
-      return { valid: true };
-    }
-
-    return { valid: false, error: 'Event state does not allow rating.' };
-  };
-
   // Handle item button click - open drawer
   const handleItemClick = (itemId) => {
     // Close similar users drawer if open
@@ -612,7 +571,7 @@ function EventPage() {
   // Check if user has rated at least 3 items (for button visibility)
   const hasMinimumRatings = () => {
     if (!userEmail || !ratings.length) return false;
-    const userRatings = ratings.filter(r => r.email.toLowerCase() === userEmail.toLowerCase());
+    const userRatings = ratings.filter(r => r.email?.toLowerCase() === userEmail.toLowerCase());
     return userRatings.length >= 3;
   };
 
@@ -620,7 +579,7 @@ function EventPage() {
   const getUserRating = (itemId) => {
     if (!userEmail || !ratings.length) return null;
     // Filter ratings by user email
-    return ratings.find(r => r.itemId === itemId && r.email.toLowerCase() === userEmail.toLowerCase()) || null;
+    return ratings.find(r => r.itemId === itemId && r.email?.toLowerCase() === userEmail.toLowerCase()) || null;
   };
 
   // Get rating color for an item
