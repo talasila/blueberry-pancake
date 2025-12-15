@@ -213,7 +213,7 @@ function DashboardPage() {
           progressPercentage={ratingsProgress}
         />
         <StatisticsCard
-          title={`Average Ratings per ${singular}`}
+          title={`Ratings per ${singular}`}
           value={statistics?.averageRatingsPerItem ?? null}
           tooltipMessage={statistics?.totalItems === 0 ? `No ${pluralLower} configured` : undefined}
         />
