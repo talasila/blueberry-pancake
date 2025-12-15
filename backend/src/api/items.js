@@ -134,7 +134,7 @@ router.patch('/:itemId/assign-item-id', async (req, res) => {
 /**
  * GET /api/events/:eventId/items/by-item-id/:itemId
  * Get item details by assigned item ID
- * Only available when event is in "completed" state
+ * Only available when event is in "completed" state (or for admins at any time)
  */
 router.get('/by-item-id/:itemId', async (req, res) => {
   try {
@@ -159,8 +159,12 @@ router.get('/by-item-id/:itemId', async (req, res) => {
       return badRequestError(res, itemIdValidation.error);
     }
 
-    // Get item by assigned itemId
-    const item = await itemService.getItemByItemId(eventId, itemIdValidation.value);
+    // Check if user is an admin (to allow viewing item details at any event state)
+    const event = await eventService.getEvent(eventId);
+    const isAdmin = eventService.isAdministrator(event, userEmail);
+
+    // Get item by assigned itemId (admins can view at any time)
+    const item = await itemService.getItemByItemId(eventId, itemIdValidation.value, isAdmin);
 
     res.json(item);
   } catch (error) {

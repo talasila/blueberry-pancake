@@ -385,22 +385,29 @@ class ItemService {
   /**
    * Validate event state allows item details view
    * @param {string} state - Event state
+   * @param {boolean} isAdmin - Whether user is an admin (admins can view at any state)
    * @throws {Error} If state doesn't allow item details view
    */
-  validateDetailsViewState(state) {
+  validateDetailsViewState(state, isAdmin = false) {
+    // Admins can view item details at any state
+    if (isAdmin) {
+      return;
+    }
+    
     if (state !== 'completed') {
       throw new Error(`Item details are only available when event is in "completed" state. Current state: "${state}"`);
     }
   }
 
   /**
-   * Get item by assigned item ID (for display after event completion)
+   * Get item by assigned item ID (for display after event completion, or for admins at any time)
    * @param {string} eventId - Event identifier
    * @param {number} itemId - Assigned item ID (integer, 1 to numberOfItems)
+   * @param {boolean} isAdmin - Whether user is an admin (admins can view at any state)
    * @returns {Promise<object>} Item object with details
    * @throws {Error} If event not found, item not found, or state doesn't allow viewing
    */
-  async getItemByItemId(eventId, itemId) {
+  async getItemByItemId(eventId, itemId, isAdmin = false) {
     // Validate event ID format
     const eventIdValidation = eventService.validateEventId(eventId);
     if (!eventIdValidation.valid) {
@@ -412,9 +419,9 @@ class ItemService {
       throw new Error('Item ID must be an integer');
     }
 
-    // Get event and validate state
+    // Get event and validate state (admins can bypass state check)
     const event = await eventService.getEvent(eventId);
-    this.validateDetailsViewState(event.state);
+    this.validateDetailsViewState(event.state, isAdmin);
 
     // Initialize items array if needed
     this.initializeItemsArray(event);

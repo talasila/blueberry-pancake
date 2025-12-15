@@ -840,7 +840,7 @@ describe('ItemService', () => {
       expect(result).toEqual(mockEvent.items[0]);
     });
 
-    it('should throw error when event is not in completed state', async () => {
+    it('should throw error when event is not in completed state (non-admin)', async () => {
       const mockEvent = {
         eventId: 'A5ohYrHe',
         state: 'started',
@@ -850,8 +850,24 @@ describe('ItemService', () => {
       eventService.getEvent.mockResolvedValue(mockEvent);
 
       await expect(
-        itemService.getItemByItemId('A5ohYrHe', 5)
+        itemService.getItemByItemId('A5ohYrHe', 5, false)
       ).rejects.toThrow('only available when event is in "completed" state');
+    });
+
+    it('should allow admin to view item details in any event state', async () => {
+      const mockEvent = {
+        eventId: 'A5ohYrHe',
+        state: 'started', // Not completed
+        items: [
+          { id: 'item1', name: 'Item 1', itemId: 5 }
+        ]
+      };
+
+      eventService.getEvent.mockResolvedValue(mockEvent);
+
+      // Admin should be able to view regardless of state
+      const result = await itemService.getItemByItemId('A5ohYrHe', 5, true);
+      expect(result).toEqual(mockEvent.items[0]);
     });
 
     it('should throw error when item not found', async () => {

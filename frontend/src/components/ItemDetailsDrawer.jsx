@@ -18,7 +18,7 @@ import { calculateWeightedAverage } from '@/utils/bayesianAverage';
 /**
  * ItemDetailsDrawer Component
  * Slide-out drawer that displays item details (name, price, description, owner)
- * Only available when event is in "completed" state
+ * Available when event is in "completed" state or for administrators
  * 
  * @param {object} props
  * @param {boolean} props.isOpen - Whether drawer is open
@@ -26,13 +26,15 @@ import { calculateWeightedAverage } from '@/utils/bayesianAverage';
  * @param {string} props.eventId - Event identifier
  * @param {number} props.itemId - Assigned item ID (integer, 1 to numberOfItems)
  * @param {string} props.eventState - Current event state (created, started, paused, completed)
+ * @param {boolean} props.isAdmin - Whether current user is an administrator
  */
 function ItemDetailsDrawer({ 
   isOpen, 
   onClose, 
   eventId,
   itemId,
-  eventState
+  eventState,
+  isAdmin = false
 }) {
   const { event } = useEventContext();
   const { singular } = useItemTerminology(event);
@@ -112,14 +114,16 @@ function ItemDetailsDrawer({
       }
     };
 
-    if (isOpen && eventId && eventState === 'completed') {
+    // Fetch data when event is completed OR user is admin
+    if (isOpen && eventId && (eventState === 'completed' || isAdmin)) {
       fetchDashboardData();
     }
-  }, [isOpen, eventId, eventState, cachedDashboardData]);
+  }, [isOpen, eventId, eventState, isAdmin, cachedDashboardData]);
 
   // Fetch item details and ratings when drawer opens
   useEffect(() => {
-    if (isOpen && eventId && itemId && eventState === 'completed') {
+    // Fetch data when event is completed OR user is admin
+    if (isOpen && eventId && itemId && (eventState === 'completed' || isAdmin)) {
       fetchItemDetails();
       fetchRatings();
     } else {
@@ -128,7 +132,7 @@ function ItemDetailsDrawer({
       setError(null);
       setRatings([]);
     }
-  }, [isOpen, eventId, itemId, eventState]);
+  }, [isOpen, eventId, itemId, eventState, isAdmin]);
 
   const fetchItemDetails = async () => {
     setIsLoading(true);
@@ -315,8 +319,8 @@ function ItemDetailsDrawer({
     });
   }, [ratings, event, userEmail]);
 
-  // Don't render if event is not completed
-  if (eventState !== 'completed') {
+  // Don't render if event is not completed AND user is not an admin
+  if (eventState !== 'completed' && !isAdmin) {
     return null;
   }
 

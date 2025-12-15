@@ -6,6 +6,7 @@ import { useEventContext } from '@/contexts/EventContext';
 import apiClient from '@/services/apiClient';
 import DropdownMenu, { DropdownMenuItem } from './DropdownMenu';
 import { clearAllBookmarks } from '@/utils/bookmarkStorage';
+import { StateIcon } from '@/utils/eventState.jsx';
 
 /**
  * Header Component
@@ -167,9 +168,14 @@ function Header() {
               <Logo size={32} className="text-foreground" />
             </div>
             {isEventRoute && eventName && (
-              <span className="text-sm font-medium truncate max-w-[200px]">
-                {eventName}
-              </span>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="text-sm font-medium truncate max-w-[200px]">
+                  {eventName}
+                </span>
+                {isAdmin && event?.state && (
+                  <StateIcon state={event.state} className="flex-shrink-0" />
+                )}
+              </div>
             )}
           </div>
           {/* Show menu only if authenticated and not on landing page */}

@@ -25,7 +25,7 @@ import { useItemTerminology } from '@/utils/itemTerminology';
 function DashboardPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { event } = useEventContext();
+  const { event, isAdmin } = useEventContext();
   const [dashboardData, setDashboardData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -244,7 +244,8 @@ function DashboardPage() {
               itemSummaries={dashboardData?.itemSummaries || []}
               ratingConfiguration={dashboardData?.ratingConfiguration?.ratings || []}
               onRowClick={(itemId) => {
-                if (event?.state === 'completed') {
+                // Allow admins to open drawer at any time, or anyone when event is completed
+                if (event?.state === 'completed' || isAdmin) {
                   setOpenItemDetailsItemId(itemId);
                   // Add to history for browser back navigation
                   history.pushState({ drawer: 'item', itemId }, '', window.location.pathname);
@@ -271,8 +272,8 @@ function DashboardPage() {
         </Tabs>
       </div>
 
-      {/* Item Details Drawer - only render when event is completed */}
-      {event?.state === 'completed' && (
+      {/* Item Details Drawer - render when event is completed OR for admins */}
+      {(event?.state === 'completed' || isAdmin) && (
         <ItemDetailsDrawer
           isOpen={!!openItemDetailsItemId}
           onClose={() => {
@@ -286,6 +287,7 @@ function DashboardPage() {
           eventId={eventId}
           itemId={openItemDetailsItemId || 0}
           eventState={event?.state}
+          isAdmin={isAdmin}
         />
       )}
 
