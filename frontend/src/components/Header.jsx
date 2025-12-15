@@ -1,4 +1,4 @@
-import { Menu, User, BarChart3, Shield, LogOut, ArrowLeft } from 'lucide-react';
+import { Menu, User, BarChart3, Settings, LogOut, ArrowLeft } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMemo, useState, useEffect } from 'react';
 import Logo from './Logo.jsx';
@@ -232,9 +232,9 @@ function Header() {
               {isAdmin && pathEventId && (
                 <DropdownMenuItem
                   onClick={handleAdminClick}
-                  icon={<Shield className="h-4 w-4" />}
+                  icon={<Settings className="h-4 w-4" />}
                 >
-                  Admin
+                  Settings
                 </DropdownMenuItem>
               )}
               
