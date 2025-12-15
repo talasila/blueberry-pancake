@@ -1654,7 +1654,7 @@ function EventAdminPage() {
         <div className="space-y-4">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h4 className="text-xl font-semibold">Event Administration</h4>
+              <h4 className="text-xl font-semibold">Settings</h4>
               {/* Share */}
               <Button
                 onClick={handleCopyEventLink}
@@ -1670,7 +1670,7 @@ function EventAdminPage() {
                 ) : (
                   <>
                     <Copy className="h-3.5 w-3.5 mr-1.5" />
-                    Share
+                    Share link
                   </>
                 )}
               </Button>
