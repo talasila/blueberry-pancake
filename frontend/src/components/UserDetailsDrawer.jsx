@@ -11,7 +11,7 @@ import { loadBookmarksFromServer, getBookmarks } from '@/utils/bookmarkStorage';
 /**
  * UserDetailsDrawer Component
  * Slide-out drawer that displays user rating details including:
- * - Rating progress visualizations (progress bar, distribution, sparkline)
+ * - Rating progress visualizations (progress bar, rated items circles, sparkline)
  * - List of all ratings with comments/notes
  * 
  * @param {object} props
@@ -457,71 +457,44 @@ function UserDetailsDrawer({
                         )}
                       </div>
 
-                      {/* Rating Distribution with numbers inside chart */}
+                      {/* Rated Items - grouped by rating in horizontal rows */}
                       <div>
-                        <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center justify-between mb-2">
                           <span className="text-xs text-muted-foreground">Distribution</span>
                           <span className="text-xs text-muted-foreground">Total: {userRatingProgressData.totalRatings}</span>
                         </div>
                         {userRatingProgressData.totalRatings > 0 ? (
-                          <div className="w-full">
-                            <div className="w-full h-5 bg-muted rounded-full overflow-hidden flex relative">
-                              {ratingConfiguration?.ratings
-                                ?.sort((a, b) => a.value - b.value)
-                                .map((rating) => {
-                                  const count = userRatingProgressData.ratingDistribution[rating.value] || 0;
-                                  const percentage = count > 0 ? (count / userRatingProgressData.totalRatings) * 100 : 0;
-                                  
-                                  if (count === 0) return null;
-                                  
-                                  return (
-                                    <div
-                                      key={rating.value}
-                                      className="h-full relative group"
-                                      style={{
-                                        width: `${percentage}%`,
-                                        backgroundColor: rating.color,
-                                        minWidth: percentage > 0 ? '2px' : '0'
-                                      }}
-                                      title={`Rating ${rating.value}: ${count} ${count === 1 ? 'rating' : 'ratings'} (${percentage.toFixed(1)}%)`}
-                                    >
-                                      {/* Show count on larger segments */}
-                                      {percentage >= 8 && (
-                                        <div className="absolute inset-0 flex items-center justify-center">
-                                          <span className="text-[10px] font-semibold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
-                                            {count}
-                                          </span>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                            </div>
-                            {/* Compact count summary below bar */}
-                            <div className="flex items-center justify-end mt-1 text-[10px] text-muted-foreground">
-                              <div className="flex gap-2">
-                                {ratingConfiguration?.ratings
-                                  ?.sort((a, b) => a.value - b.value)
-                                  .filter(rating => (userRatingProgressData.ratingDistribution[rating.value] || 0) > 0)
-                                  .map(rating => {
-                                    const count = userRatingProgressData.ratingDistribution[rating.value] || 0;
-                                    return (
-                                      <span key={rating.value}>
-                                        <span
-                                          className="inline-block w-1.5 h-1.5 rounded-full mr-0.5"
-                                          style={{ backgroundColor: rating.color }}
+                          <div className="space-y-1">
+                            {ratingConfiguration?.ratings
+                              ?.sort((a, b) => a.value - b.value) // Sort ascending (lowest rating first)
+                              .map((ratingConfig) => {
+                                // Filter ratings for this rating value
+                                const itemsWithThisRating = sortedRatings.filter(
+                                  rating => parseInt(rating.rating, 10) === ratingConfig.value
+                                );
+                                
+                                // Skip if no items with this rating
+                                if (itemsWithThisRating.length === 0) return null;
+                                
+                                return (
+                                  <div key={ratingConfig.value} className="flex items-center gap-2">
+                                    <span className="text-xs text-muted-foreground w-4 text-right">{itemsWithThisRating.length}</span>
+                                    <div className="flex gap-0.5">
+                                      {itemsWithThisRating.map((rating, index) => (
+                                        <div
+                                          key={`${rating.itemId}-${index}`}
+                                          className="w-2 h-2 rounded-full shadow-sm cursor-help"
+                                          style={{ backgroundColor: ratingConfig.color }}
+                                          title={`${singular} ${rating.itemId}: ${ratingConfig.label || ratingConfig.value}${rating.note ? '\n' + rating.note : ''}`}
                                         />
-                                        {count}
-                                      </span>
-                                    );
-                                  })}
-                              </div>
-                            </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                );
+                              })}
                           </div>
                         ) : (
-                          <div className="w-full h-5 bg-muted rounded-full">
-                            <div className="text-xs text-muted-foreground mt-1 text-center">No ratings</div>
-                          </div>
+                          <div className="text-xs text-muted-foreground text-center py-2">No ratings</div>
                         )}
                       </div>
                     </div>

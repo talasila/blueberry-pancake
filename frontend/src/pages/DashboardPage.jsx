@@ -256,7 +256,7 @@ function DashboardPage() {
           
           <TabsContent value="users">
             <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 border border-border rounded-md space-y-1">
-              <div><strong>Progress:</strong> Three charts showing number of {pluralLower} rated, rating distribution, and sparkline of all ratings.</div>
+              <div><strong>Progress:</strong> Three visualizations showing number of {pluralLower} rated, rated {pluralLower} with rating colors, and sparkline of all ratings.</div>
               <div><strong>Avg. Rating:</strong> Average rating across all {pluralLower} the user has rated.</div>
             </div>
             <UserRatingsTable 
