@@ -1,7 +1,7 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { RefreshCw, Copy, Check, Trash2, PlayCircle, PauseCircle, CheckCircle2, CircleDot, Edit2, X, AlertTriangle, Download, Search, Filter, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { Button } from '@/components/ui/button';
@@ -192,6 +192,7 @@ function EventAdminPage() {
   
   // Drawer state
   const [openDrawer, setOpenDrawer] = useState(null);
+  const isHandlingPopStateRef = useRef(false); // Prevent infinite loops when handling popstate
   
   // Item assignment state (for Items Management drawer)
   const [assigningItemId, setAssigningItemId] = useState(null);
@@ -268,6 +269,37 @@ function EventAdminPage() {
       }
     }
   }, [eventId, navigate]);
+
+  // Handle browser back/forward navigation (popstate) to sync drawer state
+  useEffect(() => {
+    const handlePopState = (event) => {
+      if (isHandlingPopStateRef.current) return;
+      
+      isHandlingPopStateRef.current = true;
+      
+      // If history state has drawer info, open that drawer
+      if (event.state?.drawer) {
+        const { drawer } = event.state;
+        setOpenDrawer(null);
+        
+        // Open the drawer from history state
+        setTimeout(() => {
+          setOpenDrawer(drawer);
+          isHandlingPopStateRef.current = false;
+        }, 10);
+      } else {
+        // No drawer in history state - close drawer
+        setOpenDrawer(null);
+        isHandlingPopStateRef.current = false;
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
 
   // Update event when context or polling updates
   useEffect(() => {
@@ -1789,7 +1821,11 @@ function EventAdminPage() {
           <div className="w-full">
             {/* Item Configuration Card */}
             <button
-              onClick={() => setOpenDrawer('item-configuration')}
+              onClick={() => {
+                setOpenDrawer('item-configuration');
+                // Add to history for browser back navigation
+                history.pushState({ drawer: 'item-configuration' }, '', window.location.pathname);
+              }}
               className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
             >
               <div className="flex flex-col items-start text-left">
@@ -1810,7 +1846,11 @@ function EventAdminPage() {
 
             {/* Item Management Card */}
             <button
-              onClick={() => setOpenDrawer('items-management')}
+              onClick={() => {
+                setOpenDrawer('items-management');
+                // Add to history for browser back navigation
+                history.pushState({ drawer: 'items-management' }, '', window.location.pathname);
+              }}
               className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
             >
               <div className="flex flex-col items-start text-left">
@@ -1826,7 +1866,11 @@ function EventAdminPage() {
 
             {/* Ratings Configuration Card */}
             <button
-              onClick={() => setOpenDrawer('ratings-configuration')}
+              onClick={() => {
+                setOpenDrawer('ratings-configuration');
+                // Add to history for browser back navigation
+                history.pushState({ drawer: 'ratings-configuration' }, '', window.location.pathname);
+              }}
               className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
             >
               <div className="flex flex-col items-start text-left">
@@ -1851,7 +1895,10 @@ function EventAdminPage() {
 
             {/* State Management Card */}
             <button
-              onClick={() => setOpenDrawer('state')}
+              onClick={() => {
+                setOpenDrawer('state');
+                history.pushState({ drawer: 'state' }, '', window.location.pathname);
+              }}
               className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
             >
               <div className="flex flex-col items-start text-left">
@@ -1865,7 +1912,11 @@ function EventAdminPage() {
 
             {/* PIN Management Card */}
             <button
-              onClick={() => setOpenDrawer('pin')}
+              onClick={() => {
+                setOpenDrawer('pin');
+                // Add to history for browser back navigation
+                history.pushState({ drawer: 'pin' }, '', window.location.pathname);
+              }}
               className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
             >
               <div className="flex flex-col items-start text-left">
@@ -1883,7 +1934,10 @@ function EventAdminPage() {
 
             {/* Administrators Management Card */}
             <button
-              onClick={() => setOpenDrawer('administrators')}
+              onClick={() => {
+                setOpenDrawer('administrators');
+                history.pushState({ drawer: 'administrators' }, '', window.location.pathname);
+              }}
               className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
             >
               <div className="flex flex-col items-start text-left">
@@ -1895,7 +1949,11 @@ function EventAdminPage() {
             {/* Export Data Card */}
             {isCurrentUserAdministrator() && (
               <button
-                onClick={() => setOpenDrawer('export-data')}
+                onClick={() => {
+                  setOpenDrawer('export-data');
+                  // Add to history for browser back navigation
+                  history.pushState({ drawer: 'export-data' }, '', window.location.pathname);
+                }}
                 className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
               >
                 <div className="flex flex-col items-start text-left">
@@ -1911,7 +1969,11 @@ function EventAdminPage() {
             {/* Danger Zone Card */}
             {isCurrentUserAdministrator() && (
               <button
-                onClick={() => setOpenDrawer('danger-zone')}
+                onClick={() => {
+                  setOpenDrawer('danger-zone');
+                  // Add to history for browser back navigation
+                  history.pushState({ drawer: 'danger-zone' }, '', window.location.pathname);
+                }}
                 className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
               >
                 <div className="flex flex-col items-start text-left">
@@ -1931,7 +1993,15 @@ function EventAdminPage() {
       {/* Item Configuration Drawer */}
       <SideDrawer
         isOpen={openDrawer === 'item-configuration'}
-        onClose={() => setOpenDrawer(null)}
+        onClose={() => {
+          // Check if current history state has a drawer that matches the open drawer
+          // Only go back if we're on a drawer state we created
+          if (history.state?.drawer === openDrawer) {
+            history.back();
+          } else {
+            setOpenDrawer(null);
+          }
+        }}
         title={`${itemTerminology.singular} Configuration`}
       >
         <div className="space-y-4">
@@ -2009,7 +2079,15 @@ function EventAdminPage() {
       {/* Items Management Drawer - includes full item assignment interface */}
       <SideDrawer
         isOpen={openDrawer === 'items-management'}
-        onClose={() => setOpenDrawer(null)}
+        onClose={() => {
+          // Check if current history state has a drawer that matches the open drawer
+          // Only go back if we're on a drawer state we created
+          if (history.state?.drawer === openDrawer) {
+            history.back();
+          } else {
+            setOpenDrawer(null);
+          }
+        }}
         title={`${itemTerminology.singular} Management`}
         width="w-full max-w-4xl"
       >
@@ -2224,7 +2302,15 @@ function EventAdminPage() {
       {/* Ratings Configuration Drawer */}
       <SideDrawer
         isOpen={openDrawer === 'ratings-configuration'}
-        onClose={() => setOpenDrawer(null)}
+        onClose={() => {
+          // Check if current history state has a drawer that matches the open drawer
+          // Only go back if we're on a drawer state we created
+          if (history.state?.drawer === openDrawer) {
+            history.back();
+          } else {
+            setOpenDrawer(null);
+          }
+        }}
         title="Rating Configuration"
       >
         <div className="space-y-4">
@@ -2415,7 +2501,15 @@ function EventAdminPage() {
       {/* State Management Drawer */}
       <SideDrawer
         isOpen={openDrawer === 'state'}
-        onClose={() => setOpenDrawer(null)}
+        onClose={() => {
+          // Check if current history state has a drawer that matches the open drawer
+          // Only go back if we're on a drawer state we created
+          if (history.state?.drawer === openDrawer) {
+            history.back();
+          } else {
+            setOpenDrawer(null);
+          }
+        }}
         title="State"
       >
         <div className="space-y-4">
@@ -2487,7 +2581,15 @@ function EventAdminPage() {
       {/* PIN Management Drawer */}
       <SideDrawer
         isOpen={openDrawer === 'pin'}
-        onClose={() => setOpenDrawer(null)}
+        onClose={() => {
+          // Check if current history state has a drawer that matches the open drawer
+          // Only go back if we're on a drawer state we created
+          if (history.state?.drawer === openDrawer) {
+            history.back();
+          } else {
+            setOpenDrawer(null);
+          }
+        }}
         title="PIN"
       >
         <div className="space-y-4">
@@ -2576,7 +2678,15 @@ function EventAdminPage() {
       {/* Administrators Management Drawer */}
       <SideDrawer
         isOpen={openDrawer === 'administrators'}
-        onClose={() => setOpenDrawer(null)}
+        onClose={() => {
+          // Check if current history state has a drawer that matches the open drawer
+          // Only go back if we're on a drawer state we created
+          if (history.state?.drawer === openDrawer) {
+            history.back();
+          } else {
+            setOpenDrawer(null);
+          }
+        }}
         title="Administrators"
       >
         <div className="space-y-4">
@@ -2690,7 +2800,15 @@ function EventAdminPage() {
       {isCurrentUserAdministrator() && (
         <SideDrawer
           isOpen={openDrawer === 'export-data'}
-          onClose={() => setOpenDrawer(null)}
+          onClose={() => {
+          // Check if current history state has a drawer that matches the open drawer
+          // Only go back if we're on a drawer state we created
+          if (history.state?.drawer === openDrawer) {
+            history.back();
+          } else {
+            setOpenDrawer(null);
+          }
+        }}
           title="Export Data"
         >
           <div className="space-y-4">
@@ -2853,7 +2971,15 @@ function EventAdminPage() {
       {isCurrentUserAdministrator() && (
         <SideDrawer
           isOpen={openDrawer === 'danger-zone'}
-          onClose={() => setOpenDrawer(null)}
+          onClose={() => {
+          // Check if current history state has a drawer that matches the open drawer
+          // Only go back if we're on a drawer state we created
+          if (history.state?.drawer === openDrawer) {
+            history.back();
+          } else {
+            setOpenDrawer(null);
+          }
+        }}
           title="Danger Zone"
         >
           <div className="space-y-4">

@@ -55,6 +55,7 @@ function EventPage() {
   const [dashboardData, setDashboardData] = useState(null);
   const loadStartTimeRef = useRef(null);
   const ratingConfigFetchedRef = useRef(null); // Track which eventId we've fetched rating config for
+  const isHandlingPopStateRef = useRef(false); // Prevent infinite loops when handling popstate
 
   // Redirect to PIN entry if no authentication - must happen immediately
   // Use a ref to track if we've already checked to avoid multiple redirects
@@ -216,6 +217,53 @@ function EventPage() {
         ratingConfigFetchedRef.current = eventId;
       });
   }, [eventId, event]);
+
+  // Handle browser back/forward navigation (popstate) to sync drawer state
+  useEffect(() => {
+    const handlePopState = (event) => {
+      if (isHandlingPopStateRef.current) return;
+      
+      isHandlingPopStateRef.current = true;
+      
+      // If history state has drawer info, open that drawer
+      if (event.state?.drawer) {
+        const { drawer, itemId, userEmail: stateUserEmail } = event.state;
+        
+        // Close all drawers first
+        setOpenDrawerItemId(null);
+        setOpenItemDetailsItemId(null);
+        setIsSimilarUsersDrawerOpen(false);
+        setIsUserDetailsDrawerOpen(false);
+        
+        // Open the drawer from history state
+        setTimeout(() => {
+          if (drawer === 'rating' && itemId) {
+            setOpenDrawerItemId(itemId);
+          } else if (drawer === 'item' && itemId) {
+            setOpenItemDetailsItemId(itemId);
+          } else if (drawer === 'similar') {
+            setIsSimilarUsersDrawerOpen(true);
+          } else if (drawer === 'user' && stateUserEmail) {
+            setIsUserDetailsDrawerOpen(true);
+          }
+          isHandlingPopStateRef.current = false;
+        }, 10);
+      } else {
+        // No drawer in history state - close all drawers
+        setOpenDrawerItemId(null);
+        setOpenItemDetailsItemId(null);
+        setIsSimilarUsersDrawerOpen(false);
+        setIsUserDetailsDrawerOpen(false);
+        isHandlingPopStateRef.current = false;
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
 
   // Load user's ratings (T082 - with loading state)
   const loadRatings = () => {
@@ -400,37 +448,64 @@ function EventPage() {
     if (event?.state === 'completed') {
       if (openItemDetailsItemId && openItemDetailsItemId !== itemId) {
         setOpenItemDetailsItemId(null);
-        setTimeout(() => setOpenItemDetailsItemId(itemId), 100);
+        setTimeout(() => {
+          setOpenItemDetailsItemId(itemId);
+          // Add to history for browser back navigation
+          history.pushState({ drawer: 'item', itemId }, '', window.location.pathname);
+        }, 100);
       } else {
         setOpenItemDetailsItemId(itemId);
+        // Add to history for browser back navigation
+        history.pushState({ drawer: 'item', itemId }, '', window.location.pathname);
       }
       setOpenDrawerItemId(null); // Ensure rating drawer is closed
     } else {
       // For non-completed states, open rating drawer
       if (openDrawerItemId && openDrawerItemId !== itemId) {
         setOpenDrawerItemId(null);
-        setTimeout(() => setOpenDrawerItemId(itemId), 100);
+        setTimeout(() => {
+          setOpenDrawerItemId(itemId);
+          // Add to history for browser back navigation
+          history.pushState({ drawer: 'rating', itemId }, '', window.location.pathname);
+        }, 100);
       } else {
         setOpenDrawerItemId(itemId);
+        // Add to history for browser back navigation
+        history.pushState({ drawer: 'rating', itemId }, '', window.location.pathname);
       }
       setOpenItemDetailsItemId(null); // Ensure item details drawer is closed
     }
     setError(null); // Clear any previous errors
   };
 
-  // Handle drawer close
+  // Handle drawer close - use history.back() to go back in history
   const handleDrawerClose = () => {
-    setOpenDrawerItemId(null);
+    // Check if current history state has a drawer
+    if (history.state?.drawer) {
+      history.back();
+    } else {
+      setOpenDrawerItemId(null);
+    }
   };
 
   // Handle item details drawer close
   const handleItemDetailsDrawerClose = () => {
-    setOpenItemDetailsItemId(null);
+    // Check if current history state has a drawer
+    if (history.state?.drawer) {
+      history.back();
+    } else {
+      setOpenItemDetailsItemId(null);
+    }
   };
 
   // Handle similar users drawer close
   const handleSimilarUsersDrawerClose = () => {
-    setIsSimilarUsersDrawerOpen(false);
+    // Check if current history state has a drawer
+    if (history.state?.drawer) {
+      history.back();
+    } else {
+      setIsSimilarUsersDrawerOpen(false);
+    }
   };
 
   // Handle similar users button click
@@ -439,15 +514,26 @@ function EventPage() {
     if (openDrawerItemId) {
       setOpenDrawerItemId(null);
       // Small delay to allow close animation
-      setTimeout(() => setIsSimilarUsersDrawerOpen(true), 100);
+      setTimeout(() => {
+        setIsSimilarUsersDrawerOpen(true);
+        // Add to history for browser back navigation
+        history.pushState({ drawer: 'similar' }, '', window.location.pathname);
+      }, 100);
     } else {
       setIsSimilarUsersDrawerOpen(true);
+      // Add to history for browser back navigation
+      history.pushState({ drawer: 'similar' }, '', window.location.pathname);
     }
   };
 
   // Handle user details drawer close
   const handleUserDetailsDrawerClose = () => {
-    setIsUserDetailsDrawerOpen(false);
+    // Check if current history state has a drawer
+    if (history.state?.drawer) {
+      history.back();
+    } else {
+      setIsUserDetailsDrawerOpen(false);
+    }
   };
 
   // Handle my progress button click
@@ -460,7 +546,11 @@ function EventPage() {
       setIsSimilarUsersDrawerOpen(false);
     }
     // Small delay to allow close animation
-    setTimeout(() => setIsUserDetailsDrawerOpen(true), 100);
+    setTimeout(() => {
+      setIsUserDetailsDrawerOpen(true);
+      // Add to history for browser back navigation
+      history.pushState({ drawer: 'user', userEmail }, '', window.location.pathname);
+    }, 100);
   };
 
   // Calculate user rating progress data

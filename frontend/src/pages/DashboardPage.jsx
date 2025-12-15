@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { RefreshCw } from 'lucide-react';
@@ -31,10 +31,50 @@ function DashboardPage() {
   const [error, setError] = useState(null);
   const [openItemDetailsItemId, setOpenItemDetailsItemId] = useState(null);
   const [openUserDetailsEmail, setOpenUserDetailsEmail] = useState(null);
+  const isHandlingPopStateRef = useRef(false); // Prevent infinite loops when handling popstate
 
   useEffect(() => {
     loadDashboardData();
   }, [eventId]);
+
+  // Handle browser back/forward navigation (popstate) to sync drawer state
+  useEffect(() => {
+    const handlePopState = (event) => {
+      if (isHandlingPopStateRef.current) return;
+      
+      isHandlingPopStateRef.current = true;
+      
+      // If history state has drawer info, open that drawer
+      if (event.state?.drawer) {
+        const { drawer, itemId, userEmail: stateUserEmail } = event.state;
+        
+        // Close all drawers first
+        setOpenItemDetailsItemId(null);
+        setOpenUserDetailsEmail(null);
+        
+        // Open the drawer from history state
+        setTimeout(() => {
+          if (drawer === 'item' && itemId) {
+            setOpenItemDetailsItemId(itemId);
+          } else if (drawer === 'user' && stateUserEmail) {
+            setOpenUserDetailsEmail(stateUserEmail);
+          }
+          isHandlingPopStateRef.current = false;
+        }, 10);
+      } else {
+        // No drawer in history state - close all drawers
+        setOpenItemDetailsItemId(null);
+        setOpenUserDetailsEmail(null);
+        isHandlingPopStateRef.current = false;
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
 
   const loadDashboardData = async (showLoading = true) => {
     if (!eventId) {
@@ -206,6 +246,8 @@ function DashboardPage() {
               onRowClick={(itemId) => {
                 if (event?.state === 'completed') {
                   setOpenItemDetailsItemId(itemId);
+                  // Add to history for browser back navigation
+                  history.pushState({ drawer: 'item', itemId }, '', window.location.pathname);
                 }
               }}
             />
@@ -221,6 +263,8 @@ function DashboardPage() {
               ratingConfiguration={dashboardData?.ratingConfiguration?.ratings || []}
               onRowClick={(userEmail) => {
                 setOpenUserDetailsEmail(userEmail);
+                // Add to history for browser back navigation
+                history.pushState({ drawer: 'user', userEmail }, '', window.location.pathname);
               }}
             />
           </TabsContent>
@@ -231,7 +275,14 @@ function DashboardPage() {
       {event?.state === 'completed' && (
         <ItemDetailsDrawer
           isOpen={!!openItemDetailsItemId}
-          onClose={() => setOpenItemDetailsItemId(null)}
+          onClose={() => {
+            // Check if current history state has a drawer
+            if (history.state?.drawer) {
+              history.back();
+            } else {
+              setOpenItemDetailsItemId(null);
+            }
+          }}
           eventId={eventId}
           itemId={openItemDetailsItemId || 0}
           eventState={event?.state}
@@ -241,7 +292,14 @@ function DashboardPage() {
       {/* User Details Drawer */}
       <UserDetailsDrawer
         isOpen={!!openUserDetailsEmail}
-        onClose={() => setOpenUserDetailsEmail(null)}
+        onClose={() => {
+          // Check if current history state has a drawer
+          if (history.state?.drawer) {
+            history.back();
+          } else {
+            setOpenUserDetailsEmail(null);
+          }
+        }}
         eventId={eventId}
         userEmail={openUserDetailsEmail}
         ratingConfig={dashboardData?.ratingConfiguration || null}
