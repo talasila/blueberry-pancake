@@ -183,6 +183,10 @@ describe('PINService', () => {
 
     it('should reject PIN when rate limit exceeded for event', async () => {
       // Rate limiting is always enabled (environment-aware limits)
+      // Production: 5 attempts, Development: 1000 attempts
+      const isProduction = process.env.NODE_ENV === 'production';
+      const EVENT_LIMIT = isProduction ? 5 : 1000;
+      
       // Set up event mock first
       eventService.getEvent.mockResolvedValue({
         eventId,
@@ -191,15 +195,15 @@ describe('PINService', () => {
       });
       
       // Ensure IP limit passes
-      rateLimitService.checkIPLimit.mockReturnValue({ allowed: true, remaining: 4 });
+      rateLimitService.checkIPLimit.mockReturnValue({ allowed: true, remaining: EVENT_LIMIT - 1 });
       
-      // Mock event limit exceeded by setting cache with count >= 5
+      // Mock event limit exceeded by setting cache with count >= EVENT_LIMIT
       const eventLimitKey = `pin:attempts:event:${eventId}`;
       const now = Date.now();
       cacheService.get.mockImplementation((key) => {
         if (key === eventLimitKey) {
           return {
-            count: 5, // At limit
+            count: EVENT_LIMIT, // At limit
             windowStart: now - 1000 // Recent window
           };
         }

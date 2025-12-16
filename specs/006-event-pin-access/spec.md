@@ -9,11 +9,11 @@
 
 2. A regular user needs this PIN to access the event. A regular user does not need to go through the OTP flow to access an event.
 
-3. An event admin can also access the event via the PIN
+3. An event admin **cannot** access the event via PIN. Administrators must use OTP authentication to access both the event and the admin page.
 
 4. The /event/:eventid/admin page can only be accessed via OTP
 
-5. If the admin has accessed an event via PIN and then attempts to navigate to the admin page the OTP flow has to be presented."
+5. If an administrator attempts to enter a PIN, the system should redirect them to the OTP authentication flow."
 
 ## Clarifications
 
@@ -45,21 +45,21 @@ A regular user (not an event administrator) wants to access an event. They navig
 
 ---
 
-### User Story 2 - Event Administrator Accesses Event via PIN (Priority: P1)
+### User Story 2 - Event Administrator Must Use OTP (Not PIN) (Priority: P1)
 
-An event administrator wants to access their event using the PIN instead of OTP authentication. They navigate to the event URL, enter the 6-digit PIN, and gain access to the event main page. However, if they attempt to access the admin page, they must complete OTP authentication.
+Event administrators cannot use PIN to access events. When an administrator (a user whose email is in the event's administrators list) attempts to access an event, they must authenticate via OTP regardless of whether they know the PIN. This ensures that administrator access is always properly authenticated and auditable.
 
-**Why this priority**: This provides administrators with a convenient way to access events while maintaining security for admin functions. This must work independently to enable administrator access patterns.
+**Why this priority**: This enforces security separation between regular users and administrators. Administrators have privileged access to manage events and must be properly authenticated via OTP. This must work independently to ensure administrators cannot bypass OTP authentication.
 
-**Independent Test**: Can be fully tested by navigating to an event URL as an administrator, entering a valid PIN, verifying access to the event main page, then attempting to access the admin page and verifying that OTP authentication is required.
+**Independent Test**: Can be fully tested by having a user designated as an administrator attempt to access an event URL. The system should redirect them to OTP authentication, and attempting to use the PIN flow should redirect to OTP. After OTP authentication, they should have access to both the event and admin pages.
 
 **Acceptance Scenarios**:
 
-1. **Given** an event administrator navigates to `/event/<event-id>`, **When** they enter the correct PIN, **Then** the system grants access to the event main page
-2. **Given** an administrator has accessed an event via PIN, **When** they navigate to `/event/<event-id>/admin`, **Then** the system redirects them to the OTP authentication flow
-3. **Given** an administrator completes OTP authentication after accessing via PIN, **When** they access the admin page, **Then** the system grants access to the admin page
-4. **Given** an administrator has completed OTP authentication, **When** they navigate between the event main page and admin page, **Then** the system allows access to both pages without requiring PIN re-entry
-5. **Given** an administrator accesses an event via PIN, **When** they attempt to perform admin actions on the main page, **Then** the system prompts them to complete OTP authentication to access admin functionality
+1. **Given** an event administrator navigates to `/event/<event-id>`, **When** they are not yet authenticated via OTP, **Then** the system redirects them to the OTP authentication flow (not the PIN entry screen)
+2. **Given** an administrator has completed OTP authentication, **When** they navigate to `/event/<event-id>`, **Then** the system grants immediate access to the event main page without requiring PIN entry
+3. **Given** an administrator has completed OTP authentication, **When** they navigate to `/event/<event-id>/admin`, **Then** the system grants access to the admin page
+4. **Given** an administrator has completed OTP authentication, **When** they navigate between the event main page and admin page, **Then** the system allows access to both pages without additional authentication
+5. **Given** an administrator attempts to use the PIN entry flow (if somehow reached), **When** the system detects they are an administrator, **Then** the system redirects them to the OTP authentication flow with a message indicating administrators must use OTP
 
 ---
 

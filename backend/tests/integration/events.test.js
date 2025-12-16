@@ -1,10 +1,53 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import supertest from 'supertest';
+import jwt from 'jsonwebtoken';
+
+// Mock configLoader before importing app
+vi.mock('../../src/config/configLoader.js', () => {
+  const mockConfig = {
+    environment: 'development',
+    dataDirectory: './test-data',
+    server: { 
+      port: 3001,
+      host: 'localhost'
+    },
+    cache: { 
+      enabled: true, 
+      ttl: 3600, 
+      maxSize: 100 
+    },
+    security: { 
+      jwtSecret: 'test-secret',
+      xsrfEnabled: true
+    },
+    frontend: { 
+      apiBaseUrl: 'http://localhost:3001/api'
+    }
+  };
+  return {
+    default: {
+      get: vi.fn((key) => {
+        // Handle nested keys like 'server.port'
+        const keys = key.split('.');
+        let value = mockConfig;
+        for (const k of keys) {
+          value = value?.[k];
+        }
+        return value;
+      }),
+      getAll: vi.fn(() => mockConfig),
+      has: vi.fn(() => true),
+      onHotReload: vi.fn(),
+      enableHotReload: vi.fn()
+    }
+  };
+});
+
+// Now import app after mocking config
 import app from '../../src/app.js';
 import eventService from '../../src/services/EventService.js';
 import pinService from '../../src/services/PINService.js';
 import { createTestEvent, getTestDataRepository } from './setup.js';
-import jwt from 'jsonwebtoken';
 
 const request = supertest(app);
 
@@ -19,6 +62,7 @@ vi.mock('../../src/services/EventService.js', () => {
       deleteAdministrator: vi.fn(),
       getAdministrators: vi.fn(),
       isAdministrator: vi.fn(),
+      registerUser: vi.fn(),
       getItemConfiguration: vi.fn(),
       updateItemConfiguration: vi.fn()
     }
@@ -31,7 +75,16 @@ vi.mock('../../src/services/PINService.js', () => {
     default: {
       verifyPIN: vi.fn(),
       checkPINSession: vi.fn(),
-      createPINSession: vi.fn()
+      createPINSession: vi.fn(),
+      validatePINFormat: vi.fn((pin) => {
+        if (!pin || typeof pin !== 'string') {
+          return { valid: false, error: 'PIN is required' };
+        }
+        if (!/^\d{6}$/.test(pin)) {
+          return { valid: false, error: 'PIN must be exactly 6 digits' };
+        }
+        return { valid: true };
+      })
     }
   };
 });
@@ -296,13 +349,24 @@ describe('GET /api/events/:eventId', () => {
   describe('POST /api/events/:eventId/verify-pin', () => {
     beforeEach(() => {
       vi.clearAllMocks();
+      // Mock registerUser by default to avoid 500 errors
+      eventService.registerUser.mockResolvedValue();
     });
 
     it('should return 200 with sessionId for valid PIN', async () => {
       const eventId = 'A5ohYrHe';
       const pin = '123456';
+      const email = 'user@example.com';
       const sessionId = '550e8400-e29b-41d4-a716-446655440000';
+      const mockEvent = {
+        eventId,
+        administrators: {
+          'admin@example.com': { assignedAt: new Date().toISOString(), isOwner: true }
+        }
+      };
 
+      eventService.getEvent.mockResolvedValue(mockEvent);
+      eventService.isAdministrator.mockReturnValue(false);
       pinService.verifyPIN.mockResolvedValue({
         valid: true,
         sessionId
@@ -310,18 +374,27 @@ describe('GET /api/events/:eventId', () => {
 
       const response = await request
         .post(`/api/events/${eventId}/verify-pin`)
-        .send({ pin })
+        .send({ pin, email })
         .expect(200);
 
       expect(response.body).toHaveProperty('sessionId', sessionId);
       expect(response.body).toHaveProperty('eventId', eventId);
-      expect(pinService.verifyPIN).toHaveBeenCalledWith(eventId, pin, expect.any(String));
+      expect(pinService.verifyPIN).toHaveBeenCalledWith(eventId, pin, expect.any(String), expect.any(String));
     });
 
     it('should return 401 for invalid PIN', async () => {
       const eventId = 'A5ohYrHe';
       const pin = '999999';
+      const email = 'user@example.com';
+      const mockEvent = {
+        eventId,
+        administrators: {
+          'admin@example.com': { assignedAt: new Date().toISOString(), isOwner: true }
+        }
+      };
 
+      eventService.getEvent.mockResolvedValue(mockEvent);
+      eventService.isAdministrator.mockReturnValue(false);
       pinService.verifyPIN.mockResolvedValue({
         valid: false,
         error: 'Invalid PIN. Please try again.'
@@ -329,7 +402,7 @@ describe('GET /api/events/:eventId', () => {
 
       const response = await request
         .post(`/api/events/${eventId}/verify-pin`)
-        .send({ pin })
+        .send({ pin, email })
         .expect(401);
 
       expect(response.body).toHaveProperty('error', 'Invalid PIN. Please try again.');
@@ -338,15 +411,11 @@ describe('GET /api/events/:eventId', () => {
     it('should return 400 for invalid PIN format', async () => {
       const eventId = 'A5ohYrHe';
       const pin = '12345'; // Too short
-
-      pinService.verifyPIN.mockResolvedValue({
-        valid: false,
-        error: 'PIN must be exactly 6 digits'
-      });
+      const email = 'user@example.com';
 
       const response = await request
         .post(`/api/events/${eventId}/verify-pin`)
-        .send({ pin })
+        .send({ pin, email })
         .expect(400);
 
       expect(response.body).toHaveProperty('error', 'PIN must be exactly 6 digits');
@@ -355,15 +424,13 @@ describe('GET /api/events/:eventId', () => {
     it('should return 404 for non-existent event', async () => {
       const eventId = 'NONEXIST';
       const pin = '123456';
+      const email = 'user@example.com';
 
-      pinService.verifyPIN.mockResolvedValue({
-        valid: false,
-        error: 'Event not found'
-      });
+      eventService.getEvent.mockRejectedValue(new Error('Event not found'));
 
       const response = await request
         .post(`/api/events/${eventId}/verify-pin`)
-        .send({ pin })
+        .send({ pin, email })
         .expect(404);
 
       expect(response.body).toHaveProperty('error', 'Event not found');
@@ -372,7 +439,16 @@ describe('GET /api/events/:eventId', () => {
     it('should return 429 for rate limit exceeded', async () => {
       const eventId = 'A5ohYrHe';
       const pin = '123456';
+      const email = 'user@example.com';
+      const mockEvent = {
+        eventId,
+        administrators: {
+          'admin@example.com': { assignedAt: new Date().toISOString(), isOwner: true }
+        }
+      };
 
+      eventService.getEvent.mockResolvedValue(mockEvent);
+      eventService.isAdministrator.mockReturnValue(false);
       pinService.verifyPIN.mockResolvedValue({
         valid: false,
         error: 'Too many attempts. Please try again in 15 minutes.'
@@ -380,7 +456,7 @@ describe('GET /api/events/:eventId', () => {
 
       const response = await request
         .post(`/api/events/${eventId}/verify-pin`)
-        .send({ pin })
+        .send({ pin, email })
         .expect(429);
 
       expect(response.body).toHaveProperty('error');
@@ -396,6 +472,93 @@ describe('GET /api/events/:eventId', () => {
         .expect(400);
 
       expect(response.body).toHaveProperty('error');
+    });
+
+    it('should return 400 when email is missing', async () => {
+      const eventId = 'A5ohYrHe';
+      const pin = '123456';
+
+      const response = await request
+        .post(`/api/events/${eventId}/verify-pin`)
+        .send({ pin })
+        .expect(400);
+
+      expect(response.body).toHaveProperty('error', 'Email address is required');
+    });
+
+    it('should return 401 when administrator tries to login via PIN', async () => {
+      const eventId = 'A5ohYrHe';
+      const pin = '123456';
+      const adminEmail = 'admin@example.com';
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        state: 'created',
+        typeOfItem: 'wine',
+        administrators: {
+          'admin@example.com': {
+            assignedAt: new Date().toISOString(),
+            isOwner: true
+          }
+        },
+        pin: '123456',
+        pinGeneratedAt: new Date().toISOString()
+      };
+
+      // Mock event retrieval and admin check
+      eventService.getEvent.mockResolvedValue(mockEvent);
+      eventService.isAdministrator.mockReturnValue(true);
+
+      const response = await request
+        .post(`/api/events/${eventId}/verify-pin`)
+        .send({ pin, email: adminEmail })
+        .expect(401);
+
+      expect(response.body).toHaveProperty('error');
+      expect(response.body.error).toContain('Administrators must use OTP authentication');
+      expect(eventService.getEvent).toHaveBeenCalledWith(eventId);
+      expect(eventService.isAdministrator).toHaveBeenCalledWith(mockEvent, adminEmail);
+      // PIN verification should NOT be called for admins
+      expect(pinService.verifyPIN).not.toHaveBeenCalled();
+    });
+
+    it('should allow non-admin users to login via PIN', async () => {
+      const eventId = 'A5ohYrHe';
+      const pin = '123456';
+      const userEmail = 'user@example.com';
+      const sessionId = '550e8400-e29b-41d4-a716-446655440000';
+      const mockEvent = {
+        eventId,
+        name: 'Test Event',
+        state: 'created',
+        typeOfItem: 'wine',
+        administrators: {
+          'admin@example.com': {
+            assignedAt: new Date().toISOString(),
+            isOwner: true
+          }
+        },
+        pin: '123456',
+        pinGeneratedAt: new Date().toISOString()
+      };
+
+      // Mock event retrieval and admin check
+      eventService.getEvent.mockResolvedValue(mockEvent);
+      eventService.isAdministrator.mockReturnValue(false);
+      pinService.verifyPIN.mockResolvedValue({
+        valid: true,
+        sessionId
+      });
+
+      const response = await request
+        .post(`/api/events/${eventId}/verify-pin`)
+        .send({ pin, email: userEmail })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('sessionId', sessionId);
+      expect(eventService.getEvent).toHaveBeenCalledWith(eventId);
+      expect(eventService.isAdministrator).toHaveBeenCalledWith(mockEvent, userEmail);
+      expect(pinService.verifyPIN).toHaveBeenCalledWith(eventId, pin, expect.any(String), expect.any(String));
     });
   });
 

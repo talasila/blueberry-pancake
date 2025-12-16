@@ -78,6 +78,22 @@ router.post('/:eventId/verify-pin', async (req, res) => {
       return badRequestError(res, pinFormatValidation.error);
     }
 
+    // Security check: Prevent administrators from logging in via PIN
+    // Administrators MUST use OTP authentication for security
+    try {
+      const event = await eventService.getEvent(eventId);
+      const isAdmin = eventService.isAdministrator(event, email.trim());
+      
+      if (isAdmin) {
+        return unauthorizedError(res, 'Administrators must use OTP authentication. Please use the OTP login flow.');
+      }
+    } catch (error) {
+      if (error.message.includes('not found')) {
+        return res.status(404).json({ error: 'Event not found' });
+      }
+      throw error; // Re-throw other errors to be handled by outer catch
+    }
+
     // Get user agent for session fingerprinting
     const userAgent = req.headers['user-agent'] || 'unknown';
 

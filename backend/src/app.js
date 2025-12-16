@@ -6,6 +6,7 @@ import { logger } from './middleware/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { initializeXSRF, getCSRFToken } from './middleware/xsrfProtection.js';
 import apiRouter from './api/index.js';
+import { registerTestHelperRoutes } from './api/test-helpers.js';
 import configLoader from './config/configLoader.js';
 import configValidator from './config/configValidator.js';
 import cacheService from './cache/CacheService.js';
@@ -87,6 +88,9 @@ if (xsrfInitialized) {
 
 // Apply CSRF validation to state-changing routes
 // Note: Individual routes can use validateCSRF middleware as needed
+
+// Test helper routes (non-production only)
+registerTestHelperRoutes(app);
 
 // API routes
 app.use('/api', apiRouter);

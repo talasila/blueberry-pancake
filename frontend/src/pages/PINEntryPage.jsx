@@ -35,7 +35,25 @@ function PINEntryPage() {
   useEffect(() => {
     const storedEmail = sessionStorage.getItem(`event:${eventId}:email`);
     if (storedEmail) {
-      setEmail(storedEmail);
+      // Security check: Verify this is not an admin email
+      // Admins should use OTP authentication, not PIN
+      apiClient.checkEventAdmin(eventId, storedEmail)
+        .then(response => {
+          if (response.isAdmin) {
+            // Admin detected - redirect to OTP entry
+            sessionStorage.removeItem(`event:${eventId}:email`);
+            navigate(`/event/${eventId}/otp`, { replace: true });
+          } else {
+            // Regular user - proceed with PIN entry
+            setEmail(storedEmail);
+          }
+        })
+        .catch(err => {
+          // If check fails, proceed with PIN entry
+          // Backend will enforce the security check
+          console.error('Error checking admin status:', err);
+          setEmail(storedEmail);
+        });
     } else {
       // If no email found, redirect back to email entry
       navigate(`/event/${eventId}/email`, { replace: true });

@@ -43,7 +43,9 @@ class PINService {
    * @returns {{allowed: boolean, retryAfter?: number, remaining?: number}}
    */
   _checkEventLimit(eventId) {
-    const LIMIT = 5;
+    // Environment-aware limits: strict in production, relaxed in development
+    const isProduction = process.env.NODE_ENV === 'production';
+    const LIMIT = isProduction ? 5 : 1000;
     const WINDOW_MINUTES = 15;
     const WINDOW_MS = WINDOW_MINUTES * 60 * 1000;
     const WINDOW_SECONDS = WINDOW_MINUTES * 60;

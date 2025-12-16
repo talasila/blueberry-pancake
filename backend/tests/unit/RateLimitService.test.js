@@ -24,11 +24,11 @@ vi.mock('../../src/cache/CacheService.js', () => {
 
 describe('RateLimitService', () => {
   // Note: Rate limits are environment-aware
-  // In test/development: EMAIL_LIMIT=10, IP_LIMIT=20
+  // In test/development: EMAIL_LIMIT=1000, IP_LIMIT=1000
   // In production: EMAIL_LIMIT=3, IP_LIMIT=5
   const isProduction = process.env.NODE_ENV === 'production';
-  const EMAIL_LIMIT = isProduction ? 3 : 10;
-  const IP_LIMIT = isProduction ? 5 : 20;
+  const EMAIL_LIMIT = isProduction ? 3 : 1000;
+  const IP_LIMIT = isProduction ? 5 : 1000;
 
   beforeEach(() => {
     vi.clearAllMocks();

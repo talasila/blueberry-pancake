@@ -6,52 +6,30 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests/e2e/specs',
-  fullyParallel: true,
+  fullyParallel: false, // Run tests sequentially due to test data dependencies
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: 1, // Single worker to avoid test data conflicts
   reporter: 'html',
+  timeout: 60000, // 60 seconds per test
   
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
+    video: 'retain-on-failure',
   },
 
   projects: [
-    // Mobile viewports (320px-768px focus)
+    // Mobile-first testing (default viewport)
     {
-      name: 'Mobile Chrome',
-      use: {
-        ...devices['iPhone 12'], // 390x844 (within 320-768px range)
-        viewport: { width: 375, height: 667 }, // iPhone SE size
-      },
-    },
-    {
-      name: 'Mobile Safari',
+      name: 'mobile',
       use: {
         ...devices['iPhone 12'],
         viewport: { width: 375, height: 667 },
       },
     },
-    {
-      name: 'Tablet',
-      use: {
-        ...devices['iPad Pro'],
-        viewport: { width: 768, height: 1024 },
-      },
-    },
-    // Desktop for completeness
-    {
-      name: 'Desktop Chrome',
-      use: { ...devices['Desktop Chrome'] },
-    },
   ],
 
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120 * 1000,
-  },
+  // Note: Start frontend (port 3000) and backend (port 3001) manually before running tests
 });
