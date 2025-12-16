@@ -6,6 +6,7 @@ import loggerService from '../logging/Logger.js';
 import { 
   generateToken, 
   generateRefreshToken,
+  addEventToToken,
   JWT_COOKIE_NAME, 
   REFRESH_COOKIE_NAME,
   getJWTCookieOptions,
@@ -36,6 +37,22 @@ router.post('/', requireAuth, async (req, res) => {
 
     // Create event
     const event = await eventService.createEvent(name, typeOfItem, administratorEmail);
+
+    // Add newly created event to user's JWT token
+    try {
+      const existingToken = req.cookies?.[JWT_COOKIE_NAME] || 
+        (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.substring(7) : null);
+      
+      if (existingToken) {
+        const updatedToken = addEventToToken(existingToken, event.eventId);
+        // Update cookie with new token that includes the new event
+        res.cookie(JWT_COOKIE_NAME, updatedToken, getJWTCookieOptions());
+        loggerService.info(`Added new event ${event.eventId} to JWT for administrator ${administratorEmail}`);
+      }
+    } catch (tokenError) {
+      // Log error but don't fail the event creation - user can refresh to get access
+      loggerService.warn(`Failed to update token with new event ${event.eventId}: ${tokenError.message}`);
+    }
 
     // Return created event
     res.status(201).json(event);
@@ -124,10 +141,33 @@ router.post('/:eventId/verify-pin', async (req, res) => {
       loggerService.warn(`User registration failed for event ${eventId}: ${registrationError.message}`);
     }
 
-    // Generate JWT token for PIN-authenticated user
+    // Generate JWT token for PIN-authenticated user with event access
     let token;
     try {
-      token = generateToken({ email: email.trim() });
+      // Check if user already has a JWT token (from cookie or header)
+      const existingToken = req.cookies?.[JWT_COOKIE_NAME] || 
+        (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.substring(7) : null);
+      
+      if (existingToken) {
+        // User already authenticated - add this event to their existing token
+        try {
+          token = addEventToToken(existingToken, eventId);
+          loggerService.info(`Added event ${eventId} to existing JWT for user ${email.trim()}`);
+        } catch (addError) {
+          // If adding fails (token expired, invalid, etc.), create new token
+          loggerService.warn(`Failed to add event to existing token, creating new: ${addError.message}`);
+          token = generateToken({ 
+            email: email.trim(),
+            events: [eventId]
+          });
+        }
+      } else {
+        // New authentication - create token with this event
+        token = generateToken({ 
+          email: email.trim(),
+          events: [eventId] // Grant access to this specific event
+        });
+      }
     } catch (tokenError) {
       return handleApiError(res, tokenError, 'generate authentication token');
     }

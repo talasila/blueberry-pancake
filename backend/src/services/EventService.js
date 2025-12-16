@@ -2067,6 +2067,31 @@ class EventService {
   }
 
   /**
+   * Get all event IDs where user is an administrator
+   * @param {string} email - User email address
+   * @returns {Promise<Array<string>>} Array of event IDs where user is an administrator
+   */
+  async getEventsByAdministrator(email) {
+    const normalizedEmail = this.normalizeEmail(email);
+    const eventIds = await dataRepository.listEvents();
+    const adminEventIds = [];
+
+    for (const eventId of eventIds) {
+      try {
+        const event = await this.getEvent(eventId);
+        if (this.isAdministrator(event, normalizedEmail)) {
+          adminEventIds.push(eventId);
+        }
+      } catch (error) {
+        // Skip events that can't be loaded
+        loggerService.warn(`Failed to check admin status for event ${eventId}: ${error.message}`);
+      }
+    }
+
+    return adminEventIds;
+  }
+
+  /**
    * Delete an event and all its data
    * Only the owner can delete an event. This permanently deletes all event data including
    * configuration, ratings, profiles, and all files in the event directory.

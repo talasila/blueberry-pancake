@@ -74,6 +74,38 @@ class ApiClient {
   }
 
   /**
+   * Clear all authentication state (tokens, PIN sessions, etc.)
+   * Used when user loses access to events (403 error)
+   */
+  async clearAllAuthState() {
+    // Clear JWT tokens
+    this.jwtToken = null;
+    localStorage.removeItem('jwtToken');
+    
+    // Clear all PIN session IDs from localStorage
+    // PIN sessions are stored as 'pin:session:{eventId}'
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('pin:session:')) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+    
+    // Call logout endpoint to clear httpOnly cookies on server
+    try {
+      await fetch(`${API_BASE_URL}/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (error) {
+      // Ignore logout errors - proceed with local cleanup
+      console.warn('Logout request failed during auth state clear:', error);
+    }
+  }
+
+  /**
    * Check if user is currently authenticated (has valid JWT token)
    * @returns {boolean} True if authenticated
    */
@@ -249,6 +281,31 @@ class ApiClient {
         headers,
         credentials: 'include', // Include cookies for httpOnly JWT and CSRF
       });
+
+      // Handle 403 Forbidden - Event access denied
+      if (response.status === 403) {
+        const errorData = await response.json().catch(() => ({}));
+        
+        // Check if this is an event access denial
+        if (errorData.code === 'EVENT_ACCESS_DENIED') {
+          // Clear all authentication state
+          await this.clearAllAuthState();
+          
+          // Extract event ID from the endpoint
+          const eventId = this.getEventIdFromUrl(endpoint);
+          
+          // Redirect to email entry page for this event
+          if (typeof window !== 'undefined' && eventId) {
+            window.location.href = `/event/${eventId}/email`;
+            // Return a rejected promise to stop further processing
+            return Promise.reject(new Error('Event access denied - redirecting'));
+          }
+        }
+        
+        // For other 403 errors, continue with normal error handling
+        const errorMessage = errorData.error || errorData.message || 'Access forbidden';
+        throw new Error(errorMessage);
+      }
 
       // Handle 401 Unauthorized - attempt token refresh
       if (response.status === 401 && !isRetry) {

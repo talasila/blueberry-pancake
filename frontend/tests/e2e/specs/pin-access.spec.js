@@ -106,7 +106,7 @@ test.describe('PIN-based Event Access', () => {
     await expect(page).not.toHaveURL(new RegExp('/email$'));
   });
   
-  test.skip('PIN verification required for different events (KNOWN BUG)', async ({ page }) => {
+  test('PIN verification required for different events', async ({ page }) => {
     // Create second event (backend generates its own ID)
     const secondEventId = await createTestEvent(null, 'Second Event', '654321');
     
@@ -187,14 +187,14 @@ test.describe('PIN-based Event Access', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(testEventId, adminEmail);
     
-    // Set auth token
-    await setAuthToken(page, token);
+    // Set auth token (passing email is important)
+    await setAuthToken(page, token, adminEmail);
     
     // Access event page
     await page.goto(`${BASE_URL}/event/${testEventId}`);
     await page.waitForLoadState('networkidle');
     
-    // Should be on event page (not PIN page)
+    // Should be on event page (not PIN or email page)
     const currentUrl = page.url();
     expect(currentUrl).toContain(`/event/${testEventId}`);
     expect(currentUrl).not.toContain('/pin');
@@ -214,17 +214,20 @@ test.describe('PIN-based Event Access', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(testEventId, adminEmail);
     
-    await setAuthToken(page, token);
+    await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
     await page.waitForLoadState('networkidle');
     
-    // Open PIN drawer
-    const pinButton = page.getByRole('button', { name: /^pin$/i });
+    // Verify we're on the admin page
+    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}/admin`));
+    
+    // Look for any button with "PIN" text (case insensitive, more flexible)
+    const pinButton = page.getByRole('button', { name: /pin/i });
     await pinButton.waitFor({ state: 'visible', timeout: 10000 });
     await pinButton.click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000); // Give drawer time to open
     
-    // Should see the PIN displayed
+    // Should see the PIN displayed in the drawer
     const pinDisplay = page.locator('.font-mono.text-lg.font-semibold');
     await expect(pinDisplay).toBeVisible();
     await expect(pinDisplay).toHaveText(testEventPin);

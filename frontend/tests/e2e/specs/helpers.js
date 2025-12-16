@@ -81,7 +81,7 @@ export async function clearAuth(page) {
 export async function setAuthToken(page, token, email = 'admin@example.com') {
   await page.goto(BASE_URL);
   await page.evaluate(({ token, email }) => {
-    localStorage.setItem('token', token);
+    localStorage.setItem('jwtToken', token);  // App expects 'jwtToken' not 'token'
     sessionStorage.setItem('email', email);
   }, { token, email });
 }

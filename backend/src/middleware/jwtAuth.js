@@ -90,8 +90,10 @@ export function jwtAuth(req, res, next) {
 }
 
 /**
- * Generate JWT token
- * @param {object} payload - Token payload (typically user info)
+ * Generate JWT token with event access control
+ * @param {object} payload - Token payload with email and optional events array
+ * @param {string} payload.email - User email
+ * @param {Array<string>} payload.events - Array of event IDs user has access to
  * @returns {string} JWT token
  */
 export function generateToken(payload) {
@@ -111,8 +113,62 @@ export function generateToken(payload) {
     throw new Error('JWT secret must be changed from default value in production');
   }
 
+  // Ensure events is an array (default to empty if not provided)
+  const tokenPayload = {
+    email: payload.email,
+    events: Array.isArray(payload.events) ? payload.events : []
+  };
+
   // Use secret as-is (in development, default is allowed for testing)
-  return jwt.sign(payload, secret, { expiresIn: expiration });
+  return jwt.sign(tokenPayload, secret, { expiresIn: expiration });
+}
+
+/**
+ * Add event access to existing JWT token
+ * Decodes the token, adds the event to the events array, and generates a new token
+ * @param {string} token - Existing JWT token
+ * @param {string} eventId - Event ID to add access for
+ * @returns {string} New JWT token with updated event access
+ */
+export function addEventToToken(token, eventId) {
+  const secret = process.env.JWT_SECRET || configLoader.get('security.jwtSecret');
+  
+  if (!secret) {
+    throw new Error('JWT secret not configured');
+  }
+
+  // Decode existing token
+  const decoded = jwt.verify(token, secret);
+  
+  // Get existing events or initialize empty array
+  const events = Array.isArray(decoded.events) ? decoded.events : [];
+  
+  // Add new event if not already present
+  if (!events.includes(eventId)) {
+    events.push(eventId);
+  }
+  
+  // Generate new token with updated events
+  return generateToken({
+    email: decoded.email,
+    events
+  });
+}
+
+/**
+ * Verify if a user has access to a specific event
+ * @param {object} decodedToken - Decoded JWT token payload
+ * @param {string} eventId - Event ID to check access for
+ * @returns {boolean} True if user has access to the event
+ */
+export function hasEventAccess(decodedToken, eventId) {
+  if (!decodedToken || !eventId) {
+    return false;
+  }
+  
+  // Check if events array exists and includes the event
+  const events = Array.isArray(decodedToken.events) ? decodedToken.events : [];
+  return events.includes(eventId);
 }
 
 /**

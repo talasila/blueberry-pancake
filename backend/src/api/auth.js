@@ -3,6 +3,7 @@ import emailService from '../services/EmailService.js';
 import otpService from '../services/OTPService.js';
 import rateLimitService from '../services/RateLimitService.js';
 import suspensionService from '../services/SuspensionService.js';
+import eventService from '../services/EventService.js';
 import { 
   generateToken, 
   generateRefreshToken,
@@ -189,10 +190,23 @@ router.post('/otp/verify', async (req, res) => {
       otpService.invalidateOTP(email);
     }
 
-    // Generate JWT token with email in payload (FR-017)
+    // Get all events where user is an administrator
+    let adminEvents = [];
+    try {
+      adminEvents = await eventService.getEventsByAdministrator(email);
+      loggerService.info(`User ${email} has administrator access to ${adminEvents.length} event(s)`).catch(() => {});
+    } catch (error) {
+      loggerService.error(`Failed to get events for administrator ${email}: ${error.message}`).catch(() => {});
+      // Continue with empty events array - user can still authenticate
+    }
+
+    // Generate JWT token with email and events in payload (FR-017)
     let token;
     try {
-      token = generateToken({ email });
+      token = generateToken({ 
+        email,
+        events: adminEvents // Include all events user is admin for
+      });
     } catch (tokenError) {
       loggerService.error(`Failed to generate JWT token: ${tokenError.message}`).catch(() => {});
       return res.status(500).json({
@@ -269,7 +283,7 @@ router.post('/logout', (req, res) => {
  * Refresh JWT token using refresh token
  * Returns new JWT token if refresh token is valid
  */
-router.post('/refresh', (req, res) => {
+router.post('/refresh', async (req, res) => {
   try {
     // Get refresh token from cookie
     const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
@@ -297,11 +311,25 @@ router.post('/refresh', (req, res) => {
       });
     }
 
-    // Generate new JWT token
+    // Generate new JWT token with updated event access
     const email = validation.email;
+    
+    // Get current events where user is an administrator (refresh access list)
+    let adminEvents = [];
+    try {
+      adminEvents = await eventService.getEventsByAdministrator(email);
+      loggerService.debug(`Token refresh: User ${email} has access to ${adminEvents.length} event(s)`).catch(() => {});
+    } catch (error) {
+      loggerService.error(`Failed to get events during refresh for ${email}: ${error.message}`).catch(() => {});
+      // Continue with empty events array
+    }
+    
     let token;
     try {
-      token = generateToken({ email });
+      token = generateToken({ 
+        email,
+        events: adminEvents // Refresh event access list
+      });
     } catch (tokenError) {
       loggerService.error(`Failed to generate JWT token during refresh: ${tokenError.message}`).catch(() => {});
       return res.status(500).json({
