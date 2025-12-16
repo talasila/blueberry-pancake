@@ -26,7 +26,7 @@ const API_URL = 'http://localhost:3001';
 
 // Test data
 let testEventId;
-let testEventPin = '123456';
+let testEventPin = '654321';
 
 test.describe('PIN-based Event Access', () => {
   

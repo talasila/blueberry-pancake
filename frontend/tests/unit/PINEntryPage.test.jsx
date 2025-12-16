@@ -53,16 +53,16 @@ describe('PINEntryPage Component', () => {
       expect(screen.getByRole('button', { name: /Verify PIN/i })).toBeInTheDocument();
     });
 
-    it('should render InputOTP component', () => {
+    it('should render PIN input field', () => {
       render(
         <BrowserRouter>
           <PINEntryPage />
         </BrowserRouter>
       );
 
-      // InputOTP renders multiple input fields
-      const inputs = screen.getAllByRole('textbox');
-      expect(inputs.length).toBeGreaterThan(0);
+      // PIN input field should be present
+      const pinInput = screen.getByPlaceholderText(/Enter 6-digit PIN/i);
+      expect(pinInput).toBeInTheDocument();
     });
   });
 
@@ -85,7 +85,7 @@ describe('PINEntryPage Component', () => {
         </BrowserRouter>
       );
 
-      // InputOTP component handles input internally
+      // PIN input component handles input
       // We can test that the button state changes based on PIN length
       const submitButton = screen.getByRole('button', { name: /Verify PIN/i });
       expect(submitButton).toBeDisabled();
@@ -106,8 +106,8 @@ describe('PINEntryPage Component', () => {
         </BrowserRouter>
       );
 
-      // Note: InputOTP component handles input internally
-      // In a real test, we'd need to interact with the InputOTP component
+      // Note: PIN input component handles input
+      // In a real test, we'd need to interact with the input component
       // For now, we'll test the API call when form is submitted with valid PIN
       const form = screen.getByRole('button', { name: /Verify PIN/i }).closest('form');
       
@@ -220,12 +220,10 @@ describe('PINEntryPage Component', () => {
         </BrowserRouter>
       );
 
-      // InputOTP should be disabled when loading
+      // PIN input should be disabled when loading
       // This is handled by the disabled prop
-      const inputs = screen.getAllByRole('textbox');
-      inputs.forEach(input => {
-        // InputOTP manages its own disabled state
-      });
+      const pinInput = screen.getByPlaceholderText(/Enter 6-digit PIN/i);
+      // Input manages its own disabled state through props
     });
   });
 

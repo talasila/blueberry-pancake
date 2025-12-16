@@ -3,12 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import {
-  InputOTP,
-  InputOTPGroup,
-  InputOTPSlot,
-  InputOTPSeparator,
-} from '@/components/ui/input-otp';
+import { Input } from '@/components/ui/input';
 import apiClient from '@/services/apiClient';
 import { clearAllBookmarks } from '@/utils/bookmarkStorage';
 
@@ -149,30 +144,18 @@ function PINEntryPage() {
                 <div className="space-y-4">
                   {/* PIN input */}
                   <div>
-                    <Label htmlFor="pin">Event PIN</Label>
-                    <div className="flex justify-center mt-1">
-                      <InputOTP
-                        maxLength={6}
-                        value={pin}
-                        onChange={(value) => setPin(value)}
-                        disabled={loading}
-                      >
-                        <InputOTPGroup>
-                          <InputOTPSlot index={0} />
-                          <InputOTPSlot index={1} />
-                        </InputOTPGroup>
-                        <InputOTPSeparator />
-                        <InputOTPGroup>
-                          <InputOTPSlot index={2} />
-                          <InputOTPSlot index={3} />
-                        </InputOTPGroup>
-                        <InputOTPSeparator />
-                        <InputOTPGroup>
-                          <InputOTPSlot index={4} />
-                          <InputOTPSlot index={5} />
-                        </InputOTPGroup>
-                      </InputOTP>
-                    </div>
+                    <Input
+                      id="pin"
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      maxLength={6}
+                      value={pin}
+                      onChange={(e) => setPin(e.target.value)}
+                      disabled={loading}
+                      placeholder="Enter 6-digit PIN"
+                      className="mt-1 text-center text-lg tracking-widest"
+                    />
                   </div>
 
                   {/* Error message */}

@@ -100,7 +100,7 @@ export async function submitEmail(page, email) {
 }
 
 /**
- * Enter a PIN in the InputOTP component
+ * Enter a PIN in the PIN input field
  */
 export async function enterPIN(page, pin) {
   // Check if we're on email page first
@@ -110,14 +110,15 @@ export async function enterPIN(page, pin) {
     await page.waitForURL(/\/pin$/, { timeout: 5000 });
   }
   
-  // Enter PIN using InputOTP component
-  const otpContainer = page.locator('[data-input-otp]')
+  // Enter PIN using input field (supports both old InputOTP and new Input component)
+  const pinInput = page.locator('input#pin')
     .or(page.locator('input[type="text"][maxlength="6"]'))
-    .or(page.locator('input[type="text"]').first());
+    .or(page.locator('[data-input-otp]'))
+    .first();
   
-  await otpContainer.waitFor({ state: 'attached', timeout: 5000 });
-  await otpContainer.click();
-  await otpContainer.pressSequentially(pin, { delay: 100 });
+  await pinInput.waitFor({ state: 'attached', timeout: 5000 });
+  await pinInput.click();
+  await pinInput.fill(pin);
   await page.waitForTimeout(500);
 }
 
