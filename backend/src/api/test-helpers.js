@@ -270,8 +270,8 @@ export async function addAdminAndGenerateToken(req, res) {
       logger.info(`Added ${email} as administrator to test event ${eventId} (addToUsers: ${addToUsers})`);
     }
 
-    // Generate JWT token with email and eventId
-    const token = generateToken({ email, eventId, isAdmin: true });
+    // Generate JWT token with email and event access
+    const token = generateToken({ email, events: [eventId] });
 
     res.status(200).json({ 
       success: true,

@@ -122,7 +122,6 @@ test.describe('PIN-based Event Access', () => {
       // Access second event - should require PIN again
       await page.goto(`${BASE_URL}/event/${secondEventId}`);
       
-      // KNOWN BUG: App stores global session, not event-specific
       // This test will fail until app is fixed
       await expect(page).toHaveURL(new RegExp(`/event/${secondEventId}/email`));
     } finally {
@@ -233,17 +232,19 @@ test.describe('PIN-based Event Access', () => {
     await expect(pinDisplay).toHaveText(testEventPin);
   });
   
-  test.skip('administrator regenerates PIN (KNOWN BUG: timing issue)', async ({ page }) => {
+  test('administrator regenerates PIN', async ({ page }) => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(testEventId, adminEmail);
     
-    await setAuthToken(page, token);
+    await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.waitForLoadState('networkidle');
     
     // Open PIN drawer
-    const pinButton = page.getByRole('button', { name: /^pin$/i });
+    const pinButton = page.getByRole('button', { name: /pin/i });
+    await pinButton.waitFor({ state: 'visible', timeout: 10000 });
     await pinButton.click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(1000);
     
     // Click regenerate button
     const regenerateButton = page.getByRole('button', { name: /regenerate pin/i });
