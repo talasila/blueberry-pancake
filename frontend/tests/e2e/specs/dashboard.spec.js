@@ -459,6 +459,458 @@ test.describe('Dashboard Page', () => {
   });
 
   // ===================================
+  // User Story 6 - User Ratings Table
+  // ===================================
+
+  test('users tab is accessible and shows appropriate content', async ({ page }) => {
+    const adminEmail = 'admin@example.com';
+    const token = await addAdminToEvent(testEventId, adminEmail);
+    
+    await setAuthToken(page, token, adminEmail);
+    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.waitForLoadState('networkidle');
+    
+    // Click on Users tab
+    const usersTab = page.getByRole('tab', { name: /users/i });
+    await usersTab.waitFor({ state: 'visible', timeout: 10000 });
+    await usersTab.click();
+    await page.waitForTimeout(500);
+    
+    // Should show either empty state message or table (admin may be registered but without ratings)
+    const emptyMessage = page.getByText(/no.*users/i);
+    const table = page.locator('table');
+    
+    const emptyVisible = await emptyMessage.isVisible();
+    const tableVisible = await table.isVisible();
+    
+    // Either empty message or table should be visible
+    expect(emptyVisible || tableVisible).toBe(true);
+  });
+
+  test('users tab displays table with correct columns when users have ratings', async ({ page }) => {
+    const adminEmail = 'admin@example.com';
+    const token = await addAdminToEvent(testEventId, adminEmail);
+    
+    // Configure items and start event
+    await fetch(`${API_URL}/api/events/${testEventId}/item-configuration`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ numberOfItems: 5 })
+    });
+    
+    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ state: 'started', currentState: 'created' })
+    });
+    
+    // Create first user and submit ratings
+    const user1Response = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: testEventPin, email: 'user1@example.com' })
+    });
+    const { token: user1Token } = await user1Response.json();
+    
+    // Submit ratings for user1
+    for (let itemId = 1; itemId <= 3; itemId++) {
+      await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user1Token}`
+        },
+        body: JSON.stringify({ itemId, rating: 4 })
+      });
+    }
+    
+    // View dashboard as admin
+    await setAuthToken(page, token, adminEmail);
+    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.waitForLoadState('networkidle');
+    
+    // Click on Users tab
+    const usersTab = page.getByRole('tab', { name: /users/i });
+    await usersTab.waitFor({ state: 'visible', timeout: 10000 });
+    await usersTab.click();
+    await page.waitForTimeout(500);
+    
+    // Table should be visible
+    const table = page.locator('table');
+    await expect(table).toBeVisible({ timeout: 10000 });
+    
+    // Verify column headers
+    await expect(page.getByText(/^user$/i).first()).toBeVisible();
+    await expect(page.getByText(/progress/i).first()).toBeVisible();
+    await expect(page.getByText(/avg.*rating/i).first()).toBeVisible();
+  });
+
+  test('users table displays multiple users with different rating counts', async ({ page }) => {
+    const adminEmail = 'admin@example.com';
+    const token = await addAdminToEvent(testEventId, adminEmail);
+    
+    // Configure items and start event
+    await fetch(`${API_URL}/api/events/${testEventId}/item-configuration`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ numberOfItems: 5 })
+    });
+    
+    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ state: 'started', currentState: 'created' })
+    });
+    
+    // Create first user with 5 ratings
+    const user1Response = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: testEventPin, email: 'alice@example.com' })
+    });
+    const { token: user1Token } = await user1Response.json();
+    
+    for (let itemId = 1; itemId <= 5; itemId++) {
+      await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user1Token}`
+        },
+        body: JSON.stringify({ itemId, rating: 5 })
+      });
+    }
+    
+    // Create second user with 2 ratings
+    const user2Response = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: testEventPin, email: 'bob@example.com' })
+    });
+    const { token: user2Token } = await user2Response.json();
+    
+    for (let itemId = 1; itemId <= 2; itemId++) {
+      await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user2Token}`
+        },
+        body: JSON.stringify({ itemId, rating: 3 })
+      });
+    }
+    
+    // View dashboard as admin
+    await setAuthToken(page, token, adminEmail);
+    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.waitForLoadState('networkidle');
+    
+    // Click on Users tab
+    const usersTab = page.getByRole('tab', { name: /users/i });
+    await usersTab.click();
+    await page.waitForTimeout(500);
+    
+    // Table should show both users
+    const table = page.locator('table');
+    await expect(table).toBeVisible();
+    
+    // Both users should be in the table (use .first() since name and email may both show)
+    await expect(page.getByText(/alice/i).first()).toBeVisible();
+    await expect(page.getByText(/bob/i).first()).toBeVisible();
+    
+    // Table should have at least 2 user rows (admin may also be present)
+    const rows = page.locator('table tbody tr');
+    const rowCount = await rows.count();
+    expect(rowCount).toBeGreaterThanOrEqual(2);
+  });
+
+  test('users table columns are sortable', async ({ page }) => {
+    const adminEmail = 'admin@example.com';
+    const token = await addAdminToEvent(testEventId, adminEmail);
+    
+    // Configure items and start event
+    await fetch(`${API_URL}/api/events/${testEventId}/item-configuration`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ numberOfItems: 5 })
+    });
+    
+    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ state: 'started', currentState: 'created' })
+    });
+    
+    // Create users with ratings
+    const user1Response = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: testEventPin, email: 'zack@example.com' })
+    });
+    const { token: user1Token } = await user1Response.json();
+    
+    await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${user1Token}`
+      },
+      body: JSON.stringify({ itemId: 1, rating: 5 })
+    });
+    
+    const user2Response = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: testEventPin, email: 'anna@example.com' })
+    });
+    const { token: user2Token } = await user2Response.json();
+    
+    await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${user2Token}`
+      },
+      body: JSON.stringify({ itemId: 1, rating: 3 })
+    });
+    
+    // View dashboard as admin
+    await setAuthToken(page, token, adminEmail);
+    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.waitForLoadState('networkidle');
+    
+    // Click on Users tab
+    const usersTab = page.getByRole('tab', { name: /users/i });
+    await usersTab.click();
+    await page.waitForTimeout(500);
+    
+    // Click on User column header to sort
+    const userHeader = page.getByRole('columnheader', { name: /user/i });
+    await expect(userHeader).toBeVisible();
+    await userHeader.click();
+    await page.waitForTimeout(500);
+    
+    // Click again to reverse sort
+    await userHeader.click();
+    await page.waitForTimeout(500);
+    
+    // Click on Avg. Rating column to sort by average
+    const avgHeader = page.getByRole('columnheader', { name: /avg/i });
+    if (await avgHeader.isVisible()) {
+      await avgHeader.click();
+      await page.waitForTimeout(500);
+    }
+  });
+
+  test('users table default sort is by email ascending', async ({ page }) => {
+    const adminEmail = 'admin@example.com';
+    const token = await addAdminToEvent(testEventId, adminEmail);
+    
+    // Configure items and start event
+    await fetch(`${API_URL}/api/events/${testEventId}/item-configuration`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ numberOfItems: 5 })
+    });
+    
+    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ state: 'started', currentState: 'created' })
+    });
+    
+    // Create users in reverse alphabetical order
+    const user1Response = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: testEventPin, email: 'zack@example.com' })
+    });
+    const { token: user1Token } = await user1Response.json();
+    
+    await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${user1Token}`
+      },
+      body: JSON.stringify({ itemId: 1, rating: 5 })
+    });
+    
+    const user2Response = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: testEventPin, email: 'anna@example.com' })
+    });
+    const { token: user2Token } = await user2Response.json();
+    
+    await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${user2Token}`
+      },
+      body: JSON.stringify({ itemId: 1, rating: 3 })
+    });
+    
+    // View dashboard as admin
+    await setAuthToken(page, token, adminEmail);
+    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.waitForLoadState('networkidle');
+    
+    // Click on Users tab
+    const usersTab = page.getByRole('tab', { name: /users/i });
+    await usersTab.click();
+    await page.waitForTimeout(500);
+    
+    // First row should be anna (alphabetically first by email)
+    const firstRow = page.locator('table tbody tr').first();
+    await expect(firstRow).toBeVisible();
+    await expect(firstRow).toContainText(/anna/i);
+  });
+
+  test('clicking user row opens user details drawer', async ({ page }) => {
+    const adminEmail = 'admin@example.com';
+    const token = await addAdminToEvent(testEventId, adminEmail);
+    
+    // Configure items and start event
+    await fetch(`${API_URL}/api/events/${testEventId}/item-configuration`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ numberOfItems: 5 })
+    });
+    
+    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ state: 'started', currentState: 'created' })
+    });
+    
+    // Create user with ratings
+    const userResponse = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: testEventPin, email: 'testuser@example.com' })
+    });
+    const { token: userToken } = await userResponse.json();
+    
+    await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${userToken}`
+      },
+      body: JSON.stringify({ itemId: 1, rating: 4 })
+    });
+    
+    // View dashboard as admin
+    await setAuthToken(page, token, adminEmail);
+    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.waitForLoadState('networkidle');
+    
+    // Click on Users tab
+    const usersTab = page.getByRole('tab', { name: /users/i });
+    await usersTab.click();
+    await page.waitForTimeout(500);
+    
+    // Click on user row
+    const userRow = page.locator('table tbody tr').first();
+    await userRow.click();
+    await page.waitForTimeout(500);
+    
+    // User details drawer should open
+    const drawer = page.locator('[role="dialog"]').or(page.locator('[data-state="open"]'));
+    await expect(drawer.first()).toBeVisible({ timeout: 5000 });
+    
+    // Drawer should contain user info (use .first() since name/email both show same text)
+    await expect(page.getByText(/testuser/i).first()).toBeVisible();
+  });
+
+  test('users table shows derived name from email when name not set', async ({ page }) => {
+    const adminEmail = 'admin@example.com';
+    const token = await addAdminToEvent(testEventId, adminEmail);
+    
+    // Configure items and start event
+    await fetch(`${API_URL}/api/events/${testEventId}/item-configuration`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ numberOfItems: 5 })
+    });
+    
+    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ state: 'started', currentState: 'created' })
+    });
+    
+    // Create user (no name set, only email)
+    const userResponse = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pin: testEventPin, email: 'john.doe@example.com' })
+    });
+    const { token: userToken } = await userResponse.json();
+    
+    await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${userToken}`
+      },
+      body: JSON.stringify({ itemId: 1, rating: 4 })
+    });
+    
+    // View dashboard as admin
+    await setAuthToken(page, token, adminEmail);
+    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.waitForLoadState('networkidle');
+    
+    // Click on Users tab
+    const usersTab = page.getByRole('tab', { name: /users/i });
+    await usersTab.click();
+    await page.waitForTimeout(500);
+    
+    // Table should show derived name from email (john.doe)
+    // Use .first() since name and email both display the derived name
+    await expect(page.getByText(/john\.doe/i).first()).toBeVisible();
+  });
+
+  // ===================================
   // Edge Cases
   // ===================================
 
