@@ -11,6 +11,9 @@ import {
   deleteTestEvent,
   addAdminToEvent,
   setAuthToken,
+  clearAuth,
+  submitEmail,
+  enterAndSubmitPIN,
 } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
@@ -35,43 +38,73 @@ test.describe('Event State Management', () => {
   // User Story 1 - Start an Event
   // ===================================
 
-  test('new event is in "created" state', async ({ page }) => {
-    const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+  test('new event is in "created" state and regular user cannot rate', async ({ page }) => {
+    // Access event as regular user via PIN
+    await clearAuth(page);
+    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await submitEmail(page, 'user@example.com');
+    await enterAndSubmitPIN(page, testEventPin);
     
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    // Should be on main event page
+    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
     await page.waitForLoadState('networkidle');
     
-    // Should show "created" state or start button
-    const stateIndicator = page.getByText(/created/i);
-    const startButton = page.getByRole('button', { name: /start/i });
+    // Should see "Event has not started yet" message on main page
+    const notStartedMessage = page.getByText(/event has not started yet/i);
+    await expect(notStartedMessage).toBeVisible();
     
-    // Either created state is shown OR start button is available
-    const isCreated = await stateIndicator.isVisible().catch(() => false);
-    const canStart = await startButton.isVisible().catch(() => false);
+    // Click on one of the 20 bottle items to try rating
+    const bottleItem = page.locator('button').filter({ hasText: '1' }).first();
+    await bottleItem.click();
     
-    expect(isCreated || canStart).toBe(true);
+    // Drawer should open with message that rating is not available
+    const drawerMessage = page.getByText('This event has not started yet. Rating is not available.');
+    await expect(drawerMessage).toBeVisible();
   });
 
-  test('administrator can start event', async ({ page }) => {
+  test('administrator can start event and regular user can rate', async ({ page }) => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(testEventId, adminEmail);
     
+    // Admin starts the event
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
     await page.waitForLoadState('networkidle');
+    
+    // Click the State button to expand options
+    const stateButton = page.getByRole('button', { name: /state.*created/i });
+    await stateButton.click();
     
     // Click start button
     const startButton = page.getByRole('button', { name: /start/i });
-    if (await startButton.isVisible()) {
-      await startButton.click();
-      await page.waitForTimeout(2000);
-      
-      // Event should now be started
-      const stateIndicator = page.getByText(/started/i);
-      await expect(stateIndicator).toBeVisible();
-    }
+    await startButton.click();
+    await page.waitForTimeout(2000);
+    
+    // Event should now be started
+    const stateIndicator = page.getByRole('button', { name: /state.*started/i });
+    await expect(stateIndicator).toBeVisible();
+    
+    // Now login as regular user via PIN
+    await clearAuth(page);
+    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await submitEmail(page, 'user@example.com');
+    await enterAndSubmitPIN(page, testEventPin);
+    
+    // Should be on main event page
+    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    await page.waitForLoadState('networkidle');
+    
+    // Should see "Tap a number to rate" message
+    const rateMessage = page.getByText('Tap a number to rate');
+    await expect(rateMessage).toBeVisible();
+    
+    // Click on a bottle item to open rating drawer
+    const bottleItem = page.locator('button').filter({ hasText: '1' }).first();
+    await bottleItem.click();
+    
+    // Drawer should open with rating selector
+    const ratingSelector = page.getByText(/select a rating/i);
+    await expect(ratingSelector).toBeVisible();
   });
 
   test('started event shows pause and complete options', async ({ page }) => {
@@ -92,7 +125,11 @@ test.describe('Event State Management', () => {
     await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
     await page.waitForLoadState('networkidle');
     
-    // Should show pause and complete buttons
+    // Click the State button to expand options
+    const stateButton = page.getByRole('button', { name: /state.*started/i });
+    await stateButton.click();
+    
+    // Now pause and complete buttons should be visible
     const pauseButton = page.getByRole('button', { name: /pause/i });
     const completeButton = page.getByRole('button', { name: /complete|finish/i });
     
@@ -104,7 +141,7 @@ test.describe('Event State Management', () => {
   // User Story 2 - Pause and Resume Event
   // ===================================
 
-  test('administrator can pause started event', async ({ page }) => {
+  test('administrator can pause started event and regular user cannot rate', async ({ page }) => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(testEventId, adminEmail);
     
@@ -122,19 +159,43 @@ test.describe('Event State Management', () => {
     await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
     await page.waitForLoadState('networkidle');
     
+    // Click the State button to expand options
+    const stateButton = page.getByRole('button', { name: /state.*started/i });
+    await stateButton.click();
+    
     // Click pause button
     const pauseButton = page.getByRole('button', { name: /pause/i });
-    if (await pauseButton.isVisible()) {
-      await pauseButton.click();
-      await page.waitForTimeout(2000);
-      
-      // Event should now be paused
-      const stateIndicator = page.getByText(/paused/i);
-      await expect(stateIndicator).toBeVisible();
-    }
+    await pauseButton.click();
+    await page.waitForTimeout(2000);
+    
+    // Event should now be paused
+    const stateIndicator = page.getByRole('button', { name: /state.*paused/i });
+    await expect(stateIndicator).toBeVisible();
+    
+    // Now login as regular user via PIN
+    await clearAuth(page);
+    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await submitEmail(page, 'user@example.com');
+    await enterAndSubmitPIN(page, testEventPin);
+    
+    // Should be on main event page
+    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    await page.waitForLoadState('networkidle');
+    
+    // Should see "Event is paused" message on main page
+    const pausedMessage = page.getByText('Event is paused');
+    await expect(pausedMessage).toBeVisible();
+    
+    // Click on a bottle item to try rating
+    const bottleItem = page.locator('button').filter({ hasText: '1' }).first();
+    await bottleItem.click();
+    
+    // Drawer should open with message that rating is not available
+    const drawerMessage = page.getByText('This event is currently paused. Rating is not available.');
+    await expect(drawerMessage).toBeVisible();
   });
 
-  test('administrator can resume paused event', async ({ page }) => {
+  test('administrator can resume paused event and regular user can rate', async ({ page }) => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(testEventId, adminEmail);
     
@@ -161,23 +222,47 @@ test.describe('Event State Management', () => {
     await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
     await page.waitForLoadState('networkidle');
     
+    // Click the State button to expand options
+    const stateButton = page.getByRole('button', { name: /state.*paused/i });
+    await stateButton.click();
+    
     // Click start/resume button
     const startButton = page.getByRole('button', { name: /start|resume/i });
-    if (await startButton.isVisible()) {
-      await startButton.click();
-      await page.waitForTimeout(2000);
-      
-      // Event should now be started again
-      const stateIndicator = page.getByText(/started/i);
-      await expect(stateIndicator).toBeVisible();
-    }
+    await startButton.click();
+    await page.waitForTimeout(2000);
+    
+    // Event should now be started again
+    const stateIndicator = page.getByRole('button', { name: /state.*started/i });
+    await expect(stateIndicator).toBeVisible();
+    
+    // Now login as regular user via PIN
+    await clearAuth(page);
+    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await submitEmail(page, 'user@example.com');
+    await enterAndSubmitPIN(page, testEventPin);
+    
+    // Should be on main event page
+    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    await page.waitForLoadState('networkidle');
+    
+    // Should see "Tap a number to rate" message
+    const rateMessage = page.getByText('Tap a number to rate');
+    await expect(rateMessage).toBeVisible();
+    
+    // Click on a bottle item to open rating drawer
+    const bottleItem = page.locator('button').filter({ hasText: '1' }).first();
+    await bottleItem.click();
+    
+    // Drawer should open with rating selector
+    const ratingSelector = page.getByText(/select a rating/i);
+    await expect(ratingSelector).toBeVisible();
   });
 
   // ===================================
   // User Story 3 - Complete an Event
   // ===================================
 
-  test('administrator can complete started event', async ({ page }) => {
+  test('administrator can complete started event and regular user can view details', async ({ page }) => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(testEventId, adminEmail);
     
@@ -195,19 +280,47 @@ test.describe('Event State Management', () => {
     await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
     await page.waitForLoadState('networkidle');
     
+    // Click the State button to expand options
+    const stateButton = page.getByRole('button', { name: /state.*started/i });
+    await stateButton.click();
+    
     // Click complete button
     const completeButton = page.getByRole('button', { name: /complete|finish/i });
-    if (await completeButton.isVisible()) {
-      await completeButton.click();
-      await page.waitForTimeout(2000);
-      
-      // Event should now be completed
-      const stateIndicator = page.getByText(/completed|finished/i);
-      await expect(stateIndicator).toBeVisible();
-    }
+    await completeButton.click();
+    await page.waitForTimeout(2000);
+    
+    // Event should now be completed
+    const stateIndicator = page.getByRole('button', { name: /state.*(completed|finished)/i });
+    await expect(stateIndicator).toBeVisible();
+    
+    // Now login as regular user via PIN
+    await clearAuth(page);
+    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await submitEmail(page, 'user@example.com');
+    await enterAndSubmitPIN(page, testEventPin);
+    
+    // Should be on main event page
+    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    await page.waitForLoadState('networkidle');
+    
+    // Should see "Tap a number to view details" message
+    const viewDetailsMessage = page.getByText('Tap a number to view details');
+    await expect(viewDetailsMessage).toBeVisible();
+    
+    // Click on a bottle item to view details
+    const bottleItem = page.locator('button').filter({ hasText: '1' }).first();
+    await bottleItem.click();
+    
+    // Drawer should open with header containing number and "Details"
+    const drawerHeader = page.getByRole('heading', { name: /1.*details/i });
+    await expect(drawerHeader).toBeVisible();
+    
+    // Should show Ratings Distribution section
+    const ratingsDistribution = page.getByText('Ratings Distribution');
+    await expect(ratingsDistribution).toBeVisible();
   });
 
-  test('administrator can complete paused event', async ({ page }) => {
+  test('administrator can complete paused event and regular user can view details', async ({ page }) => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(testEventId, adminEmail);
     
@@ -234,23 +347,51 @@ test.describe('Event State Management', () => {
     await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
     await page.waitForLoadState('networkidle');
     
+    // Click the State button to expand options
+    const stateButton = page.getByRole('button', { name: /state.*paused/i });
+    await stateButton.click();
+    
     // Click complete button
     const completeButton = page.getByRole('button', { name: /complete|finish/i });
-    if (await completeButton.isVisible()) {
-      await completeButton.click();
-      await page.waitForTimeout(2000);
-      
-      // Event should now be completed
-      const stateIndicator = page.getByText(/completed|finished/i);
-      await expect(stateIndicator).toBeVisible();
-    }
+    await completeButton.click();
+    await page.waitForTimeout(2000);
+    
+    // Event should now be completed
+    const stateIndicator = page.getByRole('button', { name: /state.*(completed|finished)/i });
+    await expect(stateIndicator).toBeVisible();
+    
+    // Now login as regular user via PIN
+    await clearAuth(page);
+    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await submitEmail(page, 'user@example.com');
+    await enterAndSubmitPIN(page, testEventPin);
+    
+    // Should be on main event page
+    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    await page.waitForLoadState('networkidle');
+    
+    // Should see "Tap a number to view details" message
+    const viewDetailsMessage = page.getByText('Tap a number to view details');
+    await expect(viewDetailsMessage).toBeVisible();
+    
+    // Click on a bottle item to view details
+    const bottleItem = page.locator('button').filter({ hasText: '1' }).first();
+    await bottleItem.click();
+    
+    // Drawer should open with header containing number and "Details"
+    const drawerHeader = page.getByRole('heading', { name: /1.*details/i });
+    await expect(drawerHeader).toBeVisible();
+    
+    // Should show Ratings Distribution section
+    const ratingsDistribution = page.getByText('Ratings Distribution');
+    await expect(ratingsDistribution).toBeVisible();
   });
 
   // ===================================
   // User Story 4 - Resume Completed Event
   // ===================================
 
-  test('administrator can reopen completed event', async ({ page }) => {
+  test('administrator can reopen completed event and regular user can rate', async ({ page }) => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(testEventId, adminEmail);
     
@@ -277,10 +418,40 @@ test.describe('Event State Management', () => {
     await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
     await page.waitForLoadState('networkidle');
     
-    // Should show option to reopen/start
-    const startButton = page.getByRole('button', { name: /start|reopen/i });
+    // Click the State button to expand options
+    const stateButton = page.getByRole('button', { name: /state.*(completed|finished)/i });
+    await stateButton.click();
     
-    // If reopening is allowed, button should be visible
+    // Click start/reopen button
+    const startButton = page.getByRole('button', { name: /start|reopen/i });
+    await startButton.click();
+    await page.waitForTimeout(2000);
+    
+    // Event should now be started again
+    const stateIndicator = page.getByRole('button', { name: /state.*started/i });
+    await expect(stateIndicator).toBeVisible();
+    
+    // Now login as regular user via PIN
+    await clearAuth(page);
+    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await submitEmail(page, 'user@example.com');
+    await enterAndSubmitPIN(page, testEventPin);
+    
+    // Should be on main event page
+    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    await page.waitForLoadState('networkidle');
+    
+    // Should see "Tap a number to rate" message
+    const rateMessage = page.getByText('Tap a number to rate');
+    await expect(rateMessage).toBeVisible();
+    
+    // Click on a bottle item to open rating drawer
+    const bottleItem = page.locator('button').filter({ hasText: '1' }).first();
+    await bottleItem.click();
+    
+    // Drawer should open with rating selector
+    const ratingSelector = page.getByText(/select a rating/i);
+    await expect(ratingSelector).toBeVisible();
   });
 
   // ===================================

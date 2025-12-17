@@ -71,29 +71,28 @@ test.describe('Event Page', () => {
   });
 
   test('shows error for non-existent event', async ({ page }) => {
-    const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    // Use a valid format event ID that doesn't exist (8 alphanumeric chars)
+    const nonExistentEventId = 'AAAAAAAA';
     
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/NONEXIST`);
+    await clearAuth(page);
+    await page.goto(`${BASE_URL}/event/${nonExistentEventId}`);
     await page.waitForLoadState('networkidle');
     
-    // Should show error or redirect
-    // Check for error message or different page state
-  });
-
-  test('shows loading indicator while fetching event data', async ({ page }) => {
-    const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    // Should be redirected to email entry page first
+    await expect(page).toHaveURL(new RegExp(`/event/${nonExistentEventId}/email`));
     
-    await setAuthToken(page, token, adminEmail);
+    // Submit email to proceed to PIN page
+    await submitEmail(page, 'testuser@example.com');
     
-    // Navigate and check for loading state
-    const navigationPromise = page.goto(`${BASE_URL}/event/${testEventId}`);
+    // Should be on PIN entry page
+    await expect(page).toHaveURL(new RegExp(`/event/${nonExistentEventId}/pin`), { timeout: 5000 });
     
-    // Loading indicator should appear briefly
-    // This is timing-sensitive and may need adjustment
-    await navigationPromise;
+    // Enter a PIN to trigger the "event not found" error
+    await enterAndSubmitPIN(page, '123456');
+    
+    // Error should be displayed about event not found
+    const errorMessage = page.getByText(/event not found|not found|does not exist/i);
+    await expect(errorMessage.first()).toBeVisible({ timeout: 10000 });
   });
 
   // ===================================
@@ -120,12 +119,18 @@ test.describe('Event Page', () => {
     await submitEmail(page, 'regularuser@example.com');
     await enterAndSubmitPIN(page, testEventPin);
     
-    // Now try to access admin page
+    // Wait for event page to load after PIN entry
+    await page.waitForURL(new RegExp(`/event/${testEventId}$`), { timeout: 10000 });
+    
+    // Now try to access admin page directly
     await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
     await page.waitForLoadState('networkidle');
     
-    // Should be denied access or redirected
-    // Check that we're not on the admin page
+    // AdminRoute should redirect non-admins back to main event page
+    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    
+    // Should NOT be on the admin page
+    await expect(page).not.toHaveURL(/\/admin/);
   });
 
   // ===================================
@@ -207,14 +212,32 @@ test.describe('Event Page', () => {
   // ===================================
 
   test('handles invalid event ID format gracefully', async ({ page }) => {
-    const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    // Test multiple invalid formats without authentication
+    const invalidEventIds = [
+      '!!!invalid!!!',  // Special characters
+      'abc',            // Too short
+      'abcd12345678',   // Too long
+    ];
     
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/!!!invalid!!!`);
-    await page.waitForLoadState('networkidle');
-    
-    // Should show error or handle gracefully
+    for (const invalidId of invalidEventIds) {
+      await clearAuth(page);
+      await page.goto(`${BASE_URL}/event/${invalidId}`);
+      await page.waitForLoadState('networkidle');
+      
+      // App handles invalid IDs gracefully by showing email entry page
+      // (doesn't crash or show raw errors to unauthenticated users)
+      const emailEntry = page.getByText('Access Event');
+      const errorText = page.getByText(/error/i);
+      
+      const hasEmailEntry = await emailEntry.isVisible().catch(() => false);
+      const hasError = await errorText.first().isVisible().catch(() => false);
+      
+      // Either email entry page OR error page is graceful handling
+      expect(
+        hasEmailEntry || hasError,
+        `Expected graceful handling for invalid event ID: "${invalidId}"`
+      ).toBe(true);
+    }
   });
 
   test('event name is trimmed in header if too long', async ({ page }) => {
