@@ -6,7 +6,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { clearAuth } from './helpers.js';
+import { clearAuth, createTestEvent, deleteTestEvent, addAdminToEvent } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
@@ -18,80 +18,70 @@ test.describe('OTP Authentication', () => {
     await clearAuth(page);
   });
 
-  // ===================================
-  // User Story 1 - Request OTP via Email
-  // ===================================
-
-  test('auth page displays email input and request OTP button', async ({ page }) => {
-    await page.goto(`${BASE_URL}/auth`);
-    
-    const emailInput = page.locator('input[type="email"]');
-    await expect(emailInput).toBeVisible();
-    
-    const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
-    await expect(requestButton).toBeVisible();
-  });
-
-  test('shows validation error for invalid email format', async ({ page }) => {
-    await page.goto(`${BASE_URL}/auth`);
-    
-    const emailInput = page.locator('input[type="email"]');
-    await emailInput.fill('invalid-email');
-    
-    const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
-    await requestButton.click();
-    
-    // Should show validation error
-    await expect(page.locator('text=/invalid|valid.*email/i')).toBeVisible({ timeout: 5000 });
-  });
-
-  test('accepts valid email and proceeds to OTP entry', async ({ page }) => {
-    await page.goto(`${BASE_URL}/auth`);
-    
-    const emailInput = page.locator('input[type="email"]');
-    await emailInput.fill('test@example.com');
-    
-    const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
-    await requestButton.click();
-    
-    // Should show OTP input field or success message
-    await page.waitForTimeout(2000);
-    const otpInput = page.locator('input').filter({ hasText: '' }).first();
-    // Page should have progressed (either showing OTP input or confirmation)
-    expect(page.url()).toContain('/auth');
-  });
-
-  // ===================================
-  // User Story 2 - Verify OTP and Receive JWT Token
-  // ===================================
 
   test('verifies test OTP (123456) successfully in dev environment', async ({ page }) => {
-    await page.goto(`${BASE_URL}/auth`);
+    // Step 1: Create a test event
+    const testEventId = await createTestEvent(null, 'OTP Test Event', '654321');
+    const adminEmail = 'otpadmin@example.com';
     
-    // Enter email
-    const emailInput = page.locator('input[type="email"]');
-    await emailInput.fill('test@example.com');
-    
-    const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
-    await requestButton.click();
-    await page.waitForTimeout(1000);
-    
-    // Enter test OTP
-    const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
-    if (await otpInput.isVisible()) {
+    try {
+      // Step 2: Add admin to the event (so they're recognized as admin)
+      await addAdminToEvent(testEventId, adminEmail);
+      
+      // Step 3: Navigate to event - should redirect to email entry
+      await page.goto(`${BASE_URL}/event/${testEventId}`);
+      await page.waitForLoadState('networkidle');
+      
+      // Should be on email entry page
+      await expect(page).toHaveURL(new RegExp(`/event/${testEventId}/email`));
+      
+      // Step 4: Enter admin email
+      const emailInput = page.locator('input#email');
+      await emailInput.waitFor({ state: 'visible', timeout: 5000 });
+      await emailInput.fill(adminEmail);
+      
+      const continueButton = page.getByRole('button', { name: /continue/i });
+      await continueButton.click();
+      
+      // Step 5: Should be redirected to OTP entry page (detected as admin)
+      await expect(page).toHaveURL(new RegExp(`/event/${testEventId}/otp`), { timeout: 5000 });
+      
+      // Step 6: Wait for OTP input and enter test OTP
+      const otpInput = page.locator('input#otp');
+      await otpInput.waitFor({ state: 'visible', timeout: 5000 });
       await otpInput.fill(TEST_OTP);
       
-      const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });
-      if (await verifyButton.isVisible()) {
-        await verifyButton.click();
-        await page.waitForTimeout(2000);
-      }
+      // Step 7: Click verify button
+      const verifyButton = page.getByRole('button', { name: /verify.*otp/i });
+      await verifyButton.click();
+      
+      // Step 8: Wait for success message and redirect
+      await expect(page.locator('text=/authentication successful/i')).toBeVisible({ timeout: 5000 });
+      
+      // Step 9: Should be redirected to event page
+      await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`), { timeout: 5000 });
+      
+      // Step 10: Verify JWT token exists in localStorage
+      const token = await page.evaluate(() => localStorage.getItem('jwtToken'));
+      expect(token).toBeTruthy();
+      expect(token.length).toBeGreaterThan(0);
+      
+      // Step 11: Verify admin can access the event page (not redirected)
+      const currentUrl = page.url();
+      expect(currentUrl).toContain(`/event/${testEventId}`);
+      expect(currentUrl).not.toContain('/email');
+      expect(currentUrl).not.toContain('/pin');
+      expect(currentUrl).not.toContain('/otp');
+      
+      // Step 12: Verify admin can access the admin page
+      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.waitForLoadState('networkidle');
+      await expect(page).toHaveURL(new RegExp(`/event/${testEventId}/admin`));
+      
+    } finally {
+      // Cleanup: delete the test event
+      await deleteTestEvent(testEventId);
     }
-    
-    // After successful auth, should have JWT token in localStorage
-    const token = await page.evaluate(() => localStorage.getItem('jwtToken'));
-    // Token should exist after successful OTP verification
-    // (Note: exact flow depends on implementation)
   });
 
   test('shows error for incorrect OTP', async ({ page }) => {
@@ -123,22 +113,57 @@ test.describe('OTP Authentication', () => {
   // User Story 3 - Protected Page Access
   // ===================================
 
-  test('unauthenticated user is redirected from protected page', async ({ page }) => {
-    // Try to access create event page without auth
-    await page.goto(`${BASE_URL}/create-event`);
-    await page.waitForLoadState('networkidle');
+  test('shows error for invalid OTP when admin tries to login', async ({ page }) => {
+    // Step 1: Create a test event
+    const testEventId = await createTestEvent(null, 'Invalid OTP Test Event', '654321');
+    const adminEmail = 'invalidotpadmin@example.com';
+    const INVALID_OTP = '999999';
     
-    // Should be redirected to auth page
-    await expect(page).toHaveURL(/\/(auth|$)/);
-  });
-
-  test('authenticated user can access protected pages', async ({ page }) => {
-    // Set up mock authentication
-    await page.goto(BASE_URL);
-    
-    // Simulate having a valid JWT token
-    // This would need a valid token from the test helper API
-    // For now, test the redirect behavior
+    try {
+      // Step 2: Add admin to the event (so they're recognized as admin)
+      await addAdminToEvent(testEventId, adminEmail);
+      
+      // Step 3: Navigate to event - should redirect to email entry
+      await page.goto(`${BASE_URL}/event/${testEventId}`);
+      await page.waitForLoadState('networkidle');
+      
+      // Should be on email entry page
+      await expect(page).toHaveURL(new RegExp(`/event/${testEventId}/email`));
+      
+      // Step 4: Enter admin email
+      const emailInput = page.locator('input#email');
+      await emailInput.waitFor({ state: 'visible', timeout: 5000 });
+      await emailInput.fill(adminEmail);
+      
+      const continueButton = page.getByRole('button', { name: /continue/i });
+      await continueButton.click();
+      
+      // Step 5: Should be redirected to OTP entry page (detected as admin)
+      await expect(page).toHaveURL(new RegExp(`/event/${testEventId}/otp`), { timeout: 5000 });
+      
+      // Step 6: Wait for OTP input and enter INVALID OTP
+      const otpInput = page.locator('input#otp');
+      await otpInput.waitFor({ state: 'visible', timeout: 5000 });
+      await otpInput.fill(INVALID_OTP);
+      
+      // Step 7: Click verify button
+      const verifyButton = page.getByRole('button', { name: /verify.*otp/i });
+      await verifyButton.click();
+      
+      // Step 8: Verify error message is displayed
+      await expect(page.getByText(/invalid otp code/i)).toBeVisible({ timeout: 5000 });
+      
+      // Step 9: Verify user stays on OTP page (not redirected)
+      await expect(page).toHaveURL(new RegExp(`/event/${testEventId}/otp`));
+      
+      // Step 10: Verify JWT token is NOT stored in localStorage
+      const token = await page.evaluate(() => localStorage.getItem('jwtToken'));
+      expect(token).toBeFalsy();
+      
+    } finally {
+      // Cleanup: delete the test event
+      await deleteTestEvent(testEventId);
+    }
   });
 
   // ===================================
@@ -155,25 +180,6 @@ test.describe('OTP Authentication', () => {
       await requestButton.click();
       // Should show validation error
       await page.waitForTimeout(1000);
-    }
-  });
-
-  test('OTP input only accepts 6 digits', async ({ page }) => {
-    await page.goto(`${BASE_URL}/auth`);
-    
-    const emailInput = page.locator('input[type="email"]');
-    await emailInput.fill('test@example.com');
-    
-    const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
-    await requestButton.click();
-    await page.waitForTimeout(1000);
-    
-    const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
-    if (await otpInput.isVisible()) {
-      await otpInput.fill('12345678'); // Try to enter 8 digits
-      const value = await otpInput.inputValue();
-      // Should be truncated to 6 digits
-      expect(value.length).toBeLessThanOrEqual(6);
     }
   });
 });
