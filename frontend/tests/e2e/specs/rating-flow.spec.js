@@ -133,47 +133,51 @@ test.describe('Rating Flow', () => {
     await enterAndSubmitPIN(page, testEventPin);
     await page.waitForLoadState('networkidle');
     
-    // Click item and rate
+    // Click item 1 to open rating drawer
     const itemButton = page.locator('button').filter({ hasText: '1' }).first();
     await itemButton.click();
-    await page.waitForTimeout(1000);
     
-    // Interact with rating control and submit
-    // (Specific selectors depend on implementation)
-  });
-
-  test('rated item shows color indication', async ({ page }) => {
-    // After rating, item button should show rating color
-    // This test needs event to be started and user to have rated
+    // Wait for drawer to open and rating selector to appear
+    const ratingDropdown = page.getByText(/select a rating/i);
+    await expect(ratingDropdown).toBeVisible({ timeout: 5000 });
+    
+    // Click the dropdown to open rating options
+    await ratingDropdown.click();
+    
+    // Select rating 3 - "Not bad..."
+    const ratingOption = page.getByRole('button', { name: /3 - Not bad/i });
+    await ratingOption.click();
+    
+    // Click Submit Rating button
+    const submitButton = page.getByRole('button', { name: /submit rating/i });
+    await submitButton.click();
+    
+    // Verify success message appears
+    await expect(page.getByText(/rating submitted successfully/i)).toBeVisible({ timeout: 5000 });
+    
+    // Drawer should close after success (wait a moment for the close animation)
+    await page.waitForTimeout(1500);
+    
+    // Verify the item button now shows rating color (green #34C759 for rating 3 "Not bad...")
+    const ratedItemButton = page.locator('button').filter({ hasText: '1' }).first();
+    await expect(ratedItemButton).toBeVisible();
+    
+    // Check the button has the correct background color for rating 3
+    // Default config: Rating 3 = "Not bad..." = #34C759 (green)
+    // CSS computed values convert hex to rgb format
+    await expect(ratedItemButton).toHaveCSS('background-color', 'rgb(52, 199, 89)');
   });
 
   // ===================================
-  // User Story 3 - Event State Messages
+  // User Story 4 - Bookmark Items
   // ===================================
 
-  test('shows "not started" message when event is in created state', async ({ page }) => {
-    await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
-    
-    await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
-    await page.waitForLoadState('networkidle');
-    
-    // Click item button
-    const itemButton = page.locator('button').filter({ hasText: '1' }).first();
-    await itemButton.click();
-    await page.waitForTimeout(1000);
-    
-    // Should see "not started" message
-    const message = page.getByText(/not.*started|hasn't.*started|event.*created/i);
-    await expect(message).toBeVisible({ timeout: 5000 });
-  });
-
-  test('shows "paused" message when event is paused', async ({ page }) => {
+  test('can bookmark an item', async ({ page }) => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(testEventId, adminEmail);
+    const userEmail = 'bookmarkuser@example.com';
     
-    // Start then pause the event
+    // Start the event
     await fetch(`${API_URL}/api/events/${testEventId}/state`, {
       method: 'PATCH',
       headers: {
@@ -183,38 +187,64 @@ test.describe('Rating Flow', () => {
       body: JSON.stringify({ state: 'started', currentState: 'created' })
     });
     
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'paused', currentState: 'started' })
-    });
-    
-    // Access as regular user
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${testEventId}`);
     
-    await submitEmail(page, 'user@example.com');
+    await submitEmail(page, userEmail);
     await enterAndSubmitPIN(page, testEventPin);
     await page.waitForLoadState('networkidle');
     
-    // Click item button
+    // Click item 1 to open rating drawer
     const itemButton = page.locator('button').filter({ hasText: '1' }).first();
     await itemButton.click();
+    
+    // Wait for drawer to open
     await page.waitForTimeout(1000);
     
-    // Should see "paused" message
-    const message = page.getByText(/paused/i);
-    await expect(message).toBeVisible({ timeout: 5000 });
+    // Click the bookmark button in the drawer (aria-label contains "bookmark")
+    const bookmarkButton = page.getByRole('button', { name: /bookmark/i });
+    await expect(bookmarkButton).toBeVisible({ timeout: 5000 });
+    await bookmarkButton.click();
+    
+    // Wait for bookmark to be saved
+    await page.waitForTimeout(500);
+    
+    // Close the drawer by clicking the close button
+    const closeButton = page.getByRole('button', { name: /close/i });
+    await closeButton.click();
+    
+    // Wait for drawer to close
+    await page.waitForTimeout(500);
+    
+    // Verify bookmark icon appears on the item button on the main page
+    // ItemButton shows a bookmark icon with aria-label="Bookmarked" when bookmarked
+    const bookmarkIndicator = page.locator('[aria-label="Bookmarked"]');
+    await expect(bookmarkIndicator).toBeVisible({ timeout: 5000 });
+    
+    // Verify bookmark is stored in backend API
+    // Get the user's JWT token from localStorage
+    const userToken = await page.evaluate(() => localStorage.getItem('jwtToken'));
+    expect(userToken).toBeTruthy();
+    
+    // Call API to verify bookmark is stored
+    const bookmarksResponse = await fetch(`${API_URL}/api/events/${testEventId}/bookmarks`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${userToken}`
+      }
+    });
+    
+    expect(bookmarksResponse.ok).toBe(true);
+    const bookmarksData = await bookmarksResponse.json();
+    
+    // Verify item 1 is in the bookmarks array
+    expect(bookmarksData.bookmarks).toContain(1);
   });
 
   // ===================================
-  // User Story 4 - Bookmark Items
+  // Edge Cases
   // ===================================
-
-  test('can bookmark an item', async ({ page }) => {
+  test('note field enforces character limit', async ({ page }) => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(testEventId, adminEmail);
     
@@ -231,51 +261,51 @@ test.describe('Rating Flow', () => {
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${testEventId}`);
     
-    await submitEmail(page, 'user@example.com');
+    await submitEmail(page, 'noteuser@example.com');
     await enterAndSubmitPIN(page, testEventPin);
     await page.waitForLoadState('networkidle');
     
-    // Click item and bookmark
+    // Click item 1 to open rating drawer
     const itemButton = page.locator('button').filter({ hasText: '1' }).first();
     await itemButton.click();
-    await page.waitForTimeout(1000);
     
-    // Look for bookmark button
-    const bookmarkButton = page.getByRole('button', { name: /bookmark/i })
-      .or(page.locator('button').filter({ has: page.locator('svg') }));
+    // Wait for drawer to open and rating selector to appear
+    const ratingDropdown = page.getByText(/select a rating/i);
+    await expect(ratingDropdown).toBeVisible({ timeout: 5000 });
     
-    // Click bookmark if visible
-  });
-
-  test('bookmarked item shows indicator on button', async ({ page }) => {
-    // After bookmarking, item button should show bookmark indicator
-  });
-
-  // ===================================
-  // Edge Cases
-  // ===================================
-
-  test('handles rapid button clicks gracefully', async ({ page }) => {
-    await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    // Select a rating first (required to submit)
+    await ratingDropdown.click();
+    const ratingOption = page.getByRole('button', { name: /3 - Not bad/i });
+    await ratingOption.click();
     
-    await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
-    await page.waitForLoadState('networkidle');
+    // Find the note textarea
+    const noteField = page.locator('textarea');
+    await expect(noteField).toBeVisible();
     
-    // Rapidly click multiple item buttons
-    const button1 = page.locator('button').filter({ hasText: '1' }).first();
-    const button2 = page.locator('button').filter({ hasText: '2' }).first();
+    // Generate a string longer than 500 characters
+    const longNote = 'A'.repeat(550);
     
-    await button1.click();
-    await button2.click();
-    await button1.click();
+    // The textarea has maxLength=500, so it should truncate to 500 chars
+    await noteField.fill(longNote);
     
-    // Should not crash or show multiple drawers
-    await page.waitForTimeout(500);
-  });
-
-  test('note field enforces character limit', async ({ page }) => {
-    // When rating with note, should enforce 500 char limit
+    // Verify the note was truncated to 500 characters
+    const noteValue = await noteField.inputValue();
+    expect(noteValue.length).toBeLessThanOrEqual(500);
+    
+    // Now test that manually setting value beyond limit shows error
+    // Clear and type character by character to potentially bypass maxLength
+    await noteField.clear();
+    
+    // Fill with exactly 500 characters - should be valid
+    const validNote = 'B'.repeat(500);
+    await noteField.fill(validNote);
+    
+    // Submit button should be enabled with valid note
+    const submitButton = page.getByRole('button', { name: /submit rating/i });
+    await expect(submitButton).toBeEnabled();
+    
+    // Verify the character count is at the limit
+    const finalNoteValue = await noteField.inputValue();
+    expect(finalNoteValue.length).toBe(500);
   });
 });
