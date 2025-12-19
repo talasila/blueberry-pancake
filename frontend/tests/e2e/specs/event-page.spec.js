@@ -30,6 +30,15 @@ test.describe('Event Page', () => {
   test.afterEach(async () => {
     if (testEventId) {
       await deleteTestEvent(testEventId);
+      testEventId = null;
+    }
+  });
+
+  test.afterAll(async () => {
+    // Safety net: clean up if afterEach failed
+    if (testEventId) {
+      await deleteTestEvent(testEventId);
+      testEventId = null;
     }
   });
 

@@ -40,6 +40,15 @@ test.describe('PIN-based Event Access', () => {
   test.afterEach(async () => {
     if (testEventId) {
       await deleteTestEvent(testEventId);
+      testEventId = null;
+    }
+  });
+
+  // Safety net: clean up if afterEach failed
+  test.afterAll(async () => {
+    if (testEventId) {
+      await deleteTestEvent(testEventId);
+      testEventId = null;
     }
   });
 

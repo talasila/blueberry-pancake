@@ -258,6 +258,14 @@ test.describe('Data Export', () => {
       }
     });
 
+    test.afterAll(async () => {
+      // Safety net: clean up if afterEach failed
+      if (testEventId) {
+        await deleteTestEvent(testEventId);
+        testEventId = null;
+      }
+    });
+
     test('admin can access Export Data drawer', async ({ page }) => {
       testEventId = await createTestEvent(null, 'Export Access Event', testEventPin);
       const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
@@ -307,6 +315,14 @@ test.describe('Data Export', () => {
 
   test.describe('Export Ratings Data', () => {
     test.afterEach(async () => {
+      if (testEventId) {
+        await deleteTestEvent(testEventId);
+        testEventId = null;
+      }
+    });
+
+    test.afterAll(async () => {
+      // Safety net: clean up if afterEach failed
       if (testEventId) {
         await deleteTestEvent(testEventId);
         testEventId = null;
@@ -473,6 +489,14 @@ test.describe('Data Export', () => {
       }
     });
 
+    test.afterAll(async () => {
+      // Safety net: clean up if afterEach failed
+      if (testEventId) {
+        await deleteTestEvent(testEventId);
+        testEventId = null;
+      }
+    });
+
     test('shows error when no ratings exist', async ({ page }) => {
       testEventId = await createTestEvent(null, 'Matrix No Ratings Event', testEventPin);
       const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
@@ -621,6 +645,14 @@ test.describe('Data Export', () => {
 
   test.describe('Export User Data', () => {
     test.afterEach(async () => {
+      if (testEventId) {
+        await deleteTestEvent(testEventId);
+        testEventId = null;
+      }
+    });
+
+    test.afterAll(async () => {
+      // Safety net: clean up if afterEach failed
       if (testEventId) {
         await deleteTestEvent(testEventId);
         testEventId = null;
@@ -788,6 +820,14 @@ test.describe('Data Export', () => {
 
   test.describe('Export Item Details', () => {
     test.afterEach(async () => {
+      if (testEventId) {
+        await deleteTestEvent(testEventId);
+        testEventId = null;
+      }
+    });
+
+    test.afterAll(async () => {
+      // Safety net: clean up if afterEach failed
       if (testEventId) {
         await deleteTestEvent(testEventId);
         testEventId = null;
@@ -1012,6 +1052,14 @@ test.describe('Data Export', () => {
       }
     });
 
+    test.afterAll(async () => {
+      // Safety net: clean up if afterEach failed
+      if (testEventId) {
+        await deleteTestEvent(testEventId);
+        testEventId = null;
+      }
+    });
+
     test('all export buttons enabled when idle', async ({ page }) => {
       testEventId = await createTestEvent(null, 'Buttons Idle Event', testEventPin);
       const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
@@ -1103,6 +1151,14 @@ test.describe('Data Export', () => {
 
   test.describe('Large Dataset and CSV Validation', () => {
     test.afterEach(async () => {
+      if (testEventId) {
+        await deleteTestEvent(testEventId);
+        testEventId = null;
+      }
+    });
+
+    test.afterAll(async () => {
+      // Safety net: clean up if afterEach failed
       if (testEventId) {
         await deleteTestEvent(testEventId);
         testEventId = null;

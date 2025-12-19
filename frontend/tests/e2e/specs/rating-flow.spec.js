@@ -31,6 +31,15 @@ test.describe('Rating Flow', () => {
   test.afterEach(async () => {
     if (testEventId) {
       await deleteTestEvent(testEventId);
+      testEventId = null;
+    }
+  });
+
+  test.afterAll(async () => {
+    // Safety net: clean up if afterEach failed
+    if (testEventId) {
+      await deleteTestEvent(testEventId);
+      testEventId = null;
     }
   });
 

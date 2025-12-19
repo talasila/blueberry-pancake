@@ -231,6 +231,11 @@ test.describe('Multi-Tenant Isolation', () => {
     await cleanupTestEvents();
   });
 
+  test.afterAll(async () => {
+    // Safety net: clean up if afterEach failed
+    await cleanupTestEvents();
+  });
+
   test('parallel event creation generates unique IDs', async () => {
     // Create 5 events in parallel
     const createPromises = Array.from({ length: 5 }, (_, i) =>
@@ -714,6 +719,11 @@ test.describe('Concurrent User Actions', () => {
     await cleanupTestEvents();
   });
 
+  test.afterAll(async () => {
+    // Safety net: clean up if afterEach failed
+    await cleanupTestEvents();
+  });
+
   test('multiple users can each submit ratings for same item', async () => {
     // Create 5 users and get their tokens
     const users = await Promise.all([
@@ -850,6 +860,11 @@ test.describe('Race Conditions', () => {
     await cleanupTestEvents();
   });
 
+  test.afterAll(async () => {
+    // Safety net: clean up if afterEach failed
+    await cleanupTestEvents();
+  });
+
   test('optimistic locking prevents concurrent state transitions', async () => {
     const testEventId = await createTestEvent(null, 'Race Condition Event', testEventPin);
     testEventIds.push(testEventId);
@@ -967,6 +982,11 @@ test.describe('Admin Concurrent Actions', () => {
     await cleanupTestEvents();
   });
 
+  test.afterAll(async () => {
+    // Safety net: clean up if afterEach failed
+    await cleanupTestEvents();
+  });
+
   test('two admins adding same administrator simultaneously', async () => {
     const testEventId = await createTestEvent(null, 'Admin Add Race Event', testEventPin);
     testEventIds.push(testEventId);
@@ -1040,6 +1060,11 @@ test.describe('Admin Concurrent Actions', () => {
 
 test.describe('Cache Consistency', () => {
   test.afterEach(async () => {
+    await cleanupTestEvents();
+  });
+
+  test.afterAll(async () => {
+    // Safety net: clean up if afterEach failed
     await cleanupTestEvents();
   });
 
@@ -1131,6 +1156,11 @@ test.describe('Cache Consistency', () => {
 
 test.describe('Event Lifecycle Concurrency', () => {
   test.afterEach(async () => {
+    await cleanupTestEvents();
+  });
+
+  test.afterAll(async () => {
+    // Safety net: clean up if afterEach failed
     await cleanupTestEvents();
   });
 
@@ -1226,6 +1256,11 @@ test.describe('Rate Limiting', () => {
     await cleanupTestEvents();
   });
 
+  test.afterAll(async () => {
+    // Safety net: clean up if afterEach failed
+    await cleanupTestEvents();
+  });
+
   test('burst rating submissions from same user', async () => {
     const testEventId = await createTestEvent(null, 'Rate Limit Event', testEventPin);
     testEventIds.push(testEventId);
@@ -1314,6 +1349,11 @@ test.describe('Rate Limiting', () => {
 
 test.describe('Full Concurrent Workflow', () => {
   test.afterEach(async () => {
+    await cleanupTestEvents();
+  });
+
+  test.afterAll(async () => {
+    // Safety net: clean up if afterEach failed
     await cleanupTestEvents();
   });
 
