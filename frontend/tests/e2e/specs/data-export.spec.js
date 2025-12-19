@@ -834,23 +834,9 @@ test.describe('Data Export', () => {
       }
     });
 
-    test('shows error when no items configured', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Items No Config Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      
-      // Set numberOfItems to 0
-      await updateItemConfig(testEventId, adminToken, { numberOfItems: 0 });
-      
-      await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
-      await openExportDrawer(page);
-      await clickExportButton(page, 'items');
-      
-      const errorMessage = page.getByText(/no.*configured for this event/i);
-      await expect(errorMessage).toBeVisible({ timeout: 5000 });
-    });
+    // Note: Test 'shows error when no items configured' was removed because
+    // numberOfItems must be between 1 and 100 per backend validation.
+    // Setting numberOfItems to 0 is not a valid scenario.
 
     test('exports all items from 1 to numberOfItems', async ({ page }) => {
       testEventId = await createTestEvent(null, 'Items All Items Event', testEventPin);
