@@ -1,23 +1,86 @@
 /**
  * Test Helper Functions for E2E Tests
  * Provides reusable functions for common test operations
+ * 
+ * Event Naming Convention:
+ * - API-created events: TEST0001, TEST0002, etc. (auto-generated)
+ * - UI-created events: Random IDs, tracked in .e2e-tracked-events.json
  */
+
+import { writeFileSync, readFileSync, existsSync, unlinkSync } from 'fs';
+import { join } from 'path';
 
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
 
+// Path to tracking file for UI-created events (relative to project root)
+const TRACKING_FILE = join(process.cwd(), '..', '.e2e-tracked-events.json');
+
+/**
+ * Reset the test event counter on the backend
+ * Call this at the start of a test run
+ */
+export async function resetTestEventCounter() {
+  try {
+    await fetch(`${API_URL}/api/test/reset-counter`, { method: 'POST' });
+  } catch (error) {
+    console.warn('Failed to reset test counter:', error.message);
+  }
+}
+
+/**
+ * Track a UI-created event ID for cleanup
+ * Used for events created through the UI (not via test helper API)
+ */
+export function trackEventForCleanup(eventId) {
+  if (!eventId) return;
+  
+  let tracked = [];
+  if (existsSync(TRACKING_FILE)) {
+    try {
+      tracked = JSON.parse(readFileSync(TRACKING_FILE, 'utf-8'));
+    } catch {
+      tracked = [];
+    }
+  }
+  
+  if (!tracked.includes(eventId)) {
+    tracked.push(eventId);
+    writeFileSync(TRACKING_FILE, JSON.stringify(tracked, null, 2));
+  }
+}
+
+/**
+ * Get all tracked UI-created event IDs
+ */
+export function getTrackedEvents() {
+  if (!existsSync(TRACKING_FILE)) return [];
+  try {
+    return JSON.parse(readFileSync(TRACKING_FILE, 'utf-8'));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Clear the tracking file
+ */
+export function clearTrackedEvents() {
+  if (existsSync(TRACKING_FILE)) {
+    unlinkSync(TRACKING_FILE);
+  }
+}
+
 /**
  * Create a test event via API
- * @param {string} eventId - Optional custom event ID (if null, backend generates one)
+ * Backend auto-generates TEST#### IDs
+ * @param {string} _eventId - DEPRECATED, ignored (kept for backwards compatibility)
  * @param {string} name - Event name
  * @param {string} pin - 6-digit PIN
- * @returns {string} The created event ID
+ * @returns {string} The created event ID (TEST####)
  */
-export async function createTestEvent(eventId, name, pin) {
+export async function createTestEvent(_eventId, name, pin) {
   const body = { name, pin };
-  if (eventId) {
-    body.eventId = eventId;
-  }
   
   const response = await fetch(`${API_URL}/api/test/events`, {
     method: 'POST',

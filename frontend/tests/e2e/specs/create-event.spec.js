@@ -3,10 +3,12 @@
  * 
  * Tests the event creation flow including authentication,
  * form submission, and event ID generation.
+ * 
+ * Note: Events created via UI are tracked for cleanup by global teardown.
  */
 
 import { test, expect } from '@playwright/test';
-import { clearAuth, deleteTestEvent } from './helpers.js';
+import { clearAuth, deleteTestEvent, trackEventForCleanup } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
@@ -175,6 +177,10 @@ test.describe('Create Event', () => {
         try {
           const data = await response.json();
           createdEventId = data.eventId;
+          // Track for cleanup by global teardown
+          if (createdEventId) {
+            trackEventForCleanup(createdEventId);
+          }
         } catch {
           // Ignore parsing errors
         }
@@ -196,6 +202,11 @@ test.describe('Create Event', () => {
     const eventIdElement = page.locator('.font-mono.font-bold');
     const displayedEventId = await eventIdElement.textContent();
     
+    // Track from popup as backup (in case response intercept missed it)
+    if (displayedEventId) {
+      trackEventForCleanup(displayedEventId.trim());
+    }
+    
     // Verify the event state via API
     if (displayedEventId) {
       const response = await fetch(`${API_URL}/api/events/${displayedEventId.trim()}`);
@@ -205,7 +216,7 @@ test.describe('Create Event', () => {
       }
     }
     
-    // Cleanup: delete the test event
+    // Note: Cleanup handled by global teardown, but also try inline cleanup
     if (displayedEventId) {
       await deleteTestEvent(displayedEventId.trim());
     }
@@ -320,6 +331,8 @@ test.describe('Create Event', () => {
           const data = await response.json();
           if (data.eventId) {
             createdEventIds.push(data.eventId);
+            // Track for cleanup by global teardown
+            trackEventForCleanup(data.eventId);
           }
         } catch {
           // Ignore parsing errors
@@ -345,7 +358,7 @@ test.describe('Create Event', () => {
     // Only one event should have been created
     expect(createdEventIds.length).toBe(1);
     
-    // Cleanup: delete the test event
+    // Note: Cleanup handled by global teardown, but also try inline cleanup
     for (const eventId of createdEventIds) {
       await deleteTestEvent(eventId);
     }

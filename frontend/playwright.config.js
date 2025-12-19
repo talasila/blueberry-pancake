@@ -13,6 +13,10 @@ export default defineConfig({
   reporter: 'html',
   timeout: 60000, // 60 seconds per test
   
+  // Global setup/teardown for test event cleanup
+  globalSetup: './tests/e2e/global-setup.js',
+  globalTeardown: './tests/e2e/global-teardown.js',
+  
   use: {
     baseURL: 'http://localhost:3000',
     trace: 'on-first-retry',

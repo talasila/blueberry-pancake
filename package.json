@@ -16,7 +16,8 @@
     "test:frontend": "cd frontend && npm test",
     "test:e2e": "cd frontend && npm run test:e2e",
     "validate": "node scripts/validate-baseline.mjs",
-    "check:constitution": "node scripts/check-constitution.mjs"
+    "check:constitution": "node scripts/check-constitution.mjs",
+    "create:test-event": "node scripts/create-manual-test-event.js"
   },
   "keywords": [],
   "author": "",
