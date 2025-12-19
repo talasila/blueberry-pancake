@@ -696,7 +696,7 @@ test.describe('Item Details Integration', () => {
     await changeEventState(testEventId, 'started', 'created', token);
     
     // Add a rating via API to have data in dashboard
-    const userToken = await addAdminToEvent(testEventId, userEmail); // Get token for user
+    const userToken = await addAdminToEvent(testEventId, userEmail);
     await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
       method: 'POST',
       headers: {
@@ -711,16 +711,21 @@ test.describe('Item Details Integration', () => {
     await assignItemIdViaAPI(testEventId, registeredItem.id, 3, token);
     await changeEventState(testEventId, 'completed', 'paused', token);
     
-    // Access admin dashboard
+    // Access the dashboard page
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
-    // Look for item ID 3 in the ratings table and click it
-    const itemLink = page.getByRole('cell', { name: '3' }).or(
-      page.getByRole('button', { name: '3' })
+    // Click on the Bottles/Items tab to see the ratings table
+    const bottlesTab = page.getByRole('tab', { name: /bottles|items/i });
+    await bottlesTab.click();
+    await page.waitForTimeout(500);
+    
+    // Find and click on item ID 3 in the ratings table
+    const itemCell = page.getByRole('cell', { name: '3' }).or(
+      page.locator('td', { hasText: /^3$/ })
     ).first();
-    await itemLink.click();
+    await itemCell.click();
     
     // Drawer should open
     await page.waitForTimeout(1000);
