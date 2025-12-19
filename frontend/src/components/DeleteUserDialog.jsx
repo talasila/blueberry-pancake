@@ -122,6 +122,7 @@ function DeleteUserDialog({
             </label>
             <Input
               id="confirmation-input"
+              data-testid="confirm-input"
               type="text"
               value={confirmationPhrase}
               onChange={(e) => setConfirmationPhrase(e.target.value)}
@@ -147,6 +148,7 @@ function DeleteUserDialog({
             variant="destructive"
             onClick={handleConfirm}
             disabled={!isConfirmEnabled}
+            data-testid="confirm-delete-button"
           >
             {isDeleting ? 'Deleting...' : 'Delete User'}
           </Button>

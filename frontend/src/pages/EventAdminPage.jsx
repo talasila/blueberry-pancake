@@ -2939,6 +2939,7 @@ function EventAdminPage() {
                   ) : (
                     <div className="space-y-2">
                       <select
+                        data-testid="user-select"
                         className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
                         value={selectedUserEmail}
                         onChange={(e) => setSelectedUserEmail(e.target.value)}
@@ -2963,6 +2964,7 @@ function EventAdminPage() {
                         })}
                       </select>
                       <Button
+                        data-testid="delete-user-button"
                         variant="destructive"
                         size="sm"
                         onClick={() => {
@@ -3002,6 +3004,7 @@ function EventAdminPage() {
                     )}
                   </div>
                   <Button
+                    data-testid="delete-all-users-button"
                     variant="destructive"
                     onClick={() => setIsDeleteUsersDialogOpen(true)}
                     disabled={isDeletingUsers || getNonAdminUserCount() === 0}
@@ -3030,6 +3033,7 @@ function EventAdminPage() {
                     </p>
                   </div>
                   <Button
+                    data-testid="delete-all-ratings-button"
                     variant="destructive"
                     onClick={() => setIsDeleteRatingsDialogOpen(true)}
                     disabled={isDeletingRatings}
@@ -3053,6 +3057,7 @@ function EventAdminPage() {
                     </p>
                   </div>
                   <Button
+                    data-testid="delete-event-button"
                     variant="destructive"
                     onClick={() => setIsDeleteDialogOpen(true)}
                     disabled={isDeletingEvent}

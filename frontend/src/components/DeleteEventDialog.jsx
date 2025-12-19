@@ -98,6 +98,7 @@ function DeleteEventDialog({ isOpen, onClose, onConfirm, eventName, isDeleting }
             </label>
             <Input
               id="confirmation-input"
+              data-testid="confirm-input"
               type="text"
               value={confirmationPhrase}
               onChange={(e) => setConfirmationPhrase(e.target.value)}
@@ -123,6 +124,7 @@ function DeleteEventDialog({ isOpen, onClose, onConfirm, eventName, isDeleting }
             variant="destructive"
             onClick={handleConfirm}
             disabled={!isConfirmEnabled}
+            data-testid="confirm-delete-button"
           >
             {isDeleting ? 'Deleting...' : 'Delete Event'}
           </Button>

@@ -103,6 +103,7 @@ function DeleteAllUsersDialog({ isOpen, onClose, onConfirm, eventName, userCount
             </label>
             <Input
               id="confirmation-input"
+              data-testid="confirm-input"
               type="text"
               value={confirmationPhrase}
               onChange={(e) => setConfirmationPhrase(e.target.value)}
@@ -128,6 +129,7 @@ function DeleteAllUsersDialog({ isOpen, onClose, onConfirm, eventName, userCount
             variant="destructive"
             onClick={handleConfirm}
             disabled={!isConfirmEnabled}
+            data-testid="confirm-delete-button"
           >
             {isDeleting ? 'Deleting...' : 'Delete All Users'}
           </Button>
