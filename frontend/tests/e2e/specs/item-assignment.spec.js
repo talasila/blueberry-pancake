@@ -664,14 +664,21 @@ test.describe('Item Details Integration', () => {
     await changeEventState(testEventId, 'paused', 'started', token);
     await assignItemIdViaAPI(testEventId, registeredItem.id, 2, token);
     
-    // Admin accesses event page (not completed yet, but admin can see details)
+    // Admin accesses dashboard page (where admin can view item details when paused)
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
-    // Click on item 2 to open details drawer
-    const itemButton = page.locator('button').filter({ hasText: '2' }).first();
-    await itemButton.click();
+    // Click on the Bottles/Items tab
+    const bottlesTab = page.getByRole('tab', { name: /bottles|items/i });
+    await bottlesTab.click();
+    await page.waitForTimeout(500);
+    
+    // Find and click on item ID 2 in the table
+    const itemCell = page.getByRole('cell', { name: '2' }).or(
+      page.locator('td', { hasText: /^2$/ })
+    ).first();
+    await itemCell.click();
     
     // Drawer should open and show item details for admin
     await page.waitForTimeout(1000);
