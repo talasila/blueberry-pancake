@@ -145,6 +145,18 @@ class EventService {
       throw new Error('Invalid administrator email format');
     }
 
+    // Create default rating configuration
+    const defaultMaxRating = 4;
+    const defaultRatingConfig = {
+      maxRating: defaultMaxRating,
+      ratings: this.generateDefaultRatings(defaultMaxRating)
+    };
+    
+    // Enable note suggestions by default for wine events
+    if (typeOfItem === 'wine') {
+      defaultRatingConfig.noteSuggestionsEnabled = true;
+    }
+
     // Create event object with administrators object structure
     const event = {
       eventId,
@@ -162,6 +174,7 @@ class EventService {
           registeredAt: now
         }
       },
+      ratingConfiguration: defaultRatingConfig,
       pin,
       pinGeneratedAt: now,
       createdAt: now,
