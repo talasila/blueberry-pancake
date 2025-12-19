@@ -212,7 +212,7 @@ export async function deleteAllTestEvents(req, res) {
 /**
  * Add admin to event and generate JWT token (no auth required)
  * POST /api/test/events/:eventId/add-admin
- * Body: { email: string, addToUsers: boolean (optional, defaults to false) }
+ * Body: { email: string, addToUsers: boolean (optional, defaults to true to match production behavior) }
  * Returns: { token: string, success: true }
  */
 export async function addAdminAndGenerateToken(req, res) {
@@ -225,7 +225,7 @@ export async function addAdminAndGenerateToken(req, res) {
 
   try {
     const { eventId } = req.params;
-    const { email, addToUsers = false } = req.body;
+    const { email, addToUsers = true } = req.body;
 
     if (!eventId || !email) {
       return res.status(400).json({ 

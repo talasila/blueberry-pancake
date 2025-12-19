@@ -1071,9 +1071,18 @@ test.describe('Cache Consistency', () => {
     expect(operations[2].ok).toBe(true);
     expect(operations[4].ok).toBe(true);
     
-    // Final read should show all ratings
-    const finalRatings = await getRatings(testEventId, users[2]);
-    expect(finalRatings.length).toBeGreaterThanOrEqual(3);
+    // Check all ratings are persisted correctly
+    // (getRatings returns ALL ratings for the event, not user-specific)
+    const allRatings = await getRatings(testEventId, users[0]);
+    
+    // Total: writer1 submitted 2 ratings (items 1 and 3), writer2 submitted 1 (item 2)
+    expect(allRatings.length).toBe(3);
+    
+    // Verify specific items were rated
+    const ratedItems = allRatings.map(r => parseInt(r.itemId || r.item_id));
+    expect(ratedItems).toContain(1);
+    expect(ratedItems).toContain(2);
+    expect(ratedItems).toContain(3);
   });
 
   test('dashboard data consistency during concurrent ratings', async () => {
@@ -1110,8 +1119,9 @@ test.describe('Cache Consistency', () => {
     // Dashboard should reflect consistent state
     // Note: Dashboard returns statistics in a nested object
     expect(dashboard.statistics.totalRatings).toBe(15); // 5 users * 3 items
-    // totalUsers includes the admin + 5 raters = 6 users
-    expect(dashboard.statistics.totalUsers).toBe(6);
+    // totalUsers includes: event owner + admin + 5 raters = 7 users
+    // (createTestEvent creates an owner, addAdminToEvent adds another admin as user)
+    expect(dashboard.statistics.totalUsers).toBe(7);
   });
 });
 
