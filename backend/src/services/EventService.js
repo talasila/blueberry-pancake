@@ -2133,16 +2133,18 @@ class EventService {
       throw new Error('Unauthorized: Only the event owner can delete the event');
     }
 
-    // Delete event directory and all its contents from disk
-    await dataRepository.deleteEventDirectory(eventId);
-
-    // Clear all cache entries for this event
+    // Clear all cache entries FIRST to prevent write-back flush from recreating directory
+    // (The periodic flush could run between directory deletion and cache invalidation,
+    // causing dirty ratings to recreate the directory via ensureDirectory())
     cacheService.invalidateEvent(eventId);
     cacheService.del(`dashboard:${eventId}`);
     cacheService.invalidate(`similarUsers:${eventId}:*`);
 
     // Invalidate PIN sessions for this event
     pinService.invalidatePINSessions(eventId);
+
+    // NOW safe to delete event directory (no dirty keys can recreate it)
+    await dataRepository.deleteEventDirectory(eventId);
 
     loggerService.info(`Event deleted: ${eventId} by owner ${normalizedEmail}`, {
       eventId,

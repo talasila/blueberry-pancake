@@ -13,10 +13,45 @@ import { generateToken } from '../middleware/jwtAuth.js';
 import path from 'path';
 import fs from 'fs/promises';
 import configLoader from '../config/configLoader.js';
+import cacheService from '../cache/CacheService.js';
+import pinService from '../services/PINService.js';
+
+/**
+ * Sequential counter for TEST#### event IDs
+ * Resets when server restarts
+ */
+let testEventCounter = 0;
+
+/**
+ * Generate next TEST#### event ID
+ * Format: TEST0001, TEST0002, etc.
+ */
+function generateTestEventId() {
+  testEventCounter++;
+  return `TEST${testEventCounter.toString().padStart(4, '0')}`;
+}
+
+/**
+ * Reset the test event counter (called at start of test run)
+ * POST /api/test/reset-counter
+ */
+export async function resetTestCounter(req, res) {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ 
+      error: 'Test endpoints not available in production' 
+    });
+  }
+  
+  testEventCounter = 0;
+  logger.info('Test event counter reset to 0');
+  res.status(200).json({ success: true, message: 'Counter reset' });
+}
 
 /**
  * Create test event (no auth required)
  * POST /api/test/events
+ * 
+ * Automatically generates TEST#### event IDs for easy cleanup
  */
 export async function createTestEvent(req, res) {
   // Only allow in non-production environments
@@ -27,7 +62,7 @@ export async function createTestEvent(req, res) {
   }
 
   try {
-    const { eventId: customEventId, name, pin, typeOfItem, adminEmail } = req.body;
+    const { name, pin, typeOfItem, adminEmail } = req.body;
 
     // Validate required fields
     if (!name || !pin) {
@@ -46,22 +81,21 @@ export async function createTestEvent(req, res) {
     // Note: EventService returns event with 'eventId', not 'id'
     let eventId = event.eventId;
     
-    // If a custom eventId was provided, rename the event directory
-    if (customEventId && customEventId !== eventId) {
-      const config = configLoader.getConfig();
-      const projectRoot = path.resolve(process.cwd(), '..');
-      const oldPath = path.join(projectRoot, config.dataDir, 'events', eventId);
-      const newPath = path.join(projectRoot, config.dataDir, 'events', customEventId);
-      
-      try {
-        await fs.rename(oldPath, newPath);
-        event.eventId = customEventId;
-        eventId = customEventId;
-        logger.info(`Renamed event directory from ${event.eventId} to ${customEventId}`);
-      } catch (renameError) {
-        logger.error(`Failed to rename event directory:`, renameError);
-        // Continue with generated ID if rename fails
-      }
+    // Generate TEST#### ID and rename directory
+    const testEventId = generateTestEventId();
+    const dataDir = configLoader.get('dataDirectory') || 'data';
+    const projectRoot = path.resolve(process.cwd(), '..');
+    const oldPath = path.join(projectRoot, dataDir, 'events', eventId);
+    const newPath = path.join(projectRoot, dataDir, 'events', testEventId);
+    
+    try {
+      await fs.rename(oldPath, newPath);
+      event.eventId = testEventId;
+      eventId = testEventId;
+      logger.info(`Created test event with ID: ${testEventId}`);
+    } catch (renameError) {
+      logger.error(`Failed to rename event directory to ${testEventId}:`, renameError);
+      // Continue with generated ID if rename fails
     }
     
     // Update event with test-specific fields and custom PIN
@@ -129,7 +163,12 @@ export async function deleteTestEvent(req, res) {
       try {
         await fs.access(eventDir);
       } catch {
-        // Directory doesn't exist
+        // Directory doesn't exist, but still clear cache to be safe
+        cacheService.invalidateEvent(eventId);
+        cacheService.del(`dashboard:${eventId}`);
+        cacheService.invalidate(`similarUsers:${eventId}:*`);
+        pinService.invalidatePINSessions(eventId);
+        
         logger.info(`Event ${eventId} not found (already deleted)`);
         return res.status(200).json({ 
           success: true,
@@ -137,7 +176,15 @@ export async function deleteTestEvent(req, res) {
         });
       }
       
-      // Delete the directory and all contents
+      // Clear cache FIRST to prevent write-back flush from recreating directory
+      // (The periodic flush could recreate the directory via ensureDirectory()
+      // if dirty ratings exist for this event)
+      cacheService.invalidateEvent(eventId);
+      cacheService.del(`dashboard:${eventId}`);
+      cacheService.invalidate(`similarUsers:${eventId}:*`);
+      pinService.invalidatePINSessions(eventId);
+      
+      // NOW safe to delete the directory and all contents
       await fs.rm(eventDir, { recursive: true, force: true });
       
       // Verify deletion
@@ -352,6 +399,7 @@ export function registerTestHelperRoutes(app) {
   app.delete('/api/test/events', deleteAllTestEvents);
   app.post('/api/test/events/:eventId/add-admin', addAdminAndGenerateToken);
   app.post('/api/test/clear-cache', clearCache);
+  app.post('/api/test/reset-counter', resetTestCounter);
 
   logger.info('Test helper endpoints registered (non-production only)');
 }
