@@ -157,6 +157,12 @@ class EventService {
       defaultRatingConfig.noteSuggestionsEnabled = true;
     }
 
+    // Create default item configuration
+    const defaultItemConfig = {
+      numberOfItems: 20,
+      excludedItemIds: []
+    };
+
     // Create event object with administrators object structure
     const event = {
       eventId,
@@ -175,6 +181,7 @@ class EventService {
         }
       },
       ratingConfiguration: defaultRatingConfig,
+      itemConfiguration: defaultItemConfig,
       pin,
       pinGeneratedAt: now,
       createdAt: now,

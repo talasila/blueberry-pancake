@@ -395,13 +395,14 @@ test.describe('Item Assignment', () => {
     // Wait for items to load
     await page.waitForTimeout(1000);
     
-    // Find the registered item
-    const itemText = page.getByText('Chateau Test 2019');
-    await expect(itemText).toBeVisible();
+    // Find and click the item card to expand it (assignment dropdown only shows when expanded)
+    const itemCard = page.locator('.cursor-pointer', { hasText: 'Chateau Test 2019' });
+    await itemCard.click();
+    await page.waitForTimeout(500);
     
-    // Find and click the assignment dropdown for this item
-    // The select should be near the item name
-    const assignSelect = page.locator('select').first();
+    // Find the assignment dropdown inside the expanded section
+    // It's a select with "Select ID" or "Clear assignment" option, NOT the filter dropdown
+    const assignSelect = page.locator('select').filter({ hasText: /Select ID|Clear assignment/ });
     await assignSelect.waitFor({ state: 'visible', timeout: 5000 });
     
     // Select item ID 1
@@ -439,12 +440,14 @@ test.describe('Item Assignment', () => {
     
     await page.waitForTimeout(1000);
     
-    // Find the item
-    const itemText = page.getByText('Clearable Wine');
-    await expect(itemText).toBeVisible();
+    // Find and click the item card to expand it
+    const itemCard = page.locator('.cursor-pointer', { hasText: 'Clearable Wine' });
+    await itemCard.click();
+    await page.waitForTimeout(500);
     
-    // The dropdown should show the current assignment (5)
-    const assignSelect = page.locator('select').first();
+    // Find the assignment dropdown (should show current value)
+    const assignSelect = page.locator('select').filter({ hasText: /Clear assignment/ });
+    await assignSelect.waitFor({ state: 'visible', timeout: 5000 });
     await expect(assignSelect).toHaveValue('5');
     
     // Clear assignment by selecting empty option
@@ -482,8 +485,14 @@ test.describe('Item Assignment', () => {
     
     await page.waitForTimeout(1000);
     
-    // Find the dropdown (should have value 3)
-    const assignSelect = page.locator('select').first();
+    // Find and click the item card to expand it
+    const itemCard = page.locator('.cursor-pointer', { hasText: 'Reassignable Wine' });
+    await itemCard.click();
+    await page.waitForTimeout(500);
+    
+    // Find the assignment dropdown (should have value 3)
+    const assignSelect = page.locator('select').filter({ hasText: /Clear assignment/ });
+    await assignSelect.waitFor({ state: 'visible', timeout: 5000 });
     await expect(assignSelect).toHaveValue('3');
     
     // Reassign to ID 7
@@ -523,18 +532,18 @@ test.describe('Item Assignment', () => {
     
     await page.waitForTimeout(1000);
     
-    // Find the dropdown for the second item (Wine Two)
-    // The second item should NOT have ID 5 available
-    const wineTwo = page.getByText('Wine Two');
-    await expect(wineTwo).toBeVisible();
+    // Find and click Wine Two card to expand it
+    const wineTwoCard = page.locator('.cursor-pointer', { hasText: 'Wine Two' });
+    await wineTwoCard.click();
+    await page.waitForTimeout(500);
     
-    // Get the parent row and find its select
-    const wineTwoRow = page.locator('[class*="card"], [class*="item"]', { has: page.getByText('Wine Two') });
-    const selectInRow = wineTwoRow.locator('select');
+    // Find the assignment dropdown for Wine Two
+    const assignSelect = page.locator('select').filter({ hasText: /Select ID/ });
+    await assignSelect.waitFor({ state: 'visible', timeout: 5000 });
     
-    // Check that option 5 is NOT present for this dropdown
-    const option5 = selectInRow.locator('option[value="5"]');
-    await expect(option5).not.toBeVisible();
+    // Check that option 5 is NOT present (it's assigned to Wine One)
+    const option5 = assignSelect.locator('option[value="5"]');
+    await expect(option5).toHaveCount(0);
   });
 });
 
