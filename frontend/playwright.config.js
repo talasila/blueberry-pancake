@@ -6,10 +6,10 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests/e2e/specs',
-  fullyParallel: false, // Run tests sequentially due to test data dependencies
+  fullyParallel: false, // Tests within a file run sequentially (they share testEventId)
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: 1, // Single worker to avoid test data conflicts
+  workers: undefined, // Auto-detect CPU cores for file-level parallelism
   reporter: 'html',
   timeout: 60000, // 60 seconds per test
   
