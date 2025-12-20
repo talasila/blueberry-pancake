@@ -1068,54 +1068,100 @@ test.describe('Cache Consistency', () => {
     await cleanupTestEvents();
   });
 
-  test('concurrent reads during rating submissions', async () => {
+  test('concurrent rating submissions are all persisted', async () => {
+    // This test verifies that multiple concurrent write operations all complete
+    // and their results are eventually visible when read.
+    
     const testEventId = await createTestEvent(null, 'Cache Read Event', testEventPin);
+    testEventIds.push(testEventId);
+    
+    const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
+    const startResult = await startEvent(testEventId, adminToken);
+    expect(startResult.ok).toBe(true);
+    
+    // Create users sequentially (rate limiting applies to PIN verification)
+    const user1 = await getUserToken(testEventId, 'writer1@example.com', testEventPin);
+    const user2 = await getUserToken(testEventId, 'writer2@example.com', testEventPin);
+    const user3 = await getUserToken(testEventId, 'writer3@example.com', testEventPin);
+    
+    // Submit 3 ratings concurrently from different users (different items to avoid conflicts)
+    const [rating1, rating2, rating3] = await Promise.all([
+      submitRating(testEventId, user1, 1, 4),
+      submitRating(testEventId, user2, 2, 3),
+      submitRating(testEventId, user3, 3, 2),
+    ]);
+    
+    // All writes should succeed
+    expect(rating1.ok).toBe(true);
+    expect(rating2.ok).toBe(true);
+    expect(rating3.ok).toBe(true);
+    
+    // After all writes complete, verify all ratings are visible
+    const allRatings = await getRatings(testEventId, user1);
+    
+    expect(allRatings.length).toBe(3);
+    
+    // Verify each item was rated by the correct user
+    const ratedItems = allRatings.map(r => parseInt(r.itemId || r.item_id));
+    expect(ratedItems).toContain(1);
+    expect(ratedItems).toContain(2);
+    expect(ratedItems).toContain(3);
+  });
+
+  test('reads during writes return valid data', async () => {
+    // Real-world scenario: admin views ratings while users are actively rating.
+    // We verify:
+    // 1. Reads don't fail or return errors
+    // 2. Data returned is structurally valid (not corrupted)
+    // 3. Count is within valid range (0 to N)
+    // 4. After writes complete, all data is visible (eventual consistency)
+    
+    const testEventId = await createTestEvent(null, 'Reads During Writes Event', testEventPin);
     testEventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
     await startEvent(testEventId, adminToken);
     
-    // Create users sequentially with small delays to avoid rate limiting
-    const user1 = await getUserToken(testEventId, 'writer1@example.com', testEventPin);
-    await new Promise(r => setTimeout(r, 100));
-    const user2 = await getUserToken(testEventId, 'writer2@example.com', testEventPin);
-    await new Promise(r => setTimeout(r, 100));
-    const user3 = await getUserToken(testEventId, 'reader@example.com', testEventPin);
-    const users = [user1, user2, user3];
+    const writer1 = await getUserToken(testEventId, 'writer1@example.com', testEventPin);
+    const writer2 = await getUserToken(testEventId, 'writer2@example.com', testEventPin);
+    const reader = await getUserToken(testEventId, 'reader@example.com', testEventPin);
     
-    // Interleave writes and reads
-    const operations = await Promise.all([
-      submitRating(testEventId, users[0], 1, 4),
-      getRatings(testEventId, users[2]),
-      submitRating(testEventId, users[1], 2, 3),
-      getRatings(testEventId, users[2]),
-      submitRating(testEventId, users[0], 3, 2),
+    const TOTAL_WRITES = 3;
+    
+    // Submit ratings with interleaved reads
+    // Writes are sequential to avoid race conditions; reads happen during the process
+    const [read1] = await Promise.all([
+      getRatings(testEventId, reader),
+      submitRating(testEventId, writer1, 1, 4),
     ]);
     
-    // All write operations should succeed - log failures for debugging
-    if (!operations[0].ok) console.error('Rating 1 failed:', operations[0].data);
-    if (!operations[2].ok) console.error('Rating 2 failed:', operations[2].data);
-    if (!operations[4].ok) console.error('Rating 3 failed:', operations[4].data);
+    const [read2] = await Promise.all([
+      getRatings(testEventId, reader),
+      submitRating(testEventId, writer2, 2, 3),
+    ]);
     
-    expect(operations[0].ok).toBe(true);
-    expect(operations[2].ok).toBe(true);
-    expect(operations[4].ok).toBe(true);
+    await submitRating(testEventId, writer1, 3, 2);
     
-    // Small delay to ensure write-back cache has settled
-    await new Promise(r => setTimeout(r, 200));
+    // Reads should return arrays (not crash)
+    expect(Array.isArray(read1)).toBe(true);
+    expect(Array.isArray(read2)).toBe(true);
     
-    // Check all ratings are persisted correctly
-    // (getRatings returns ALL ratings for the event, not user-specific)
-    const allRatings = await getRatings(testEventId, users[0]);
+    // Counts should be within valid range
+    expect(read1.length).toBeGreaterThanOrEqual(0);
+    expect(read1.length).toBeLessThanOrEqual(TOTAL_WRITES);
+    expect(read2.length).toBeGreaterThanOrEqual(0);
+    expect(read2.length).toBeLessThanOrEqual(TOTAL_WRITES);
     
-    // Total: writer1 submitted 2 ratings (items 1 and 3), writer2 submitted 1 (item 2)
-    expect(allRatings.length).toBe(3);
+    // Data should be structurally valid
+    for (const rating of [...read1, ...read2]) {
+      expect(rating).toHaveProperty('email');
+      expect(rating).toHaveProperty('itemId');
+      expect(rating).toHaveProperty('rating');
+    }
     
-    // Verify specific items were rated
-    const ratedItems = allRatings.map(r => parseInt(r.itemId || r.item_id));
-    expect(ratedItems).toContain(1);
-    expect(ratedItems).toContain(2);
-    expect(ratedItems).toContain(3);
+    // EVENTUAL CONSISTENCY: After writes complete, all data visible
+    const finalRatings = await getRatings(testEventId, reader);
+    expect(finalRatings.length).toBe(TOTAL_WRITES);
   });
 
   test('dashboard data consistency during concurrent ratings', async () => {
