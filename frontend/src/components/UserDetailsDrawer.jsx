@@ -62,16 +62,7 @@ function UserDetailsDrawer({
         })
         .catch(err => {
           console.error('Error loading rating configuration:', err);
-          // Use defaults if API fails
-          setRatingConfiguration({
-            maxRating: 4,
-            ratings: [
-              { value: 1, label: 'What is this crap?', color: '#FF3B30' },
-              { value: 2, label: 'Meh...', color: '#FFCC00' },
-              { value: 3, label: 'Not bad...', color: '#34C759' },
-              { value: 4, label: 'Give me more...', color: '#28A745' }
-            ]
-          });
+          // Don't set fallback defaults - backend should always provide rating configuration
         });
     } else if (ratingConfig) {
       setRatingConfiguration(ratingConfig);

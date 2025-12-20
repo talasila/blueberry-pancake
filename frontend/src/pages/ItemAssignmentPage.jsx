@@ -115,7 +115,8 @@ function ItemAssignmentPage() {
   const getAvailableItemIds = (currentItemId = null) => {
     if (!event || !event.itemConfiguration) return [];
     
-    const numberOfItems = event.itemConfiguration.numberOfItems || 20;
+    // Backend guarantees these values at event creation - no frontend fallbacks needed
+    const numberOfItems = event.itemConfiguration.numberOfItems;
     const excludedItemIds = event.itemConfiguration.excludedItemIds || [];
     const assignedItemIds = items
       .filter(item => item.itemId !== null && item.itemId !== undefined)

@@ -315,13 +315,12 @@ function EventAdminPage() {
       
       try {
         const config = await apiClient.getItemConfiguration(eventId);
-        setNumberOfItems(config.numberOfItems || 20);
+        // Backend guarantees these values at event creation - no frontend fallbacks needed
+        setNumberOfItems(config.numberOfItems);
         setExcludedItemIdsInput((config.excludedItemIds || []).join(', '));
       } catch (error) {
         console.error('Failed to fetch item configuration:', error);
-        // Use defaults if fetch fails
-        setNumberOfItems(20);
-        setExcludedItemIdsInput('');
+        // Don't set fallback defaults - backend should always provide item configuration
       }
     };
 
@@ -370,20 +369,15 @@ function EventAdminPage() {
       
       try {
         const config = await apiClient.getRatingConfiguration(eventId);
-        setMaxRating(config.maxRating || 4);
-        setRatings(config.ratings || getDefaultRatings(config.maxRating || 4));
-        // Load noteSuggestionsEnabled (defaults to true for wine events if not set)
+        // Backend guarantees these values at event creation - no frontend fallbacks needed
+        setMaxRating(config.maxRating);
+        setRatings(config.ratings);
         if (event?.typeOfItem === 'wine') {
-          setNoteSuggestionsEnabled(config.noteSuggestionsEnabled !== undefined ? config.noteSuggestionsEnabled : true);
+          setNoteSuggestionsEnabled(config.noteSuggestionsEnabled);
         }
       } catch (error) {
         console.error('Failed to fetch rating configuration:', error);
-        // Use defaults if fetch fails
-        setMaxRating(4);
-        setRatings(getDefaultRatings(4));
-        if (event?.typeOfItem === 'wine') {
-          setNoteSuggestionsEnabled(true);
-        }
+        // Don't set fallback defaults - backend should always provide rating configuration
       }
     };
 
@@ -1525,7 +1519,8 @@ function EventAdminPage() {
   const getAvailableItemIds = (currentItemId = null) => {
     if (!event || !event.itemConfiguration) return [];
     
-    const numberOfItems = event.itemConfiguration.numberOfItems || 20;
+    // Backend guarantees these values at event creation - no frontend fallbacks needed
+    const numberOfItems = event.itemConfiguration.numberOfItems;
     const excludedItemIds = event.itemConfiguration.excludedItemIds || [];
     const assignedItemIds = items
       .filter(item => item.itemId !== null && item.itemId !== undefined)

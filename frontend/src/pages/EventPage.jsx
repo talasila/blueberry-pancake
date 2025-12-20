@@ -114,11 +114,9 @@ function EventPage() {
 
   // Generate available item IDs based on itemConfiguration
   useEffect(() => {
-    if (event) {
-      const config = event.itemConfiguration || {
-        numberOfItems: 20,
-        excludedItemIds: []
-      };
+    if (event?.itemConfiguration) {
+      // Backend guarantees itemConfiguration at event creation - no frontend fallbacks needed
+      const config = event.itemConfiguration;
       
       // Generate all item IDs from 1 to numberOfItems
       const allIds = Array.from(
@@ -128,7 +126,7 @@ function EventPage() {
       
       // Filter out excluded IDs
       const available = allIds.filter(
-        id => !config.excludedItemIds.includes(id)
+        id => !(config.excludedItemIds || []).includes(id)
       );
       
       setAvailableItemIds(available);
@@ -153,27 +151,10 @@ function EventPage() {
       ratingConfigFetchedRef.current = null;
     }
 
-    // First, try to use ratingConfiguration from the event object if available
+    // Use ratingConfiguration from the event object if available
+    // Backend stores defaults at event creation, no frontend fallbacks needed
     if (event?.ratingConfiguration) {
-      const config = {
-        maxRating: event.ratingConfiguration.maxRating ?? 4,
-        ratings: event.ratingConfiguration.ratings ?? [
-          { value: 1, label: 'What is this crap?', color: '#FF3B30' },
-          { value: 2, label: 'Meh...', color: '#FFCC00' },
-          { value: 3, label: 'Not bad...', color: '#34C759' },
-          { value: 4, label: 'Give me more...', color: '#28A745' }
-        ]
-      };
-      
-      // Include noteSuggestionsEnabled if applicable (wine events)
-      if (event.typeOfItem === 'wine' && event.ratingConfiguration.noteSuggestionsEnabled !== undefined) {
-        config.noteSuggestionsEnabled = event.ratingConfiguration.noteSuggestionsEnabled;
-      } else if (event.typeOfItem === 'wine') {
-        // Default to true for wine events if not set
-        config.noteSuggestionsEnabled = true;
-      }
-      
-      setRatingConfig(config);
+      setRatingConfig(event.ratingConfiguration);
       ratingConfigFetchedRef.current = eventId;
       return;
     }
@@ -191,16 +172,8 @@ function EventPage() {
       })
       .catch(err => {
         console.error('Error loading rating configuration:', err);
-        // Use defaults if API fails
-        setRatingConfig({
-          maxRating: 4,
-          ratings: [
-            { value: 1, label: 'What is this crap?', color: '#FF3B30' },
-            { value: 2, label: 'Meh...', color: '#FFCC00' },
-            { value: 3, label: 'Not bad...', color: '#34C759' },
-            { value: 4, label: 'Give me more...', color: '#28A745' }
-          ]
-        });
+        // Don't set fallback defaults - let the error surface
+        // Backend should always provide rating configuration
         ratingConfigFetchedRef.current = eventId;
       });
   }, [eventId, event]);
