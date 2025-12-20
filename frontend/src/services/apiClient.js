@@ -282,9 +282,19 @@ class ApiClient {
         credentials: 'include', // Include cookies for httpOnly JWT and CSRF
       });
 
-      // Handle 403 Forbidden - Event access denied
+      // Handle 403 Forbidden - Event access denied or CSRF issues
       if (response.status === 403) {
         const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || errorData.message || 'Access forbidden';
+        
+        // Check if this is a CSRF token error and retry once
+        if (!isRetry && errorMessage.toLowerCase().includes('csrf')) {
+          // Clear cached CSRF token and fetch a new one
+          this.csrfToken = null;
+          await this.fetchCSRFToken();
+          // Retry the request once with new CSRF token
+          return this.request(endpoint, options, true);
+        }
         
         // Check if this is an event access denial
         if (errorData.code === 'EVENT_ACCESS_DENIED') {
@@ -303,7 +313,6 @@ class ApiClient {
         }
         
         // For other 403 errors, continue with normal error handling
-        const errorMessage = errorData.error || errorData.message || 'Access forbidden';
         throw new Error(errorMessage);
       }
 

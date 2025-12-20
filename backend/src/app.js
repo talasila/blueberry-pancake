@@ -4,7 +4,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { logger } from './middleware/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
-import { initializeXSRF, getCSRFToken } from './middleware/xsrfProtection.js';
+import { initializeXSRF, getCSRFToken, validateCSRF } from './middleware/xsrfProtection.js';
 import apiRouter from './api/index.js';
 import { registerTestHelperRoutes } from './api/test-helpers.js';
 import configLoader from './config/configLoader.js';
@@ -86,8 +86,54 @@ if (xsrfInitialized) {
   app.get('/api/csrf-token', getCSRFToken);
 }
 
-// Apply CSRF validation to state-changing routes
-// Note: Individual routes can use validateCSRF middleware as needed
+// Apply CSRF validation to state-changing routes (POST, PUT, PATCH, DELETE)
+// 
+// CSRF protection is needed for requests that use cookies for authentication,
+// because browsers automatically send cookies with cross-site requests.
+// 
+// Requests with Bearer tokens in Authorization header are exempt because:
+// - Cross-site requests cannot add custom Authorization headers (CORS blocks them)
+// - The explicit Bearer token proves it's an intentional API call, not a blind CSRF attack
+// - This is a common industry pattern for API authentication
+//
+// Exempt routes (cannot have CSRF tokens):
+// - /api/auth/otp/* - Pre-authentication endpoints
+// - /api/events/:eventId/verify-pin - Public PIN verification
+// - /api/test/* - Test helper endpoints (non-production only)
+if (xsrfInitialized) {
+  app.use('/api', (req, res, next) => {
+    // Only apply to state-changing methods
+    const stateChangingMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
+    if (!stateChangingMethods.includes(req.method)) {
+      return next();
+    }
+
+    // Skip CSRF for requests with Bearer token in Authorization header
+    // These requests are not vulnerable to CSRF because browsers cannot
+    // add custom Authorization headers in cross-site requests
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return next();
+    }
+
+    // Exempt routes that cannot have CSRF tokens (pre-auth or public)
+    const exemptPaths = [
+      /^\/api\/auth\/otp\//,         // OTP request/verify (pre-auth)
+      /^\/api\/auth\/logout$/,       // Logout (stateless, low risk)
+      /^\/api\/auth\/refresh$/,      // Token refresh (may occur before CSRF token obtained)
+      /^\/api\/events\/[^/]+\/verify-pin$/, // Public PIN verification
+      /^\/api\/test\//,              // Test endpoints (non-production)
+    ];
+
+    const isExempt = exemptPaths.some(pattern => pattern.test(req.originalUrl));
+    if (isExempt) {
+      return next();
+    }
+
+    // Apply CSRF validation for cookie-based authentication
+    return validateCSRF(req, res, next);
+  });
+}
 
 // Test helper routes (non-production only)
 registerTestHelperRoutes(app);

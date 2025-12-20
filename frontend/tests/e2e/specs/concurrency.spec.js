@@ -1075,12 +1075,13 @@ test.describe('Cache Consistency', () => {
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
     await startEvent(testEventId, adminToken);
     
-    // Create multiple users
-    const users = await Promise.all([
-      getUserToken(testEventId, 'writer1@example.com', testEventPin),
-      getUserToken(testEventId, 'writer2@example.com', testEventPin),
-      getUserToken(testEventId, 'reader@example.com', testEventPin),
-    ]);
+    // Create users sequentially with small delays to avoid rate limiting
+    const user1 = await getUserToken(testEventId, 'writer1@example.com', testEventPin);
+    await new Promise(r => setTimeout(r, 100));
+    const user2 = await getUserToken(testEventId, 'writer2@example.com', testEventPin);
+    await new Promise(r => setTimeout(r, 100));
+    const user3 = await getUserToken(testEventId, 'reader@example.com', testEventPin);
+    const users = [user1, user2, user3];
     
     // Interleave writes and reads
     const operations = await Promise.all([
@@ -1091,10 +1092,17 @@ test.describe('Cache Consistency', () => {
       submitRating(testEventId, users[0], 3, 2),
     ]);
     
-    // All operations should succeed
+    // All write operations should succeed - log failures for debugging
+    if (!operations[0].ok) console.error('Rating 1 failed:', operations[0].data);
+    if (!operations[2].ok) console.error('Rating 2 failed:', operations[2].data);
+    if (!operations[4].ok) console.error('Rating 3 failed:', operations[4].data);
+    
     expect(operations[0].ok).toBe(true);
     expect(operations[2].ok).toBe(true);
     expect(operations[4].ok).toBe(true);
+    
+    // Small delay to ensure write-back cache has settled
+    await new Promise(r => setTimeout(r, 200));
     
     // Check all ratings are persisted correctly
     // (getRatings returns ALL ratings for the event, not user-specific)

@@ -136,7 +136,10 @@ async function openDangerZoneDrawer(page) {
   const dangerZoneButton = page.getByRole('button', { name: /danger zone/i });
   await dangerZoneButton.waitFor({ state: 'visible', timeout: 10000 });
   await dangerZoneButton.click();
-  await page.waitForTimeout(500);
+  
+  // Wait for the drawer to actually appear (better than arbitrary timeout)
+  const drawer = page.getByRole('dialog', { name: /danger zone/i });
+  await drawer.waitFor({ state: 'visible', timeout: 5000 });
 }
 
 /**

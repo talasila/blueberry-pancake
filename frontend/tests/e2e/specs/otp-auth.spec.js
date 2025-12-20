@@ -10,7 +10,7 @@ import { clearAuth, createTestEvent, deleteTestEvent, addAdminToEvent } from './
 
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
-const TEST_OTP = '123456';
+const TEST_OTP = '123456'; // Test OTP that bypasses validation in dev mode
 
 test.describe('OTP Authentication', () => {
 
@@ -46,13 +46,20 @@ test.describe('OTP Authentication', () => {
       // Step 5: Should be redirected to OTP entry page (detected as admin)
       await expect(page).toHaveURL(new RegExp(`/event/${testEventId}/otp`), { timeout: 5000 });
       
-      // Step 6: Wait for OTP input and enter test OTP
+      // Step 6: Wait for OTP request to complete (dev mode shows the generated OTP)
+      await page.getByText(/OTP code generated|OTP code has been sent/i).waitFor({ state: 'visible', timeout: 5000 });
+      
+      // Wait for OTP input and enter test OTP
       const otpInput = page.locator('input#otp');
       await otpInput.waitFor({ state: 'visible', timeout: 5000 });
       await otpInput.fill(TEST_OTP);
       
-      // Step 7: Click verify button
+      // Verify the fill worked
+      await expect(otpInput).toHaveValue(TEST_OTP);
+      
+      // Step 7: Click verify button - wait for it to be enabled first
       const verifyButton = page.getByRole('button', { name: /verify.*otp/i });
+      await expect(verifyButton).toBeEnabled({ timeout: 5000 });
       await verifyButton.click();
       
       // Step 8: Wait for success message and redirect

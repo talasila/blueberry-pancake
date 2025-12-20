@@ -128,9 +128,24 @@ export async function addAdminToEvent(eventId, email) {
 }
 
 /**
- * Clear authentication (localStorage and sessionStorage)
+ * Clear authentication (localStorage, sessionStorage, and httpOnly cookies)
  */
 export async function clearAuth(page) {
+  // First, call logout endpoint to clear httpOnly cookies (JWT, refresh token, CSRF)
+  // This is necessary because httpOnly cookies cannot be cleared from JavaScript
+  try {
+    await fetch(`${API_URL}/api/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+    });
+  } catch {
+    // Ignore errors - server might not be running yet
+  }
+  
+  // Clear browser cookies directly via Playwright
+  await page.context().clearCookies();
+  
+  // Navigate and clear client-side storage
   await page.goto(BASE_URL);
   await page.evaluate(() => {
     localStorage.clear();
@@ -151,9 +166,31 @@ export async function setAuthToken(page, token, email = 'admin@example.com') {
 
 /**
  * Navigate and wait for the email entry page, then enter email and submit
+ * Handles the case where the page is already past the email step (on PIN page)
  */
 export async function submitEmail(page, email) {
+  // Check if we're already on PIN page (email step already completed)
+  const currentUrl = page.url();
+  if (currentUrl.includes('/pin')) {
+    // Already past email entry, nothing to do
+    return;
+  }
+  
+  // Check if email input exists
   const emailInput = page.locator('input#email');
+  const isEmailInputVisible = await emailInput.isVisible().catch(() => false);
+  
+  if (!isEmailInputVisible) {
+    // Check if we're on PIN page by looking for PIN input
+    const pinInput = page.locator('input#pin')
+      .or(page.locator('input[type="text"][maxlength="6"]'))
+      .first();
+    if (await pinInput.isVisible().catch(() => false)) {
+      // Already on PIN page, skip email entry
+      return;
+    }
+  }
+  
   await emailInput.waitFor({ state: 'visible', timeout: 5000 });
   await emailInput.fill(email);
   
