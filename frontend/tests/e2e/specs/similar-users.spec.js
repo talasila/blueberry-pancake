@@ -5,12 +5,9 @@
  * other participants with similar taste preferences.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import {
-  createTestEvent,
-  deleteTestEvent,
   addAdminToEvent,
-  setAuthToken,
   clearAuth,
   submitEmail,
   enterAndSubmitPIN,
@@ -18,9 +15,6 @@ import {
 
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
-
-let testEventId;
-const testEventPin = '654321';
 
 /**
  * Helper to get a user token via PIN verification
@@ -74,35 +68,17 @@ async function startEvent(eventId, adminToken) {
 
 test.describe('Similar Users Discovery', () => {
 
-  test.beforeEach(async () => {
-    testEventId = await createTestEvent(null, 'Similar Users Test Event', testEventPin);
-  });
-
-  test.afterEach(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test.afterAll(async () => {
-    // Safety net: clean up if afterEach failed
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
   // ===================================
   // User Story 1 - Discover Similar Tastes
   // ===================================
 
-  test('Find Similar Tastes button not visible with fewer than 3 ratings', async ({ page }) => {
+  test('Find Similar Tastes button not visible with fewer than 3 ratings', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -113,9 +89,9 @@ test.describe('Similar Users Discovery', () => {
     
     // Access as regular user (no ratings yet)
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Similar users button should NOT be visible (no ratings yet)
@@ -123,27 +99,28 @@ test.describe('Similar Users Discovery', () => {
     await expect(similarButton).not.toBeVisible();
   });
 
-  test('Find Similar Tastes button appears after 3+ ratings', async ({ page }) => {
+  test('Find Similar Tastes button appears after 3+ ratings', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const adminToken = await addAdminToEvent(testEventId, adminEmail);
+    const adminToken = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await startEvent(testEventId, adminToken);
+    await startEvent(eventId, adminToken);
     
     // Get user token and submit 3 ratings via API
     const userEmail = 'rater@example.com';
-    const userToken = await getUserToken(testEventId, userEmail, testEventPin);
+    const userToken = await getUserToken(eventId, userEmail, pin);
     
     // Submit 3 ratings (rating scale is 1-4)
-    await submitRating(testEventId, userToken, 1, 4);
-    await submitRating(testEventId, userToken, 2, 3);
-    await submitRating(testEventId, userToken, 3, 4);
+    await submitRating(eventId, userToken, 1, 4);
+    await submitRating(eventId, userToken, 2, 3);
+    await submitRating(eventId, userToken, 3, 4);
     
     // Access event page via UI
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, userEmail);
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Find Similar Tastes button should now be visible
@@ -151,25 +128,26 @@ test.describe('Similar Users Discovery', () => {
     await expect(similarButton).toBeVisible({ timeout: 10000 });
   });
 
-  test('clicking Find Similar Tastes opens drawer', async ({ page }) => {
+  test('clicking Find Similar Tastes opens drawer', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const adminToken = await addAdminToEvent(testEventId, adminEmail);
+    const adminToken = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await startEvent(testEventId, adminToken);
+    await startEvent(eventId, adminToken);
     
     // Create user with 3+ ratings
     const userEmail = 'clicker@example.com';
-    const userToken = await getUserToken(testEventId, userEmail, testEventPin);
-    await submitRating(testEventId, userToken, 1, 4);
-    await submitRating(testEventId, userToken, 2, 3);
-    await submitRating(testEventId, userToken, 3, 4);
+    const userToken = await getUserToken(eventId, userEmail, pin);
+    await submitRating(eventId, userToken, 1, 4);
+    await submitRating(eventId, userToken, 2, 3);
+    await submitRating(eventId, userToken, 3, 4);
     
     // Access event page
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, userEmail);
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Click Find Similar Tastes button
@@ -180,38 +158,40 @@ test.describe('Similar Users Discovery', () => {
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer).toBeVisible({ timeout: 5000 });
     
-    // Should show loading state or results
-    const loadingOrContent = page.getByText(/running compatibility scanner|no similar users|similar/i);
+    // Should show loading state or results - scope to drawer
+    const loadingOrContent = drawer.getByText(/running compatibility scanner|no similar users|similar/i);
     await expect(loadingOrContent.first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('shows "no similar users" message when no matches found', async ({ page }) => {
+  test('shows "no similar users" message when no matches found', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const adminToken = await addAdminToEvent(testEventId, adminEmail);
+    const adminToken = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await startEvent(testEventId, adminToken);
+    await startEvent(eventId, adminToken);
     
     // Create only one user with ratings (no other users to match)
     const userEmail = 'lonelyuser@example.com';
-    const userToken = await getUserToken(testEventId, userEmail, testEventPin);
-    await submitRating(testEventId, userToken, 1, 4);
-    await submitRating(testEventId, userToken, 2, 3);
-    await submitRating(testEventId, userToken, 3, 4);
+    const userToken = await getUserToken(eventId, userEmail, pin);
+    await submitRating(eventId, userToken, 1, 4);
+    await submitRating(eventId, userToken, 2, 3);
+    await submitRating(eventId, userToken, 3, 4);
     
     // Access event page
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, userEmail);
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Click Find Similar Tastes button
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
     await similarButton.click();
     
-    // Should show "no similar users" message
-    const noMatchMessage = page.getByText(/no similar users found/i);
+    // Should show "no similar users" message - scope to drawer
+    const drawer = page.locator('[role="dialog"]');
+    const noMatchMessage = drawer.getByText(/no similar users found/i);
     await expect(noMatchMessage).toBeVisible({ timeout: 10000 });
   });
 
@@ -219,32 +199,33 @@ test.describe('Similar Users Discovery', () => {
   // User Story 2 - Compare Ratings with Similar Users
   // ===================================
 
-  test('similar users drawer shows users with overlapping ratings', async ({ page }) => {
+  test('similar users drawer shows users with overlapping ratings', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const adminToken = await addAdminToEvent(testEventId, adminEmail);
+    const adminToken = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await startEvent(testEventId, adminToken);
+    await startEvent(eventId, adminToken);
     
     // Create current user with ratings
     const currentUserEmail = 'currentuser@example.com';
-    const currentUserToken = await getUserToken(testEventId, currentUserEmail, testEventPin);
-    await submitRating(testEventId, currentUserToken, 1, 4);
-    await submitRating(testEventId, currentUserToken, 2, 4);
-    await submitRating(testEventId, currentUserToken, 3, 4);
+    const currentUserToken = await getUserToken(eventId, currentUserEmail, pin);
+    await submitRating(eventId, currentUserToken, 1, 4);
+    await submitRating(eventId, currentUserToken, 2, 4);
+    await submitRating(eventId, currentUserToken, 3, 4);
     
     // Create similar user with overlapping ratings (same items, similar scores)
     const similarUserEmail = 'similaruser@example.com';
-    const similarUserToken = await getUserToken(testEventId, similarUserEmail, testEventPin);
-    await submitRating(testEventId, similarUserToken, 1, 4);
-    await submitRating(testEventId, similarUserToken, 2, 4);
-    await submitRating(testEventId, similarUserToken, 3, 4);
+    const similarUserToken = await getUserToken(eventId, similarUserEmail, pin);
+    await submitRating(eventId, similarUserToken, 1, 4);
+    await submitRating(eventId, similarUserToken, 2, 4);
+    await submitRating(eventId, similarUserToken, 3, 4);
     
     // Access event page as current user
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, currentUserEmail);
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Click Find Similar Tastes button
@@ -256,42 +237,43 @@ test.describe('Similar Users Discovery', () => {
     await expect(similarUserEntry).toBeVisible({ timeout: 10000 });
   });
 
-  test('displays similar users ranked by similarity score', async ({ page }) => {
+  test('displays similar users ranked by similarity score', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const adminToken = await addAdminToEvent(testEventId, adminEmail);
+    const adminToken = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await startEvent(testEventId, adminToken);
+    await startEvent(eventId, adminToken);
     
     // Create current user with ratings
     const currentUserEmail = 'mainuser@example.com';
-    const currentUserToken = await getUserToken(testEventId, currentUserEmail, testEventPin);
-    await submitRating(testEventId, currentUserToken, 1, 4);
-    await submitRating(testEventId, currentUserToken, 2, 4);
-    await submitRating(testEventId, currentUserToken, 3, 4);
-    await submitRating(testEventId, currentUserToken, 4, 4);
+    const currentUserToken = await getUserToken(eventId, currentUserEmail, pin);
+    await submitRating(eventId, currentUserToken, 1, 4);
+    await submitRating(eventId, currentUserToken, 2, 4);
+    await submitRating(eventId, currentUserToken, 3, 4);
+    await submitRating(eventId, currentUserToken, 4, 4);
     
     // Create very similar user (identical ratings)
     const verySimilarEmail = 'verysimilar@example.com';
-    const verySimilarToken = await getUserToken(testEventId, verySimilarEmail, testEventPin);
-    await submitRating(testEventId, verySimilarToken, 1, 4);
-    await submitRating(testEventId, verySimilarToken, 2, 4);
-    await submitRating(testEventId, verySimilarToken, 3, 4);
-    await submitRating(testEventId, verySimilarToken, 4, 4);
+    const verySimilarToken = await getUserToken(eventId, verySimilarEmail, pin);
+    await submitRating(eventId, verySimilarToken, 1, 4);
+    await submitRating(eventId, verySimilarToken, 2, 4);
+    await submitRating(eventId, verySimilarToken, 3, 4);
+    await submitRating(eventId, verySimilarToken, 4, 4);
     
     // Create less similar user (different ratings)
     const lessSimilarEmail = 'lesssimilar@example.com';
-    const lessSimilarToken = await getUserToken(testEventId, lessSimilarEmail, testEventPin);
-    await submitRating(testEventId, lessSimilarToken, 1, 1);
-    await submitRating(testEventId, lessSimilarToken, 2, 2);
-    await submitRating(testEventId, lessSimilarToken, 3, 1);
-    await submitRating(testEventId, lessSimilarToken, 4, 2);
+    const lessSimilarToken = await getUserToken(eventId, lessSimilarEmail, pin);
+    await submitRating(eventId, lessSimilarToken, 1, 1);
+    await submitRating(eventId, lessSimilarToken, 2, 2);
+    await submitRating(eventId, lessSimilarToken, 3, 1);
+    await submitRating(eventId, lessSimilarToken, 4, 2);
     
     // Access event page as current user
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, currentUserEmail);
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Click Find Similar Tastes button
@@ -306,32 +288,33 @@ test.describe('Similar Users Discovery', () => {
     await expect(verySimilarEntry).toBeVisible({ timeout: 10000 });
   });
 
-  test('shows user email in similar users list', async ({ page }) => {
+  test('shows user email in similar users list', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const adminToken = await addAdminToEvent(testEventId, adminEmail);
+    const adminToken = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await startEvent(testEventId, adminToken);
+    await startEvent(eventId, adminToken);
     
     // Create current user
     const currentUserEmail = 'viewer@example.com';
-    const currentUserToken = await getUserToken(testEventId, currentUserEmail, testEventPin);
-    await submitRating(testEventId, currentUserToken, 1, 4);
-    await submitRating(testEventId, currentUserToken, 2, 4);
-    await submitRating(testEventId, currentUserToken, 3, 4);
+    const currentUserToken = await getUserToken(eventId, currentUserEmail, pin);
+    await submitRating(eventId, currentUserToken, 1, 4);
+    await submitRating(eventId, currentUserToken, 2, 4);
+    await submitRating(eventId, currentUserToken, 3, 4);
     
     // Create similar user (email should be displayed)
     const otherUserEmail = 'otheruser@example.com';
-    const otherUserToken = await getUserToken(testEventId, otherUserEmail, testEventPin);
-    await submitRating(testEventId, otherUserToken, 1, 4);
-    await submitRating(testEventId, otherUserToken, 2, 4);
-    await submitRating(testEventId, otherUserToken, 3, 4);
+    const otherUserToken = await getUserToken(eventId, otherUserEmail, pin);
+    await submitRating(eventId, otherUserToken, 1, 4);
+    await submitRating(eventId, otherUserToken, 2, 4);
+    await submitRating(eventId, otherUserToken, 3, 4);
     
     // Access event page
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, currentUserEmail);
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Click Find Similar Tastes
@@ -347,25 +330,26 @@ test.describe('Similar Users Discovery', () => {
   // Edge Cases
   // ===================================
 
-  test('handles user with exactly 3 ratings (minimum threshold)', async ({ page }) => {
+  test('handles user with exactly 3 ratings (minimum threshold)', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const adminToken = await addAdminToEvent(testEventId, adminEmail);
+    const adminToken = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await startEvent(testEventId, adminToken);
+    await startEvent(eventId, adminToken);
     
     // Create user with exactly 3 ratings (minimum threshold)
     const userEmail = 'minratings@example.com';
-    const userToken = await getUserToken(testEventId, userEmail, testEventPin);
-    await submitRating(testEventId, userToken, 1, 4);
-    await submitRating(testEventId, userToken, 2, 3);
-    await submitRating(testEventId, userToken, 3, 4);
+    const userToken = await getUserToken(eventId, userEmail, pin);
+    await submitRating(eventId, userToken, 1, 4);
+    await submitRating(eventId, userToken, 2, 3);
+    await submitRating(eventId, userToken, 3, 4);
     
     // Access event page
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, userEmail);
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Find Similar Tastes button should be visible with exactly 3 ratings
@@ -373,16 +357,17 @@ test.describe('Similar Users Discovery', () => {
     await expect(similarButton).toBeVisible({ timeout: 10000 });
   });
 
-  test('feature not available when event is in created state', async ({ page }) => {
+  test('feature not available when event is in created state', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    await addAdminToEvent(testEventId, adminEmail);
+    await addAdminToEvent(eventId, adminEmail);
     
     // Event stays in created state (not started)
     // Access as regular user
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Similar users button should NOT be visible (event not started)
@@ -390,25 +375,26 @@ test.describe('Similar Users Discovery', () => {
     await expect(similarButton).not.toBeVisible();
   });
 
-  test('drawer shows loading state structure', async ({ page }) => {
+  test('drawer shows loading state structure', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const adminToken = await addAdminToEvent(testEventId, adminEmail);
+    const adminToken = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await startEvent(testEventId, adminToken);
+    await startEvent(eventId, adminToken);
     
     // Create user with ratings
     const userEmail = 'loadingtest@example.com';
-    const userToken = await getUserToken(testEventId, userEmail, testEventPin);
-    await submitRating(testEventId, userToken, 1, 4);
-    await submitRating(testEventId, userToken, 2, 3);
-    await submitRating(testEventId, userToken, 3, 4);
+    const userToken = await getUserToken(eventId, userEmail, pin);
+    await submitRating(eventId, userToken, 1, 4);
+    await submitRating(eventId, userToken, 2, 3);
+    await submitRating(eventId, userToken, 3, 4);
     
     // Access event page
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, userEmail);
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Click Find Similar Tastes button
@@ -419,67 +405,70 @@ test.describe('Similar Users Discovery', () => {
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer).toBeVisible({ timeout: 5000 });
     
-    // Should eventually show either loading, results, or no matches message
-    const content = page.getByText(/running compatibility scanner|no similar users|common/i);
+    // Should eventually show either loading, results, or no matches message - scope to drawer
+    const content = drawer.getByText(/running compatibility scanner|no similar users|common/i);
     await expect(content.first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('handles users with no overlapping ratings', async ({ page }) => {
+  test('handles users with no overlapping ratings', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const adminToken = await addAdminToEvent(testEventId, adminEmail);
+    const adminToken = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await startEvent(testEventId, adminToken);
+    await startEvent(eventId, adminToken);
     
     // Create current user rating items 1, 2, 3
     const currentUserEmail = 'user1@example.com';
-    const currentUserToken = await getUserToken(testEventId, currentUserEmail, testEventPin);
-    await submitRating(testEventId, currentUserToken, 1, 4);
-    await submitRating(testEventId, currentUserToken, 2, 4);
-    await submitRating(testEventId, currentUserToken, 3, 4);
+    const currentUserToken = await getUserToken(eventId, currentUserEmail, pin);
+    await submitRating(eventId, currentUserToken, 1, 4);
+    await submitRating(eventId, currentUserToken, 2, 4);
+    await submitRating(eventId, currentUserToken, 3, 4);
     
     // Create other user rating completely different items (4, 5, 6) - no overlap
     const otherUserEmail = 'user2@example.com';
-    const otherUserToken = await getUserToken(testEventId, otherUserEmail, testEventPin);
-    await submitRating(testEventId, otherUserToken, 4, 4);
-    await submitRating(testEventId, otherUserToken, 5, 4);
-    await submitRating(testEventId, otherUserToken, 6, 4);
+    const otherUserToken = await getUserToken(eventId, otherUserEmail, pin);
+    await submitRating(eventId, otherUserToken, 4, 4);
+    await submitRating(eventId, otherUserToken, 5, 4);
+    await submitRating(eventId, otherUserToken, 6, 4);
     
     // Access event page as current user
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, currentUserEmail);
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Click Find Similar Tastes
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
     await similarButton.click();
     
-    // Should show no similar users (no overlapping items)
-    const noMatchMessage = page.getByText(/no similar users found/i);
+    // Should show no similar users (no overlapping items) - scope to drawer
+    const drawer = page.locator('[role="dialog"]');
+    const noMatchMessage = drawer.getByText(/no similar users found/i);
     await expect(noMatchMessage).toBeVisible({ timeout: 10000 });
   });
 
-  test('close button closes the similar users drawer', async ({ page }) => {
+  test('close button closes the similar users drawer', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const adminToken = await addAdminToEvent(testEventId, adminEmail);
+    const adminToken = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await startEvent(testEventId, adminToken);
+    await startEvent(eventId, adminToken);
     
     // Create user with ratings
     const userEmail = 'closetest@example.com';
-    const userToken = await getUserToken(testEventId, userEmail, testEventPin);
-    await submitRating(testEventId, userToken, 1, 4);
-    await submitRating(testEventId, userToken, 2, 3);
-    await submitRating(testEventId, userToken, 3, 4);
+    const userToken = await getUserToken(eventId, userEmail, pin);
+    await submitRating(eventId, userToken, 1, 4);
+    await submitRating(eventId, userToken, 2, 3);
+    await submitRating(eventId, userToken, 3, 4);
     
     // Access event page
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, userEmail);
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Click Find Similar Tastes button to open drawer
@@ -498,34 +487,35 @@ test.describe('Similar Users Discovery', () => {
     await expect(drawer).toHaveAttribute('aria-hidden', 'true', { timeout: 5000 });
   });
 
-  test('clicking on a similar user opens detail drawer with appropriate sections', async ({ page }) => {
+  test('clicking on a similar user opens detail drawer with appropriate sections', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const adminToken = await addAdminToEvent(testEventId, adminEmail);
+    const adminToken = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await startEvent(testEventId, adminToken);
+    await startEvent(eventId, adminToken);
     
     // Create current user with ratings
     const currentUserEmail = 'detailviewer@example.com';
-    const currentUserToken = await getUserToken(testEventId, currentUserEmail, testEventPin);
-    await submitRating(testEventId, currentUserToken, 1, 4);
-    await submitRating(testEventId, currentUserToken, 2, 3);
-    await submitRating(testEventId, currentUserToken, 3, 4);
-    await submitRating(testEventId, currentUserToken, 4, 2);
+    const currentUserToken = await getUserToken(eventId, currentUserEmail, pin);
+    await submitRating(eventId, currentUserToken, 1, 4);
+    await submitRating(eventId, currentUserToken, 2, 3);
+    await submitRating(eventId, currentUserToken, 3, 4);
+    await submitRating(eventId, currentUserToken, 4, 2);
     
     // Create similar user with overlapping ratings
     const similarUserEmail = 'matcheduser@example.com';
-    const similarUserToken = await getUserToken(testEventId, similarUserEmail, testEventPin);
-    await submitRating(testEventId, similarUserToken, 1, 4);
-    await submitRating(testEventId, similarUserToken, 2, 3);
-    await submitRating(testEventId, similarUserToken, 3, 4);
-    await submitRating(testEventId, similarUserToken, 4, 2);
+    const similarUserToken = await getUserToken(eventId, similarUserEmail, pin);
+    await submitRating(eventId, similarUserToken, 1, 4);
+    await submitRating(eventId, similarUserToken, 2, 3);
+    await submitRating(eventId, similarUserToken, 3, 4);
+    await submitRating(eventId, similarUserToken, 4, 2);
     
     // Access event page as current user
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, currentUserEmail);
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Click Similar Tastes button to open the list

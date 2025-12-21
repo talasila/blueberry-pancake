@@ -12,10 +12,8 @@
  * - Users view item details when event is "completed" (or admin at any time)
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import {
-  createTestEvent,
-  deleteTestEvent,
   addAdminToEvent,
   setAuthToken,
   clearAuth,
@@ -25,9 +23,6 @@ import {
 
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
-
-let testEventId;
-const testEventPin = '654321';
 
 /**
  * Helper: Change event state via API
@@ -88,24 +83,6 @@ async function assignItemIdViaAPI(eventId, itemId, itemIdToAssign, token) {
 }
 
 /**
- * Helper: Get items via API
- */
-async function getItemsViaAPI(eventId, token) {
-  const response = await fetch(`${API_URL}/api/events/${eventId}/items`, {
-    method: 'GET',
-    headers: {
-      'Authorization': `Bearer ${token}`
-    }
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Failed to get items: ${await response.text()}`);
-  }
-  
-  return response.json();
-}
-
-/**
  * Helper: Navigate to Profile page and wait for it to load
  */
 async function navigateToProfilePage(page, eventId) {
@@ -142,38 +119,20 @@ async function switchToAssignmentTab(page) {
 
 test.describe('Item Registration', () => {
 
-  test.beforeEach(async () => {
-    testEventId = await createTestEvent(null, 'Item Assignment Test Event', testEventPin);
-  });
-
-  test.afterEach(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test.afterAll(async () => {
-    // Safety net cleanup
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
   // ===================================
   // Item Registration State Tests
   // ===================================
 
-  test('can register item when event is in "created" state', async ({ page }) => {
+  test('can register item when event is in "created" state', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     // Access event as regular user
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     
     // Navigate to profile page
-    await navigateToProfilePage(page, testEventId);
+    await navigateToProfilePage(page, eventId);
     
     // Look for "Add Bottle" button
     const addButton = page.getByRole('button', { name: /add bottle/i });
@@ -203,21 +162,22 @@ test.describe('Item Registration', () => {
     await expect(itemName).toBeVisible();
   });
 
-  test('can register item when event is in "started" state', async ({ page }) => {
+  test('can register item when event is in "started" state', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event via API
-    await changeEventState(testEventId, 'started', 'created', token);
+    await changeEventState(eventId, 'started', 'created', token);
     
     // Access event as regular user
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     
     // Navigate to profile page
-    await navigateToProfilePage(page, testEventId);
+    await navigateToProfilePage(page, eventId);
     
     // Look for "Add Bottle" button - should be visible in started state
     const addButton = page.getByRole('button', { name: /add bottle/i });
@@ -241,93 +201,79 @@ test.describe('Item Registration', () => {
     await expect(itemName).toBeVisible();
   });
 
-  test('cannot register item when event is in "paused" state', async ({ page }) => {
+  test('cannot register item when event is in "paused" state', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start then pause event via API
-    await changeEventState(testEventId, 'started', 'created', token);
-    await changeEventState(testEventId, 'paused', 'started', token);
+    await changeEventState(eventId, 'started', 'created', token);
+    await changeEventState(eventId, 'paused', 'started', token);
     
     // Access event as regular user
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     
     // Navigate to profile page
-    await navigateToProfilePage(page, testEventId);
+    await navigateToProfilePage(page, eventId);
     
     // "Add Bottle" button should NOT be visible in paused state
     const addButton = page.getByRole('button', { name: /add bottle/i });
     await expect(addButton).not.toBeVisible();
     
-    // Should see a warning message about registration not available
-    const warningMessage = page.getByText(/registration.*only available|not available/i);
+    // Should see a warning message about registration not available - scope to main content
+    const main = page.locator('main');
+    const warningMessage = main.getByText(/registration.*only available|not available/i);
     await expect(warningMessage).toBeVisible();
   });
 
-  test('cannot register item when event is in "completed" state', async ({ page }) => {
+  test('cannot register item when event is in "completed" state', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start then complete event via API
-    await changeEventState(testEventId, 'started', 'created', token);
-    await changeEventState(testEventId, 'completed', 'started', token);
+    await changeEventState(eventId, 'started', 'created', token);
+    await changeEventState(eventId, 'completed', 'started', token);
     
     // Access event as regular user
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     
     // Navigate to profile page
-    await navigateToProfilePage(page, testEventId);
+    await navigateToProfilePage(page, eventId);
     
     // "Add Bottle" button should NOT be visible in completed state
     const addButton = page.getByRole('button', { name: /add bottle/i });
     await expect(addButton).not.toBeVisible();
     
-    // Should see a warning message about registration not available
-    const warningMessage = page.getByText(/registration.*only available|not available/i);
+    // Should see a warning message about registration not available - scope to main content
+    const main = page.locator('main');
+    const warningMessage = main.getByText(/registration.*only available|not available/i);
     await expect(warningMessage).toBeVisible();
   });
 });
 
 test.describe('Item Assignment', () => {
 
-  test.beforeEach(async () => {
-    testEventId = await createTestEvent(null, 'Item Assignment Test Event', testEventPin);
-  });
-
-  test.afterEach(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test.afterAll(async () => {
-    // Safety net cleanup
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
   // ===================================
   // Assignment Tab Availability Tests
   // ===================================
 
-  test('assignment controls not available when event is "created"', async ({ page }) => {
+  test('assignment controls not available when event is "created"', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Register an item first (event is in created state)
-    await registerItemViaAPI(testEventId, { name: 'Test Wine' }, token);
+    await registerItemViaAPI(eventId, { name: 'Test Wine' }, token);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open Bottles drawer
@@ -338,22 +284,25 @@ test.describe('Item Assignment', () => {
     
     // Assignment dropdown should NOT be visible (not in paused state)
     // Look for the assignment select or a message indicating assignment is not available
-    const assignmentMessage = page.getByText(/assignment.*paused|pause.*assign/i);
+    // Scope to drawer to avoid matching event name
+    const drawer = page.locator('[role="dialog"]');
+    const assignmentMessage = drawer.getByText(/assignment.*paused|pause.*assign/i);
     await expect(assignmentMessage).toBeVisible();
   });
 
-  test('assignment controls not available when event is "started"', async ({ page }) => {
+  test('assignment controls not available when event is "started"', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Register an item first
-    await registerItemViaAPI(testEventId, { name: 'Test Wine' }, token);
+    await registerItemViaAPI(eventId, { name: 'Test Wine' }, token);
     
     // Start event
-    await changeEventState(testEventId, 'started', 'created', token);
+    await changeEventState(eventId, 'started', 'created', token);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open Bottles drawer
@@ -362,28 +311,30 @@ test.describe('Item Assignment', () => {
     // Switch to Assignment tab
     await switchToAssignmentTab(page);
     
-    // Assignment should not be available message
-    const assignmentMessage = page.getByText(/assignment.*paused|pause.*assign/i);
+    // Assignment should not be available message - scope to drawer
+    const drawer = page.locator('[role="dialog"]');
+    const assignmentMessage = drawer.getByText(/assignment.*paused|pause.*assign/i);
     await expect(assignmentMessage).toBeVisible();
   });
 
-  test('can assign item ID when event is "paused"', async ({ page }) => {
+  test('can assign item ID when event is "paused"', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Register an item first
-    const registeredItem = await registerItemViaAPI(testEventId, { 
+    const registeredItem = await registerItemViaAPI(eventId, { 
       name: 'Chateau Test 2019',
       price: '50',
       description: 'A fine test wine'
     }, token);
     
     // Start then pause event
-    await changeEventState(testEventId, 'started', 'created', token);
-    await changeEventState(testEventId, 'paused', 'started', token);
+    await changeEventState(eventId, 'started', 'created', token);
+    await changeEventState(eventId, 'paused', 'started', token);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open Bottles drawer
@@ -416,22 +367,23 @@ test.describe('Item Assignment', () => {
     await expect(successToast).toBeVisible({ timeout: 5000 });
   });
 
-  test('can clear item ID assignment', async ({ page }) => {
+  test('can clear item ID assignment', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Register an item
-    const registeredItem = await registerItemViaAPI(testEventId, { 
+    const registeredItem = await registerItemViaAPI(eventId, { 
       name: 'Clearable Wine'
     }, token);
     
     // Start, pause, and assign via API
-    await changeEventState(testEventId, 'started', 'created', token);
-    await changeEventState(testEventId, 'paused', 'started', token);
-    await assignItemIdViaAPI(testEventId, registeredItem.id, 5, token);
+    await changeEventState(eventId, 'started', 'created', token);
+    await changeEventState(eventId, 'paused', 'started', token);
+    await assignItemIdViaAPI(eventId, registeredItem.id, 5, token);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open Bottles drawer and go to Assignment tab
@@ -461,22 +413,23 @@ test.describe('Item Assignment', () => {
     await expect(clearToast).toBeVisible({ timeout: 5000 });
   });
 
-  test('can reassign to different item ID', async ({ page }) => {
+  test('can reassign to different item ID', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Register an item
-    const registeredItem = await registerItemViaAPI(testEventId, { 
+    const registeredItem = await registerItemViaAPI(eventId, { 
       name: 'Reassignable Wine'
     }, token);
     
     // Start, pause, and assign to ID 3
-    await changeEventState(testEventId, 'started', 'created', token);
-    await changeEventState(testEventId, 'paused', 'started', token);
-    await assignItemIdViaAPI(testEventId, registeredItem.id, 3, token);
+    await changeEventState(eventId, 'started', 'created', token);
+    await changeEventState(eventId, 'paused', 'started', token);
+    await assignItemIdViaAPI(eventId, registeredItem.id, 3, token);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open Bottles drawer and go to Assignment tab
@@ -509,21 +462,22 @@ test.describe('Item Assignment', () => {
     await expect(assignSelect).toHaveValue('7');
   });
 
-  test('available IDs exclude already-assigned IDs', async ({ page }) => {
+  test('available IDs exclude already-assigned IDs', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Register two items
-    const item1 = await registerItemViaAPI(testEventId, { name: 'Wine One' }, token);
-    const item2 = await registerItemViaAPI(testEventId, { name: 'Wine Two' }, token);
+    const item1 = await registerItemViaAPI(eventId, { name: 'Wine One' }, token);
+    const item2 = await registerItemViaAPI(eventId, { name: 'Wine Two' }, token);
     
     // Start, pause, and assign item1 to ID 5
-    await changeEventState(testEventId, 'started', 'created', token);
-    await changeEventState(testEventId, 'paused', 'started', token);
-    await assignItemIdViaAPI(testEventId, item1.id, 5, token);
+    await changeEventState(eventId, 'started', 'created', token);
+    await changeEventState(eventId, 'paused', 'started', token);
+    await assignItemIdViaAPI(eventId, item1.id, 5, token);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open Bottles drawer and go to Assignment tab
@@ -549,54 +503,36 @@ test.describe('Item Assignment', () => {
 
 test.describe('Item Details Integration', () => {
 
-  test.beforeEach(async () => {
-    testEventId = await createTestEvent(null, 'Item Details Test Event', testEventPin);
-  });
-
-  test.afterEach(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test.afterAll(async () => {
-    // Safety net cleanup
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
   // ===================================
   // Item Details Drawer Tests
   // ===================================
 
-  test('shows registered item details in drawer after assignment', async ({ page }) => {
+  test('shows registered item details in drawer after assignment', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Register an item with full details
-    const registeredItem = await registerItemViaAPI(testEventId, { 
+    const registeredItem = await registerItemViaAPI(eventId, { 
       name: 'Grand Reserve 2018',
       price: '125.50',
       description: 'An exceptional vintage with notes of blackberry'
     }, token);
     
     // Start, pause, assign to ID 1, then complete
-    await changeEventState(testEventId, 'started', 'created', token);
-    await changeEventState(testEventId, 'paused', 'started', token);
-    await assignItemIdViaAPI(testEventId, registeredItem.id, 1, token);
-    await changeEventState(testEventId, 'completed', 'paused', token);
+    await changeEventState(eventId, 'started', 'created', token);
+    await changeEventState(eventId, 'paused', 'started', token);
+    await assignItemIdViaAPI(eventId, registeredItem.id, 1, token);
+    await changeEventState(eventId, 'completed', 'paused', token);
     
     // Access event as regular user
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     
     // Should be on event page in completed state
-    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
     await page.waitForLoadState('networkidle');
     
     // Click on item 1 to open details drawer
@@ -619,22 +555,23 @@ test.describe('Item Details Integration', () => {
     await expect(itemDescription).toBeVisible();
   });
 
-  test('shows "No item registered" message when no assignment', async ({ page }) => {
+  test('shows "No item registered" message when no assignment', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start then complete event WITHOUT registering/assigning any items
-    await changeEventState(testEventId, 'started', 'created', token);
-    await changeEventState(testEventId, 'completed', 'started', token);
+    await changeEventState(eventId, 'started', 'created', token);
+    await changeEventState(eventId, 'completed', 'started', token);
     
     // Access event as regular user
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     
     // Should be on event page in completed state
-    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
     await page.waitForLoadState('networkidle');
     
     // Click on item 1 to open details drawer
@@ -644,29 +581,31 @@ test.describe('Item Details Integration', () => {
     // Drawer should open
     await page.waitForTimeout(1000);
     
-    // Should show "No item registered" message
-    const noItemMessage = page.getByText(/no.*item.*registered|no.*bottle.*registered/i);
+    // Should show "No item registered" message - scope to the drawer to avoid matching event name
+    const drawer = page.locator('[role="dialog"]');
+    const noItemMessage = drawer.getByText('No item registered for this ID');
     await expect(noItemMessage).toBeVisible();
   });
 
-  test('admin can view item details in drawer before event is completed', async ({ page }) => {
+  test('admin can view item details in drawer before event is completed', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Register an item
-    const registeredItem = await registerItemViaAPI(testEventId, { 
+    const registeredItem = await registerItemViaAPI(eventId, { 
       name: 'Admin Preview Wine',
       price: '75'
     }, token);
     
     // Start, pause, and assign
-    await changeEventState(testEventId, 'started', 'created', token);
-    await changeEventState(testEventId, 'paused', 'started', token);
-    await assignItemIdViaAPI(testEventId, registeredItem.id, 2, token);
+    await changeEventState(eventId, 'started', 'created', token);
+    await changeEventState(eventId, 'paused', 'started', token);
+    await assignItemIdViaAPI(eventId, registeredItem.id, 2, token);
     
     // Admin accesses dashboard page (where admin can view item details when paused)
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Click on the Bottles/Items tab
@@ -688,23 +627,24 @@ test.describe('Item Details Integration', () => {
     await expect(itemName).toBeVisible();
   });
 
-  test('shows item details accessed from dashboard ratings table', async ({ page }) => {
+  test('shows item details accessed from dashboard ratings table', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const userEmail = 'rater@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Register an item
-    const registeredItem = await registerItemViaAPI(testEventId, { 
+    const registeredItem = await registerItemViaAPI(eventId, { 
       name: 'Dashboard Access Wine',
       price: '90'
     }, token);
     
     // Start event
-    await changeEventState(testEventId, 'started', 'created', token);
+    await changeEventState(eventId, 'started', 'created', token);
     
     // Add a rating via API to have data in dashboard
-    const userToken = await addAdminToEvent(testEventId, userEmail);
-    await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+    const userToken = await addAdminToEvent(eventId, userEmail);
+    await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -714,13 +654,13 @@ test.describe('Item Details Integration', () => {
     });
     
     // Pause, assign, and complete
-    await changeEventState(testEventId, 'paused', 'started', token);
-    await assignItemIdViaAPI(testEventId, registeredItem.id, 3, token);
-    await changeEventState(testEventId, 'completed', 'paused', token);
+    await changeEventState(eventId, 'paused', 'started', token);
+    await assignItemIdViaAPI(eventId, registeredItem.id, 3, token);
+    await changeEventState(eventId, 'completed', 'paused', token);
     
     // Access the dashboard page
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Click on the Bottles/Items tab to see the ratings table

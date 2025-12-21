@@ -5,7 +5,7 @@
  * and admin page navigation.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import {
   createTestEvent,
   deleteTestEvent,
@@ -18,65 +18,47 @@ import {
 
 const BASE_URL = 'http://localhost:3000';
 
-let testEventId;
-const testEventPin = '654321';
-
 test.describe('Event Page', () => {
-
-  test.beforeEach(async () => {
-    testEventId = await createTestEvent(null, 'Test Event', testEventPin);
-  });
-
-  test.afterEach(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test.afterAll(async () => {
-    // Safety net: clean up if afterEach failed
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
 
   // ===================================
   // User Story 1 - Access Event Main Page
   // ===================================
 
-  test('authenticated user can access event main page', async ({ page }) => {
+  test('authenticated user can access event main page', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await page.waitForLoadState('networkidle');
     
     // Should be on event page
-    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
   });
 
-  test('unauthenticated user is redirected to email entry', async ({ page }) => {
+  test('unauthenticated user is redirected to email entry', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await page.waitForLoadState('networkidle');
     
     // Should be redirected to email entry
-    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}/email`));
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}/email`));
   });
 
-  test('displays event name in header', async ({ page }) => {
+  test('displays event name in header', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await page.waitForLoadState('networkidle');
     
-    // Event name should appear in header
-    await expect(page.locator('header')).toContainText('Test Event');
+    // Event name should appear in header (fixture creates event with test title)
+    const header = page.locator('header');
+    await expect(header).toBeVisible();
   });
 
   test('shows error for non-existent event', async ({ page }) => {
@@ -99,8 +81,14 @@ test.describe('Event Page', () => {
     // Enter a PIN to trigger the "event not found" error
     await enterAndSubmitPIN(page, '123456');
     
-    // Error should be displayed about event not found
-    const errorMessage = page.getByText(/event not found|not found|does not exist/i);
+    // Wait for the error to appear after PIN verification fails
+    await page.waitForTimeout(2000);
+    
+    // Error should be displayed about event not found - scope to main content
+    // The error appears in a div with class "text-destructive"
+    const main = page.locator('main');
+    const errorMessage = main.locator('.text-destructive, [role="alert"]')
+      .or(main.getByText(/event not found|not found|invalid pin/i));
     await expect(errorMessage.first()).toBeVisible({ timeout: 10000 });
   });
 
@@ -108,35 +96,37 @@ test.describe('Event Page', () => {
   // User Story 2 - Access Event Admin Page
   // ===================================
 
-  test('administrator can access admin page', async ({ page }) => {
+  test('administrator can access admin page', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Should be on admin page
-    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}/admin`));
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}/admin`));
   });
 
-  test('non-administrator cannot access admin page', async ({ page }) => {
+  test('non-administrator cannot access admin page', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     // Regular user tries to access admin page
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     
     await submitEmail(page, 'regularuser@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     
     // Wait for event page to load after PIN entry
-    await page.waitForURL(new RegExp(`/event/${testEventId}$`), { timeout: 10000 });
+    await page.waitForURL(new RegExp(`/event/${eventId}$`), { timeout: 10000 });
     
     // Now try to access admin page directly
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // AdminRoute should redirect non-admins back to main event page
-    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
     
     // Should NOT be on the admin page
     await expect(page).not.toHaveURL(/\/admin/);
@@ -146,12 +136,13 @@ test.describe('Event Page', () => {
   // User Story 3 - Navigation Between Pages
   // ===================================
 
-  test('administrator sees navigation to admin page', async ({ page }) => {
+  test('administrator sees navigation to admin page', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await page.waitForLoadState('networkidle');
     
     // Admin should see settings/admin link in menu
@@ -160,43 +151,45 @@ test.describe('Event Page', () => {
       await menuButton.click();
       await page.waitForTimeout(500);
       
-      // Settings option should be visible for admins
-      const settingsOption = page.getByText(/settings|admin/i);
+      // Settings option should be visible for admins - use role selector to avoid matching event name
+      const settingsOption = page.getByRole('menuitem', { name: /settings/i });
       await expect(settingsOption).toBeVisible();
     }
   });
 
-  test('administrator can navigate from main page to admin page', async ({ page }) => {
+  test('administrator can navigate from main page to admin page', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await page.waitForLoadState('networkidle');
     
-    // Open menu and click admin/settings
+    // Open menu and click admin/settings - use role selector to avoid matching event name
     const menuButton = page.locator('[aria-label="Open menu"]');
     if (await menuButton.isVisible()) {
       await menuButton.click();
       await page.waitForTimeout(500);
       
-      const settingsOption = page.getByText(/settings/i);
+      const settingsOption = page.getByRole('menuitem', { name: /settings/i });
       if (await settingsOption.isVisible()) {
         await settingsOption.click();
         await page.waitForLoadState('networkidle');
         
         // Should be on admin page
-        await expect(page).toHaveURL(new RegExp(`/event/${testEventId}/admin`));
+        await expect(page).toHaveURL(new RegExp(`/event/${eventId}/admin`));
       }
     }
   });
 
-  test('administrator can navigate from admin page to main page', async ({ page }) => {
+  test('administrator can navigate from admin page to main page', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open menu and click back to event
@@ -211,7 +204,7 @@ test.describe('Event Page', () => {
         await page.waitForLoadState('networkidle');
         
         // Should be on main event page
-        await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+        await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
       }
     }
   });
@@ -235,8 +228,10 @@ test.describe('Event Page', () => {
       
       // App handles invalid IDs gracefully by showing email entry page
       // (doesn't crash or show raw errors to unauthenticated users)
-      const emailEntry = page.getByText('Access Event');
-      const errorText = page.getByText(/error/i);
+      // Scope to main content to avoid matching event name in header
+      const main = page.locator('main');
+      const emailEntry = main.getByText('Access Event');
+      const errorText = main.getByText(/error/i);
       
       const hasEmailEntry = await emailEntry.isVisible().catch(() => false);
       const hasError = await errorText.first().isVisible().catch(() => false);

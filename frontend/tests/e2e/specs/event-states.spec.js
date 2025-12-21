@@ -5,10 +5,8 @@
  * start, pause, resume, and complete.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import {
-  createTestEvent,
-  deleteTestEvent,
   addAdminToEvent,
   setAuthToken,
   clearAuth,
@@ -19,43 +17,22 @@ import {
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
 
-let testEventId;
-const testEventPin = '654321';
-
 test.describe('Event State Management', () => {
-
-  test.beforeEach(async () => {
-    testEventId = await createTestEvent(null, 'State Test Event', testEventPin);
-  });
-
-  test.afterEach(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test.afterAll(async () => {
-    // Safety net: clean up if afterEach failed
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
 
   // ===================================
   // User Story 1 - Start an Event
   // ===================================
 
-  test('new event is in "created" state and regular user cannot rate', async ({ page }) => {
+  test('new event is in "created" state and regular user cannot rate', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     // Access event as regular user via PIN
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     
     // Should be on main event page
-    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
     await page.waitForLoadState('networkidle');
     
     // Should see "Event has not started yet" message on main page
@@ -71,22 +48,27 @@ test.describe('Event State Management', () => {
     await expect(drawerMessage).toBeVisible();
   });
 
-  test('administrator can start event and regular user can rate', async ({ page }) => {
+  test('administrator can start event and regular user can rate', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Admin starts the event
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Click the State button to expand options
     const stateButton = page.getByRole('button', { name: /state.*created/i });
+    await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
+    await page.waitForTimeout(500);
     
-    // Click start button
+    // Click start button - scroll into view first for mobile viewport
     const startButton = page.getByRole('button', { name: /start/i });
-    await startButton.click();
+    await startButton.waitFor({ state: 'visible', timeout: 5000 });
+    await startButton.scrollIntoViewIfNeeded();
+    await startButton.click({ force: true });
     await page.waitForTimeout(2000);
     
     // Event should now be started
@@ -95,12 +77,12 @@ test.describe('Event State Management', () => {
     
     // Now login as regular user via PIN
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     
     // Should be on main event page
-    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
     await page.waitForLoadState('networkidle');
     
     // Should see "Tap a number to rate" message
@@ -116,12 +98,13 @@ test.describe('Event State Management', () => {
     await expect(ratingSelector).toBeVisible();
   });
 
-  test('started event shows pause and complete options', async ({ page }) => {
+  test('started event shows pause and complete options', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event via API
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -131,12 +114,14 @@ test.describe('Event State Management', () => {
     });
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Click the State button to expand options
     const stateButton = page.getByRole('button', { name: /state.*started/i });
+    await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
+    await page.waitForTimeout(500);
     
     // Now pause and complete buttons should be visible
     const pauseButton = page.getByRole('button', { name: /pause/i });
@@ -150,12 +135,13 @@ test.describe('Event State Management', () => {
   // User Story 2 - Pause and Resume Event
   // ===================================
 
-  test('administrator can pause started event and regular user cannot rate', async ({ page }) => {
+  test('administrator can pause started event and regular user cannot rate', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event via API
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -165,16 +151,20 @@ test.describe('Event State Management', () => {
     });
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Click the State button to expand options
     const stateButton = page.getByRole('button', { name: /state.*started/i });
+    await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
+    await page.waitForTimeout(500);
     
-    // Click pause button
+    // Click pause button - scroll into view first for mobile viewport
     const pauseButton = page.getByRole('button', { name: /pause/i });
-    await pauseButton.click();
+    await pauseButton.waitFor({ state: 'visible', timeout: 5000 });
+    await pauseButton.scrollIntoViewIfNeeded();
+    await pauseButton.click({ force: true });
     await page.waitForTimeout(2000);
     
     // Event should now be paused
@@ -183,12 +173,12 @@ test.describe('Event State Management', () => {
     
     // Now login as regular user via PIN
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     
     // Should be on main event page
-    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
     await page.waitForLoadState('networkidle');
     
     // Should see "Event is paused" message on main page
@@ -204,12 +194,13 @@ test.describe('Event State Management', () => {
     await expect(drawerMessage).toBeVisible();
   });
 
-  test('administrator can resume paused event and regular user can rate', async ({ page }) => {
+  test('administrator can resume paused event and regular user can rate', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start then pause event via API
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -218,7 +209,7 @@ test.describe('Event State Management', () => {
       body: JSON.stringify({ state: 'started', currentState: 'created' })
     });
     
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -228,16 +219,20 @@ test.describe('Event State Management', () => {
     });
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Click the State button to expand options
     const stateButton = page.getByRole('button', { name: /state.*paused/i });
+    await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
+    await page.waitForTimeout(500);
     
-    // Click start/resume button
+    // Click start/resume button - scroll into view first for mobile viewport
     const startButton = page.getByRole('button', { name: /start|resume/i });
-    await startButton.click();
+    await startButton.waitFor({ state: 'visible', timeout: 5000 });
+    await startButton.scrollIntoViewIfNeeded();
+    await startButton.click({ force: true });
     await page.waitForTimeout(2000);
     
     // Event should now be started again
@@ -246,12 +241,12 @@ test.describe('Event State Management', () => {
     
     // Now login as regular user via PIN
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     
     // Should be on main event page
-    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
     await page.waitForLoadState('networkidle');
     
     // Should see "Tap a number to rate" message
@@ -271,12 +266,13 @@ test.describe('Event State Management', () => {
   // User Story 3 - Complete an Event
   // ===================================
 
-  test('administrator can complete started event and regular user can view details', async ({ page }) => {
+  test('administrator can complete started event and regular user can view details', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event via API
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -286,16 +282,20 @@ test.describe('Event State Management', () => {
     });
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Click the State button to expand options
     const stateButton = page.getByRole('button', { name: /state.*started/i });
+    await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
+    await page.waitForTimeout(500);
     
-    // Click complete button
+    // Click complete button - scroll into view first for mobile viewport
     const completeButton = page.getByRole('button', { name: /complete|finish/i });
-    await completeButton.click();
+    await completeButton.waitFor({ state: 'visible', timeout: 5000 });
+    await completeButton.scrollIntoViewIfNeeded();
+    await completeButton.click({ force: true });
     await page.waitForTimeout(2000);
     
     // Event should now be completed
@@ -304,12 +304,12 @@ test.describe('Event State Management', () => {
     
     // Now login as regular user via PIN
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     
     // Should be on main event page
-    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
     await page.waitForLoadState('networkidle');
     
     // Should see "Tap a number to view details" message
@@ -329,12 +329,13 @@ test.describe('Event State Management', () => {
     await expect(ratingsDistribution).toBeVisible();
   });
 
-  test('administrator can complete paused event and regular user can view details', async ({ page }) => {
+  test('administrator can complete paused event and regular user can view details', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start then pause event via API
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -343,7 +344,7 @@ test.describe('Event State Management', () => {
       body: JSON.stringify({ state: 'started', currentState: 'created' })
     });
     
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -353,16 +354,20 @@ test.describe('Event State Management', () => {
     });
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Click the State button to expand options
     const stateButton = page.getByRole('button', { name: /state.*paused/i });
+    await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
+    await page.waitForTimeout(500);
     
-    // Click complete button
+    // Click complete button - scroll into view first for mobile viewport
     const completeButton = page.getByRole('button', { name: /complete|finish/i });
-    await completeButton.click();
+    await completeButton.waitFor({ state: 'visible', timeout: 5000 });
+    await completeButton.scrollIntoViewIfNeeded();
+    await completeButton.click({ force: true });
     await page.waitForTimeout(2000);
     
     // Event should now be completed
@@ -371,12 +376,12 @@ test.describe('Event State Management', () => {
     
     // Now login as regular user via PIN
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     
     // Should be on main event page
-    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
     await page.waitForLoadState('networkidle');
     
     // Should see "Tap a number to view details" message
@@ -400,12 +405,13 @@ test.describe('Event State Management', () => {
   // User Story 4 - Resume Completed Event
   // ===================================
 
-  test('administrator can reopen completed event and regular user can rate', async ({ page }) => {
+  test('administrator can reopen completed event and regular user can rate', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Complete event via API
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -414,7 +420,7 @@ test.describe('Event State Management', () => {
       body: JSON.stringify({ state: 'started', currentState: 'created' })
     });
     
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -424,16 +430,20 @@ test.describe('Event State Management', () => {
     });
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Click the State button to expand options
     const stateButton = page.getByRole('button', { name: /state.*(completed|finished)/i });
+    await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
+    await page.waitForTimeout(500);
     
-    // Click start/reopen button
+    // Click start/reopen button - scroll into view first for mobile viewport
     const startButton = page.getByRole('button', { name: /start|reopen/i });
-    await startButton.click();
+    await startButton.waitFor({ state: 'visible', timeout: 5000 });
+    await startButton.scrollIntoViewIfNeeded();
+    await startButton.click({ force: true });
     await page.waitForTimeout(2000);
     
     // Event should now be started again
@@ -442,12 +452,12 @@ test.describe('Event State Management', () => {
     
     // Now login as regular user via PIN
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     
     // Should be on main event page
-    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}$`));
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
     await page.waitForLoadState('networkidle');
     
     // Should see "Tap a number to rate" message
@@ -467,12 +477,13 @@ test.describe('Event State Management', () => {
   // Edge Cases
   // ===================================
 
-  test('only valid state transitions are shown', async ({ page }) => {
+  test('only valid state transitions are shown', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // In created state, should only see Start button (not Pause)
@@ -480,12 +491,13 @@ test.describe('Event State Management', () => {
     await expect(pauseButton).not.toBeVisible();
   });
 
-  test('state indicator shows current state clearly', async ({ page }) => {
+  test('state indicator shows current state clearly', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Should see state indicator
@@ -493,12 +505,13 @@ test.describe('Event State Management', () => {
     await expect(stateText.first()).toBeVisible();
   });
 
-  test('state change is reflected in event header', async ({ page }) => {
+  test('state change is reflected in event header', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -508,7 +521,7 @@ test.describe('Event State Management', () => {
     });
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await page.waitForLoadState('networkidle');
     
     // Header should show state icon or indicator

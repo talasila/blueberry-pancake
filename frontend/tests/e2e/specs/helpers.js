@@ -228,9 +228,18 @@ export async function enterPIN(page, pin) {
 export async function submitPIN(page) {
   const submitButton = page.getByRole('button', { name: /access event/i });
   
-  // Wait for button to be enabled first
+  // Wait for button to be visible first
   await submitButton.waitFor({ state: 'visible', timeout: 5000 });
-  await page.waitForTimeout(500); // Give time for form validation
+  
+  // Wait for button to become enabled (PIN validation must pass)
+  // Poll until button is enabled or timeout
+  const startTime = Date.now();
+  const timeout = 5000;
+  while (Date.now() - startTime < timeout) {
+    const isDisabled = await submitButton.isDisabled();
+    if (!isDisabled) break;
+    await page.waitForTimeout(100);
+  }
   
   await submitButton.click();
   

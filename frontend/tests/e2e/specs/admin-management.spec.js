@@ -4,10 +4,8 @@
  * Tests the functionality for adding and removing event administrators.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import {
-  createTestEvent,
-  deleteTestEvent,
   addAdminToEvent,
   setAuthToken,
 } from './helpers.js';
@@ -15,40 +13,19 @@ import {
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
 
-let testEventId;
-const testEventPin = '654321';
-
 test.describe('Administrator Management', () => {
-
-  test.beforeEach(async () => {
-    testEventId = await createTestEvent(null, 'Admin Test Event', testEventPin);
-  });
-
-  test.afterEach(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test.afterAll(async () => {
-    // Safety net: clean up if afterEach failed
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
 
   // ===================================
   // User Story 1 - Add New Administrator
   // ===================================
 
-  test('admin page shows administrators management section', async ({ page }) => {
+  test('admin page shows administrators management section', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'owner@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Look for administrators section
@@ -56,12 +33,13 @@ test.describe('Administrator Management', () => {
     await expect(adminsSection.first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('can add new administrator with valid email', async ({ page }) => {
+  test('can add new administrator with valid email', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'owner@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
@@ -85,12 +63,13 @@ test.describe('Administrator Management', () => {
     }
   });
 
-  test('shows error for invalid email format', async ({ page }) => {
+  test('shows error for invalid email format', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'owner@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
@@ -111,12 +90,13 @@ test.describe('Administrator Management', () => {
     }
   });
 
-  test('shows error when adding duplicate administrator', async ({ page }) => {
+  test('shows error when adding duplicate administrator', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'owner@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
@@ -142,15 +122,16 @@ test.describe('Administrator Management', () => {
   // User Story 2 - Delete Administrator
   // ===================================
 
-  test('can delete non-owner administrator', async ({ page }) => {
+  test('can delete non-owner administrator', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'owner@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Add second admin
-    await addAdminToEvent(testEventId, 'second@example.com');
+    await addAdminToEvent(eventId, 'second@example.com');
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
@@ -172,12 +153,13 @@ test.describe('Administrator Management', () => {
     }
   });
 
-  test('cannot delete owner administrator', async ({ page }) => {
+  test('cannot delete owner administrator', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'owner@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
@@ -196,12 +178,13 @@ test.describe('Administrator Management', () => {
     }
   });
 
-  test('cannot delete last administrator', async ({ page }) => {
+  test('cannot delete last administrator', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'owner@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
@@ -218,16 +201,17 @@ test.describe('Administrator Management', () => {
   // User Story 3 - View Administrators List
   // ===================================
 
-  test('displays list of all administrators', async ({ page }) => {
+  test('displays list of all administrators', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'owner@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Add more admins
-    await addAdminToEvent(testEventId, 'admin2@example.com');
-    await addAdminToEvent(testEventId, 'admin3@example.com');
+    await addAdminToEvent(eventId, 'admin2@example.com');
+    await addAdminToEvent(eventId, 'admin3@example.com');
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
@@ -242,12 +226,13 @@ test.describe('Administrator Management', () => {
     await expect(page.getByText('admin3@example.com')).toBeVisible();
   });
 
-  test('owner administrator is clearly marked', async ({ page }) => {
+  test('owner administrator is clearly marked', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'owner@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
@@ -265,12 +250,13 @@ test.describe('Administrator Management', () => {
   // Edge Cases
   // ===================================
 
-  test('handles email with extra whitespace', async ({ page }) => {
+  test('handles email with extra whitespace', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'owner@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
@@ -292,12 +278,13 @@ test.describe('Administrator Management', () => {
     }
   });
 
-  test('email comparison is case-insensitive', async ({ page }) => {
+  test('email comparison is case-insensitive', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'owner@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer

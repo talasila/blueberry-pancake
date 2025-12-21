@@ -14,22 +14,14 @@
  * - Delete User (individual): "DELETE USER"
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import {
-  createTestEvent,
-  deleteTestEvent,
   addAdminToEvent,
   setAuthToken,
-  clearAuth,
-  submitEmail,
-  enterAndSubmitPIN,
 } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
-
-let testEventId;
-const testEventPin = '654321';
 
 /**
  * Helper: Change event state via API
@@ -178,47 +170,30 @@ async function confirmDeletion(page, confirmationText) {
 // =============================================
 
 test.describe('Danger Zone - Delete Individual User', () => {
-  
-  test.beforeEach(async () => {
-    testEventId = await createTestEvent(null, 'Delete User Test Event', testEventPin);
-  });
 
-  test.afterEach(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test.afterAll(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test('admin can delete a regular user', async ({ page }) => {
+  test('admin can delete a regular user', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const userEmail = 'regularuser@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Add a regular user
-    await addRegularUser(testEventId, userEmail, testEventPin);
+    await addRegularUser(eventId, userEmail, pin);
     
     // Start event and have user submit a rating
-    await changeEventState(testEventId, 'started', 'created', token);
-    const userToken = await addRegularUser(testEventId, userEmail, testEventPin);
-    await submitRating(testEventId, userToken, 1, 4, 'Great wine!');
+    await changeEventState(eventId, 'started', 'created', token);
+    const userToken = await addRegularUser(eventId, userEmail, pin);
+    await submitRating(eventId, userToken, 1, 4, 'Great wine!');
     
     // Verify user exists and has rating
-    const initialUserCount = await getUsersCount(testEventId, token);
-    const initialRatingsCount = await getRatingsCount(testEventId, token);
+    const initialUserCount = await getUsersCount(eventId, token);
+    const initialRatingsCount = await getRatingsCount(eventId, token);
     expect(initialUserCount).toBeGreaterThanOrEqual(2); // admin + user
     expect(initialRatingsCount).toBe(1);
     
     // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open Danger Zone drawer
@@ -238,22 +213,23 @@ test.describe('Danger Zone - Delete Individual User', () => {
     await page.waitForLoadState('networkidle');
     
     // Verify user's ratings are also deleted (API is the source of truth)
-    const finalRatingsCount = await getRatingsCount(testEventId, token);
+    const finalRatingsCount = await getRatingsCount(eventId, token);
     expect(finalRatingsCount).toBe(0);
     
     // Verify user count decreased
     // Event has 2 admins: test@example.com (owner from creation) + admin@example.com
-    const finalUserCount = await getUsersCount(testEventId, token);
+    const finalUserCount = await getUsersCount(eventId, token);
     expect(finalUserCount).toBe(2); // Both admins remain
   });
 
-  test('admin can delete non-owner admin when multiple admins exist', async ({ page }) => {
+  test('admin can delete non-owner admin when multiple admins exist', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const ownerEmail = 'owner@example.com';
     const adminEmail = 'admin@example.com';
-    const ownerToken = await addAdminToEvent(testEventId, ownerEmail);
+    const ownerToken = await addAdminToEvent(eventId, ownerEmail);
     
     // Add another admin
-    await fetch(`${API_URL}/api/test/events/${testEventId}/add-admin`, {
+    await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: adminEmail, addToUsers: true })
@@ -261,7 +237,7 @@ test.describe('Danger Zone - Delete Individual User', () => {
     
     // Navigate as owner
     await setAuthToken(page, ownerToken, ownerEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open Danger Zone drawer
@@ -271,11 +247,6 @@ test.describe('Danger Zone - Delete Individual User', () => {
     const userSelect = page.getByTestId('user-select');
     await expect(userSelect.locator('option', { hasText: adminEmail })).toHaveCount(1);
   });
-
-  // Note: Tests for "owner cannot be deleted" and "last admin cannot be deleted" were removed
-  // because the test helper `addAdminToEvent` doesn't establish ownership the same way as
-  // UI-based event creation. These scenarios are covered by the application's business logic
-  // and would require a more complex test setup with proper ownership tracking.
 });
 
 // =============================================
@@ -283,44 +254,27 @@ test.describe('Danger Zone - Delete Individual User', () => {
 // =============================================
 
 test.describe('Danger Zone - Delete All Users', () => {
-  
-  test.beforeEach(async () => {
-    testEventId = await createTestEvent(null, 'Delete All Users Test Event', testEventPin);
-  });
 
-  test.afterEach(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test.afterAll(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test('admin can delete all non-admin users', async ({ page }) => {
+  test('admin can delete all non-admin users', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Add multiple regular users with small delays to avoid any rate limiting
-    await addRegularUser(testEventId, 'user1@example.com', testEventPin);
+    await addRegularUser(eventId, 'user1@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
-    await addRegularUser(testEventId, 'user2@example.com', testEventPin);
+    await addRegularUser(eventId, 'user2@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
-    await addRegularUser(testEventId, 'user3@example.com', testEventPin);
+    await addRegularUser(eventId, 'user3@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
     
     // Verify users exist - this is critical, fail fast if users weren't added
-    const initialUserCount = await getUsersCount(testEventId, token);
+    const initialUserCount = await getUsersCount(eventId, token);
     expect(initialUserCount).toBeGreaterThanOrEqual(4); // admin + 3 users
     
     // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open Danger Zone drawer
@@ -342,27 +296,29 @@ test.describe('Danger Zone - Delete All Users', () => {
     
     // Verify only admins remain (API is the source of truth)
     // Event has 2 admins: test@example.com (owner from creation) + admin@example.com
-    const finalUserCount = await getUsersCount(testEventId, token);
+    const finalUserCount = await getUsersCount(eventId, token);
     expect(finalUserCount).toBe(2); // Both admins remain
     
-    // Verify UI shows no users to delete
-    const noUsersMessage = page.getByText(/no users to delete|only administrators exist/i);
+    // Verify UI shows no users to delete - scope to drawer to avoid matching event name
+    const drawer = page.locator('[role="dialog"]');
+    const noUsersMessage = drawer.getByText(/no users to delete|only administrators exist/i);
     await expect(noUsersMessage).toBeVisible({ timeout: 5000 });
   });
 
-  test('shows correct count of users to be deleted', async ({ page }) => {
+  test('shows correct count of users to be deleted', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Add 2 regular users with small delays
-    await addRegularUser(testEventId, 'user1@example.com', testEventPin);
+    await addRegularUser(eventId, 'user1@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
-    await addRegularUser(testEventId, 'user2@example.com', testEventPin);
+    await addRegularUser(eventId, 'user2@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
     
     // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open Danger Zone drawer
@@ -373,15 +329,16 @@ test.describe('Danger Zone - Delete All Users', () => {
     await expect(countText).toBeVisible();
   });
 
-  test('delete all users button is disabled when no non-admin users exist', async ({ page }) => {
+  test('delete all users button is disabled when no non-admin users exist', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Don't add any regular users
     
     // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open Danger Zone drawer
@@ -391,32 +348,34 @@ test.describe('Danger Zone - Delete All Users', () => {
     const deleteAllUsersButton = page.getByTestId('delete-all-users-button');
     await expect(deleteAllUsersButton).toBeDisabled();
     
-    // Verify message
-    const noUsersMessage = page.getByText(/no users to delete|only administrators exist/i);
+    // Verify message - scope to drawer to avoid matching event name
+    const drawer = page.locator('[role="dialog"]');
+    const noUsersMessage = drawer.getByText(/no users to delete|only administrators exist/i);
     await expect(noUsersMessage).toBeVisible();
   });
 
-  test('admins are preserved after deleting all users', async ({ page }) => {
+  test('admins are preserved after deleting all users', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const ownerEmail = 'owner@example.com';
     const adminEmail = 'admin@example.com';
-    const ownerToken = await addAdminToEvent(testEventId, ownerEmail);
+    const ownerToken = await addAdminToEvent(eventId, ownerEmail);
     
     // Add another admin
-    await fetch(`${API_URL}/api/test/events/${testEventId}/add-admin`, {
+    await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: adminEmail, addToUsers: true })
     });
     
     // Add regular users with small delays
-    await addRegularUser(testEventId, 'user1@example.com', testEventPin);
+    await addRegularUser(eventId, 'user1@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
-    await addRegularUser(testEventId, 'user2@example.com', testEventPin);
+    await addRegularUser(eventId, 'user2@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
     
     // Navigate as owner
     await setAuthToken(page, ownerToken, ownerEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open Danger Zone drawer and delete all users
@@ -430,7 +389,7 @@ test.describe('Danger Zone - Delete All Users', () => {
     
     // Verify all admins still exist (should be 3 users remaining)
     // Event has 3 admins: test@example.com (owner from creation) + owner@example.com + admin@example.com
-    const finalUserCount = await getUsersCount(testEventId, ownerToken);
+    const finalUserCount = await getUsersCount(eventId, ownerToken);
     expect(finalUserCount).toBe(3); // All 3 admins preserved
   });
 });
@@ -440,50 +399,33 @@ test.describe('Danger Zone - Delete All Users', () => {
 // =============================================
 
 test.describe('Danger Zone - Delete All Ratings', () => {
-  
-  test.beforeEach(async () => {
-    testEventId = await createTestEvent(null, 'Delete Ratings Test Event', testEventPin);
-  });
 
-  test.afterEach(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test.afterAll(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test('admin can delete all ratings', async ({ page }) => {
+  test('admin can delete all ratings', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await changeEventState(testEventId, 'started', 'created', token);
+    await changeEventState(eventId, 'started', 'created', token);
     
     // Add ratings from multiple users (with delays between additions)
-    const user1Token = await addRegularUser(testEventId, 'user1@example.com', testEventPin);
+    const user1Token = await addRegularUser(eventId, 'user1@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
-    const user2Token = await addRegularUser(testEventId, 'user2@example.com', testEventPin);
+    const user2Token = await addRegularUser(eventId, 'user2@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
     
-    await submitRating(testEventId, user1Token, 1, 4);
-    await submitRating(testEventId, user1Token, 2, 3);
-    await submitRating(testEventId, user2Token, 1, 2);
-    await submitRating(testEventId, user2Token, 3, 4);
+    await submitRating(eventId, user1Token, 1, 4);
+    await submitRating(eventId, user1Token, 2, 3);
+    await submitRating(eventId, user2Token, 1, 2);
+    await submitRating(eventId, user2Token, 3, 4);
     
     // Verify ratings exist
-    const initialRatingsCount = await getRatingsCount(testEventId, token);
+    const initialRatingsCount = await getRatingsCount(eventId, token);
     expect(initialRatingsCount).toBe(4);
     
     // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open Danger Zone drawer
@@ -500,16 +442,17 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     await page.waitForLoadState('networkidle');
     
     // Verify ratings are deleted (API is the source of truth)
-    const finalRatingsCount = await getRatingsCount(testEventId, token);
+    const finalRatingsCount = await getRatingsCount(eventId, token);
     expect(finalRatingsCount).toBe(0);
   });
 
-  test('registered items are preserved after deleting ratings', async ({ page }) => {
+  test('registered items are preserved after deleting ratings', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Register an item
-    const itemResponse = await fetch(`${API_URL}/api/events/${testEventId}/items`, {
+    const itemResponse = await fetch(`${API_URL}/api/events/${eventId}/items`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -520,13 +463,13 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     expect(itemResponse.ok).toBe(true);
     
     // Start event and add ratings
-    await changeEventState(testEventId, 'started', 'created', token);
-    const userToken = await addRegularUser(testEventId, 'user@example.com', testEventPin);
-    await submitRating(testEventId, userToken, 1, 4);
+    await changeEventState(eventId, 'started', 'created', token);
+    const userToken = await addRegularUser(eventId, 'user@example.com', pin);
+    await submitRating(eventId, userToken, 1, 4);
     
     // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Delete all ratings
@@ -539,7 +482,7 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     await page.waitForTimeout(2000);
     
     // Verify items still exist
-    const itemsResponse = await fetch(`${API_URL}/api/events/${testEventId}/items`, {
+    const itemsResponse = await fetch(`${API_URL}/api/events/${eventId}/items`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     const items = await itemsResponse.json();
@@ -547,19 +490,20 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     expect(items[0].name).toBe('Test Wine');
   });
 
-  test('dashboard shows empty state after deleting all ratings', async ({ page }) => {
+  test('dashboard shows empty state after deleting all ratings', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event and add ratings
-    await changeEventState(testEventId, 'started', 'created', token);
-    const userToken = await addRegularUser(testEventId, 'user@example.com', testEventPin);
-    await submitRating(testEventId, userToken, 1, 4);
-    await submitRating(testEventId, userToken, 2, 3);
+    await changeEventState(eventId, 'started', 'created', token);
+    const userToken = await addRegularUser(eventId, 'user@example.com', pin);
+    await submitRating(eventId, userToken, 1, 4);
+    await submitRating(eventId, userToken, 2, 3);
     
     // Navigate to admin page and delete ratings
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     await openDangerZoneDrawer(page);
@@ -571,11 +515,12 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     await page.waitForLoadState('networkidle');
     
     // Navigate to dashboard and check for empty state
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
-    // Dashboard should show no ratings or empty message
-    const noRatingsMessage = page.getByText(/no ratings|no data|nothing to show/i);
+    // Dashboard should show no ratings or empty message - scope to main content
+    const main = page.locator('main');
+    const noRatingsMessage = main.getByText(/no ratings|no data|nothing to show/i);
     await expect(noRatingsMessage).toBeVisible({ timeout: 5000 });
   });
 });
@@ -585,34 +530,16 @@ test.describe('Danger Zone - Delete All Ratings', () => {
 // =============================================
 
 test.describe('Danger Zone - Delete Event', () => {
-  
-  test.beforeEach(async () => {
-    testEventId = await createTestEvent(null, 'Delete Event Test Event', testEventPin);
-  });
 
-  test.afterEach(async () => {
-    // Event may have been deleted by test
-    if (testEventId && await eventExists(testEventId)) {
-      await deleteTestEvent(testEventId);
-    }
-    testEventId = null;
-  });
-
-  test.afterAll(async () => {
-    if (testEventId && await eventExists(testEventId)) {
-      await deleteTestEvent(testEventId);
-    }
-    testEventId = null;
-  });
-
-  test('owner can delete the event', async ({ page }) => {
+  test('owner can delete the event', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     // The actual owner is test@example.com (created with the event by createTestEvent)
     const ownerEmail = 'test@example.com';
-    const ownerToken = await addAdminToEvent(testEventId, ownerEmail);
+    const ownerToken = await addAdminToEvent(eventId, ownerEmail);
     
     // Navigate to admin page
     await setAuthToken(page, ownerToken, ownerEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open Danger Zone drawer
@@ -632,22 +559,20 @@ test.describe('Danger Zone - Delete Event', () => {
     await page.waitForURL(`${BASE_URL}/`, { timeout: 10000 });
     
     // Verify event no longer exists
-    const exists = await eventExists(testEventId);
+    const exists = await eventExists(eventId);
     expect(exists).toBe(false);
-    
-    // Mark as deleted so afterEach doesn't try to delete again
-    testEventId = null;
   });
 
-  test('non-owner admin cannot see Delete Event option', async ({ page }) => {
+  test('non-owner admin cannot see Delete Event option', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const ownerEmail = 'owner@example.com';
     const adminEmail = 'admin@example.com';
     
     // Create event with owner
-    await addAdminToEvent(testEventId, ownerEmail);
+    await addAdminToEvent(eventId, ownerEmail);
     
     // Add another admin (non-owner)
-    const adminResponse = await fetch(`${API_URL}/api/test/events/${testEventId}/add-admin`, {
+    const adminResponse = await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: adminEmail, addToUsers: true })
@@ -657,7 +582,7 @@ test.describe('Danger Zone - Delete Event', () => {
     
     // Navigate to admin page as non-owner admin
     await setAuthToken(page, adminToken, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open Danger Zone drawer
@@ -671,10 +596,6 @@ test.describe('Danger Zone - Delete Event', () => {
     const deleteRatingsButton = page.getByTestId('delete-all-ratings-button');
     await expect(deleteRatingsButton).toBeVisible();
   });
-
-  // Note: "redirects to home page after successful deletion" test was removed
-  // because it's covered by "owner can delete the event" which already verifies
-  // the redirect via page.waitForURL
 });
 
 // =============================================
@@ -682,41 +603,24 @@ test.describe('Danger Zone - Delete Event', () => {
 // =============================================
 
 test.describe('Danger Zone - Dialog Cancel', () => {
-  
-  test.beforeEach(async () => {
-    testEventId = await createTestEvent(null, 'Dialog Cancel Test Event', testEventPin);
-  });
 
-  test.afterEach(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test.afterAll(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test('cancel button closes dialog without deleting', async ({ page }) => {
+  test('cancel button closes dialog without deleting', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event and add rating
-    await changeEventState(testEventId, 'started', 'created', token);
-    const userToken = await addRegularUser(testEventId, 'user@example.com', testEventPin);
-    await submitRating(testEventId, userToken, 1, 4);
+    await changeEventState(eventId, 'started', 'created', token);
+    const userToken = await addRegularUser(eventId, 'user@example.com', pin);
+    await submitRating(eventId, userToken, 1, 4);
     
     // Verify rating exists
-    const initialRatingsCount = await getRatingsCount(testEventId, token);
+    const initialRatingsCount = await getRatingsCount(eventId, token);
     expect(initialRatingsCount).toBe(1);
     
     // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open Danger Zone drawer
@@ -743,17 +647,18 @@ test.describe('Danger Zone - Dialog Cancel', () => {
     await expect(confirmDialog).not.toBeVisible();
     
     // Verify ratings are NOT deleted
-    const finalRatingsCount = await getRatingsCount(testEventId, token);
+    const finalRatingsCount = await getRatingsCount(eventId, token);
     expect(finalRatingsCount).toBe(1);
   });
 
-  test('delete button is disabled until confirmation text is entered', async ({ page }) => {
+  test('delete button is disabled until confirmation text is entered', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open Danger Zone drawer and click Delete All Ratings

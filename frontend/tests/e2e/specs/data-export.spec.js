@@ -10,10 +10,8 @@
  * Also tests access control, button states, and CSV content validation.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import {
-  createTestEvent,
-  deleteTestEvent,
   addAdminToEvent,
   setAuthToken,
   clearAuth,
@@ -23,9 +21,6 @@ import {
 
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
-
-let testEventId;
-const testEventPin = '654321';
 
 // ===================================
 // Helper Functions
@@ -81,7 +76,6 @@ async function startEvent(eventId, adminToken) {
 
 /**
  * Register an item via API
- * Note: Item ID is assigned by the backend, not specified by the caller
  */
 async function registerItem(eventId, token, name, price = null, description = '') {
   const response = await fetch(`${API_URL}/api/events/${eventId}/items`, {
@@ -140,9 +134,6 @@ async function openExportDrawer(page) {
 
 /**
  * Click a specific export button and wait for download
- * @param {Page} page - Playwright page
- * @param {string} type - 'ratings' | 'matrix' | 'users' | 'items'
- * @returns {Promise<Download>} The download object
  */
 async function clickExportAndWaitForDownload(page, type) {
   const buttonNames = {
@@ -179,7 +170,6 @@ async function clickExportButton(page, type) {
  */
 async function parseDownloadedCSV(download) {
   const filePath = await download.path();
-  // Use dynamic require to avoid ESM issues with WebKit
   const { readFileSync } = await import('node:fs');
   const content = readFileSync(filePath, 'utf-8');
   
@@ -211,7 +201,7 @@ function parseCSVLine(line) {
     if (char === '"') {
       if (inQuotes && line[i + 1] === '"') {
         current += '"';
-        i++; // Skip next quote
+        i++;
       } else {
         inQuotes = !inQuotes;
       }
@@ -251,27 +241,13 @@ test.describe('Data Export', () => {
   // ===================================
   
   test.describe('Data Export Access', () => {
-    test.afterEach(async () => {
-      if (testEventId) {
-        await deleteTestEvent(testEventId);
-        testEventId = null;
-      }
-    });
 
-    test.afterAll(async () => {
-      // Safety net: clean up if afterEach failed
-      if (testEventId) {
-        await deleteTestEvent(testEventId);
-        testEventId = null;
-      }
-    });
-
-    test('admin can access Export Data drawer', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Export Access Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
+    test('admin can access Export Data drawer', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       // Click Export Data button
@@ -284,20 +260,20 @@ test.describe('Data Export', () => {
       await expect(page.getByRole('button', { name: /export.*details/i })).toBeVisible();
     });
 
-    test('regular user cannot access admin page', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Export Access Regular User Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('regular user cannot access admin page', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
       // Login as regular user
       await clearAuth(page);
-      await page.goto(`${BASE_URL}/event/${testEventId}`);
+      await page.goto(`${BASE_URL}/event/${eventId}`);
       await submitEmail(page, 'regularuser@example.com');
-      await enterAndSubmitPIN(page, testEventPin);
+      await enterAndSubmitPIN(page, pin);
       await page.waitForLoadState('networkidle');
       
       // Try to navigate to admin page
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       // Should be redirected or show access denied - not on admin page with Export Data visible
@@ -314,48 +290,35 @@ test.describe('Data Export', () => {
   // ===================================
 
   test.describe('Export Ratings Data', () => {
-    test.afterEach(async () => {
-      if (testEventId) {
-        await deleteTestEvent(testEventId);
-        testEventId = null;
-      }
-    });
 
-    test.afterAll(async () => {
-      // Safety net: clean up if afterEach failed
-      if (testEventId) {
-        await deleteTestEvent(testEventId);
-        testEventId = null;
-      }
-    });
-
-    test('shows error when no ratings exist', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Export No Ratings Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
+    test('shows error when no ratings exist', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
       await clickExportButton(page, 'ratings');
       
-      // Should show error message
-      const errorMessage = page.getByText(/no ratings data available to export/i);
+      // Should show error message - scope to drawer to avoid matching event name
+      const drawer = page.locator('[role="dialog"]');
+      const errorMessage = drawer.getByText(/no ratings data available to export/i);
       await expect(errorMessage).toBeVisible({ timeout: 5000 });
     });
 
-    test('exports single rating correctly', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Export Single Rating Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('exports single rating correctly', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
       // Submit one rating
-      const userToken = await getUserToken(testEventId, 'rater@example.com', testEventPin);
-      await submitRating(testEventId, userToken, 1, 4, 'Great item!');
+      const userToken = await getUserToken(eventId, 'rater@example.com', pin);
+      await submitRating(eventId, userToken, 1, 4, 'Great item!');
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -368,23 +331,23 @@ test.describe('Data Export', () => {
       expect(csv.rows[0].note).toBe('Great item!');
     });
 
-    test('exports multiple ratings with correct columns', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Export Multiple Ratings Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('exports multiple ratings with correct columns', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
       // Submit ratings from multiple users
-      const user1Token = await getUserToken(testEventId, 'user1@example.com', testEventPin);
-      const user2Token = await getUserToken(testEventId, 'user2@example.com', testEventPin);
+      const user1Token = await getUserToken(eventId, 'user1@example.com', pin);
+      const user2Token = await getUserToken(eventId, 'user2@example.com', pin);
       
-      await submitRating(testEventId, user1Token, 1, 4);
-      await submitRating(testEventId, user1Token, 2, 3);
-      await submitRating(testEventId, user2Token, 1, 2);
-      await submitRating(testEventId, user2Token, 3, 4);
-      await submitRating(testEventId, user2Token, 4, 1);
+      await submitRating(eventId, user1Token, 1, 4);
+      await submitRating(eventId, user1Token, 2, 3);
+      await submitRating(eventId, user2Token, 1, 2);
+      await submitRating(eventId, user2Token, 3, 4);
+      await submitRating(eventId, user2Token, 4, 1);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -395,16 +358,16 @@ test.describe('Data Export', () => {
       expect(csv.rows.length).toBe(5);
     });
 
-    test('filename follows correct pattern', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Export Filename Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('filename follows correct pattern', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
-      const userToken = await getUserToken(testEventId, 'user@example.com', testEventPin);
-      await submitRating(testEventId, userToken, 1, 4);
+      const userToken = await getUserToken(eventId, 'user@example.com', pin);
+      await submitRating(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -412,20 +375,20 @@ test.describe('Data Export', () => {
       
       const filename = download.suggestedFilename();
       expect(filename).toMatch(/^ratings-export-.*-\d{4}-\d{2}-\d{2}\.csv$/);
-      expect(filename).toContain(testEventId);
+      expect(filename).toContain(eventId);
     });
 
-    test('handles special characters in notes (CSV escaping)', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Export Special Chars Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('handles special characters in notes (CSV escaping)', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
-      const userToken = await getUserToken(testEventId, 'user@example.com', testEventPin);
+      const userToken = await getUserToken(eventId, 'user@example.com', pin);
       // Note with commas, quotes, and special characters
-      await submitRating(testEventId, userToken, 1, 4, 'Great, "amazing" item & more!');
+      await submitRating(eventId, userToken, 1, 4, 'Great, "amazing" item & more!');
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -437,16 +400,16 @@ test.describe('Data Export', () => {
       expect(csv.rows[0].note).toContain('&');
     });
 
-    test('shows success message after export', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Export Success Message Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('shows success message after export', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
-      const userToken = await getUserToken(testEventId, 'user@example.com', testEventPin);
-      await submitRating(testEventId, userToken, 1, 4);
+      const userToken = await getUserToken(eventId, 'user@example.com', pin);
+      await submitRating(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -456,17 +419,17 @@ test.describe('Data Export', () => {
       await expect(successMessage).toBeVisible({ timeout: 5000 });
     });
 
-    test('includes username when user has display name', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Export Username Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('includes username when user has display name', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
-      const userToken = await getUserToken(testEventId, 'user@example.com', testEventPin);
-      await updateUserProfile(testEventId, userToken, 'John Doe');
-      await submitRating(testEventId, userToken, 1, 4);
+      const userToken = await getUserToken(eventId, 'user@example.com', pin);
+      await updateUserProfile(eventId, userToken, 'John Doe');
+      await submitRating(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -482,51 +445,39 @@ test.describe('Data Export', () => {
   // ===================================
 
   test.describe('Export Ratings Matrix', () => {
-    test.afterEach(async () => {
-      if (testEventId) {
-        await deleteTestEvent(testEventId);
-        testEventId = null;
-      }
-    });
 
-    test.afterAll(async () => {
-      // Safety net: clean up if afterEach failed
-      if (testEventId) {
-        await deleteTestEvent(testEventId);
-        testEventId = null;
-      }
-    });
-
-    test('shows error when no ratings exist', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Matrix No Ratings Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
+    test('shows error when no ratings exist', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
       await clickExportButton(page, 'matrix');
       
-      const errorMessage = page.getByText(/no ratings data available to export/i);
+      // Scope to drawer to avoid matching event name
+      const drawer = page.locator('[role="dialog"]');
+      const errorMessage = drawer.getByText(/no ratings data available to export/i);
       await expect(errorMessage).toBeVisible({ timeout: 5000 });
     });
 
-    test('creates matrix with items as rows and users as columns', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Matrix Structure Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('creates matrix with items as rows and users as columns', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
-      const user1Token = await getUserToken(testEventId, 'user1@example.com', testEventPin);
-      const user2Token = await getUserToken(testEventId, 'user2@example.com', testEventPin);
+      const user1Token = await getUserToken(eventId, 'user1@example.com', pin);
+      const user2Token = await getUserToken(eventId, 'user2@example.com', pin);
       
-      await submitRating(testEventId, user1Token, 1, 4);
-      await submitRating(testEventId, user1Token, 2, 3);
-      await submitRating(testEventId, user2Token, 1, 2);
-      await submitRating(testEventId, user2Token, 3, 4);
+      await submitRating(eventId, user1Token, 1, 4);
+      await submitRating(eventId, user1Token, 2, 3);
+      await submitRating(eventId, user2Token, 1, 2);
+      await submitRating(eventId, user2Token, 3, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -541,20 +492,20 @@ test.describe('Data Export', () => {
       expect(csv.headers).toContain('Weighted Rating');
     });
 
-    test('includes Average and Weighted Rating columns', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Matrix Averages Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('includes Average and Weighted Rating columns', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
-      const user1Token = await getUserToken(testEventId, 'user1@example.com', testEventPin);
-      const user2Token = await getUserToken(testEventId, 'user2@example.com', testEventPin);
+      const user1Token = await getUserToken(eventId, 'user1@example.com', pin);
+      const user2Token = await getUserToken(eventId, 'user2@example.com', pin);
       
       // Both users rate item 1
-      await submitRating(testEventId, user1Token, 1, 4);
-      await submitRating(testEventId, user2Token, 1, 2);
+      await submitRating(eventId, user1Token, 1, 4);
+      await submitRating(eventId, user2Token, 1, 2);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -566,17 +517,17 @@ test.describe('Data Export', () => {
       expect(item1Row['Weighted Rating']).toBeTruthy();
     });
 
-    test('user columns use username (email) format when name exists', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Matrix Username Format Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('user columns use username (email) format when name exists', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
-      const userToken = await getUserToken(testEventId, 'user@example.com', testEventPin);
-      await updateUserProfile(testEventId, userToken, 'Jane Smith');
-      await submitRating(testEventId, userToken, 1, 4);
+      const userToken = await getUserToken(eventId, 'user@example.com', pin);
+      await updateUserProfile(eventId, userToken, 'Jane Smith');
+      await submitRating(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -588,16 +539,16 @@ test.describe('Data Export', () => {
       expect(userColumn).toBeTruthy();
     });
 
-    test('filename follows correct pattern', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Matrix Filename Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('filename follows correct pattern', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
-      const userToken = await getUserToken(testEventId, 'user@example.com', testEventPin);
-      await submitRating(testEventId, userToken, 1, 4);
+      const userToken = await getUserToken(eventId, 'user@example.com', pin);
+      await submitRating(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -607,20 +558,20 @@ test.describe('Data Export', () => {
       expect(filename).toMatch(/^ratings-matrix-.*-\d{4}-\d{2}-\d{2}\.csv$/);
     });
 
-    test('empty cells for unrated item-user combinations', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Matrix Empty Cells Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('empty cells for unrated item-user combinations', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
-      const user1Token = await getUserToken(testEventId, 'user1@example.com', testEventPin);
-      const user2Token = await getUserToken(testEventId, 'user2@example.com', testEventPin);
+      const user1Token = await getUserToken(eventId, 'user1@example.com', pin);
+      const user2Token = await getUserToken(eventId, 'user2@example.com', pin);
       
       // User1 rates item 1, User2 rates item 2 - no overlap
-      await submitRating(testEventId, user1Token, 1, 4);
-      await submitRating(testEventId, user2Token, 2, 3);
+      await submitRating(eventId, user1Token, 1, 4);
+      await submitRating(eventId, user2Token, 2, 3);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -644,28 +595,14 @@ test.describe('Data Export', () => {
   // ===================================
 
   test.describe('Export User Data', () => {
-    test.afterEach(async () => {
-      if (testEventId) {
-        await deleteTestEvent(testEventId);
-        testEventId = null;
-      }
-    });
 
-    test.afterAll(async () => {
-      // Safety net: clean up if afterEach failed
-      if (testEventId) {
-        await deleteTestEvent(testEventId);
-        testEventId = null;
-      }
-    });
-
-    test('exports admin as user when only admin exists', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Users Admin Only Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
+    test('exports admin as user when only admin exists', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       // Admin is automatically added as a user, so export should succeed with 1 user
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -679,17 +616,17 @@ test.describe('Data Export', () => {
       expect(adminRow).toBeDefined();
     });
 
-    test('exports user with correct columns', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Users Columns Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('exports user with correct columns', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
-      const userToken = await getUserToken(testEventId, 'user@example.com', testEventPin);
-      await updateUserProfile(testEventId, userToken, 'Test User');
-      await submitRating(testEventId, userToken, 1, 4);
+      const userToken = await getUserToken(eventId, 'user@example.com', pin);
+      await updateUserProfile(eventId, userToken, 'Test User');
+      await submitRating(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -703,12 +640,12 @@ test.describe('Data Export', () => {
       expect(csv.headers).toEqual(expectedColumns);
     });
 
-    test('exports admin with Owner status', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Users Owner Status Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'owner@example.com');
+    test('exports admin with Owner status', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'owner@example.com');
       
       await setAuthToken(page, adminToken, 'owner@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -720,16 +657,16 @@ test.describe('Data Export', () => {
       expect(['Owner', 'Administrator']).toContain(ownerRow?.administratorStatus);
     });
 
-    test('exports regular user with correct status', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Users Regular Status Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('exports regular user with correct status', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
-      const userToken = await getUserToken(testEventId, 'regular@example.com', testEventPin);
-      await submitRating(testEventId, userToken, 1, 4);
+      const userToken = await getUserToken(eventId, 'regular@example.com', pin);
+      await submitRating(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -740,14 +677,14 @@ test.describe('Data Export', () => {
       expect(regularRow?.administratorStatus).toBe('Regular User');
     });
 
-    test('includes items registered by user', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Users Items Registered Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('includes items registered by user', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
-      const userToken = await getUserToken(testEventId, 'itemowner@example.com', testEventPin);
-      const item1 = await registerItem(testEventId, userToken, 'My Wine', 25.99, 'A great wine');
-      const item2 = await registerItem(testEventId, userToken, 'Another Wine', 35.00);
+      const userToken = await getUserToken(eventId, 'itemowner@example.com', pin);
+      const item1 = await registerItem(eventId, userToken, 'My Wine', 25.99, 'A great wine');
+      const item2 = await registerItem(eventId, userToken, 'Another Wine', 35.00);
       
       // Ensure items were registered successfully
       if (!item1.ok || !item2.ok) {
@@ -755,7 +692,7 @@ test.describe('Data Export', () => {
       }
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -764,25 +701,22 @@ test.describe('Data Export', () => {
       const csv = await parseDownloadedCSV(download);
       const ownerRow = csv.rows.find(r => r.email === 'itemowner@example.com');
       expect(ownerRow?.itemsRegisteredCount).toBe('2');
-      // Note: itemIds is empty for newly registered items because numeric 
-      // bottle IDs (itemId) are assigned later during the "paused" state.
-      // The export only includes items with assigned itemIds.
       expect(ownerRow?.itemNames).toContain('My Wine');
       expect(ownerRow?.itemNames).toContain('Another Wine');
     });
 
-    test('includes ratings statistics', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Users Ratings Stats Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('includes ratings statistics', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
-      const userToken = await getUserToken(testEventId, 'rater@example.com', testEventPin);
-      await submitRating(testEventId, userToken, 1, 4);
-      await submitRating(testEventId, userToken, 2, 2);
-      await submitRating(testEventId, userToken, 3, 3);
+      const userToken = await getUserToken(eventId, 'rater@example.com', pin);
+      await submitRating(eventId, userToken, 1, 4);
+      await submitRating(eventId, userToken, 2, 2);
+      await submitRating(eventId, userToken, 3, 3);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -794,16 +728,16 @@ test.describe('Data Export', () => {
       expect(raterRow?.averageRatingGiven).toBe('3.00'); // (4+2+3)/3 = 3
     });
 
-    test('filename follows correct pattern', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Users Filename Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('filename follows correct pattern', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
-      const userToken = await getUserToken(testEventId, 'user@example.com', testEventPin);
-      await submitRating(testEventId, userToken, 1, 4);
+      const userToken = await getUserToken(eventId, 'user@example.com', pin);
+      await submitRating(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -819,34 +753,16 @@ test.describe('Data Export', () => {
   // ===================================
 
   test.describe('Export Item Details', () => {
-    test.afterEach(async () => {
-      if (testEventId) {
-        await deleteTestEvent(testEventId);
-        testEventId = null;
-      }
-    });
 
-    test.afterAll(async () => {
-      // Safety net: clean up if afterEach failed
-      if (testEventId) {
-        await deleteTestEvent(testEventId);
-        testEventId = null;
-      }
-    });
-
-    // Note: Test 'shows error when no items configured' was removed because
-    // numberOfItems must be between 1 and 100 per backend validation.
-    // Setting numberOfItems to 0 is not a valid scenario.
-
-    test('exports all items from 1 to numberOfItems', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Items All Items Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
+    test('exports all items from 1 to numberOfItems', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       // Set 10 items
-      await updateItemConfig(testEventId, adminToken, { numberOfItems: 10 });
+      await updateItemConfig(eventId, adminToken, { numberOfItems: 10 });
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -858,18 +774,18 @@ test.describe('Data Export', () => {
       expect(csv.rows[9].itemId).toBe('10');
     });
 
-    test('excludes items in excludedItemIds list', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Items Excluded Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
+    test('excludes items in excludedItemIds list', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       // Set 10 items, exclude 3, 5, 7
-      await updateItemConfig(testEventId, adminToken, { 
+      await updateItemConfig(eventId, adminToken, { 
         numberOfItems: 10, 
         excludedItemIds: [3, 5, 7] 
       });
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -884,15 +800,15 @@ test.describe('Data Export', () => {
       expect(itemIds).not.toContain(7);
     });
 
-    test('unassigned bottle slots have empty detail fields', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Items Unassigned Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
+    test('unassigned bottle slots have empty detail fields', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       // Set 5 bottle slots
-      await updateItemConfig(testEventId, adminToken, { numberOfItems: 5 });
+      await updateItemConfig(eventId, adminToken, { numberOfItems: 5 });
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -904,7 +820,6 @@ test.describe('Data Export', () => {
       expect(csv.rows.length).toBe(5);
       
       // All bottles should have empty detail fields (no items assigned yet)
-      // Items are only linked to bottle numbers during "paused" state
       for (const row of csv.rows) {
         expect(row.name).toBe('');
         expect(row.price).toBe('');
@@ -912,23 +827,23 @@ test.describe('Data Export', () => {
       }
     });
 
-    test('includes rating statistics', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Items Rating Stats Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await updateItemConfig(testEventId, adminToken, { numberOfItems: 5 });
-      await startEvent(testEventId, adminToken);
+    test('includes rating statistics', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await updateItemConfig(eventId, adminToken, { numberOfItems: 5 });
+      await startEvent(eventId, adminToken);
       
       // Multiple users rate item 1
-      const user1Token = await getUserToken(testEventId, 'user1@example.com', testEventPin);
-      const user2Token = await getUserToken(testEventId, 'user2@example.com', testEventPin);
-      const user3Token = await getUserToken(testEventId, 'user3@example.com', testEventPin);
+      const user1Token = await getUserToken(eventId, 'user1@example.com', pin);
+      const user2Token = await getUserToken(eventId, 'user2@example.com', pin);
+      const user3Token = await getUserToken(eventId, 'user3@example.com', pin);
       
-      await submitRating(testEventId, user1Token, 1, 4);
-      await submitRating(testEventId, user2Token, 1, 3);
-      await submitRating(testEventId, user3Token, 1, 2);
+      await submitRating(eventId, user1Token, 1, 4);
+      await submitRating(eventId, user2Token, 1, 3);
+      await submitRating(eventId, user3Token, 1, 2);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -942,28 +857,28 @@ test.describe('Data Export', () => {
       expect(item1?.weightedAverage).toBeTruthy();
     });
 
-    test('includes rating distribution', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Items Rating Distribution Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await updateItemConfig(testEventId, adminToken, { numberOfItems: 5 });
-      await startEvent(testEventId, adminToken);
+    test('includes rating distribution', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await updateItemConfig(eventId, adminToken, { numberOfItems: 5 });
+      await startEvent(eventId, adminToken);
       
       // Create ratings with specific distribution: one 1, two 2s, one 3, three 4s
       const users = [];
       for (let i = 1; i <= 7; i++) {
-        users.push(await getUserToken(testEventId, `user${i}@example.com`, testEventPin));
+        users.push(await getUserToken(eventId, `user${i}@example.com`, pin));
       }
       
-      await submitRating(testEventId, users[0], 1, 1); // one 1
-      await submitRating(testEventId, users[1], 1, 2); // two 2s
-      await submitRating(testEventId, users[2], 1, 2);
-      await submitRating(testEventId, users[3], 1, 3); // one 3
-      await submitRating(testEventId, users[4], 1, 4); // three 4s
-      await submitRating(testEventId, users[5], 1, 4);
-      await submitRating(testEventId, users[6], 1, 4);
+      await submitRating(eventId, users[0], 1, 1); // one 1
+      await submitRating(eventId, users[1], 1, 2); // two 2s
+      await submitRating(eventId, users[2], 1, 2);
+      await submitRating(eventId, users[3], 1, 3); // one 3
+      await submitRating(eventId, users[4], 1, 4); // three 4s
+      await submitRating(eventId, users[5], 1, 4);
+      await submitRating(eventId, users[6], 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -978,23 +893,23 @@ test.describe('Data Export', () => {
       expect(item1?.ratingCount4).toBe('3');
     });
 
-    test('includes rating progression percentage', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Items Progression Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await updateItemConfig(testEventId, adminToken, { numberOfItems: 5 });
-      await startEvent(testEventId, adminToken);
+    test('includes rating progression percentage', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await updateItemConfig(eventId, adminToken, { numberOfItems: 5 });
+      await startEvent(eventId, adminToken);
       
       // 4 users total, 2 rate item 1 = 50%
-      const user1Token = await getUserToken(testEventId, 'user1@example.com', testEventPin);
-      const user2Token = await getUserToken(testEventId, 'user2@example.com', testEventPin);
-      await getUserToken(testEventId, 'user3@example.com', testEventPin); // joins but doesn't rate
-      await getUserToken(testEventId, 'user4@example.com', testEventPin); // joins but doesn't rate
+      const user1Token = await getUserToken(eventId, 'user1@example.com', pin);
+      const user2Token = await getUserToken(eventId, 'user2@example.com', pin);
+      await getUserToken(eventId, 'user3@example.com', pin); // joins but doesn't rate
+      await getUserToken(eventId, 'user4@example.com', pin); // joins but doesn't rate
       
-      await submitRating(testEventId, user1Token, 1, 4);
-      await submitRating(testEventId, user2Token, 1, 3);
+      await submitRating(eventId, user1Token, 1, 4);
+      await submitRating(eventId, user2Token, 1, 3);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -1004,17 +919,16 @@ test.describe('Data Export', () => {
       const item1 = csv.rows.find(r => r.itemId === '1');
       
       // 2 raters out of total users (including admin = 5 users)
-      // Exact percentage depends on total user count
       expect(parseFloat(item1?.ratingProgression)).toBeGreaterThan(0);
     });
 
-    test('filename uses event terminology (bottles for wine)', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Items Terminology Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await updateItemConfig(testEventId, adminToken, { numberOfItems: 5 });
+    test('filename uses event terminology (bottles for wine)', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await updateItemConfig(eventId, adminToken, { numberOfItems: 5 });
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -1031,27 +945,13 @@ test.describe('Data Export', () => {
   // ===================================
 
   test.describe('Button States', () => {
-    test.afterEach(async () => {
-      if (testEventId) {
-        await deleteTestEvent(testEventId);
-        testEventId = null;
-      }
-    });
 
-    test.afterAll(async () => {
-      // Safety net: clean up if afterEach failed
-      if (testEventId) {
-        await deleteTestEvent(testEventId);
-        testEventId = null;
-      }
-    });
-
-    test('all export buttons enabled when idle', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Buttons Idle Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
+    test('all export buttons enabled when idle', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -1062,21 +962,21 @@ test.describe('Data Export', () => {
       await expect(getExportButton(page, 'items')).toBeEnabled();
     });
 
-    test('other buttons disabled during ratings export', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Buttons During Ratings Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('other buttons disabled during ratings export', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
       // Add many ratings to make export take longer
       for (let i = 1; i <= 5; i++) {
-        const userToken = await getUserToken(testEventId, `user${i}@example.com`, testEventPin);
+        const userToken = await getUserToken(eventId, `user${i}@example.com`, pin);
         for (let j = 1; j <= 10; j++) {
-          await submitRating(testEventId, userToken, j, (i % 4) + 1);
+          await submitRating(eventId, userToken, j, (i % 4) + 1);
         }
       }
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -1084,12 +984,6 @@ test.describe('Data Export', () => {
       // Click export and immediately check other buttons
       const downloadPromise = page.waitForEvent('download');
       await getExportButton(page, 'ratings').click();
-      
-      // Other buttons should be disabled during export
-      // Note: This might be flaky if export is too fast
-      const matrixDisabled = await getExportButton(page, 'matrix').isDisabled().catch(() => false);
-      const usersDisabled = await getExportButton(page, 'users').isDisabled().catch(() => false);
-      const itemsDisabled = await getExportButton(page, 'items').isDisabled().catch(() => false);
       
       // At least verify export completes
       await downloadPromise;
@@ -1100,16 +994,16 @@ test.describe('Data Export', () => {
       await expect(getExportButton(page, 'items')).toBeEnabled();
     });
 
-    test('buttons re-enable after export completes', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Buttons Re-enable Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('buttons re-enable after export completes', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
-      const userToken = await getUserToken(testEventId, 'user@example.com', testEventPin);
-      await submitRating(testEventId, userToken, 1, 4);
+      const userToken = await getUserToken(eventId, 'user@example.com', pin);
+      await submitRating(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -1136,38 +1030,24 @@ test.describe('Data Export', () => {
   // ===================================
 
   test.describe('Large Dataset and CSV Validation', () => {
-    test.afterEach(async () => {
-      if (testEventId) {
-        await deleteTestEvent(testEventId);
-        testEventId = null;
-      }
-    });
 
-    test.afterAll(async () => {
-      // Safety net: clean up if afterEach failed
-      if (testEventId) {
-        await deleteTestEvent(testEventId);
-        testEventId = null;
-      }
-    });
-
-    test('exports large dataset without timeout', async ({ page }) => {
+    test('exports large dataset without timeout', async ({ page, testEvent }) => {
       test.setTimeout(120000); // 2 minute timeout for this test
       
-      testEventId = await createTestEvent(null, 'Large Dataset Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
       // Create 10 users with 10 ratings each = 100 ratings
       for (let i = 1; i <= 10; i++) {
-        const userToken = await getUserToken(testEventId, `largeuser${i}@example.com`, testEventPin);
+        const userToken = await getUserToken(eventId, `largeuser${i}@example.com`, pin);
         for (let j = 1; j <= 10; j++) {
-          await submitRating(testEventId, userToken, j, (i + j) % 4 + 1);
+          await submitRating(eventId, userToken, j, (i + j) % 4 + 1);
         }
       }
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -1177,19 +1057,19 @@ test.describe('Data Export', () => {
       expect(csv.rows.length).toBe(100);
     });
 
-    test('ratings CSV has correct row count', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'CSV Row Count Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('ratings CSV has correct row count', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
       // Submit exactly 10 ratings
-      const userToken = await getUserToken(testEventId, 'counter@example.com', testEventPin);
+      const userToken = await getUserToken(eventId, 'counter@example.com', pin);
       for (let i = 1; i <= 10; i++) {
-        await submitRating(testEventId, userToken, i, (i % 4) + 1);
+        await submitRating(eventId, userToken, i, (i % 4) + 1);
       }
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);
@@ -1202,24 +1082,24 @@ test.describe('Data Export', () => {
       expect(csv.rows.length).toBe(10);
     });
 
-    test('matrix CSV has correct structure', async ({ page }) => {
-      testEventId = await createTestEvent(null, 'Matrix Structure Validation Event', testEventPin);
-      const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
-      await startEvent(testEventId, adminToken);
+    test('matrix CSV has correct structure', async ({ page, testEvent }) => {
+      const { eventId, pin } = testEvent;
+      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
+      await startEvent(eventId, adminToken);
       
       // 2 users rate 3 items
-      const user1Token = await getUserToken(testEventId, 'matrixuser1@example.com', testEventPin);
-      const user2Token = await getUserToken(testEventId, 'matrixuser2@example.com', testEventPin);
+      const user1Token = await getUserToken(eventId, 'matrixuser1@example.com', pin);
+      const user2Token = await getUserToken(eventId, 'matrixuser2@example.com', pin);
       
-      await submitRating(testEventId, user1Token, 1, 4);
-      await submitRating(testEventId, user1Token, 2, 3);
-      await submitRating(testEventId, user1Token, 3, 2);
-      await submitRating(testEventId, user2Token, 1, 2);
-      await submitRating(testEventId, user2Token, 2, 4);
-      await submitRating(testEventId, user2Token, 3, 3);
+      await submitRating(eventId, user1Token, 1, 4);
+      await submitRating(eventId, user1Token, 2, 3);
+      await submitRating(eventId, user1Token, 3, 2);
+      await submitRating(eventId, user2Token, 1, 2);
+      await submitRating(eventId, user2Token, 2, 4);
+      await submitRating(eventId, user2Token, 3, 3);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
       
       await openExportDrawer(page);

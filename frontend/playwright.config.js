@@ -3,13 +3,16 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Playwright configuration for E2E testing
  * Supports mobile viewports and multiple browsers
+ * 
+ * Full parallelism is enabled - each test uses isolated fixtures.
+ * Tests create their own events via the testEvent fixture in fixtures.js.
  */
 export default defineConfig({
   testDir: './tests/e2e/specs',
-  fullyParallel: false, // Tests within a file run sequentially (they share testEventId)
+  fullyParallel: true, // Tests run in parallel - each test has isolated fixtures
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: undefined, // Auto-detect CPU cores for file-level parallelism
+  workers: 12, // Auto-detect CPU cores
   reporter: 'html',
   timeout: 60000, // 60 seconds per test
   

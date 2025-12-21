@@ -5,10 +5,8 @@
  * submitting ratings, and bookmark management.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import {
-  createTestEvent,
-  deleteTestEvent,
   addAdminToEvent,
   setAuthToken,
   clearAuth,
@@ -19,40 +17,19 @@ import {
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
 
-let testEventId;
-const testEventPin = '654321';
-
 test.describe('Rating Flow', () => {
-
-  test.beforeEach(async () => {
-    testEventId = await createTestEvent(null, 'Rating Test Event', testEventPin);
-  });
-
-  test.afterEach(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test.afterAll(async () => {
-    // Safety net: clean up if afterEach failed
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
 
   // ===================================
   // User Story 1 - View and Access Items
   // ===================================
 
-  test('displays item buttons on event page', async ({ page }) => {
+  test('displays item buttons on event page', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     
     // Should see item buttons
     await page.waitForLoadState('networkidle');
@@ -62,12 +39,13 @@ test.describe('Rating Flow', () => {
     await expect(itemButton.first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('clicking item button opens drawer', async ({ page }) => {
+  test('clicking item button opens drawer', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Click on item 1
@@ -84,13 +62,14 @@ test.describe('Rating Flow', () => {
   // User Story 2 - Rate Items (Started Event)
   // ===================================
 
-  test('shows rating interface when event is started', async ({ page }) => {
+  test('shows rating interface when event is started', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     // First, start the event as admin
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Use API to start the event
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -101,10 +80,10 @@ test.describe('Rating Flow', () => {
     
     // Now access as regular user
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     
     await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Click item button
@@ -120,12 +99,13 @@ test.describe('Rating Flow', () => {
     // Rating interface should be present when event is started
   });
 
-  test('can submit rating for an item', async ({ page }) => {
+  test('can submit rating for an item', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     // Start the event first
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -136,10 +116,10 @@ test.describe('Rating Flow', () => {
     
     // Access as regular user
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     
     await submitEmail(page, 'rater@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Click item 1 to open rating drawer
@@ -181,13 +161,14 @@ test.describe('Rating Flow', () => {
   // User Story 4 - Bookmark Items
   // ===================================
 
-  test('can bookmark an item', async ({ page }) => {
+  test('can bookmark an item', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     const userEmail = 'bookmarkuser@example.com';
     
     // Start the event
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -197,10 +178,10 @@ test.describe('Rating Flow', () => {
     });
     
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     
     await submitEmail(page, userEmail);
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Click item 1 to open rating drawer
@@ -236,7 +217,7 @@ test.describe('Rating Flow', () => {
     expect(userToken).toBeTruthy();
     
     // Call API to verify bookmark is stored
-    const bookmarksResponse = await fetch(`${API_URL}/api/events/${testEventId}/bookmarks`, {
+    const bookmarksResponse = await fetch(`${API_URL}/api/events/${eventId}/bookmarks`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${userToken}`
@@ -253,12 +234,13 @@ test.describe('Rating Flow', () => {
   // ===================================
   // Edge Cases
   // ===================================
-  test('note field enforces character limit', async ({ page }) => {
+  test('note field enforces character limit', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start the event
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -268,10 +250,10 @@ test.describe('Rating Flow', () => {
     });
     
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     
     await submitEmail(page, 'noteuser@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     await page.waitForLoadState('networkidle');
     
     // Click item 1 to open rating drawer

@@ -8,10 +8,8 @@
  * Default event type is "wine" which uses "Bottles" terminology.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import {
-  createTestEvent,
-  deleteTestEvent,
   addAdminToEvent,
   setAuthToken,
   clearAuth,
@@ -20,9 +18,6 @@ import {
 } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
-
-let testEventId;
-const testEventPin = '654321';
 
 /**
  * Opens the Bottles (Items) drawer on the admin page
@@ -67,35 +62,17 @@ async function clickSaveButton(page) {
 
 test.describe('Item Configuration', () => {
 
-  test.beforeEach(async () => {
-    testEventId = await createTestEvent(null, 'Item Config Test Event', testEventPin);
-  });
-
-  test.afterEach(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test.afterAll(async () => {
-    // Safety net: clean up if afterEach failed
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
   // ===================================
   // User Story 1 - Configure Number of Items
   // ===================================
 
-  test('admin page shows Bottles button to access item configuration', async ({ page }) => {
+  test('admin page shows Bottles button to access item configuration', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Look for Bottles button on admin page
@@ -103,12 +80,13 @@ test.describe('Item Configuration', () => {
     await expect(bottlesButton).toBeVisible({ timeout: 10000 });
   });
 
-  test('can set number of bottles', async ({ page }) => {
+  test('can set number of bottles', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
@@ -121,16 +99,18 @@ test.describe('Item Configuration', () => {
     // Save configuration
     await clickSaveButton(page);
     
-    // Verify success (toast or no error)
-    await expect(page.getByText(/error/i)).not.toBeVisible({ timeout: 2000 }).catch(() => {});
+    // Verify success (toast or no error) - scope to drawer to avoid matching event name
+    const drawer = page.locator('[role="dialog"]');
+    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 }).catch(() => {});
   });
 
-  test('default number of bottles is 20', async ({ page }) => {
+  test('default number of bottles is 20', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
@@ -141,12 +121,13 @@ test.describe('Item Configuration', () => {
     await expect(bottlesInput).toHaveValue('20');
   });
 
-  test('validates maximum bottles limit (100)', async ({ page }) => {
+  test('validates maximum bottles limit (100)', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
@@ -159,22 +140,24 @@ test.describe('Item Configuration', () => {
     // Try to save
     await clickSaveButton(page);
     
-    // Should show error or validation message
-    await expect(page.getByText(/must be.*between 1 and 100/i)).toBeVisible({ timeout: 5000 });
+    // Should show error or validation message - scope to drawer
+    const drawer = page.locator('[role="dialog"]');
+    await expect(drawer.getByText(/must be.*between 1 and 100/i)).toBeVisible({ timeout: 5000 });
   });
 
   // ===================================
   // User Story 2 - Configure Excluded Bottle IDs
   // ===================================
 
-  test('can set excluded bottle IDs', async ({ page }) => {
+  test('can set excluded bottle IDs', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const regularUserEmail = 'user@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Step 1: Admin logs in and sets excluded bottle IDs
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
@@ -187,25 +170,26 @@ test.describe('Item Configuration', () => {
     // Save configuration
     await clickSaveButton(page);
     
-    // Verify success (no error visible)
-    await expect(page.getByText(/error/i)).not.toBeVisible({ timeout: 2000 }).catch(() => {});
+    // Verify success (no error visible) - scope to drawer
+    const drawer = page.locator('[role="dialog"]');
+    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 }).catch(() => {});
     
     // Step 2: Admin logs out
     await clearAuth(page);
     
     // Step 3: Regular user logs in via PIN entry flow
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await page.waitForLoadState('networkidle');
     
     // Should be redirected to email entry
     await submitEmail(page, regularUserEmail);
     
     // Should be redirected to PIN entry (regular user)
-    await page.waitForURL(new RegExp(`/event/${testEventId}/pin`), { timeout: 5000 });
-    await enterAndSubmitPIN(page, testEventPin);
+    await page.waitForURL(new RegExp(`/event/${eventId}/pin`), { timeout: 5000 });
+    await enterAndSubmitPIN(page, pin);
     
     // Should be redirected to event main page
-    await page.waitForURL(new RegExp(`/event/${testEventId}$`), { timeout: 5000 });
+    await page.waitForURL(new RegExp(`/event/${eventId}$`), { timeout: 5000 });
     
     // Step 4: Verify excluded bottles (5, 10, 15) are NOT visible
     const bottle5 = page.locator('button').filter({ hasText: /^5$/ });
@@ -226,12 +210,13 @@ test.describe('Item Configuration', () => {
     await expect(bottle3).toBeVisible();
   });
 
-  test('validates excluded IDs are within range', async ({ page }) => {
+  test('validates excluded IDs are within range', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
@@ -244,16 +229,18 @@ test.describe('Item Configuration', () => {
     // Try to save
     await clickSaveButton(page);
     
-    // Should show error
-    await expect(page.getByText(/error|invalid|range|outside/i)).toBeVisible({ timeout: 5000 });
+    // Should show error - scope to drawer
+    const drawer = page.locator('[role="dialog"]');
+    await expect(drawer.getByText(/error|invalid|range|outside/i)).toBeVisible({ timeout: 5000 });
   });
 
-  test('prevents excluding all bottles', async ({ page }) => {
+  test('prevents excluding all bottles', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
@@ -270,20 +257,22 @@ test.describe('Item Configuration', () => {
     // Try to save
     await clickSaveButton(page);
     
-    // Should show error - at least one bottle must be available
-    await expect(page.getByText(/error|at least|cannot exclude all/i)).toBeVisible({ timeout: 5000 });
+    // Should show error - at least one bottle must be available - scope to drawer
+    const drawer = page.locator('[role="dialog"]');
+    await expect(drawer.getByText(/error|at least|cannot exclude all/i)).toBeVisible({ timeout: 5000 });
   });
 
   // ===================================
   // User Story 3 - View Item Configuration
   // ===================================
 
-  test('displays current bottle configuration in drawer', async ({ page }) => {
+  test('displays current bottle configuration in drawer', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
@@ -301,12 +290,13 @@ test.describe('Item Configuration', () => {
   // Edge Cases
   // ===================================
 
-  test('handles leading zeros in excluded IDs', async ({ page }) => {
+  test('handles leading zeros in excluded IDs', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
@@ -319,16 +309,18 @@ test.describe('Item Configuration', () => {
     // Save configuration
     await clickSaveButton(page);
     
-    // Should normalize to 5,10 (no error)
-    await expect(page.getByText(/error/i)).not.toBeVisible({ timeout: 2000 }).catch(() => {});
+    // Should normalize to 5,10 (no error) - scope to drawer
+    const drawer = page.locator('[role="dialog"]');
+    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 }).catch(() => {});
   });
 
-  test('handles duplicate excluded IDs', async ({ page }) => {
+  test('handles duplicate excluded IDs', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
@@ -341,16 +333,18 @@ test.describe('Item Configuration', () => {
     // Save configuration
     await clickSaveButton(page);
     
-    // Should handle duplicates (treat as single exclusion, no error)
-    await expect(page.getByText(/error/i)).not.toBeVisible({ timeout: 2000 }).catch(() => {});
+    // Should handle duplicates (treat as single exclusion, no error) - scope to drawer
+    const drawer = page.locator('[role="dialog"]');
+    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 }).catch(() => {});
   });
 
-  test('handles whitespace in excluded IDs', async ({ page }) => {
+  test('handles whitespace in excluded IDs', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/admin`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
@@ -363,7 +357,8 @@ test.describe('Item Configuration', () => {
     // Save configuration
     await clickSaveButton(page);
     
-    // Should trim whitespace and process correctly (no error)
-    await expect(page.getByText(/error/i)).not.toBeVisible({ timeout: 2000 }).catch(() => {});
+    // Should trim whitespace and process correctly (no error) - scope to drawer
+    const drawer = page.locator('[role="dialog"]');
+    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 }).catch(() => {});
   });
 });

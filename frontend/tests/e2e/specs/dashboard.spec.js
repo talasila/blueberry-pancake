@@ -5,10 +5,8 @@
  * item ratings table, and access control.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import {
-  createTestEvent,
-  deleteTestEvent,
   addAdminToEvent,
   setAuthToken,
   clearAuth,
@@ -19,52 +17,32 @@ import {
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
 
-let testEventId;
-const testEventPin = '654321';
-
 test.describe('Dashboard Page', () => {
-
-  test.beforeEach(async () => {
-    testEventId = await createTestEvent(null, 'Dashboard Test Event', testEventPin);
-  });
-
-  test.afterEach(async () => {
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
-
-  test.afterAll(async () => {
-    // Safety net: clean up if afterEach failed
-    if (testEventId) {
-      await deleteTestEvent(testEventId);
-      testEventId = null;
-    }
-  });
 
   // ===================================
   // User Story 1 - Admin Views Dashboard Anytime
   // ===================================
 
-  test('administrator can access dashboard in any event state', async ({ page }) => {
+  test('administrator can access dashboard in any event state', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Should be on dashboard page
-    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}/dashboard`));
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}/dashboard`));
   });
 
-  test('administrator sees dashboard in created state', async ({ page }) => {
+  test('administrator sees dashboard in created state', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Dashboard should load with stats (may show zeros/N/A)
@@ -72,12 +50,13 @@ test.describe('Dashboard Page', () => {
     await expect(dashboard).toBeVisible();
   });
 
-  test('administrator sees dashboard in started state', async ({ page }) => {
+  test('administrator sees dashboard in started state', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start the event
-    const startResponse = await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    const startResponse = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -90,22 +69,23 @@ test.describe('Dashboard Page', () => {
     }
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
-    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}/dashboard`));
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}/dashboard`));
   });
 
   // ===================================
   // User Story 2 - Regular User Dashboard Access
   // ===================================
 
-  test('regular user cannot access dashboard before event completed', async ({ page }) => {
+  test('regular user cannot access dashboard before event completed', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start the event but don't complete it
-    const startResponse = await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    const startResponse = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -119,28 +99,29 @@ test.describe('Dashboard Page', () => {
     
     // Access as regular user
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'regularuser@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     
     // Wait for event page to fully load after PIN entry
-    await page.waitForURL(new RegExp(`/event/${testEventId}$`), { timeout: 10000 });
+    await page.waitForURL(new RegExp(`/event/${eventId}$`), { timeout: 10000 });
     await page.waitForLoadState('networkidle');
     
     // Try to access dashboard
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Should be redirected to event main page
     await expect(page).not.toHaveURL(/\/dashboard/);
   });
 
-  test('regular user can access dashboard when event is completed', async ({ page }) => {
+  test('regular user can access dashboard when event is completed', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Complete the event (transition: created -> started -> completed)
-    const startResponse = await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    const startResponse = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -152,7 +133,7 @@ test.describe('Dashboard Page', () => {
       throw new Error(`Failed to start event: ${await startResponse.text()}`);
     }
     
-    const completeResponse = await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    const completeResponse = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -165,7 +146,7 @@ test.describe('Dashboard Page', () => {
     }
     
     // Verify event is now in completed state
-    const verifyResponse = await fetch(`${API_URL}/api/events/${testEventId}`, {
+    const verifyResponse = await fetch(`${API_URL}/api/events/${eventId}`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }
@@ -177,12 +158,12 @@ test.describe('Dashboard Page', () => {
     
     // Access as regular user - set up auth token directly like admin tests do
     // Get a regular user token by calling verify-pin API
-    const pinResponse = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+    const pinResponse = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ pin: testEventPin, email: 'regularuser@example.com' })
+      body: JSON.stringify({ pin, email: 'regularuser@example.com' })
     });
     if (!pinResponse.ok) {
       throw new Error(`Failed to verify PIN: ${await pinResponse.text()}`);
@@ -194,23 +175,24 @@ test.describe('Dashboard Page', () => {
     await setAuthToken(page, userToken, 'regularuser@example.com');
     
     // Navigate directly to dashboard
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Should be able to view dashboard (not redirected away)
-    await expect(page).toHaveURL(new RegExp(`/event/${testEventId}/dashboard`));
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}/dashboard`));
   });
 
   // ===================================
   // User Story 3 - View Summary Statistics
   // ===================================
 
-  test('displays four summary statistics', async ({ page }) => {
+  test('displays four summary statistics', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Should see four statistics
@@ -223,12 +205,13 @@ test.describe('Dashboard Page', () => {
     await expect(page.getByText(/ratings.*bottle/i)).toBeVisible();
   });
 
-  test('shows zero/N/A values when no ratings exist', async ({ page }) => {
+  test('shows zero/N/A values when no ratings exist', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Stats should show 0 or N/A for new event
@@ -240,12 +223,13 @@ test.describe('Dashboard Page', () => {
   // User Story 4 - Item Ratings Table
   // ===================================
 
-  test('shows items tab with empty state when no items configured', async ({ page }) => {
+  test('shows items tab with empty state when no items configured', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Click on Items/Bottles tab
@@ -255,8 +239,10 @@ test.describe('Dashboard Page', () => {
     await page.waitForTimeout(500);
     
     // Should show empty state message or table (depending on configuration)
-    const table = page.locator('table');
-    const emptyMessage = page.getByText(/no.*items|no.*bottles|no.*ratings|no.*data/i).first();
+    // Scope to main content to avoid matching event name in header
+    const main = page.locator('main');
+    const table = main.locator('table');
+    const emptyMessage = main.getByText(/no.*items|no.*bottles|no.*ratings|no.*data/i).first();
     
     // Either table or empty message should be visible
     const tableVisible = await table.isVisible();
@@ -265,12 +251,13 @@ test.describe('Dashboard Page', () => {
     expect(tableVisible || emptyVisible).toBe(true);
   });
 
-  test('items tab displays table when items are configured', async ({ page }) => {
+  test('items tab displays table when items are configured', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items for the event via API
-    const configResponse = await fetch(`${API_URL}/api/events/${testEventId}/item-configuration`, {
+    const configResponse = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -283,7 +270,7 @@ test.describe('Dashboard Page', () => {
     }
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Click on Items/Bottles tab
@@ -307,12 +294,13 @@ test.describe('Dashboard Page', () => {
     await expect(rows).toHaveCount(10);
   });
 
-  test('table columns are sortable', async ({ page }) => {
+  test('table columns are sortable', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items for the event
-    const configResponse = await fetch(`${API_URL}/api/events/${testEventId}/item-configuration`, {
+    const configResponse = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -325,7 +313,7 @@ test.describe('Dashboard Page', () => {
     }
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Click on Items/Bottles tab
@@ -349,12 +337,13 @@ test.describe('Dashboard Page', () => {
     await page.waitForTimeout(500);
   });
 
-  test('default sort is by item ID ascending', async ({ page }) => {
+  test('default sort is by item ID ascending', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items for the event
-    const configResponse = await fetch(`${API_URL}/api/events/${testEventId}/item-configuration`, {
+    const configResponse = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -367,7 +356,7 @@ test.describe('Dashboard Page', () => {
     }
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Click on Items/Bottles tab
@@ -386,12 +375,13 @@ test.describe('Dashboard Page', () => {
   // User Story 5 - Weighted Average Calculation
   // ===================================
 
-  test('weighted average displays correctly for items with ratings', async ({ page }) => {
+  test('weighted average displays correctly for items with ratings', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items for the event
-    const configResponse = await fetch(`${API_URL}/api/events/${testEventId}/item-configuration`, {
+    const configResponse = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -404,7 +394,7 @@ test.describe('Dashboard Page', () => {
     }
     
     // Start the event (ratings can only be submitted when event is started)
-    const startResponse = await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    const startResponse = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -417,10 +407,10 @@ test.describe('Dashboard Page', () => {
     }
     
     // Get a user token via PIN verification
-    const pinResponse = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+    const pinResponse = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin: testEventPin, email: 'rater@example.com' })
+      body: JSON.stringify({ pin, email: 'rater@example.com' })
     });
     if (!pinResponse.ok) {
       throw new Error(`Failed to verify PIN: ${await pinResponse.text()}`);
@@ -429,7 +419,7 @@ test.describe('Dashboard Page', () => {
     
     // Submit ratings for some items
     for (let itemId = 1; itemId <= 3; itemId++) {
-      const ratingResponse = await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+      const ratingResponse = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -444,7 +434,7 @@ test.describe('Dashboard Page', () => {
     
     // Now view dashboard as admin
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Click on Items/Bottles tab
@@ -472,12 +462,13 @@ test.describe('Dashboard Page', () => {
   // User Story 6 - User Ratings Table
   // ===================================
 
-  test('users tab is accessible and shows appropriate content', async ({ page }) => {
+  test('users tab is accessible and shows appropriate content', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Click on Users tab
@@ -487,8 +478,10 @@ test.describe('Dashboard Page', () => {
     await page.waitForTimeout(500);
     
     // Should show either empty state message or table (admin may be registered but without ratings)
-    const emptyMessage = page.getByText(/no.*users/i);
-    const table = page.locator('table');
+    // Scope to main content to avoid matching event name in header
+    const main = page.locator('main');
+    const emptyMessage = main.getByText(/no.*users/i);
+    const table = main.locator('table');
     
     const emptyVisible = await emptyMessage.isVisible();
     const tableVisible = await table.isVisible();
@@ -497,12 +490,13 @@ test.describe('Dashboard Page', () => {
     expect(emptyVisible || tableVisible).toBe(true);
   });
 
-  test('users tab displays table with correct columns when users have ratings', async ({ page }) => {
+  test('users tab displays table with correct columns when users have ratings', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items and start event
-    await fetch(`${API_URL}/api/events/${testEventId}/item-configuration`, {
+    await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -511,7 +505,7 @@ test.describe('Dashboard Page', () => {
       body: JSON.stringify({ numberOfItems: 5 })
     });
     
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -521,16 +515,16 @@ test.describe('Dashboard Page', () => {
     });
     
     // Create first user and submit ratings
-    const user1Response = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+    const user1Response = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin: testEventPin, email: 'user1@example.com' })
+      body: JSON.stringify({ pin, email: 'user1@example.com' })
     });
     const { token: user1Token } = await user1Response.json();
     
     // Submit ratings for user1
     for (let itemId = 1; itemId <= 3; itemId++) {
-      await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+      await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -542,7 +536,7 @@ test.describe('Dashboard Page', () => {
     
     // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Click on Users tab
@@ -561,12 +555,13 @@ test.describe('Dashboard Page', () => {
     await expect(page.getByText(/avg.*rating/i).first()).toBeVisible();
   });
 
-  test('users table displays multiple users with different rating counts', async ({ page }) => {
+  test('users table displays multiple users with different rating counts', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items and start event
-    await fetch(`${API_URL}/api/events/${testEventId}/item-configuration`, {
+    await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -575,7 +570,7 @@ test.describe('Dashboard Page', () => {
       body: JSON.stringify({ numberOfItems: 5 })
     });
     
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -585,15 +580,15 @@ test.describe('Dashboard Page', () => {
     });
     
     // Create first user with 5 ratings
-    const user1Response = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+    const user1Response = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin: testEventPin, email: 'alice@example.com' })
+      body: JSON.stringify({ pin, email: 'alice@example.com' })
     });
     const { token: user1Token } = await user1Response.json();
     
     for (let itemId = 1; itemId <= 5; itemId++) {
-      await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+      await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -604,15 +599,15 @@ test.describe('Dashboard Page', () => {
     }
     
     // Create second user with 2 ratings
-    const user2Response = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+    const user2Response = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin: testEventPin, email: 'bob@example.com' })
+      body: JSON.stringify({ pin, email: 'bob@example.com' })
     });
     const { token: user2Token } = await user2Response.json();
     
     for (let itemId = 1; itemId <= 2; itemId++) {
-      await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+      await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -624,7 +619,7 @@ test.describe('Dashboard Page', () => {
     
     // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Click on Users tab
@@ -646,12 +641,13 @@ test.describe('Dashboard Page', () => {
     expect(rowCount).toBeGreaterThanOrEqual(2);
   });
 
-  test('users table columns are sortable', async ({ page }) => {
+  test('users table columns are sortable', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items and start event
-    await fetch(`${API_URL}/api/events/${testEventId}/item-configuration`, {
+    await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -660,7 +656,7 @@ test.describe('Dashboard Page', () => {
       body: JSON.stringify({ numberOfItems: 5 })
     });
     
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -670,14 +666,14 @@ test.describe('Dashboard Page', () => {
     });
     
     // Create users with ratings
-    const user1Response = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+    const user1Response = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin: testEventPin, email: 'zack@example.com' })
+      body: JSON.stringify({ pin, email: 'zack@example.com' })
     });
     const { token: user1Token } = await user1Response.json();
     
-    await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+    await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -686,14 +682,14 @@ test.describe('Dashboard Page', () => {
       body: JSON.stringify({ itemId: 1, rating: 5 })
     });
     
-    const user2Response = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+    const user2Response = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin: testEventPin, email: 'anna@example.com' })
+      body: JSON.stringify({ pin, email: 'anna@example.com' })
     });
     const { token: user2Token } = await user2Response.json();
     
-    await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+    await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -704,7 +700,7 @@ test.describe('Dashboard Page', () => {
     
     // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Click on Users tab
@@ -730,12 +726,13 @@ test.describe('Dashboard Page', () => {
     }
   });
 
-  test('users table default sort is by email ascending', async ({ page }) => {
+  test('users table default sort is by email ascending', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items and start event
-    await fetch(`${API_URL}/api/events/${testEventId}/item-configuration`, {
+    await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -744,7 +741,7 @@ test.describe('Dashboard Page', () => {
       body: JSON.stringify({ numberOfItems: 5 })
     });
     
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -754,14 +751,14 @@ test.describe('Dashboard Page', () => {
     });
     
     // Create users in reverse alphabetical order
-    const user1Response = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+    const user1Response = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin: testEventPin, email: 'zack@example.com' })
+      body: JSON.stringify({ pin, email: 'zack@example.com' })
     });
     const { token: user1Token } = await user1Response.json();
     
-    await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+    await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -770,14 +767,14 @@ test.describe('Dashboard Page', () => {
       body: JSON.stringify({ itemId: 1, rating: 5 })
     });
     
-    const user2Response = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+    const user2Response = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin: testEventPin, email: 'anna@example.com' })
+      body: JSON.stringify({ pin, email: 'anna@example.com' })
     });
     const { token: user2Token } = await user2Response.json();
     
-    await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+    await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -788,7 +785,7 @@ test.describe('Dashboard Page', () => {
     
     // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Click on Users tab
@@ -807,12 +804,13 @@ test.describe('Dashboard Page', () => {
     await expect(secondRow).toContainText(/anna/i);
   });
 
-  test('clicking user row opens user details drawer', async ({ page }) => {
+  test('clicking user row opens user details drawer', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items and start event
-    await fetch(`${API_URL}/api/events/${testEventId}/item-configuration`, {
+    await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -821,7 +819,7 @@ test.describe('Dashboard Page', () => {
       body: JSON.stringify({ numberOfItems: 5 })
     });
     
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -831,14 +829,14 @@ test.describe('Dashboard Page', () => {
     });
     
     // Create user with ratings
-    const userResponse = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+    const userResponse = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin: testEventPin, email: 'testuser@example.com' })
+      body: JSON.stringify({ pin, email: 'testuser@example.com' })
     });
     const { token: userToken } = await userResponse.json();
     
-    await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+    await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -849,7 +847,7 @@ test.describe('Dashboard Page', () => {
     
     // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Click on Users tab
@@ -870,12 +868,13 @@ test.describe('Dashboard Page', () => {
     await expect(page.getByText(/testuser/i).first()).toBeVisible();
   });
 
-  test('users table shows derived name from email when name not set', async ({ page }) => {
+  test('users table shows derived name from email when name not set', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items and start event
-    await fetch(`${API_URL}/api/events/${testEventId}/item-configuration`, {
+    await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -884,7 +883,7 @@ test.describe('Dashboard Page', () => {
       body: JSON.stringify({ numberOfItems: 5 })
     });
     
-    await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -894,14 +893,14 @@ test.describe('Dashboard Page', () => {
     });
     
     // Create user (no name set, only email)
-    const userResponse = await fetch(`${API_URL}/api/events/${testEventId}/verify-pin`, {
+    const userResponse = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin: testEventPin, email: 'john.doe@example.com' })
+      body: JSON.stringify({ pin, email: 'john.doe@example.com' })
     });
     const { token: userToken } = await userResponse.json();
     
-    await fetch(`${API_URL}/api/events/${testEventId}/ratings`, {
+    await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -912,7 +911,7 @@ test.describe('Dashboard Page', () => {
     
     // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Click on Users tab
@@ -929,42 +928,45 @@ test.describe('Dashboard Page', () => {
   // Edge Cases
   // ===================================
 
-  test('handles event with only admin user gracefully', async ({ page }) => {
+  test('handles event with only admin user gracefully', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Admin is now counted as a user, so should show 1 user or appropriate value
     // The dashboard should display without errors
-    const dashboard = page.locator('main');
-    await expect(dashboard).toBeVisible();
+    const main = page.locator('main');
+    await expect(main).toBeVisible();
     
-    // Total users should show 1 (the admin) or appropriate stats
-    await expect(page.getByText(/N\/A|[0-1]|no.*ratings/i).first()).toBeVisible();
+    // Total users should show 1 (the admin) or appropriate stats - scope to main content
+    await expect(main.getByText(/N\/A|[0-1]|no.*ratings/i).first()).toBeVisible();
   });
 
-  test('shows loading indicator while fetching data', async ({ page }) => {
+  test('shows loading indicator while fetching data', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
     
     // Navigate and look for loading state
-    const navigationPromise = page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    const navigationPromise = page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     
     // Loading indicator might appear briefly
     await navigationPromise;
   });
 
-  test('refresh button updates dashboard data', async ({ page }) => {
+  test('refresh button updates dashboard data', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}/dashboard`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
     // Look for refresh button
@@ -977,12 +979,13 @@ test.describe('Dashboard Page', () => {
     }
   });
 
-  test('dashboard link visible to admin in dropdown menu', async ({ page }) => {
+  test('dashboard link visible to admin in dropdown menu', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await page.waitForLoadState('networkidle');
     
     // Open the dropdown menu
@@ -996,12 +999,13 @@ test.describe('Dashboard Page', () => {
     await expect(dashboardLink.first()).toBeVisible();
   });
 
-  test('dashboard link hidden from regular user in menu when event not completed', async ({ page }) => {
+  test('dashboard link hidden from regular user in menu when event not completed', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(testEventId, adminEmail);
+    const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start but don't complete event
-    const startResponse = await fetch(`${API_URL}/api/events/${testEventId}/state`, {
+    const startResponse = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -1015,12 +1019,12 @@ test.describe('Dashboard Page', () => {
     
     // Access as regular user
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${testEventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'regularuser@example.com');
-    await enterAndSubmitPIN(page, testEventPin);
+    await enterAndSubmitPIN(page, pin);
     
     // Wait for event page to load
-    await page.waitForURL(new RegExp(`/event/${testEventId}$`), { timeout: 10000 });
+    await page.waitForURL(new RegExp(`/event/${eventId}$`), { timeout: 10000 });
     await page.waitForLoadState('networkidle');
     
     // Open the dropdown menu
