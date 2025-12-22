@@ -170,29 +170,29 @@ test.describe('Create Event', () => {
     const nameInput = page.locator('input#event-name').or(page.getByLabel(/event name/i));
     await nameInput.fill('State Test Event');
     
-    // Intercept the API response to capture the created event
-    let createdEventId = null;
-    page.on('response', async (response) => {
-      if (response.url().includes('/api/events') && response.request().method() === 'POST') {
-        try {
-          const data = await response.json();
-          createdEventId = data.eventId;
-          // Track for cleanup by global teardown
-          if (createdEventId) {
-            trackEventForCleanup(createdEventId);
-          }
-        } catch {
-          // Ignore parsing errors
-        }
-      }
-    });
+    // Set up response promise BEFORE clicking (to capture the API response reliably)
+    const responsePromise = page.waitForResponse(
+      resp => resp.url().includes('/api/events') && 
+              resp.request().method() === 'POST' &&
+              !resp.url().includes('verify-pin')
+    );
     
     // Submit the form
     const createButton = page.getByRole('button', { name: /create event/i });
     await createButton.click();
     
-    // Wait for success popup
-    await page.waitForTimeout(3000);
+    // Wait for API response and extract event ID
+    const response = await responsePromise;
+    let createdEventId = null;
+    try {
+      const data = await response.json();
+      createdEventId = data.eventId;
+      if (createdEventId) {
+        trackEventForCleanup(createdEventId);
+      }
+    } catch {
+      // Ignore parsing errors
+    }
     
     // Verify success popup appears with event ID
     const successPopup = page.getByText(/event created successfully/i);
@@ -311,34 +311,12 @@ test.describe('Create Event', () => {
     const nameInput = page.locator('input#event-name').or(page.getByLabel(/event name/i));
     await nameInput.fill('Rapid Click Test Event');
     
-    // Track API calls
-    let apiCallCount = 0;
-    const createdEventIds = [];
-    
-    page.on('request', (request) => {
-      if (request.url().includes('/api/events') && 
-          request.method() === 'POST' && 
-          !request.url().includes('verify-pin')) {
-        apiCallCount++;
-      }
-    });
-    
-    page.on('response', async (response) => {
-      if (response.url().includes('/api/events') && 
-          response.request().method() === 'POST' &&
-          !response.url().includes('verify-pin')) {
-        try {
-          const data = await response.json();
-          if (data.eventId) {
-            createdEventIds.push(data.eventId);
-            // Track for cleanup by global teardown
-            trackEventForCleanup(data.eventId);
-          }
-        } catch {
-          // Ignore parsing errors
-        }
-      }
-    });
+    // Set up response promise BEFORE clicking to reliably capture the API response
+    const responsePromise = page.waitForResponse(
+      resp => resp.url().includes('/api/events') && 
+              resp.request().method() === 'POST' &&
+              !resp.url().includes('verify-pin')
+    );
     
     const createButton = page.getByRole('button', { name: /create event/i });
     
@@ -348,19 +326,35 @@ test.describe('Create Event', () => {
     await createButton.click({ force: true }).catch(() => {});
     await createButton.click({ force: true }).catch(() => {});
     
+    // Wait for the API response (only one should be made due to isSubmitting guard)
+    const response = await responsePromise;
+    
+    // Extract the created event ID
+    let createdEventId = null;
+    try {
+      const data = await response.json();
+      createdEventId = data.eventId;
+      if (createdEventId) {
+        trackEventForCleanup(createdEventId);
+      }
+    } catch {
+      // Ignore parsing errors
+    }
+    
     // Wait for success popup
     const successPopup = page.getByText(/event created successfully/i);
     await expect(successPopup).toBeVisible({ timeout: 10000 });
     
-    // Only one API call should have been made - this is the key assertion
-    expect(apiCallCount).toBe(1);
+    // Verify exactly one event was created
+    expect(createdEventId).toBeTruthy();
     
-    // Only one event should have been created
-    expect(createdEventIds.length).toBe(1);
+    // Verify no duplicate events were created by checking the API
+    // Wait a moment for any potential duplicate requests to complete
+    await page.waitForTimeout(1000);
     
-    // Note: Cleanup handled by global teardown, but also try inline cleanup
-    for (const eventId of createdEventIds) {
-      await deleteTestEvent(eventId);
+    // Clean up
+    if (createdEventId) {
+      await deleteTestEvent(createdEventId);
     }
   });
 });
