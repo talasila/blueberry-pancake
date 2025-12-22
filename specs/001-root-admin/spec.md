@@ -33,7 +33,7 @@ As a root administrator, I want to view detailed information about any event so 
 
 **Acceptance Scenarios**:
 
-1. **Given** I am viewing the event list, **When** I click on an event, **Then** I see comprehensive details including:
+1. **Given** I am viewing the event list, **When** I click on an event, **Then** a slide-out drawer opens showing comprehensive details including:
    - Event name and ID
    - Owner email
    - Event state (created, started, paused, completed)
@@ -110,17 +110,18 @@ As a root administrator, I want to see aggregate system statistics so that I can
 
 ### Functional Requirements
 
-- **FR-001**: System MUST identify root administrators via designated email addresses configured in environment/config
+- **FR-001**: System MUST identify root administrators via email addresses listed in `rootAdmins` config array
 - **FR-002**: System MUST authenticate root users using the existing OTP email flow
 - **FR-003**: System MUST display a paginated list of all events to authenticated root users
 - **FR-004**: System MUST show event details including: name, ID, owner email, state, item type, item count, participant count, rating count, creation date
 - **FR-005**: System MUST allow root to permanently delete any event and all associated data
 - **FR-006**: System MUST require confirmation before event deletion
 - **FR-007**: System MUST show additional warning when deleting active events (state: started)
-- **FR-008**: System MUST deny access to non-root users attempting to access admin features
+- **FR-008**: System MUST deny access to non-root users attempting to access `/system` route (redirect to home or show 403)
 - **FR-009**: System MUST log all root administrative actions with action type, timestamp, and target event ID
 - **FR-010**: System MUST allow filtering events by state, owner, and name
 - **FR-011**: System MUST display aggregate statistics on the admin dashboard
+- **FR-012**: Admin dashboard MUST be fully responsive and usable on mobile, tablet, and desktop devices
 
 ### Key Entities
 
@@ -129,12 +130,28 @@ As a root administrator, I want to see aggregate system statistics so that I can
 - **Event Details**: Full event information including all metadata and statistics
 - **Admin Audit Log**: Record of administrative action including: action type, timestamp, root user email, target event ID
 
+## Clarifications
+
+### Session 2024-12-17
+
+- Q: Where should the root admin go to see the new functionality? → A: Dedicated route `/system`
+- Q: How should event details be displayed when clicked? → A: Slide-out drawer (panel alongside list)
+- Q: Should the admin dashboard support mobile devices? → A: Fully responsive (all screen sizes)
+- Q: Where should root admin emails be configured? → A: JSON config file (`rootAdmins` array)
+- Q: Will E2E tests be created for this feature? → A: Yes, following existing patterns (fixtures.js, helpers.js)
+- Q: How do root users authenticate? → A: OTP only; dev mode uses test OTP "123456"
+
 ## Assumptions
 
-- Root email addresses will be configured via environment variable (e.g., `ROOT_ADMIN_EMAILS=admin@example.com,superuser@example.com`)
+- Root email addresses will be configured in JSON config files (e.g., `config/default.json` with `"rootAdmins": ["admin@example.com"]`)
 - Audit logs will be written to existing logging infrastructure (no separate audit database)
-- Root users are trusted and do not need additional 2FA beyond OTP
-- The admin dashboard will be a new route accessible only to authenticated root users
+- Root users authenticate via existing OTP flow only (no separate password); in dev mode, test OTP "123456" is accepted
+- The admin dashboard will be accessible at the `/system` route, protected and only visible to authenticated root users
+- E2E tests will be created in `frontend/tests/e2e/specs/` following existing patterns:
+  - Use shared fixtures from `fixtures.js` (testEvent pattern)
+  - Use helpers from `helpers.js` (createTestEvent, deleteTestEvent, etc.)
+  - Follow Playwright conventions (page.waitForResponse, scoped locators)
+  - Cover all user stories with acceptance scenarios
 
 ## Success Criteria *(mandatory)*
 
@@ -145,3 +162,4 @@ As a root administrator, I want to see aggregate system statistics so that I can
 - **SC-003**: 100% of deletion attempts are logged in audit trail
 - **SC-004**: Zero unauthorized access to admin features (security test passes)
 - **SC-005**: Root can locate a specific event using search/filter within 30 seconds
+- **SC-006**: All user stories have passing E2E tests covering acceptance scenarios

@@ -5,6 +5,7 @@ import pinService from './PINService.js';
 import cacheService from '../cache/CacheService.js';
 import { getEventConfigKey, getRatingsKey } from '../cache/cacheKeys.js';
 import { normalizeEmail as normalizeEmailUtil, isValidEmail as isValidEmailUtil } from '../utils/emailUtils.js';
+import { deleteEvent as deleteEventUtil } from '../utils/eventDeletionUtils.js';
 
 // Use alphanumeric alphabet (A-Z, a-z, 0-9) for 8-character IDs
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 8);
@@ -2140,20 +2141,10 @@ class EventService {
       throw new Error('Unauthorized: Only the event owner can delete the event');
     }
 
-    // Clear all cache entries FIRST to prevent write-back flush from recreating directory
-    // (The periodic flush could run between directory deletion and cache invalidation,
-    // causing dirty ratings to recreate the directory via ensureDirectory())
-    cacheService.invalidateEvent(eventId);
-    cacheService.del(`dashboard:${eventId}`);
-    cacheService.invalidate(`similarUsers:${eventId}:*`);
+    // Use shared deletion utility (handles cache, PIN sessions, and file deletion)
+    await deleteEventUtil(eventId);
 
-    // Invalidate PIN sessions for this event
-    pinService.invalidatePINSessions(eventId);
-
-    // NOW safe to delete event directory (no dirty keys can recreate it)
-    await dataRepository.deleteEventDirectory(eventId);
-
-    loggerService.info(`Event deleted: ${eventId} by owner ${normalizedEmail}`, {
+    loggerService.info(`Event deleted by owner: ${eventId}`, {
       eventId,
       owner: normalizedEmail,
       eventName: event.name

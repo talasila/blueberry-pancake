@@ -293,3 +293,34 @@ export function generateUniqueEventId(baseId) {
   return `${baseId.slice(0, 4)}${timestamp.toString().slice(-4)}`;
 }
 
+/**
+ * Get a root admin JWT token
+ * Note: The email must be in the rootAdmins config array for actual root access
+ * @param {string} email - Root admin email address
+ * @returns {Promise<string>} JWT token
+ */
+export async function getRootAdminToken(email) {
+  const response = await fetch(`${API_URL}/api/test/root-token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  
+  if (!response.ok) {
+    throw new Error(`Failed to get root token: ${await response.text()}`);
+  }
+  
+  const data = await response.json();
+  return data.token;
+}
+
+/**
+ * Set up root admin authentication for a page
+ * @param {Page} page - Playwright page
+ * @param {string} email - Root admin email address
+ */
+export async function setupRootAdmin(page, email) {
+  const token = await getRootAdminToken(email);
+  await setAuthToken(page, token, email);
+}
+

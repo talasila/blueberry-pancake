@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import healthRouter from './health.js';
 import authRouter from './auth.js';
+import systemRouter from './system.js';
 import requireAuth from '../middleware/requireAuth.js';
 
 const router = Router();
@@ -8,6 +9,9 @@ const router = Router();
 // Public routes (no authentication required)
 router.use('/health', healthRouter);
 router.use('/auth', authRouter);
+
+// System admin routes (requires root access)
+router.use('/system', systemRouter);
 
 // Quotes route - public endpoint for quotes database
 import quotesRouter from './quotes.js';

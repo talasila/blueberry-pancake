@@ -80,3 +80,10 @@ JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 - **Approriate Logging** – have log levels and actionable messages/data for triage.
 - **Reuse existing patterns** - follow established project conventions.
 <!-- MANUAL ADDITIONS END -->
+
+## Active Technologies
+- Node.js 22+, JavaScript ES2020+ + Express 5, React 19, Vite, Tailwind CSS 4, Radix UI (001-root-admin)
+- File-based (JSON config, CSV ratings) with in-memory cache (001-root-admin)
+
+## Recent Changes
+- 001-root-admin: Added Node.js 22+, JavaScript ES2020+ + Express 5, React 19, Vite, Tailwind CSS 4, Radix UI

@@ -386,6 +386,58 @@ export async function clearCache(req, res) {
 }
 
 /**
+ * Generate root admin JWT token (no auth required)
+ * POST /api/test/root-token
+ * Body: { email: string }
+ * Returns: { token: string, success: true }
+ * 
+ * Note: The email MUST be in the rootAdmins config array for actual root access.
+ * This endpoint only generates the token, it does NOT add the email to rootAdmins.
+ */
+export async function generateRootToken(req, res) {
+  // Only allow in non-production environments
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(403).json({ 
+      error: 'Test endpoints not available in production' 
+    });
+  }
+
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ 
+        error: 'Email is required' 
+      });
+    }
+
+    // Check if email is in rootAdmins
+    const isRoot = configLoader.isRootAdmin(email);
+    if (!isRoot) {
+      logger.warn(`Token generated for ${email} but NOT in rootAdmins config`);
+    }
+
+    // Generate JWT token with email
+    const token = generateToken({ email, events: [] });
+
+    res.status(200).json({ 
+      success: true,
+      token,
+      isRootAdmin: isRoot,
+      message: isRoot 
+        ? 'Root admin token generated' 
+        : 'Token generated but email is NOT in rootAdmins config'
+    });
+  } catch (error) {
+    logger.error('Error generating root token:', error);
+    res.status(500).json({ 
+      error: 'Failed to generate root token',
+      details: error.message 
+    });
+  }
+}
+
+/**
  * Register test helper routes
  */
 export function registerTestHelperRoutes(app) {
@@ -400,6 +452,7 @@ export function registerTestHelperRoutes(app) {
   app.post('/api/test/events/:eventId/add-admin', addAdminAndGenerateToken);
   app.post('/api/test/clear-cache', clearCache);
   app.post('/api/test/reset-counter', resetTestCounter);
+  app.post('/api/test/root-token', generateRootToken);
 
   logger.info('Test helper endpoints registered (non-production only)');
 }

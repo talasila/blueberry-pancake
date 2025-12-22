@@ -11,6 +11,7 @@ import EventOTPEntryPage from './pages/EventOTPEntryPage.jsx';
 import ProfilePage from './pages/ProfilePage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import ItemAssignmentPage from './pages/ItemAssignmentPage.jsx';
+import SystemPage from './pages/SystemPage.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
 import DashboardRoute from './components/DashboardRoute.jsx';
@@ -74,6 +75,16 @@ function AppLayout() {
             element={
               <ProtectedRoute>
                 <CreateEventPage />
+              </ProtectedRoute>
+            } 
+          />
+          
+          {/* System admin route - requires root access (checked in component) */}
+          <Route 
+            path="/system" 
+            element={
+              <ProtectedRoute>
+                <SystemPage />
               </ProtectedRoute>
             } 
           />

@@ -101,6 +101,31 @@ class ConfigLoader {
       this.watcher = null;
     }
   }
+
+  /**
+   * Get list of root admin email addresses
+   * @returns {string[]} Array of root admin emails (lowercase)
+   */
+  getRootAdmins() {
+    if (!this.has('rootAdmins')) {
+      return [];
+    }
+    const admins = this.get('rootAdmins');
+    return Array.isArray(admins) ? admins.map(email => email.toLowerCase()) : [];
+  }
+
+  /**
+   * Check if an email address belongs to a root administrator
+   * @param {string} email - Email address to check
+   * @returns {boolean} True if email is a root admin
+   */
+  isRootAdmin(email) {
+    if (!email || typeof email !== 'string') {
+      return false;
+    }
+    const rootAdmins = this.getRootAdmins();
+    return rootAdmins.includes(email.toLowerCase());
+  }
 }
 
 // Export singleton instance

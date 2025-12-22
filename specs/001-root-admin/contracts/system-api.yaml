@@ -1,0 +1,305 @@
+openapi: 3.0.3
+info:
+  title: Root Admin System API
+  description: API endpoints for system administration dashboard
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3001/api
+    description: Development server
+
+security:
+  - bearerAuth: []
+
+paths:
+  /system/events:
+    get:
+      summary: List all events (paginated)
+      description: Returns paginated list of all events with summary information. Requires root authorization.
+      operationId: listEvents
+      tags:
+        - System Admin
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+          description: Number of events per page
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of events to skip
+        - name: state
+          in: query
+          schema:
+            type: string
+            enum: [created, started, paused, completed]
+          description: Filter by event state
+        - name: owner
+          in: query
+          schema:
+            type: string
+            format: email
+          description: Filter by owner email (case-insensitive)
+        - name: name
+          in: query
+          schema:
+            type: string
+          description: Filter by event name (case-insensitive substring match)
+      responses:
+        '200':
+          description: Paginated list of events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /system/events/{eventId}:
+    get:
+      summary: Get event details
+      description: Returns full event details including items and stats. Requires root authorization.
+      operationId: getEventDetails
+      tags:
+        - System Admin
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Event ID
+      responses:
+        '200':
+          description: Event details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventDetails'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Delete event
+      description: Permanently deletes an event and all associated data. Requires root authorization. Returns warning info for active events.
+      operationId: deleteEvent
+      tags:
+        - System Admin
+      parameters:
+        - name: eventId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Event ID
+      responses:
+        '200':
+          description: Event deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Event deleted successfully
+                  deletedEventId:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /system/stats:
+    get:
+      summary: Get system statistics
+      description: Returns aggregate platform statistics. Requires root authorization.
+      operationId: getStats
+      tags:
+        - System Admin
+      responses:
+        '200':
+          description: System statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    EventSummary:
+      type: object
+      required:
+        - eventId
+        - name
+        - state
+        - ownerEmail
+        - typeOfItem
+        - createdAt
+      properties:
+        eventId:
+          type: string
+          example: Ab3xK9pQ
+        name:
+          type: string
+          example: Wine Tasting 2024
+        state:
+          type: string
+          enum: [created, started, paused, completed]
+        ownerEmail:
+          type: string
+          format: email
+        typeOfItem:
+          type: string
+          example: wine
+        itemCount:
+          type: integer
+          example: 6
+        participantCount:
+          type: integer
+          example: 12
+        ratingCount:
+          type: integer
+          example: 54
+        createdAt:
+          type: string
+          format: date-time
+
+    EventListResponse:
+      type: object
+      properties:
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/EventSummary'
+        total:
+          type: integer
+          description: Total number of events matching filters
+        limit:
+          type: integer
+        offset:
+          type: integer
+
+    EventDetails:
+      allOf:
+        - $ref: '#/components/schemas/EventSummary'
+        - type: object
+          properties:
+            maxRating:
+              type: integer
+              minimum: 2
+              maximum: 4
+            ratingPresets:
+              type: array
+              items:
+                type: object
+                properties:
+                  value:
+                    type: integer
+                  label:
+                    type: string
+                  color:
+                    type: string
+            items:
+              type: array
+              items:
+                type: object
+                properties:
+                  itemId:
+                    type: string
+                  name:
+                    type: string
+                  ownerEmail:
+                    type: string
+            admins:
+              type: array
+              items:
+                type: string
+                format: email
+
+    SystemStats:
+      type: object
+      properties:
+        totalEvents:
+          type: integer
+        eventsByState:
+          type: object
+          properties:
+            created:
+              type: integer
+            started:
+              type: integer
+            paused:
+              type: integer
+            completed:
+              type: integer
+        totalUsers:
+          type: integer
+        totalRatings:
+          type: integer
+        eventsLast7Days:
+          type: integer
+        eventsLast30Days:
+          type: integer
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Authentication required
+
+    Forbidden:
+      description: Root access required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Root access required
+
+    NotFound:
+      description: Event not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: Event not found

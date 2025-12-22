@@ -1,6 +1,7 @@
 {
   "environment": "development",
   "dataDirectory": "./data",
+  "rootAdmins": ["sreenivas.talasila@gmail.com", "root@test.example.com"],
   "server": {
     "port": 3001,
     "host": "localhost"
