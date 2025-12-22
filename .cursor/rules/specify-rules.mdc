@@ -1,35 +1,5 @@
 # blueberry-pancake Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2025-12-06
-
-## Active Technologies
-- JavaScript (ES6+), Node.js >=22.12.0 + React 19.2.1, React Router DOM 7.10.1, Tailwind CSS 4.1.17, Vite 6.0.5 (002-landing-page)
-- N/A (view-only feature, no data persistence) (002-landing-page)
-- JavaScript (ES2020+), Node.js >=22.12.0 + Express 5.2.1, React 19.2.1, React Router DOM 7.10.1, nanoid (for event ID generation), jsonwebtoken 9.0.3 (for auth), existing DataRepository pattern (004-create-event)
-- File-based JSON storage via FileDataRepository (extends DataRepository) for event persistence (004-create-event)
-- JavaScript (ES2020+), Node.js >=22.12.0 + Express 5.2.1, React 19.2.1, React Router DOM 7.10.1, jsonwebtoken 9.0.3 (for auth), existing EventService and DataRepository patterns (005-event-feature)
-- File-based JSON storage via FileDataRepository (existing) for event data retrieval (005-event-feature)
-- JavaScript (ES2020+), Node.js >=22.12.0 + Express 5.2.1, React 19.2.1, React Router DOM 7.10.1, jsonwebtoken 9.0.3 (for auth), existing EventService, RateLimitService, EventService and DataRepository patterns (006-event-pin-access)
-- File-based JSON storage via FileDataRepository (existing) for event data and PIN storage (006-event-pin-access)
-- JavaScript (ES2020+), Node.js >=22.12.0 + Express 5.2.1, React 19.2.1, React Router DOM 7.10.1, jsonwebtoken 9.0.3 (for auth), existing EventService, DataRepository patterns, shadcn UI components (Card, Button, Input) (007-manage-event-admins)
-- File-based JSON storage via FileDataRepository (existing) for event data with administrators object structure (007-manage-event-admins)
-- JavaScript (ES2020+), Node.js >=22.12.0 + Express 5.2.1, React 19.2.1, React Router DOM 7.10.1, jsonwebtoken 9.0.3 (for auth), existing EventService, DataRepository patterns, shadcn UI components (Button, Badge) (001-event-state-management)
-- File-based JSON storage via FileDataRepository (existing) for event data with state field (001-event-state-management)
-- JavaScript (ES2020+), Node.js >=22.12.0 + Express 5.2.1, React 19.2.1, React Router DOM 7.10.1, jsonwebtoken 9.0.3 (for auth), existing EventService, DataRepository patterns, shadcn UI components (Card, Button, Input, Badge) (008-item-configuration)
-- File-based JSON storage via FileDataRepository (existing) for event data with itemConfiguration object structure (008-item-configuration)
-- JavaScript (ES2020+), Node.js >=22.12.0 + Express 5.2.1, React 19.2.1, React Router DOM 7.10.1, jsonwebtoken 9.0.3 (for auth), existing EventService, DataRepository patterns, shadcn UI components (Accordion, Button, Input, ColorPicker or equivalent), existing optimistic locking pattern from event state transitions (001-ratings-config)
-- File-based JSON storage via FileDataRepository (existing) for event data with ratingConfiguration object structure (001-ratings-config)
-- Node.js >=22.12.0, JavaScript (ES modules) (009-event-rating-page)
-- File-based (CSV files in `data/events/{eventId}/ratings.csv`), session storage (browser localStorage/sessionStorage for bookmarks) (009-event-rating-page)
-- Node.js >=22.12.0 (backend), React 19.2.1 (frontend) + Express 5.2.1 (backend), React Router 7.10.1, Vite 6.0.5 (frontend), Tailwind CSS 4.1.17 (001-wine-note-suggestions)
-- File-based JSON storage (`data/events/{eventId}/config.json` for event config, `quotes.json` in root for quotes) (001-wine-note-suggestions)
-- File-based (event config JSON, ratings CSV files in `data/events/{eventId}/`), in-memory caching (010-dashboard-page)
-- Node.js >=22.12.0 (ES modules) + Express 5.2.1, React 19.2.1, React Router 7.10.1, Tailwind CSS 4.1.17 (001-similar-users)
-- File-based (CSV for ratings, JSON for event configs) via FileDataRepository (001-similar-users)
-- Node.js >=22.12.0 (ES modules) + Express 5.2.1, React 19.2.1, Vite 6.0.5, Vitest 1.6.1 (001-item-registration)
-- File-based JSON storage (`data/events/{eventId}/config.json`) via FileDataRepository pattern (001-item-registration)
-
-- JavaScript (ES2020+), Node.js 18+ + React, Node.js, Express, shadcn UI, Tailwind CSS, Playwright, @cucumber/cucumber, Vitest, jsonwebtoken, csurf/csrf, node-cache, config package (001-baseline-setup)
 
 ## Project Structure
 
@@ -39,19 +9,74 @@ frontend/
 tests/
 ```
 
-## Commands
-
-npm test && npm run lint
 
 ## Code Style
 
 JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 
-## Recent Changes
-- 001-item-registration: Added Node.js >=22.12.0 (ES modules) + Express 5.2.1, React 19.2.1, Vite 6.0.5, Vitest 1.6.1
-- 001-similar-users: Added Node.js >=22.12.0 (ES modules) + Express 5.2.1, React 19.2.1, React Router 7.10.1, Tailwind CSS 4.1.17
-- 010-dashboard-page: Added Node.js >=22.12.0, JavaScript (ES modules)
-
 
 <!-- MANUAL ADDITIONS START -->
+## Our Pair Programming Team
+- **You are the senior architect** - provide guidance, control commits, make decisions.
+- **I am the implementer** - follow your guidance, ensure architectural alignment.
+- **We use git** - you control all commits, I implement and explain changes.
+- **Incremental development** - you request features step-by-step, I implement exactly what's asked.
+- **One step at a time** - I won't do more than requested.
+- **Report discoveries** - if directions are unclear or I find issues, I report and wait for input.
+- **Present decision points** - I show options and wait for your decision.
+
+## Core Principles
+- **DRY** - extract shared utilities, components, and constants.
+- **SOLID** - single responsibility, focused interfaces, dependency injection.
+- **KISS** - simple, readable code with clear names.
+- **YAGNI** - only implement what's needed now.
+
+## Principle Conflict Resolution
+**Priority Order**: YAGNI > KISS > SOLID > DRY
+- **Early Development**: YAGNI > DRY (avoid premature abstraction).
+- **Complex Features**: KISS > SOLID (favor simple, understandable designs).
+- **Mature Code**: SOLID > DRY (good design over aggressive deduplication).
+**Apply DRY only when**: 3+ instances AND stable requirements.
+
+## Communication Rules
+- **STOP** when stuck, confused, or discovering issues.
+- **REPORT** findings with full context and options.
+- **WAIT** for your input before proceeding.
+- **DOCUMENT** everything for transparency.
+- **ANALYZE** - restate the problem and evidence.
+- **EXPLAIN** - outline what you plan to change and why.
+- **GET APPROVAL** - wait for an explicit "go ahead" before larger changes.
+- **ASK, don't assume** - when something is unclear, ask targeted questions instead of guessing.
+
+## Implementation Flow
+- **Before** - confirm understanding, verify architecture fit, get approval, ask for clarifications.
+- **During** - one step at a time, report issues immediately, document changes.
+- **After** - summarize what was done, explain integration, report next TODOs.
+- **DON'T** commit any changes to git unless you are explicitly asked to do so.
+
+## Code Quality Standards
+- **Maintain consistency** - use established project patterns and conventions.
+- **Quality first** - clean, readable code that follows team standards.
+- **Link to coding standards** - follow the rules described in our coding standards document.
+- **DO** follow patterns in the repo and respect existing architecture and module boundaries.
+- **DO** add or update tests when changing behavior.
+- **DO** update relevant docs when introducing new patterns.
+- **DON'T** modify unrelated code "for cleanliness" without explicit agreement.
+- **DON'T** introduce new architectural patterns without discussion.
+- **DON'T** skip explanations for non-trivial changes.
+
+## Code Formatting
+- **Prettier** - see `.prettierrc` for current rules (`npm run prettier:fix`).
+- **ESLint** - auto-fix on save, organize imports (see `.vscode/settings.json`).
+- **TypeScript** - strict mode, path aliases (see `tsconfig.json` paths).
+
+## Testing and Quality Gates
+- **Testing patterns** - Link to testing patterns
+- **Coverage** - use Jest (`npm test`), aim for meaningful tests over raw coverage metrics.
+- **Separate concerns** - keep data fetching separate from presentation.
+- **Focused interfaces** - prefer small, specific prop interfaces.
+- **Clear naming** - use descriptive variables and function names.
+- **Error handling** - provide graceful fallbacks and user-friendly messages.
+- **Approriate Logging** – have log levels and actionable messages/data for triage.
+- **Reuse existing patterns** - follow established project conventions.
 <!-- MANUAL ADDITIONS END -->
