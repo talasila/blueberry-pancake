@@ -151,7 +151,6 @@ export default function EventDrawer({
                 {details.state}
               </Badge>
             </div>
-            <p className="text-sm text-muted-foreground font-mono">{details.eventId}</p>
           </div>
 
           {/* Stats cards */}
