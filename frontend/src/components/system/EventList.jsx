@@ -256,7 +256,7 @@ export default function EventList({ onEventSelect }) {
                       <Star className="h-4 w-4" />
                       <span>{event.ratingCount || 0}</span>
                     </div>
-                    <div className="flex items-center gap-1 hidden sm:flex" title="Created">
+                    <div className="flex items-center gap-1" title="Created">
                       <Calendar className="h-4 w-4" />
                       <span>{formatDate(event.createdAt)}</span>
                     </div>
