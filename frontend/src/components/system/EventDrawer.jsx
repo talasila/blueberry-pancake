@@ -220,12 +220,12 @@ export default function EventDrawer({
             )}
           </div>
 
-          {/* Items list (if any) */}
-          {details.items && details.items.length > 0 && (
+          {/* Registered items list (items brought by participants) */}
+          {details.registeredItems && details.registeredItems.length > 0 && (
             <div>
-              <h4 className="font-semibold mb-2">Items ({details.items.length})</h4>
+              <h4 className="font-semibold mb-2">Registered Items ({details.registeredItems.length})</h4>
               <div className="space-y-2 max-h-48 overflow-y-auto">
-                {details.items.map((item, idx) => (
+                {details.registeredItems.map((item, idx) => (
                   <div key={item.itemId || idx} className="text-sm p-2 bg-muted/50 rounded">
                     <p className="font-medium">{item.name}</p>
                     <p className="text-muted-foreground text-xs">{item.ownerEmail}</p>

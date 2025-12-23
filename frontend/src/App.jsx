@@ -79,7 +79,7 @@ function AppLayout() {
             } 
           />
           
-          {/* System admin route - requires root access (checked in component) */}
+          {/* System admin routes */}
           <Route 
             path="/system" 
             element={
@@ -87,6 +87,11 @@ function AppLayout() {
                 <SystemPage />
               </ProtectedRoute>
             } 
+          />
+          {/* System login redirects to auth page */}
+          <Route 
+            path="/system/login" 
+            element={<AuthPage />} 
           />
           {/* Email entry route - first step, public, no authentication required */}
           <Route 

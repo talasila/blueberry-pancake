@@ -5,8 +5,9 @@
  * - US1: View all events list
  * - US2: View event details in drawer
  * - US3: Delete event
- * - US4: Search and filter events
+ * - US4: Search events
  * - US5: View system statistics
+ * - US6: Root admin header & logout
  */
 
 import { test, expect } from '@playwright/test';
@@ -371,7 +372,6 @@ test.describe('System Administration Dashboard', () => {
       // Should see statistics section
       await expect(page.getByText(/total events/i)).toBeVisible();
       await expect(page.getByText(/total users/i)).toBeVisible();
-      await expect(page.getByText(/total ratings/i)).toBeVisible();
     });
     
     test('should display event counts by state', async ({ page }) => {
@@ -383,6 +383,36 @@ test.describe('System Administration Dashboard', () => {
       // Should see state breakdown
       await expect(page.getByText(/created/i).first()).toBeVisible();
       await expect(page.getByText(/started/i).first()).toBeVisible();
+    });
+    
+  });
+  
+  // ============================================================
+  // US6: Root Admin Header & Logout
+  // ============================================================
+  
+  test.describe('US6: Root Admin Header', () => {
+    
+    test('should show logout icon instead of menu', async ({ page }) => {
+      await setupRootAuth(page);
+      await navigateToSystemPage(page);
+      
+      // Should see logout icon (aria-label="Logout")
+      await expect(page.getByRole('button', { name: /logout/i })).toBeVisible();
+      
+      // Should NOT see menu icon (aria-label="Open menu")
+      await expect(page.getByRole('button', { name: /open menu/i })).not.toBeVisible();
+    });
+    
+    test('should logout and redirect to system login', async ({ page }) => {
+      await setupRootAuth(page);
+      await navigateToSystemPage(page);
+      
+      // Click logout icon
+      await page.getByRole('button', { name: /logout/i }).click();
+      
+      // Should redirect to /system/login
+      await expect(page).toHaveURL(/\/system\/login/);
     });
     
   });

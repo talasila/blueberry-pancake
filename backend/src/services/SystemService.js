@@ -83,15 +83,20 @@ class SystemService {
         return null;
       }
       
-      // Get counts
-      const itemCount = config.items ? Object.keys(config.items).length : 0;
-      const { participantCount, ratingCount } = await this.getEventCounts(eventId);
+      // Get item count from itemConfiguration, minus excluded items
+      const totalItems = config.itemConfiguration?.numberOfItems ?? 0;
+      const excludedCount = config.itemConfiguration?.excludedItemIds?.length ?? 0;
+      const itemCount = totalItems - excludedCount;
+      const { participantCount, ratingCount } = await this.getEventCounts(eventId, config);
+      
+      // Find owner email from administrators object
+      const ownerEmail = this.findOwnerEmail(config);
       
       return {
         eventId,
         name: config.name || 'Unnamed Event',
         state: config.state || 'created',
-        ownerEmail: config.administrator || config.createdBy || 'Unknown',
+        ownerEmail,
         typeOfItem: config.typeOfItem || 'wine',
         itemCount,
         participantCount,
@@ -102,6 +107,28 @@ class SystemService {
       await loggerService.warn(`Failed to get summary for event ${eventId}: ${error.message}`);
       return null;
     }
+  }
+  
+  /**
+   * Find owner email from administrators object
+   * @param {Object} config - Event config
+   * @returns {string} Owner email or 'Unknown'
+   */
+  findOwnerEmail(config) {
+    if (config.administrators && typeof config.administrators === 'object') {
+      for (const [email, adminData] of Object.entries(config.administrators)) {
+        if (adminData && adminData.owner === true) {
+          return email;
+        }
+      }
+      // If no owner flag found, return the first admin
+      const admins = Object.keys(config.administrators);
+      if (admins.length > 0) {
+        return admins[0];
+      }
+    }
+    // Fallback for legacy format
+    return config.administrator || config.createdBy || 'Unknown';
   }
 
   /**
@@ -121,17 +148,22 @@ class SystemService {
         return null;
       }
       
-      // Get items list
-      const items = config.items 
-        ? Object.entries(config.items).map(([itemId, item]) => ({
-            itemId,
+      // Get registered items list (items brought by participants)
+      const registeredItems = Array.isArray(config.items)
+        ? config.items.map((item, index) => ({
+            itemId: item.itemId ?? index,
             name: item.name || 'Unnamed Item',
-            ownerEmail: item.owner || 'Unknown'
+            ownerEmail: item.ownerEmail || 'Unknown'
           }))
         : [];
       
+      // Get configured item count (minus excluded items)
+      const totalItems = config.itemConfiguration?.numberOfItems ?? 0;
+      const excludedCount = config.itemConfiguration?.excludedItemIds?.length ?? 0;
+      const itemCount = totalItems - excludedCount;
+      
       // Get counts
-      const { participantCount, ratingCount } = await this.getEventCounts(eventId);
+      const { participantCount, ratingCount } = await this.getEventCounts(eventId, config);
       
       // Get admins
       const admins = config.administrators 
@@ -140,18 +172,21 @@ class SystemService {
           ? [config.administrator]
           : [];
       
+      // Find owner email
+      const ownerEmail = this.findOwnerEmail(config);
+      
       return {
         eventId,
         name: config.name || 'Unnamed Event',
         state: config.state || 'created',
-        ownerEmail: config.administrator || config.createdBy || 'Unknown',
+        ownerEmail,
         typeOfItem: config.typeOfItem || 'wine',
         maxRating: config.maxRating || 4,
         ratingPresets: config.ratingPresets || [],
-        itemCount: items.length,
+        itemCount,
         participantCount,
         ratingCount,
-        items,
+        registeredItems,
         admins,
         createdAt: config.createdAt || null
       };
@@ -192,16 +227,10 @@ class SystemService {
       const stats = {
         totalEvents: allEventIds.length,
         eventsByState: { created: 0, started: 0, paused: 0, completed: 0 },
-        totalUsers: 0,
-        totalRatings: 0,
-        eventsLast7Days: 0,
-        eventsLast30Days: 0
+        totalUsers: 0
       };
       
       const uniqueUsers = new Set();
-      const now = Date.now();
-      const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
-      const thirtyDaysAgo = now - (30 * 24 * 60 * 60 * 1000);
       
       for (const eventId of allEventIds) {
         try {
@@ -218,22 +247,11 @@ class SystemService {
               stats.eventsByState[state]++;
             }
             
-            // Check creation date
-            if (config.createdAt) {
-              const createdTime = new Date(config.createdAt).getTime();
-              if (createdTime >= sevenDaysAgo) {
-                stats.eventsLast7Days++;
-              }
-              if (createdTime >= thirtyDaysAgo) {
-                stats.eventsLast30Days++;
-              }
+            // Count users from config.users
+            if (config.users && typeof config.users === 'object') {
+              Object.keys(config.users).forEach(email => uniqueUsers.add(email.toLowerCase()));
             }
           }
-          
-          // Get ratings for user and rating counts
-          const { participants, ratingCount } = await this.getEventCounts(eventId);
-          participants.forEach(email => uniqueUsers.add(email));
-          stats.totalRatings += ratingCount;
         } catch (error) {
           // Continue with other events
           await loggerService.warn(`Failed to get stats for event ${eventId}`);
@@ -252,28 +270,38 @@ class SystemService {
   /**
    * Get participant and rating counts for an event
    * @param {string} eventId - Event ID
+   * @param {Object} config - Event config (optional, for user count from config.users)
    * @returns {Promise<{participantCount: number, ratingCount: number, participants: Set}>}
    */
-  async getEventCounts(eventId) {
+  async getEventCounts(eventId, config = null) {
     try {
-      // Try to get ratings from cache
+      // Count registered users from config.users (more accurate than rating-based count)
+      let participantCount = 0;
+      if (config && config.users && typeof config.users === 'object') {
+        participantCount = Object.keys(config.users).length;
+      }
+      
+      // Get rating count from ratings
       await cacheService.ensureRatingsLoaded(eventId);
       const ratings = cacheService.get(getRatingsKey(eventId)) || [];
       
-      const participants = new Set();
-      ratings.forEach(rating => {
-        if (rating.userId) {
-          participants.add(rating.userId.toLowerCase());
-        }
-      });
+      // If no users in config, fall back to rating-based participant count
+      if (participantCount === 0 && ratings.length > 0) {
+        const participants = new Set();
+        ratings.forEach(rating => {
+          if (rating.userId) {
+            participants.add(rating.userId.toLowerCase());
+          }
+        });
+        participantCount = participants.size;
+      }
       
       return {
-        participantCount: participants.size,
-        ratingCount: ratings.length,
-        participants
+        participantCount,
+        ratingCount: ratings.length
       };
     } catch (error) {
-      return { participantCount: 0, ratingCount: 0, participants: new Set() };
+      return { participantCount: 0, ratingCount: 0 };
     }
   }
 }

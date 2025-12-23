@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { 
-  Calendar, 
   Users, 
-  Star, 
   FolderOpen,
   PlayCircle,
   PauseCircle,
@@ -16,7 +14,7 @@ import systemApi from '@/services/systemApi.js';
  * SystemStats Component
  * 
  * Displays aggregate platform statistics for root administrators.
- * Shows total events, users, ratings, and event distribution by state.
+ * Shows total events, users, and event distribution by state.
  */
 export default function SystemStats() {
   const [stats, setStats] = useState(null);
@@ -88,8 +86,8 @@ export default function SystemStats() {
   // Loading state
   if (isLoading) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        {[1, 2, 3, 4].map(i => (
+      <div className="grid grid-cols-2 gap-4 mb-8">
+        {[1, 2].map(i => (
           <Card key={i} className="animate-pulse">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -120,7 +118,7 @@ export default function SystemStats() {
   return (
     <div className="space-y-4 mb-8">
       {/* Main stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <StatCard 
           icon={FolderOpen} 
           label="Total Events" 
@@ -130,16 +128,6 @@ export default function SystemStats() {
           icon={Users} 
           label="Total Users" 
           value={stats?.totalUsers} 
-        />
-        <StatCard 
-          icon={Star} 
-          label="Total Ratings" 
-          value={stats?.totalRatings} 
-        />
-        <StatCard 
-          icon={Calendar} 
-          label="Last 7 Days" 
-          value={stats?.eventsLast7Days} 
         />
       </div>
 

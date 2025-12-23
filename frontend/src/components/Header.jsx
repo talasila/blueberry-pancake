@@ -17,6 +17,7 @@ import { StateIcon } from '@/utils/eventState.jsx';
  * - Full width with slightly shaded background
  * - Bottom border with drop shadow
  * - Logo on the left, event name (when in /event/* routes), profile link on the right (when authenticated)
+ * - For /system/* routes: shows logout icon instead of menu (root users)
  * 
  * @returns {JSX.Element} The header component
  */
@@ -27,8 +28,9 @@ function Header() {
   const [authState, setAuthState] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
-  // Check if we're in an event route
+  // Check if we're in an event route or system route
   const isEventRoute = location.pathname.startsWith('/event/');
+  const isSystemRoute = location.pathname.startsWith('/system');
   const isLandingPage = location.pathname === '/';
   const eventName = event?.name;
 
@@ -130,6 +132,18 @@ function Header() {
     navigate('/', { replace: true });
   };
 
+  // Handle root admin logout - redirects to /system/login for re-login
+  const handleRootLogout = async () => {
+    // Clear JWT token (also calls logout endpoint to clear httpOnly cookie)
+    await apiClient.clearJWTToken();
+    
+    // Clear all bookmarks from sessionStorage
+    clearAllBookmarks();
+    
+    // Navigate to system login page
+    navigate('/system/login', { replace: true });
+  };
+
   // Handle logo click - navigate to main event page if logged in, else landing page
   const handleLogoClick = () => {
     if (authState) {
@@ -178,8 +192,27 @@ function Header() {
               </div>
             )}
           </div>
-          {/* Show menu only if authenticated and not on landing page */}
-          {authState && !isLandingPage && (
+          {/* For system routes: show logout icon only (no menu) */}
+          {authState && isSystemRoute && (
+            <div
+              onClick={handleRootLogout}
+              className="cursor-pointer focus:outline-none flex-shrink-0 flex items-center justify-center touch-manipulation hover:text-primary transition-colors"
+              aria-label="Logout"
+              title="Logout"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleRootLogout();
+                }
+              }}
+            >
+              <LogOut className="h-5 w-5" />
+            </div>
+          )}
+          {/* Show menu only if authenticated, not on landing page, and not on system route */}
+          {authState && !isLandingPage && !isSystemRoute && (
             <DropdownMenu
               isOpen={isMenuOpen}
               onClose={() => setIsMenuOpen(false)}
