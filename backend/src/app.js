@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import statusMonitor from 'express-status-monitor';
 import { logger } from './middleware/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { initializeXSRF, getCSRFToken, validateCSRF } from './middleware/xsrfProtection.js';
@@ -39,39 +38,16 @@ configLoader.enableHotReload();
 
 const app = express();
 
-// Status monitor for real-time server health dashboard at /status
-// Must be added before other middleware
-app.use(statusMonitor({
-  title: 'Blueberry Pancake Status',
-  path: '/status',
-  spans: [
-    { interval: 1, retention: 60 },      // 1 second intervals, 60 data points (1 min)
-    { interval: 5, retention: 60 },      // 5 second intervals, 60 data points (5 min)
-    { interval: 15, retention: 60 },     // 15 second intervals, 60 data points (15 min)
-    { interval: 60, retention: 60 },     // 1 minute intervals, 60 data points (1 hour)
-  ],
-  chartVisibility: {
-    cpu: true,
-    mem: true,
-    load: true,
-    heap: true,
-    responseTime: true,
-    rps: true,
-    statusCodes: true,
-  },
-}));
-
 // Security headers with helmet
-// Note: /status page needs relaxed CSP for inline scripts/styles
 app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"], // Required for /status dashboard
-      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"], // Some UI libraries need inline styles
       imgSrc: ["'self'", "data:", "blob:"],
-      connectSrc: ["'self'", "ws:", "wss:"], // WebSocket for /status real-time updates
-      fontSrc: ["'self'"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
       objectSrc: ["'none'"],
       frameAncestors: ["'none'"],
     },
