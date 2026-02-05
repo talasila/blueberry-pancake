@@ -70,26 +70,31 @@ class QuoteService {
 
   /**
    * Get suggestions for a specific rating level
-   * Returns one randomly selected quote from each quote type (snarky, poetic, haiku)
-   * Server handles the random selection and returns only what's needed
-   * @param {number|string} ratingLevel - Rating level (1-4)
-   * @returns {Promise<Array<{text: string, quoteType: string, ratingLevel: number}>>} Array of suggestions
+   * Returns 2 randomly selected quotes based on normalized mapping:
+   * - Rating 1 always uses negative quotes (file 1)
+   * - Max rating always uses positive quotes (file 4)
+   * - Middle ratings may blend quotes from two adjacent files
+   * 
+   * @param {number|string} ratingLevel - Rating level (1 to maxRating)
+   * @param {number} [maxRating=4] - Maximum rating for the event (2, 3, or 4)
+   * @returns {Promise<Array<{text: string, ratingLevel: number}>>} Array of suggestions
    */
-  async getSuggestionsForRating(ratingLevel) {
+  async getSuggestionsForRating(ratingLevel, maxRating = 4) {
     try {
       this.error = null;
       
       // Validate rating level
       const ratingNum = Number(ratingLevel);
-      if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 4) {
-        console.warn(`Invalid rating level: ${ratingLevel}`);
+      const maxRatingNum = Number(maxRating) || 4;
+      if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > maxRatingNum) {
+        console.warn(`Invalid rating level: ${ratingLevel} (maxRating: ${maxRatingNum})`);
         return [];
       }
       
-      // Fetch suggestions from API (server handles random selection and caching)
-      const suggestions = await apiClient.get(`/quotes/${ratingLevel}`);
+      // Fetch suggestions from API with maxRating for normalized mapping
+      const suggestions = await apiClient.get(`/quotes/${ratingLevel}?maxRating=${maxRatingNum}`);
       
-      // Decode HTML entities in suggestions (React handles XSS prevention automatically)
+      // Decode HTML entities in suggestions (defensive - text files shouldn't have entities)
       const decodedSuggestions = decodeSuggestions(suggestions);
       
       return decodedSuggestions;
@@ -100,7 +105,8 @@ class QuoteService {
         message: error.message,
         stack: error.stack,
         status: error.status || 'unknown',
-        ratingLevel
+        ratingLevel,
+        maxRating
       });
       // Return empty array on error (graceful degradation)
       return [];

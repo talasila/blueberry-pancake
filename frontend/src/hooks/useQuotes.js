@@ -9,13 +9,14 @@ import quoteService from '../services/quoteService.js';
  */
 export function useQuotes() {
   /**
-   * Get suggestions for a specific rating level
+   * Get suggestions for a specific rating level with normalized mapping
    * Server handles caching and random selection
-   * @param {number|string} ratingLevel - Rating level (1-4)
-   * @returns {Promise<Array<{text: string, quoteType: string, ratingLevel: number}>>} Array of suggestions
+   * @param {number|string} ratingLevel - Rating level (1 to maxRating)
+   * @param {number} [maxRating=4] - Maximum rating for the event (2, 3, or 4)
+   * @returns {Promise<Array<{text: string, ratingLevel: number}>>} Array of suggestions
    */
-  const getSuggestionsForRating = useCallback(async (ratingLevel) => {
-    return quoteService.getSuggestionsForRating(ratingLevel);
+  const getSuggestionsForRating = useCallback(async (ratingLevel, maxRating = 4) => {
+    return quoteService.getSuggestionsForRating(ratingLevel, maxRating);
   }, []);
 
   return {

@@ -56,6 +56,9 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
     setSuggestions([]); // Clear suggestions when item changes
   }, [itemId, existingRating]);
 
+  // Extract maxRating as primitive to avoid object reference issues in dependency array
+  const maxRating = ratingConfig?.maxRating || 4;
+
   // Update suggestions when rating level changes
   useEffect(() => {
     const loadSuggestions = async () => {
@@ -68,7 +71,8 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
       if (shouldShowSuggestions) {
         try {
           setLoadingSuggestions(true);
-          const newSuggestions = await getSuggestionsForRating(selectedRating);
+          // Pass maxRating for normalized quote file mapping
+          const newSuggestions = await getSuggestionsForRating(selectedRating, maxRating);
           setSuggestions(newSuggestions || []);
         } catch (error) {
           console.error('Failed to load suggestions:', error);
@@ -83,7 +87,7 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
     };
 
     loadSuggestions();
-  }, [selectedRating, eventType, noteSuggestionsEnabled, getSuggestionsForRating]);
+  }, [selectedRating, eventType, noteSuggestionsEnabled, getSuggestionsForRating, maxRating]);
 
   /**
    * Append suggestion to note with spacing logic
