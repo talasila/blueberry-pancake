@@ -1,26 +1,31 @@
 import eventService from './EventService.js';
 import ratingService from './RatingService.js';
-import cacheService from '../cache/CacheService.js';
+import dataRepository from '../data/DynamoDBRepository.js';
 import { calculateWeightedAverage } from '../utils/bayesianAverage.js';
 import loggerService from '../logging/Logger.js';
 
 /**
  * DashboardService
  * Aggregates event statistics and item rating summaries for dashboard display
+ * Uses DynamoDB with TTL for caching computed dashboard data
  */
 class DashboardService {
   /**
    * Get dashboard data (statistics and item summaries)
-   * Uses caching to reduce file I/O
+   * Uses DynamoDB TTL-based caching
    * @param {string} eventId - Event identifier
    * @returns {Promise<object>} Dashboard data with statistics, itemSummaries, and globalAverage
    */
   async getDashboardData(eventId) {
     // Check cache first
-    const cacheKey = `dashboard:${eventId}`;
-    const cached = cacheService.get(cacheKey);
-    if (cached) {
-      return cached;
+    try {
+      const cached = await dataRepository.getDashboardCache(eventId);
+      if (cached) {
+        return cached;
+      }
+    } catch (error) {
+      // Cache miss or error, continue to compute
+      loggerService.debug(`Dashboard cache miss for event ${eventId}: ${error.message}`);
     }
 
     try {
@@ -72,7 +77,12 @@ class DashboardService {
       };
 
       // Cache for 30 seconds
-      cacheService.set(cacheKey, dashboardData, 30);
+      try {
+        await dataRepository.setDashboardCache(eventId, dashboardData, 30);
+      } catch (cacheError) {
+        // Cache write failed, but we have the data - just log and continue
+        loggerService.warn(`Failed to cache dashboard data for event ${eventId}: ${cacheError.message}`);
+      }
 
       return dashboardData;
     } catch (error) {

@@ -1,9 +1,9 @@
 import crypto from 'crypto';
-import cacheService from '../cache/CacheService.js';
+import dataRepository from '../data/DynamoDBRepository.js';
 
 /**
  * OTP Service for generating, storing, and validating OTP codes
- * Uses node-cache for in-memory storage with 10-minute expiration
+ * Uses DynamoDB for storage with TTL-based expiration
  */
 class OTPService {
   constructor() {
@@ -27,38 +27,30 @@ class OTPService {
    * Invalidates any existing OTP for the same email (FR-014)
    * @param {string} email - Email address
    * @param {string} otp - OTP code to store
-   * @returns {boolean} True if stored successfully
+   * @returns {Promise<boolean>} True if stored successfully
    */
-  storeOTP(email, otp) {
+  async storeOTP(email, otp) {
     if (!email || !otp) {
       return false;
     }
 
-    // Ensure cache is initialized
-    cacheService.initialize();
-
-    // Invalidate any existing OTP for this email
-    this.invalidateOTP(email);
-
-    // Store new OTP with expiration
-    const otpData = {
-      code: otp,
-      email: email,
-      createdAt: Date.now(),
-      expiresAt: Date.now() + (this.OTP_EXPIRATION_MINUTES * 60 * 1000)
-    };
-
-    const key = `otp:${email}`;
-    return cacheService.set(key, otpData, this.OTP_EXPIRATION_SECONDS);
+    try {
+      // Store new OTP with TTL (automatically invalidates previous OTP)
+      await dataRepository.setOTP(email, otp, this.OTP_EXPIRATION_SECONDS);
+      return true;
+    } catch (error) {
+      console.error(`Error storing OTP for ${email}:`, error);
+      return false;
+    }
   }
 
   /**
    * Validate OTP code for an email address
    * @param {string} email - Email address
    * @param {string} otp - OTP code to validate
-   * @returns {{valid: boolean, expired?: boolean, error?: string}}
+   * @returns {Promise<{valid: boolean, expired?: boolean, error?: string}>}
    */
-  validateOTP(email, otp) {
+  async validateOTP(email, otp) {
     if (!email || !otp) {
       return { valid: false, error: 'Email and OTP are required' };
     }
@@ -77,60 +69,62 @@ class OTPService {
       return { valid: true, bypass: true };
     }
 
-    // Ensure cache is initialized
-    cacheService.initialize();
+    try {
+      const otpData = await dataRepository.getOTP(email);
 
-    const key = `otp:${email}`;
-    const otpData = cacheService.get(key);
+      if (!otpData) {
+        return { valid: false, error: 'OTP not found or expired' };
+      }
 
-    if (!otpData) {
-      return { valid: false, error: 'OTP not found or expired' };
+      // Validate code
+      if (otpData.code !== otp) {
+        // Increment attempts counter
+        await dataRepository.incrementOTPAttempts(email);
+        return { valid: false, error: 'Invalid OTP code' };
+      }
+
+      return { valid: true };
+    } catch (error) {
+      console.error(`Error validating OTP for ${email}:`, error);
+      return { valid: false, error: 'Error validating OTP' };
     }
-
-    // Check expiration
-    const now = Date.now();
-    if (now > otpData.expiresAt) {
-      // Clean up expired OTP
-      cacheService.del(key);
-      return { valid: false, expired: true, error: 'OTP has expired' };
-    }
-
-    // Validate code
-    if (otpData.code !== otp) {
-      return { valid: false, error: 'Invalid OTP code' };
-    }
-
-    return { valid: true };
   }
 
   /**
    * Invalidate OTP for an email address
    * @param {string} email - Email address
-   * @returns {boolean} True if OTP was invalidated
+   * @returns {Promise<boolean>} True if OTP was invalidated
    */
-  invalidateOTP(email) {
+  async invalidateOTP(email) {
     if (!email) {
       return false;
     }
 
-    cacheService.initialize();
-    const key = `otp:${email}`;
-    return cacheService.del(key) > 0;
+    try {
+      await dataRepository.deleteOTP(email);
+      return true;
+    } catch (error) {
+      console.error(`Error invalidating OTP for ${email}:`, error);
+      return false;
+    }
   }
 
   /**
    * Get OTP data for an email (for testing/debugging)
    * @param {string} email - Email address
-   * @returns {object|null} OTP data or null if not found
+   * @returns {Promise<object|null>} OTP data or null if not found
    */
-  getOTPData(email) {
+  async getOTPData(email) {
     if (!email) {
       return null;
     }
 
-    cacheService.initialize();
-    const key = `otp:${email}`;
-    return cacheService.get(key) || null;
+    try {
+      return await dataRepository.getOTP(email);
+    } catch (error) {
+      console.error(`Error getting OTP data for ${email}:`, error);
+      return null;
+    }
   }
 }
 

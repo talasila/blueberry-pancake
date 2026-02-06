@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import cacheService from '../cache/CacheService.js';
+import dataRepository from '../data/DynamoDBRepository.js';
 
 const router = Router();
 
@@ -7,14 +7,26 @@ const router = Router();
  * Health check endpoint
  * GET /api/health
  */
-router.get('/', (req, res) => {
-  const cacheStats = cacheService.getStats();
-  
-  res.json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    cache: cacheStats
-  });
+router.get('/', async (req, res) => {
+  try {
+    // Simple check that DynamoDB is accessible
+    const isInitialized = dataRepository.isInitialized?.() ?? true;
+    
+    res.json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      storage: {
+        type: 'dynamodb',
+        initialized: isInitialized
+      }
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'error',
+      timestamp: new Date().toISOString(),
+      error: 'Storage unavailable'
+    });
+  }
 });
 
 export default router;

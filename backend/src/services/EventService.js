@@ -1,11 +1,8 @@
 import { customAlphabet } from 'nanoid';
-import dataRepository from '../data/FileDataRepository.js';
+import dataRepository from '../data/DynamoDBRepository.js';
 import loggerService from '../logging/Logger.js';
 import pinService from './PINService.js';
-import cacheService from '../cache/CacheService.js';
-import { getEventConfigKey, getRatingsKey } from '../cache/cacheKeys.js';
 import { normalizeEmail as normalizeEmailUtil, isValidEmail as isValidEmailUtil } from '../utils/emailUtils.js';
-import { deleteEvent as deleteEventUtil } from '../utils/eventDeletionUtils.js';
 
 // Use alphanumeric alphabet (A-Z, a-z, 0-9) for 8-character IDs
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 8);
@@ -90,14 +87,7 @@ class EventService {
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       const eventId = nanoid();
 
-      // Check if event already exists (check cache first, then file)
-      const cachedEvent = cacheService.get(getEventConfigKey(eventId));
-      if (cachedEvent) {
-        loggerService.warn(`Event ID collision detected: ${eventId}, retrying...`);
-        continue;
-      }
-      
-      // Also check file system in case event exists but isn't cached
+      // Check if event already exists in DynamoDB
       const exists = await dataRepository.eventExists(eventId);
       if (exists) {
         loggerService.warn(`Event ID collision detected: ${eventId}, retrying...`);
@@ -189,9 +179,9 @@ class EventService {
       updatedAt: now
     };
 
-    // Persist event (write-through: cache + file)
+    // Persist event to DynamoDB
     try {
-      await cacheService.setWithPersist(getEventConfigKey(eventId), event, 'config', eventId);
+      await dataRepository.writeEventConfig(eventId, event);
       loggerService.info(`Event created: ${eventId} by ${administratorEmail}`);
       return event;
     } catch (error) {
@@ -269,7 +259,7 @@ class EventService {
 
   /**
    * Get event by ID
-   * Reads from cache first, lazy-loads from file if not cached
+   * Reads directly from DynamoDB
    * @param {string} eventId - Event identifier
    * @returns {Promise<object>} Event data
    */
@@ -281,8 +271,8 @@ class EventService {
     }
 
     try {
-      // Try cache first, lazy-load from file if needed
-      const event = await cacheService.ensureEventConfigLoaded(eventId);
+      // Read from DynamoDB
+      const event = await dataRepository.readEventConfig(eventId);
       
       if (!event) {
         throw new Error(`Event not found: ${eventId}`);
@@ -302,9 +292,9 @@ class EventService {
         loggerService.info(`Migrated legacy "finished" state to "completed" for event: ${eventId}`);
       }
       
-      // Persist migration immediately (write-through for critical changes)
+      // Persist migration immediately
       if (migrationOccurred) {
-        await cacheService.setWithPersist(getEventConfigKey(eventId), event, 'config', eventId);
+        await dataRepository.writeEventConfig(eventId, event);
       }
       
       return event;
@@ -321,7 +311,7 @@ class EventService {
 
   /**
    * Update event configuration
-   * Uses write-through caching (updates cache AND persists to file immediately)
+   * Writes directly to DynamoDB
    * @param {string} eventId - Event identifier
    * @param {object} event - Updated event object
    * @returns {Promise<object>} Updated event data
@@ -337,8 +327,8 @@ class EventService {
     event.updatedAt = new Date().toISOString();
 
     try {
-      // Write-through: update cache AND persist to file immediately
-      await cacheService.setWithPersist(getEventConfigKey(eventId), event, 'config', eventId);
+      // Write directly to DynamoDB
+      await dataRepository.writeEventConfig(eventId, event);
       loggerService.info(`Event updated: ${eventId}`);
       return event;
     } catch (error) {
@@ -368,7 +358,13 @@ class EventService {
       throw new Error(`Invalid state. Valid states are: created, started, paused, completed`);
     }
 
-    // Get event with optimistic locking check
+    // Validate transition is allowed (before hitting DB)
+    if (!this.validateStateTransition(currentState, newState)) {
+      loggerService.warn(`Invalid state transition attempted for event ${eventId}: ${currentState} → ${newState}`);
+      throw new Error(`Invalid transition from ${currentState} to ${newState}`);
+    }
+
+    // Get event for authorization check
     const event = await this.getEvent(eventId);
 
     // Validate event state is valid (check for corrupted data)
@@ -377,44 +373,36 @@ class EventService {
       throw new Error(`Invalid event state: ${event.state}. Please contact support.`);
     }
 
-    // Optimistic locking: verify current state matches expected
-    if (event.state !== currentState) {
-      loggerService.warn(`Optimistic locking conflict for event ${eventId}: expected=${currentState}, actual=${event.state}`);
-      const error = new Error(`Event state has changed. Current state: ${event.state}. Please refresh and try again.`);
-      error.currentState = event.state;
-      throw error;
-    }
-
-    // Validate transition is allowed
-    if (!this.validateStateTransition(currentState, newState)) {
-      loggerService.warn(`Invalid state transition attempted for event ${eventId}: ${currentState} → ${newState}`);
-      throw new Error(`Invalid transition from ${currentState} to ${newState}`);
-    }
-
     // Validate administrator authorization
     if (!this.isAdministrator(event, administratorEmail)) {
       throw new Error('Unauthorized: Only administrators can change event state');
     }
 
-    // Update state atomically
-    const updatedEvent = {
+    // Atomically transition state with optimistic locking
+    // This uses DynamoDB conditional expressions to prevent race conditions
+    const result = await dataRepository.transitionEventState(eventId, newState, currentState);
+
+    if (!result.success) {
+      if (result.reason === 'state_conflict') {
+        // Re-fetch to get current state for error message
+        const currentEvent = await this.getEvent(eventId);
+        loggerService.warn(`Optimistic locking conflict for event ${eventId}: expected=${currentState}, actual=${currentEvent.state}`);
+        const error = new Error(`Event state has changed. Current state: ${currentEvent.state}. Please refresh and try again.`);
+        error.currentState = currentEvent.state;
+        throw error;
+      }
+      throw new Error('Failed to transition state');
+    }
+
+    // Note: Dashboard cache invalidation happens automatically via DynamoDB TTL
+    loggerService.info(`Event state transitioned: ${eventId} from ${currentState} to ${newState} by ${administratorEmail}`);
+
+    // Return updated event
+    return {
       ...event,
       state: newState,
       updatedAt: new Date().toISOString()
     };
-
-    try {
-      await this.updateEvent(eventId, updatedEvent);
-      
-      // Invalidate dashboard cache when event state changes
-      cacheService.del(`dashboard:${eventId}`);
-      
-      loggerService.info(`Event state transitioned: ${eventId} from ${currentState} to ${newState} by ${administratorEmail}`);
-      return updatedEvent;
-    } catch (error) {
-      loggerService.error(`Failed to persist state transition for event ${eventId}: ${error.message}`, error);
-      throw error;
-    }
   }
 
   /**
@@ -446,33 +434,11 @@ class EventService {
     const registrationTimestamp = new Date().toISOString();
 
     try {
-      // Get current event from cache
-      const event = await this.getEvent(eventId);
+      // Use atomic registration to prevent concurrent registration race conditions
+      // This uses DynamoDB's if_not_exists to safely add users without overwriting
+      const result = await dataRepository.registerUserAtomic(eventId, normalizedEmail, registrationTimestamp);
 
-      // Initialize users map if it doesn't exist
-      if (!event.users || typeof event.users !== 'object' || Array.isArray(event.users)) {
-        event.users = {};
-      }
-
-      // Check if user is already registered (case-insensitive)
-      const isAlreadyRegistered = normalizedEmail in event.users;
-
-      if (!isAlreadyRegistered) {
-        // Add user to the map with registration timestamp
-        event.users[normalizedEmail] = {
-          registeredAt: registrationTimestamp
-        };
-        
-        // Update event with new user
-        const updatedEvent = {
-          ...event,
-          users: event.users,
-          updatedAt: new Date().toISOString()
-        };
-
-        // Persist updated event
-        await this.updateEvent(eventId, updatedEvent);
-        
+      if (result.registered && !result.alreadyExists) {
         loggerService.info(`User registered for event: ${eventId}, email: ${normalizedEmail}, registeredAt: ${registrationTimestamp}`);
       } else {
         loggerService.debug(`User already registered for event: ${eventId}, email: ${normalizedEmail}`);
@@ -481,8 +447,8 @@ class EventService {
       return {
         eventId,
         email: normalizedEmail,
-        registered: !isAlreadyRegistered,
-        registeredAt: isAlreadyRegistered ? event.users[normalizedEmail].registeredAt : registrationTimestamp
+        registered: result.registered && !result.alreadyExists,
+        registeredAt: registrationTimestamp
       };
     } catch (error) {
       // If event not found, throw with clear message
@@ -645,17 +611,11 @@ class EventService {
     const normalizedEmail = email.trim().toLowerCase();
 
     try {
-      // Get current event from cache
-      const event = await this.getEvent(eventId);
+      // Verify event exists
+      await this.getEvent(eventId);
 
-      // Initialize users map if it doesn't exist
-      if (!event.users || typeof event.users !== 'object' || Array.isArray(event.users)) {
-        event.users = {};
-      }
-
-      // Get user's bookmarks, default to empty array
-      const userData = event.users[normalizedEmail];
-      const bookmarks = userData?.bookmarks || [];
+      // Get bookmarks directly from repository (stored separately)
+      const bookmarks = await dataRepository.getBookmarks(eventId, normalizedEmail);
 
       // Ensure bookmarks is an array
       return Array.isArray(bookmarks) ? bookmarks : [];
@@ -676,6 +636,7 @@ class EventService {
 
   /**
    * Save bookmarks for a user in an event
+   * Bookmarks are stored as separate DynamoDB items to prevent concurrent write conflicts
    * @param {string} eventId - Event identifier
    * @param {string} email - User email address
    * @param {Array<number>} bookmarks - Array of bookmarked item IDs
@@ -705,37 +666,14 @@ class EventService {
     const normalizedEmail = email.trim().toLowerCase();
 
     try {
-      // Get current event from cache
-      const event = await this.getEvent(eventId);
+      // Verify event exists
+      await this.getEvent(eventId);
 
-      // Initialize users map if it doesn't exist
-      if (!event.users || typeof event.users !== 'object' || Array.isArray(event.users)) {
-        event.users = {};
-      }
-
-      // Initialize user entry if it doesn't exist
-      if (!event.users[normalizedEmail]) {
-        event.users[normalizedEmail] = {
-          registeredAt: new Date().toISOString()
-        };
-      }
-
-      // Update user's bookmarks (remove duplicates and sort)
+      // Remove duplicates and sort bookmarks
       const uniqueBookmarks = [...new Set(bookmarks)].sort((a, b) => a - b);
-      event.users[normalizedEmail] = {
-        ...event.users[normalizedEmail],
-        bookmarks: uniqueBookmarks
-      };
 
-      // Update event with new user data
-      const updatedEvent = {
-        ...event,
-        users: event.users,
-        updatedAt: new Date().toISOString()
-      };
-
-      // Persist updated event
-      await this.updateEvent(eventId, updatedEvent);
+      // Save bookmarks directly to repository (stored as separate item)
+      await dataRepository.saveBookmarks(eventId, normalizedEmail, uniqueBookmarks);
 
       loggerService.info(`Bookmarks saved for user ${normalizedEmail} in event ${eventId}: ${uniqueBookmarks.length} bookmarks`);
 
@@ -761,7 +699,7 @@ class EventService {
 
   /**
    * Delete all bookmarks for all users in an event
-   * Removes bookmarks property from all users in the event.users object
+   * Deletes all bookmark items stored separately in DynamoDB
    * @param {string} eventId - Event identifier
    * @returns {Promise<void>}
    */
@@ -773,29 +711,9 @@ class EventService {
     }
 
     try {
-      // Get current event
-      const event = await this.getEvent(eventId);
-
-      // If no users object, nothing to do
-      if (!event.users || typeof event.users !== 'object' || Array.isArray(event.users)) {
-        return;
-      }
-
-      // Remove bookmarks from all users
-      let bookmarksRemoved = 0;
-      for (const email in event.users) {
-        if (event.users[email] && event.users[email].bookmarks) {
-          delete event.users[email].bookmarks;
-          bookmarksRemoved++;
-        }
-      }
-
-      // Only update if we actually removed bookmarks
-      if (bookmarksRemoved > 0) {
-        event.updatedAt = new Date().toISOString();
-        await this.updateEvent(eventId, event);
-        loggerService.info(`All bookmarks deleted for event ${eventId}: ${bookmarksRemoved} users affected`);
-      }
+      // Delete all bookmarks directly from repository
+      await dataRepository.deleteAllBookmarks(eventId);
+      loggerService.info(`All bookmarks deleted for event ${eventId}`);
     } catch (error) {
       // If event not found, throw with clear message
       if (error.message.includes('not found') || error.message.includes('File not found')) {
@@ -844,15 +762,7 @@ class EventService {
     // Delete all bookmarks
     await this.deleteAllBookmarks(eventId);
 
-    // Invalidate similar users cache for all users
-    // We need to clear all possible similar users cache keys
-    // Since we don't know all user emails, we'll clear the cache pattern
-    // Note: This is a best-effort approach. The cache will naturally expire.
-    if (event.users && typeof event.users === 'object') {
-      for (const email in event.users) {
-        cacheService.del(`similarUsers:${eventId}:${email}`);
-      }
-    }
+    // Note: Similar users cache invalidation happens automatically via DynamoDB TTL (30s)
 
     loggerService.info(`All ratings and bookmarks deleted for event ${eventId} by ${normalizedEmail}`, {
       eventId,
@@ -951,20 +861,25 @@ class EventService {
     // Delete ratings by users
     try {
       const allRatings = await ratingService.getRatings(eventId);
-      const ratingsToKeep = allRatings.filter(rating => {
+      for (const rating of allRatings) {
         const ratingEmail = this.normalizeEmail(rating.email);
         if (usersToDelete.includes(ratingEmail)) {
+          await dataRepository.deleteRating(eventId, rating.email, rating.itemId);
           ratingsDeleted++;
-          return false; // Delete rating
         }
-        return true; // Keep rating
-      });
-
-      // Update ratings in cache and mark as dirty (write-back)
-      cacheService.setDirty(getRatingsKey(eventId), ratingsToKeep, 'ratings', eventId);
+      }
     } catch (error) {
-      // If ratings file doesn't exist or error reading, that's okay
+      // If ratings don't exist or error reading, that's okay
       loggerService.warn(`Error processing ratings during user deletion: ${error.message}`);
+    }
+
+    // Delete bookmarks for each user (stored separately in DynamoDB)
+    for (const email of usersToDelete) {
+      try {
+        await dataRepository.deleteBookmarks(eventId, email);
+      } catch (error) {
+        loggerService.warn(`Error deleting bookmarks for user ${email}: ${error.message}`);
+      }
     }
 
     // Delete user entries from event.users
@@ -974,17 +889,11 @@ class EventService {
       }
     }
 
-    // Update event (write-through)
+    // Update event
     event.updatedAt = new Date().toISOString();
     await this.updateEvent(eventId, event);
 
-    // Invalidate computed caches
-    cacheService.del(`dashboard:${eventId}`);
-    
-    // Invalidate similar users cache for deleted users
-    for (const email of usersToDelete) {
-      cacheService.del(`similarUsers:${eventId}:${email}`);
-    }
+    // Note: Dashboard and similar users cache invalidation happens automatically via DynamoDB TTL
 
     loggerService.info(`All users deleted for event ${eventId} by ${normalizedRequesterEmail}`, {
       eventId,
@@ -1085,20 +994,23 @@ class EventService {
     // Delete ratings by the user
     try {
       const allRatings = await ratingService.getRatings(eventId);
-      const ratingsToKeep = allRatings.filter(rating => {
+      for (const rating of allRatings) {
         const ratingEmail = this.normalizeEmail(rating.email);
         if (ratingEmail === normalizedUserEmail) {
+          await dataRepository.deleteRating(eventId, rating.email, rating.itemId);
           ratingsDeleted++;
-          return false; // Delete rating
         }
-        return true; // Keep rating
-      });
-
-      // Update ratings in cache and mark as dirty (write-back)
-      cacheService.setDirty(getRatingsKey(eventId), ratingsToKeep, 'ratings', eventId);
+      }
     } catch (error) {
-      // If ratings file doesn't exist or error reading, that's okay
+      // If ratings don't exist or error reading, that's okay
       loggerService.warn(`Error processing ratings during user deletion: ${error.message}`);
+    }
+
+    // Delete bookmarks for the user (stored separately in DynamoDB)
+    try {
+      await dataRepository.deleteBookmarks(eventId, normalizedUserEmail);
+    } catch (error) {
+      loggerService.warn(`Error deleting bookmarks for user ${normalizedUserEmail}: ${error.message}`);
     }
 
     // Remove from administrators if user is an administrator
@@ -1109,13 +1021,11 @@ class EventService {
     // Delete user entry from event.users
     delete event.users[normalizedUserEmail];
 
-    // Update event (write-through)
+    // Update event
     event.updatedAt = new Date().toISOString();
     await this.updateEvent(eventId, event);
 
-    // Invalidate computed caches
-    cacheService.del(`dashboard:${eventId}`);
-    cacheService.del(`similarUsers:${eventId}:${normalizedUserEmail}`);
+    // Note: Dashboard and similar users cache invalidation happens automatically via DynamoDB TTL
 
     loggerService.info(`User deleted from event ${eventId} by ${normalizedRequesterEmail}`, {
       eventId,
@@ -1282,7 +1192,7 @@ class EventService {
       throw new Error('Requester email is required');
     }
 
-    // Get current event (lazy migration happens in getEvent)
+    // Get current event for authorization check
     const event = await this.getEvent(eventId);
 
     // Validate requester is administrator
@@ -1296,43 +1206,23 @@ class EventService {
       throw new Error('Invalid email address format. Please provide a valid email address.');
     }
 
-    // Check for duplicates
-    if (event.administrators[normalizedEmail]) {
-      throw new Error(`Administrator with email ${normalizedEmail} already exists for this event.`);
-    }
-
-    // Initialize administrators and users if needed
-    if (!event.administrators) {
-      event.administrators = {};
-    }
-    if (!event.users) {
-      event.users = {};
-    }
-
     const now = new Date().toISOString();
 
-    // Add to administrators object
-    event.administrators[normalizedEmail] = {
-      assignedAt: now,
-      owner: false
-    };
+    // Use atomic operation to add administrator (prevents race conditions)
+    const result = await dataRepository.addAdministratorAtomic(eventId, normalizedEmail, now);
 
-    // Add to users section if not already present
-    if (!event.users[normalizedEmail]) {
-      event.users[normalizedEmail] = {
-        registeredAt: now
-      };
+    if (!result.added && result.alreadyExists) {
+      throw new Error(`Administrator with email ${normalizedEmail} already exists for this event.`);
     }
-
-    // Atomic update: save both administrators and users together
-    await this.updateEvent(eventId, event);
 
     loggerService.info(`Administrator added to event ${eventId}: ${normalizedEmail} by ${requesterEmail}`, {
       eventId,
       newAdministrator: normalizedEmail,
       requester: requesterEmail
     });
-    return event;
+
+    // Return updated event
+    return this.getEvent(eventId);
   }
 
   /**
@@ -2141,8 +2031,11 @@ class EventService {
       throw new Error('Unauthorized: Only the event owner can delete the event');
     }
 
-    // Use shared deletion utility (handles cache, PIN sessions, and file deletion)
-    await deleteEventUtil(eventId);
+    // Invalidate PIN sessions for this event
+    await pinService.invalidatePINSessions(eventId);
+    
+    // Delete event from DynamoDB (config and all ratings)
+    await dataRepository.deleteEvent(eventId);
 
     loggerService.info(`Event deleted by owner: ${eventId}`, {
       eventId,

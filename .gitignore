@@ -47,6 +47,9 @@ Thumbs.db
 data/events/*/
 !data/events/.gitkeep
 
+# DynamoDB Local data
+data/dynamodb/
+
 # Config overrides (keep templates, ignore local overrides)
 config/local.json
 

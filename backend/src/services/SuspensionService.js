@@ -1,8 +1,9 @@
-import cacheService from '../cache/CacheService.js';
+import dataRepository from '../data/DynamoDBRepository.js';
 
 /**
  * Suspension Service
  * Tracks email suspensions and failed authentication attempts
+ * Uses DynamoDB with TTL for automatic expiration
  * Suspends email for 5 minutes after 5 failed attempts
  */
 class SuspensionService {
@@ -15,151 +16,152 @@ class SuspensionService {
   /**
    * Check if email is currently suspended
    * @param {string} email - Email address
-   * @returns {{suspended: boolean, endTime?: number, reason?: string}}
+   * @returns {Promise<{suspended: boolean, endTime?: number, reason?: string}>}
    */
-  isSuspended(email) {
+  async isSuspended(email) {
     if (!email) {
       return { suspended: false };
     }
 
-    cacheService.initialize();
-    const key = `suspension:${email}`;
-    const suspension = cacheService.get(key);
+    try {
+      const suspension = await dataRepository.getSuspension(email);
 
-    if (!suspension) {
+      if (!suspension) {
+        return { suspended: false };
+      }
+
+      // DynamoDB TTL handles expiration, but double-check
+      const now = Date.now();
+      const endTime = new Date(suspension.expiresAt).getTime();
+      if (now >= endTime) {
+        return { suspended: false };
+      }
+
+      return {
+        suspended: true,
+        endTime,
+        reason: suspension.reason
+      };
+    } catch (error) {
+      console.error(`Error checking suspension for ${email}:`, error);
       return { suspended: false };
     }
-
-    // Check if suspension has expired (should be handled by TTL, but double-check)
-    const now = Date.now();
-    if (now >= suspension.endTime) {
-      // Suspension expired, clean up
-      cacheService.del(key);
-      this.resetFailedAttempts(email);
-      return { suspended: false };
-    }
-
-    return {
-      suspended: true,
-      endTime: suspension.endTime,
-      reason: suspension.reason
-    };
   }
 
   /**
    * Record a failed authentication attempt
    * Suspends email if max attempts reached
    * @param {string} email - Email address
-   * @returns {{suspended: boolean, attempts: number, maxReached: boolean}}
+   * @returns {Promise<{suspended: boolean, attempts: number, maxReached: boolean}>}
    */
-  recordFailedAttempt(email) {
+  async recordFailedAttempt(email) {
     if (!email) {
       return { suspended: false, attempts: 0, maxReached: false };
     }
 
-    cacheService.initialize();
+    try {
+      // Increment failed attempts counter
+      const attempts = await dataRepository.incrementFailedAttempts(email, this.SUSPENSION_SECONDS);
 
-    const attemptsKey = `failed_attempts:${email}`;
-    const attemptsRecord = cacheService.get(attemptsKey) || { count: 0, firstAttempt: Date.now() };
+      // Check if max attempts reached
+      if (attempts >= this.MAX_FAILED_ATTEMPTS) {
+        await this.suspendEmail(email);
+        return {
+          suspended: true,
+          attempts,
+          maxReached: true
+        };
+      }
 
-    attemptsRecord.count++;
-    attemptsRecord.lastAttempt = Date.now();
-
-    // Store with TTL matching suspension duration
-    cacheService.set(attemptsKey, attemptsRecord, this.SUSPENSION_SECONDS);
-
-    // Check if max attempts reached
-    if (attemptsRecord.count >= this.MAX_FAILED_ATTEMPTS) {
-      this.suspendEmail(email);
       return {
-        suspended: true,
-        attempts: attemptsRecord.count,
-        maxReached: true
+        suspended: false,
+        attempts,
+        maxReached: false
       };
+    } catch (error) {
+      console.error(`Error recording failed attempt for ${email}:`, error);
+      return { suspended: false, attempts: 0, maxReached: false };
     }
-
-    return {
-      suspended: false,
-      attempts: attemptsRecord.count,
-      maxReached: false
-    };
   }
 
   /**
    * Suspend email address for 5 minutes
    * @param {string} email - Email address
-   * @returns {boolean} True if suspended
+   * @returns {Promise<boolean>} True if suspended
    */
-  suspendEmail(email) {
+  async suspendEmail(email) {
     if (!email) {
       return false;
     }
 
-    cacheService.initialize();
-
-    const now = Date.now();
-    const endTime = now + (this.SUSPENSION_MINUTES * 60 * 1000);
-
-    const suspension = {
-      email,
-      startTime: now,
-      endTime,
-      reason: 'failed_attempts_exceeded'
-    };
-
-    const key = `suspension:${email}`;
-    cacheService.set(key, suspension, this.SUSPENSION_SECONDS);
-
-    // Reset failed attempt counter (will be cleared when suspension expires)
-    this.resetFailedAttempts(email);
-
-    return true;
+    try {
+      await dataRepository.suspendUser(email, 'failed_attempts_exceeded', this.SUSPENSION_SECONDS);
+      // Reset failed attempt counter
+      await dataRepository.resetFailedAttempts(email);
+      return true;
+    } catch (error) {
+      console.error(`Error suspending email ${email}:`, error);
+      return false;
+    }
   }
 
   /**
    * Reset failed attempt counter (on successful authentication)
    * @param {string} email - Email address
-   * @returns {boolean} True if reset
+   * @returns {Promise<boolean>} True if reset
    */
-  resetFailedAttempts(email) {
+  async resetFailedAttempts(email) {
     if (!email) {
       return false;
     }
 
-    cacheService.initialize();
-    const key = `failed_attempts:${email}`;
-    return cacheService.del(key) > 0;
+    try {
+      await dataRepository.resetFailedAttempts(email);
+      return true;
+    } catch (error) {
+      console.error(`Error resetting failed attempts for ${email}:`, error);
+      return false;
+    }
   }
 
   /**
    * Get failed attempt count for an email
+   * Note: This is async now, returns count from DynamoDB
    * @param {string} email - Email address
-   * @returns {number} Number of failed attempts
+   * @returns {Promise<number>} Number of failed attempts
    */
-  getFailedAttempts(email) {
+  async getFailedAttempts(email) {
     if (!email) {
       return 0;
     }
 
-    cacheService.initialize();
-    const key = `failed_attempts:${email}`;
-    const record = cacheService.get(key);
-    return record ? record.count : 0;
+    try {
+      // Query the failed attempts record
+      const result = await dataRepository.getRateLimit(email, 'failed');
+      return result?.count || 0;
+    } catch (error) {
+      console.error(`Error getting failed attempts for ${email}:`, error);
+      return 0;
+    }
   }
 
   /**
    * Clear suspension for an email (for testing)
    * @param {string} email - Email address
-   * @returns {boolean} True if cleared
+   * @returns {Promise<boolean>} True if cleared
    */
-  clearSuspension(email) {
+  async clearSuspension(email) {
     if (!email) {
       return false;
     }
 
-    cacheService.initialize();
-    const key = `suspension:${email}`;
-    return cacheService.del(key) > 0;
+    try {
+      await dataRepository.removeSuspension(email);
+      return true;
+    } catch (error) {
+      console.error(`Error clearing suspension for ${email}:`, error);
+      return false;
+    }
   }
 }
 

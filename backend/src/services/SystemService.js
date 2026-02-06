@@ -1,8 +1,6 @@
-import dataRepository from '../data/FileDataRepository.js';
-import cacheService from '../cache/CacheService.js';
-import { getEventConfigKey, getRatingsKey } from '../cache/cacheKeys.js';
+import dataRepository from '../data/DynamoDBRepository.js';
 import loggerService from '../logging/Logger.js';
-import { deleteEvent } from '../utils/eventDeletionUtils.js';
+import pinService from './PINService.js';
 
 /**
  * SystemService
@@ -71,13 +69,8 @@ class SystemService {
    */
   async getEventSummary(eventId) {
     try {
-      // Try cache first
-      let config = cacheService.get(getEventConfigKey(eventId));
-      
-      // Fall back to file
-      if (!config) {
-        config = await cacheService.ensureEventConfigLoaded(eventId);
-      }
+      // Read directly from DynamoDB
+      const config = await dataRepository.readEventConfig(eventId);
       
       if (!config) {
         return null;
@@ -138,11 +131,8 @@ class SystemService {
    */
   async getEventDetailsForAdmin(eventId) {
     try {
-      // Get config
-      let config = cacheService.get(getEventConfigKey(eventId));
-      if (!config) {
-        config = await cacheService.ensureEventConfigLoaded(eventId);
-      }
+      // Read directly from DynamoDB
+      const config = await dataRepository.readEventConfig(eventId);
       
       if (!config) {
         return null;
@@ -203,13 +193,23 @@ class SystemService {
    */
   async deleteEventAsAdmin(eventId) {
     try {
-      // Use shared deletion utility (handles cache, PIN sessions, and file deletion)
-      // Authorization is already verified by requireRoot middleware
-      const result = await deleteEvent(eventId);
+      // Get event config to check state before deletion
+      const config = await dataRepository.readEventConfig(eventId);
+      if (!config) {
+        throw new Error('Event not found');
+      }
+      
+      const wasActive = config.state === 'started';
+      
+      // Invalidate PIN sessions for this event
+      await pinService.invalidatePINSessions(eventId);
+      
+      // Delete event from DynamoDB (config and all ratings)
+      await dataRepository.deleteEvent(eventId);
       
       loggerService.info(`Event deleted by root admin: ${eventId}`, { eventId });
       
-      return result;
+      return { success: true, wasActive };
     } catch (error) {
       await loggerService.error(`Failed to delete event ${eventId}`, error);
       throw error;
@@ -234,11 +234,8 @@ class SystemService {
       
       for (const eventId of allEventIds) {
         try {
-          // Get config
-          let config = cacheService.get(getEventConfigKey(eventId));
-          if (!config) {
-            config = await cacheService.ensureEventConfigLoaded(eventId);
-          }
+          // Read directly from DynamoDB
+          const config = await dataRepository.readEventConfig(eventId);
           
           if (config) {
             // Count by state
@@ -281,9 +278,8 @@ class SystemService {
         participantCount = Object.keys(config.users).length;
       }
       
-      // Get rating count from ratings
-      await cacheService.ensureRatingsLoaded(eventId);
-      const ratings = cacheService.get(getRatingsKey(eventId)) || [];
+      // Get rating count from DynamoDB
+      const ratings = await dataRepository.getRatings(eventId);
       
       // If no users in config, fall back to rating-based participant count
       if (participantCount === 0 && ratings.length > 0) {

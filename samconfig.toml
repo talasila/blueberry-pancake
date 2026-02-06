@@ -1,0 +1,54 @@
+# SAM Configuration File
+# This file contains deployment configurations for different environments
+
+version = 0.1
+
+[default]
+[default.global.parameters]
+stack_name = "blueberry-pancake"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.validate.parameters]
+lint = true
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
+resolve_s3 = true
+resolve_image_repos = true
+
+# Development environment
+[dev]
+[dev.deploy.parameters]
+stack_name = "blueberry-pancake-dev"
+s3_prefix = "blueberry-pancake-dev"
+region = "us-east-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Environment=dev"
+tags = "Environment=dev Application=blueberry-pancake"
+
+# Staging environment
+[staging]
+[staging.deploy.parameters]
+stack_name = "blueberry-pancake-staging"
+s3_prefix = "blueberry-pancake-staging"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Environment=staging"
+tags = "Environment=staging Application=blueberry-pancake"
+
+# Production environment
+[prod]
+[prod.deploy.parameters]
+stack_name = "blueberry-pancake-prod"
+s3_prefix = "blueberry-pancake-prod"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Environment=prod"
+tags = "Environment=prod Application=blueberry-pancake"

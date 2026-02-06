@@ -6,11 +6,17 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "dev": "docker compose up -d && npm run dynamo:setup && node --env-file=.env.development --watch src/server.js",
+    "dev:quick": "node --env-file=.env.development --watch src/server.js",
     "test": "vitest",
     "test:ui": "vitest --ui",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "dynamo:start": "docker compose up -d",
+    "dynamo:stop": "docker compose down",
+    "dynamo:setup": "node --env-file=.env.development scripts/setup-dynamodb-local.js",
+    "dynamo:reset": "node --env-file=.env.development scripts/setup-dynamodb-local.js --force",
+    "migrate:event": "node --env-file=.env.development scripts/migrate-event.js"
   },
   "keywords": [],
   "author": "",
@@ -19,6 +25,9 @@
     "node": ">=22.12.0"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.600.0",
+    "@aws-sdk/lib-dynamodb": "^3.600.0",
+    "@codegenie/serverless-express": "^4.14.0",
     "config": "^4.1.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -27,7 +36,6 @@
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
     "nanoid": "^5.1.6",
-    "node-cache": "^5.1.2",
     "resend": "^6.5.2"
   },
   "devDependencies": {

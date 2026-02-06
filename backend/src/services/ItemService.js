@@ -1,8 +1,7 @@
 import { customAlphabet } from 'nanoid';
 import eventService from './EventService.js';
 import loggerService from '../logging/Logger.js';
-import cacheService from '../cache/CacheService.js';
-import { getEventConfigKey } from '../cache/cacheKeys.js';
+import dataRepository from '../data/DynamoDBRepository.js';
 
 // Use alphanumeric alphabet for 12-character item IDs (unique within event)
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 12);
@@ -249,8 +248,8 @@ class ItemService {
     event.items.push(item);
     event.updatedAt = new Date().toISOString();
 
-    // Persist updated event (write-through)
-    await cacheService.setWithPersist(getEventConfigKey(eventId), event, 'config', eventId);
+    // Persist updated event to DynamoDB
+    await dataRepository.writeEventConfig(eventId, event);
 
     loggerService.info(`Item registered for event: ${eventId}, itemId: ${itemId}, owner: ${normalizedEmail}`);
 
@@ -346,8 +345,8 @@ class ItemService {
       foundItem.itemId = null;
       event.updatedAt = new Date().toISOString();
 
-      // Persist updated event (write-through)
-      await cacheService.setWithPersist(getEventConfigKey(eventId), event, 'config', eventId);
+      // Persist updated event to DynamoDB
+      await dataRepository.writeEventConfig(eventId, event);
 
       loggerService.info(`Item ID cleared for event: ${eventId}, itemId: ${itemId}, admin: ${normalizedEmail}`);
 
@@ -374,8 +373,8 @@ class ItemService {
     foundItem.itemId = itemIdToAssign;
     event.updatedAt = new Date().toISOString();
 
-    // Persist updated event (write-through)
-    await cacheService.setWithPersist(getEventConfigKey(eventId), event, 'config', eventId);
+    // Persist updated event to DynamoDB
+    await dataRepository.writeEventConfig(eventId, event);
 
     loggerService.info(`Item ID assigned for event: ${eventId}, itemId: ${itemId}, assigned itemId: ${itemIdToAssign}, admin: ${normalizedEmail}`);
 
@@ -512,8 +511,8 @@ class ItemService {
 
     event.updatedAt = new Date().toISOString();
 
-    // Persist updated event (write-through)
-    await cacheService.setWithPersist(getEventConfigKey(eventId), event, 'config', eventId);
+    // Persist updated event to DynamoDB
+    await dataRepository.writeEventConfig(eventId, event);
 
     loggerService.info(`Item updated for event: ${eventId}, itemId: ${itemId}, owner: ${normalizedEmail}`);
 
@@ -569,8 +568,8 @@ class ItemService {
     event.items.splice(itemIndex, 1);
     event.updatedAt = new Date().toISOString();
 
-    // Persist updated event (write-through)
-    await cacheService.setWithPersist(getEventConfigKey(eventId), event, 'config', eventId);
+    // Persist updated event to DynamoDB
+    await dataRepository.writeEventConfig(eventId, event);
 
     loggerService.info(`Item deleted for event: ${eventId}, itemId: ${itemId}, owner: ${normalizedEmail}`);
 

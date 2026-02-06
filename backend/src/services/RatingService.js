@@ -1,51 +1,15 @@
 import eventService from './EventService.js';
-import cacheService from '../cache/CacheService.js';
-import { getRatingsKey } from '../cache/cacheKeys.js';
+import dataRepository from '../data/DynamoDBRepository.js';
 import loggerService from '../logging/Logger.js';
 import { normalizeEmail, isValidEmail } from '../utils/emailUtils.js';
 
 /**
  * RatingService
- * Handles rating business logic with write-back caching
- * All reads from cache, writes marked dirty for periodic flush
- * 
- * Uses per-event mutex locks to prevent race conditions during concurrent
- * rating submissions. Without locking, concurrent read-modify-write operations
- * can cause lost updates (last write wins, losing other users' ratings).
+ * Handles rating business logic with direct DynamoDB atomic writes
+ * No caching layer - each rating is immediately persisted to DynamoDB
+ * DynamoDB provides atomic operations so no application-level locking needed
  */
 class RatingService {
-  constructor() {
-    // Per-event locks to serialize write operations
-    // Map<eventId, Promise> - each event has its own lock
-    this.eventLocks = new Map();
-  }
-
-  /**
-   * Acquire a lock for an event (mutex pattern using promises)
-   * Ensures only one rating write operation per event at a time
-   * @param {string} eventId - Event identifier
-   * @returns {Promise<Function>} Release function to call when done
-   */
-  async acquireLock(eventId) {
-    // Wait for any existing lock to be released
-    while (this.eventLocks.has(eventId)) {
-      await this.eventLocks.get(eventId);
-    }
-
-    // Create a new lock (a promise that resolves when released)
-    let releaseLock;
-    const lockPromise = new Promise(resolve => {
-      releaseLock = resolve;
-    });
-    this.eventLocks.set(eventId, lockPromise);
-
-    // Return the release function
-    return () => {
-      this.eventLocks.delete(eventId);
-      releaseLock();
-    };
-  }
-
   /**
    * Get all ratings for an event
    * @param {string} eventId - Event identifier
@@ -53,13 +17,7 @@ class RatingService {
    */
   async getRatings(eventId) {
     try {
-      // Ensure ratings are loaded in cache
-      await cacheService.ensureRatingsLoaded(eventId);
-      
-      const ratingsKey = getRatingsKey(eventId);
-      const ratings = cacheService.get(ratingsKey);
-      
-      return ratings || [];
+      return await dataRepository.getRatings(eventId);
     } catch (error) {
       loggerService.error(`Error reading ratings for event ${eventId}: ${error.message}`, error);
       throw error;
@@ -75,14 +33,7 @@ class RatingService {
    */
   async getRating(eventId, itemId, email) {
     try {
-      const ratings = await this.getRatings(eventId);
-      const normalizedUserEmail = normalizeEmail(email);
-      
-      const rating = ratings.find(
-        r => r.itemId === itemId && normalizeEmail(r.email) === normalizedUserEmail
-      );
-      
-      return rating || null;
+      return await dataRepository.getRating(eventId, email, itemId);
     } catch (error) {
       loggerService.error(`Error getting rating for event ${eventId}, item ${itemId}, email ${email}: ${error.message}`, error);
       throw error;
@@ -92,7 +43,7 @@ class RatingService {
   /**
    * Submit a rating (create new or update existing)
    * Implements replace-on-update: if user has existing rating for item, replaces it
-   * Uses per-event locking to prevent race conditions during concurrent submissions
+   * DynamoDB PutItem with the same key atomically replaces the item
    * @param {string} eventId - Event identifier
    * @param {number} itemId - Item identifier
    * @param {number} rating - Rating value (1 to maxRating)
@@ -107,53 +58,40 @@ class RatingService {
       throw new Error(`Event is not in started state. Rating is not available. Current state: ${event.state}`);
     }
 
-    // Validate inputs (async validation) - done outside lock for performance
+    // Validate inputs
     await this.validateRatingInputAsync(eventId, itemId, rating, note, email, event);
 
-    // Acquire lock for this event to prevent race conditions
-    // This serializes read-modify-write operations per event
-    const releaseLock = await this.acquireLock(eventId);
-    
+    const normalizedUserEmail = normalizeEmail(email);
+
+    // Create new rating object
+    const newRating = {
+      email: normalizedUserEmail,
+      timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'), // ISO 8601 format
+      itemId: parseInt(itemId, 10),
+      rating: parseInt(rating, 10),
+      note: (note || '').trim()
+    };
+
     try {
-      // Get all ratings from cache (inside lock to ensure consistent read)
-      const ratings = await this.getRatings(eventId);
-      const normalizedUserEmail = normalizeEmail(email);
-
-      // Find existing rating for this user/item combination
-      const existingIndex = ratings.findIndex(
-        r => r.itemId === itemId && normalizeEmail(r.email) === normalizedUserEmail
-      );
-
-      // Create new rating object
-      const newRating = {
-        email: normalizedUserEmail,
-        timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'), // ISO 8601 format
-        itemId: parseInt(itemId, 10),
-        rating: parseInt(rating, 10),
-        note: (note || '').trim()
-      };
-
-      // Replace existing or append new
-      if (existingIndex >= 0) {
-        ratings[existingIndex] = newRating;
+      // Check if rating exists - if so, update; otherwise add
+      const existingRating = await dataRepository.getRating(eventId, normalizedUserEmail, itemId);
+      
+      if (existingRating) {
+        // Update existing rating
+        await dataRepository.updateRating(eventId, normalizedUserEmail, itemId, {
+          rating: newRating.rating,
+          note: newRating.note
+        });
       } else {
-        ratings.push(newRating);
+        // Add new rating
+        await dataRepository.addRating(eventId, newRating);
       }
 
-      // Update cache and mark as dirty (write-back)
-      const ratingsKey = getRatingsKey(eventId);
-      cacheService.setDirty(ratingsKey, ratings, 'ratings', eventId);
-
-      // Invalidate computed caches (dashboard, similar users)
-      cacheService.del(`dashboard:${eventId}`);
-      cacheService.invalidate(`similarUsers:${eventId}:*`);
-
       loggerService.info(`Rating submitted for event ${eventId}, item ${itemId}, email ${normalizedUserEmail}`);
-
       return newRating;
-    } finally {
-      // Always release the lock
-      releaseLock();
+    } catch (error) {
+      loggerService.error(`Error submitting rating for event ${eventId}: ${error.message}`, error);
+      throw error;
     }
   }
 
@@ -197,7 +135,6 @@ class RatingService {
 
   /**
    * Delete a rating (remove existing rating)
-   * Uses per-event locking to prevent race conditions
    * @param {string} eventId - Event identifier
    * @param {number} itemId - Item identifier
    * @param {string} email - User email
@@ -221,74 +158,50 @@ class RatingService {
       throw new Error(`Invalid item ID. Must be between 1 and ${itemConfig.numberOfItems}`);
     }
 
-    // Acquire lock for this event to prevent race conditions
-    const releaseLock = await this.acquireLock(eventId);
-    
+    const normalizedUserEmail = normalizeEmail(email);
+
     try {
-      // Get all ratings from cache (inside lock)
-      const ratings = await this.getRatings(eventId);
-      const normalizedUserEmail = normalizeEmail(email);
-
-      // Find existing rating for this user/item combination
-      const existingIndex = ratings.findIndex(
-        r => r.itemId === itemId && normalizeEmail(r.email) === normalizedUserEmail
-      );
-
-      if (existingIndex < 0) {
-        // Rating not found
+      // Check if rating exists
+      const existingRating = await dataRepository.getRating(eventId, normalizedUserEmail, itemId);
+      
+      if (!existingRating) {
         return false;
       }
 
-      // Remove the rating
-      ratings.splice(existingIndex, 1);
-
-      // Update cache and mark as dirty (write-back)
-      const ratingsKey = getRatingsKey(eventId);
-      cacheService.setDirty(ratingsKey, ratings, 'ratings', eventId);
-
-      // Invalidate computed caches
-      cacheService.del(`dashboard:${eventId}`);
-      cacheService.invalidate(`similarUsers:${eventId}:*`);
-
+      // Delete the rating
+      await dataRepository.deleteRating(eventId, normalizedUserEmail, itemId);
       loggerService.info(`Rating deleted for event ${eventId}, item ${itemId}, email ${normalizedUserEmail}`);
-
       return true;
-    } finally {
-      // Always release the lock
-      releaseLock();
+    } catch (error) {
+      loggerService.error(`Error deleting rating for event ${eventId}: ${error.message}`, error);
+      throw error;
     }
   }
 
   /**
    * Delete all ratings for an event
-   * Clears ratings in cache and marks for flush
    * @param {string} eventId - Event identifier
    * @returns {Promise<void>}
    */
   async deleteAllRatings(eventId) {
-    // Clear ratings to empty array
-    const ratingsKey = getRatingsKey(eventId);
-    cacheService.setDirty(ratingsKey, [], 'ratings', eventId);
-    
-    // Invalidate dashboard cache (depends on ratings)
-    cacheService.del(`dashboard:${eventId}`);
-    
-    loggerService.info(`All ratings deleted for event ${eventId}`);
+    try {
+      await dataRepository.deleteAllRatings(eventId);
+      loggerService.info(`All ratings deleted for event ${eventId}`);
+    } catch (error) {
+      loggerService.error(`Error deleting all ratings for event ${eventId}: ${error.message}`, error);
+      throw error;
+    }
   }
 
   /**
    * Invalidate all caches related to ratings for an event
-   * Called when event state changes to ensure fresh data
+   * With DynamoDB, we don't need in-memory cache invalidation
+   * This method is kept for API compatibility but is now a no-op
    * @param {string} eventId - Event identifier
    */
   invalidateCache(eventId) {
-    // Invalidate dashboard cache (depends on ratings)
-    cacheService.del(`dashboard:${eventId}`);
-    
-    // Invalidate similar users cache
-    cacheService.invalidate(`similarUsers:${eventId}:*`);
-    
-    loggerService.debug(`Rating caches invalidated for event ${eventId}`);
+    // No-op: DynamoDB provides immediate consistency
+    loggerService.debug(`Rating cache invalidation called for event ${eventId} (no-op with DynamoDB)`);
   }
 }
 

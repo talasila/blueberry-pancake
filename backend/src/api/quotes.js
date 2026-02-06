@@ -4,7 +4,6 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import loggerService from '../logging/Logger.js';
-import cacheService from '../cache/CacheService.js';
 
 const router = Router();
 
@@ -12,6 +11,9 @@ const router = Router();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, '../../..');
+
+// Simple in-memory cache for static quotes (they never change during runtime)
+const quotesCache = new Map();
 
 /**
  * Parse quotes from text file content
@@ -46,18 +48,18 @@ function parseQuotesFromText(fileContent) {
 async function loadQuotesFromFile(fileNum) {
   const cacheKey = `quotes:file:${fileNum}`;
   
-  // Ensure cache is initialized
-  cacheService.initialize();
-  
-  const cached = cacheService.get(cacheKey);
-  if (cached) return cached;
+  // Check simple in-memory cache (quotes are static, never change)
+  if (quotesCache.has(cacheKey)) {
+    return quotesCache.get(cacheKey);
+  }
   
   const filePath = join(projectRoot, `${fileNum}.quotes.txt`);
   // Explicitly use UTF-8 encoding to preserve Unicode characters (em dashes, etc.)
   const content = await readFile(filePath, 'utf-8');
   const quotes = parseQuotesFromText(content);
   
-  cacheService.set(cacheKey, quotes, 3600); // 1 hour TTL
+  // Cache in-memory (no TTL needed - quotes are static)
+  quotesCache.set(cacheKey, quotes);
   return quotes;
 }
 

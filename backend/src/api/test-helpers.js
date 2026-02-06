@@ -10,30 +10,15 @@
 import EventService from '../services/EventService.js';
 import logger from '../logging/Logger.js';
 import { generateToken } from '../middleware/jwtAuth.js';
-import path from 'path';
-import fs from 'fs/promises';
 import configLoader from '../config/configLoader.js';
-import cacheService from '../cache/CacheService.js';
+import dataRepository from '../data/DynamoDBRepository.js';
 import pinService from '../services/PINService.js';
 
 /**
- * Sequential counter for TEST#### event IDs
- * Resets when server restarts
- */
-let testEventCounter = 0;
-
-/**
- * Generate next TEST#### event ID
- * Format: TEST0001, TEST0002, etc.
- */
-function generateTestEventId() {
-  testEventCounter++;
-  return `TEST${testEventCounter.toString().padStart(4, '0')}`;
-}
-
-/**
- * Reset the test event counter (called at start of test run)
+ * Reset the test event counter (kept for backward compatibility, but no-op now)
  * POST /api/test/reset-counter
+ * 
+ * Note: With DynamoDB, we use generated event IDs directly without TEST#### renaming.
  */
 export async function resetTestCounter(req, res) {
   if (process.env.NODE_ENV === 'production') {
@@ -42,16 +27,15 @@ export async function resetTestCounter(req, res) {
     });
   }
   
-  testEventCounter = 0;
-  logger.info('Test event counter reset to 0');
-  res.status(200).json({ success: true, message: 'Counter reset' });
+  logger.info('Test counter reset requested (no-op with DynamoDB)');
+  res.status(200).json({ success: true, message: 'Counter reset (no-op with DynamoDB)' });
 }
 
 /**
  * Create test event (no auth required)
  * POST /api/test/events
  * 
- * Automatically generates TEST#### event IDs for easy cleanup
+ * Creates events with generated IDs (no TEST#### renaming needed with DynamoDB)
  */
 export async function createTestEvent(req, res) {
   // Only allow in non-production environments
@@ -78,25 +62,7 @@ export async function createTestEvent(req, res) {
       adminEmail || 'test@example.com'
     );
     
-    // Note: EventService returns event with 'eventId', not 'id'
-    let eventId = event.eventId;
-    
-    // Generate TEST#### ID and rename directory
-    const testEventId = generateTestEventId();
-    const dataDir = configLoader.get('dataDirectory') || 'data';
-    const projectRoot = path.resolve(process.cwd(), '..');
-    const oldPath = path.join(projectRoot, dataDir, 'events', eventId);
-    const newPath = path.join(projectRoot, dataDir, 'events', testEventId);
-    
-    try {
-      await fs.rename(oldPath, newPath);
-      event.eventId = testEventId;
-      eventId = testEventId;
-      logger.info(`Created test event with ID: ${testEventId}`);
-    } catch (renameError) {
-      logger.error(`Failed to rename event directory to ${testEventId}:`, renameError);
-      // Continue with generated ID if rename fails
-    }
+    const eventId = event.eventId;
     
     // Update event with test-specific fields and custom PIN
     event._testData = true;
@@ -149,25 +115,14 @@ export async function deleteTestEvent(req, res) {
       return res.status(400).json({ error: 'Event ID required' });
     }
 
-    // Delete the event directory
-    const dataDir = configLoader.get('dataDirectory') || 'data';
-    
-    // Resolve to absolute path from project root (one level up from backend/)
-    const projectRoot = path.resolve(process.cwd(), '..');
-    const eventDir = path.resolve(projectRoot, dataDir, 'events', eventId);
-    
-    logger.info(`Attempting to delete test event directory: ${eventDir}`);
+    logger.info(`Attempting to delete test event: ${eventId}`);
     
     try {
-      // First check if directory exists
-      try {
-        await fs.access(eventDir);
-      } catch {
-        // Directory doesn't exist, but still clear cache to be safe
-        cacheService.invalidateEvent(eventId);
-        cacheService.del(`dashboard:${eventId}`);
-        cacheService.invalidate(`similarUsers:${eventId}:*`);
-        pinService.invalidatePINSessions(eventId);
+      // Check if event exists
+      const exists = await dataRepository.eventExists(eventId);
+      if (!exists) {
+        // Event doesn't exist, still invalidate PIN sessions to be safe
+        await pinService.invalidatePINSessions(eventId);
         
         logger.info(`Event ${eventId} not found (already deleted)`);
         return res.status(200).json({ 
@@ -176,37 +131,22 @@ export async function deleteTestEvent(req, res) {
         });
       }
       
-      // Clear cache FIRST to prevent write-back flush from recreating directory
-      // (The periodic flush could recreate the directory via ensureDirectory()
-      // if dirty ratings exist for this event)
-      cacheService.invalidateEvent(eventId);
-      cacheService.del(`dashboard:${eventId}`);
-      cacheService.invalidate(`similarUsers:${eventId}:*`);
-      pinService.invalidatePINSessions(eventId);
+      // Invalidate PIN sessions for this event
+      await pinService.invalidatePINSessions(eventId);
       
-      // NOW safe to delete the directory and all contents
-      await fs.rm(eventDir, { recursive: true, force: true });
+      // Delete event from DynamoDB (config and all ratings)
+      await dataRepository.deleteEvent(eventId);
       
-      // Verify deletion
-      try {
-        await fs.access(eventDir);
-        // If we can still access it, deletion failed
-        throw new Error('Directory still exists after deletion attempt');
-      } catch {
-        // Good - directory is gone
-        logger.info(`✅ Test event deleted: ${eventId} at ${eventDir}`);
-        return res.status(200).json({ 
-          success: true,
-          message: 'Test event deleted successfully',
-          deletedPath: eventDir
-        });
-      }
+      logger.info(`✅ Test event deleted: ${eventId}`);
+      return res.status(200).json({ 
+        success: true,
+        message: 'Test event deleted successfully'
+      });
     } catch (err) {
       logger.error(`❌ Error deleting event ${eventId}:`, err);
       return res.status(500).json({
         error: 'Failed to delete test event',
-        details: err.message,
-        path: eventDir
+        details: err.message
       });
     }
   } catch (error) {
@@ -338,6 +278,9 @@ export async function addAdminAndGenerateToken(req, res) {
  * Clear cache and rate limits (development utility)
  * POST /api/test/clear-cache
  * Optional body: { type: 'ratelimit' | 'all' }
+ * 
+ * Note: With DynamoDB, rate limits use TTL for automatic expiration.
+ * This endpoint is kept for backward compatibility but is mostly a no-op.
  */
 export async function clearCache(req, res) {
   // Only allow in non-production environments
@@ -348,38 +291,22 @@ export async function clearCache(req, res) {
   }
 
   try {
-    const cacheService = (await import('../cache/CacheService.js')).default;
     const { type = 'all' } = req.body;
 
-    if (type === 'ratelimit') {
-      // Clear only rate limit keys
-      const keys = cacheService.keys();
-      let cleared = 0;
-      keys.forEach(key => {
-        if (key.startsWith('ratelimit:')) {
-          cacheService.del(key);
-          cleared++;
-        }
-      });
-      logger.info(`Cleared ${cleared} rate limit cache entries`);
-      res.status(200).json({ 
-        success: true,
-        cleared,
-        message: `Cleared ${cleared} rate limit entries` 
-      });
-    } else {
-      // Clear all cache
-      cacheService.flush();
-      logger.info('Cleared all cache entries');
-      res.status(200).json({ 
-        success: true,
-        message: 'All cache cleared' 
-      });
-    }
+    // With DynamoDB, rate limits and caches use TTL for automatic expiration.
+    // There's no in-memory cache to clear anymore.
+    // This endpoint is kept for backward compatibility.
+    
+    logger.info(`Cache clear requested (type: ${type}) - DynamoDB uses TTL for automatic expiration`);
+    
+    res.status(200).json({ 
+      success: true,
+      message: 'DynamoDB uses TTL for automatic cache/rate-limit expiration. No manual clearing needed.'
+    });
   } catch (error) {
-    logger.error('Error clearing cache:', error);
+    logger.error('Error in clear cache handler:', error);
     res.status(500).json({ 
-      error: 'Failed to clear cache',
+      error: 'Failed to process cache clear request',
       details: error.message 
     });
   }

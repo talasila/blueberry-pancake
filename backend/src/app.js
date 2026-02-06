@@ -9,7 +9,7 @@ import apiRouter from './api/index.js';
 import { registerTestHelperRoutes } from './api/test-helpers.js';
 import configLoader from './config/configLoader.js';
 import configValidator from './config/configValidator.js';
-import cacheService from './cache/CacheService.js';
+import dataRepository from './data/DynamoDBRepository.js';
 import loggerService from './logging/Logger.js';
 
 // Validate configuration on startup
@@ -24,14 +24,8 @@ await loggerService.info('Application starting...', {
   nodeVersion: process.version,
 });
 
-// Initialize cache
-cacheService.initialize();
-
-// Load active events into cache at startup
-await cacheService.loadActiveEvents();
-
-// Start periodic flush for write-back caching (60s interval)
-cacheService.startPeriodicFlush();
+// Initialize DynamoDB repository
+await dataRepository.initialize();
 
 // Enable config hot-reload
 configLoader.enableHotReload();

@@ -1,5 +1,5 @@
 import ratingService from './RatingService.js';
-import cacheService from '../cache/CacheService.js';
+import dataRepository from '../data/DynamoDBRepository.js';
 import eventService from './EventService.js';
 import { calculateMeanAbsoluteError, maeToSimilarityScore } from '../utils/meanAbsoluteError.js';
 import loggerService from '../logging/Logger.js';
@@ -8,6 +8,7 @@ import { normalizeEmail as normalizeEmailUtil } from '../utils/emailUtils.js';
 /**
  * SimilarityService
  * Calculates similarity between users based on rating patterns using Mean Absolute Error (MAE)
+ * Uses DynamoDB with TTL for caching computed similarity data
  */
 class SimilarityService {
   /**
@@ -21,12 +22,16 @@ class SimilarityService {
     const startTime = performance.now();
     
     // Check cache first
-    const cacheKey = `similarUsers:${eventId}:${currentUserEmail}`;
-    const cached = cacheService.get(cacheKey);
-    if (cached) {
-      const cacheTime = performance.now() - startTime;
-      loggerService.debug(`Similar users cache hit for event ${eventId}, user ${currentUserEmail} (${cacheTime.toFixed(2)}ms)`).catch(() => {});
-      return cached;
+    try {
+      const cached = await dataRepository.getSimilarUsersCache(eventId, currentUserEmail);
+      if (cached && cached.similarUsers) {
+        const cacheTime = performance.now() - startTime;
+        loggerService.debug(`Similar users cache hit for event ${eventId}, user ${currentUserEmail} (${cacheTime.toFixed(2)}ms)`).catch(() => {});
+        return cached.similarUsers;
+      }
+    } catch (error) {
+      // Cache miss or error, continue to compute
+      loggerService.debug(`Similar users cache miss for event ${eventId}: ${error.message}`);
     }
 
     try {
@@ -130,7 +135,12 @@ class SimilarityService {
         : similarUsers.slice(0, limit);
 
       // Cache for 30 seconds
-      cacheService.set(cacheKey, result, 30);
+      try {
+        await dataRepository.setSimilarUsersCache(eventId, currentUserEmail, { similarUsers: result }, 30);
+      } catch (cacheError) {
+        // Cache write failed, but we have the data - just log and continue
+        loggerService.warn(`Failed to cache similar users for event ${eventId}: ${cacheError.message}`);
+      }
 
       // Performance monitoring
       const calculationTime = performance.now() - startTime;

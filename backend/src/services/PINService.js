@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import cacheService from '../cache/CacheService.js';
+import dataRepository from '../data/DynamoDBRepository.js';
 import rateLimitService from './RateLimitService.js';
 import eventService from './EventService.js';
 import loggerService from '../logging/Logger.js';
@@ -7,6 +7,7 @@ import loggerService from '../logging/Logger.js';
 /**
  * PINService
  * Handles PIN generation, validation, and verification for event access
+ * Uses DynamoDB for session storage with TTL for automatic expiration
  */
 class PINService {
   /**
@@ -40,9 +41,9 @@ class PINService {
   /**
    * Check rate limit for event-scoped PIN attempts
    * @param {string} eventId - Event identifier
-   * @returns {{allowed: boolean, retryAfter?: number, remaining?: number}}
+   * @returns {Promise<{allowed: boolean, retryAfter?: number, remaining?: number}>}
    */
-  _checkEventLimit(eventId) {
+  async _checkEventLimit(eventId) {
     // Environment-aware limits: strict in production, relaxed in development
     const isProduction = process.env.NODE_ENV === 'production';
     const LIMIT = isProduction ? 5 : 1000;
@@ -50,41 +51,50 @@ class PINService {
     const WINDOW_MS = WINDOW_MINUTES * 60 * 1000;
     const WINDOW_SECONDS = WINDOW_MINUTES * 60;
 
-    cacheService.initialize();
-    const key = `pin:attempts:event:${eventId}`;
-    const now = Date.now();
-    const record = cacheService.get(key);
+    try {
+      // Check current state
+      const current = await dataRepository.getRateLimit(eventId, 'pin');
+      const now = Date.now();
 
-    // No record or window expired - start new window
-    if (!record || (now - record.windowStart) > WINDOW_MS) {
-      const newRecord = {
-        count: 1,
-        windowStart: now
-      };
-      cacheService.set(key, newRecord, WINDOW_SECONDS);
+      if (current && current.windowStart) {
+        const windowStartMs = new Date(current.windowStart).getTime();
+        
+        // Check if window has expired
+        if ((now - windowStartMs) > WINDOW_MS) {
+          // Window expired, will be reset on increment
+        } else if (current.count >= LIMIT) {
+          // Limit exceeded
+          const retryAfter = Math.ceil((WINDOW_MS - (now - windowStartMs)) / 1000);
+          return {
+            allowed: false,
+            retryAfter,
+            remaining: 0
+          };
+        }
+      }
+
+      // Increment counter
+      const result = await dataRepository.incrementRateLimit(eventId, 'pin', WINDOW_SECONDS);
+      
+      if (result.count > LIMIT) {
+        const windowStartMs = new Date(result.windowStart).getTime();
+        const retryAfter = Math.ceil((WINDOW_MS - (now - windowStartMs)) / 1000);
+        return {
+          allowed: false,
+          retryAfter,
+          remaining: 0
+        };
+      }
+
       return {
         allowed: true,
-        remaining: LIMIT - 1
+        remaining: LIMIT - result.count
       };
+    } catch (error) {
+      console.error(`Error checking PIN rate limit for event ${eventId}:`, error);
+      // Fail open for availability
+      return { allowed: true, remaining: LIMIT };
     }
-
-    // Check if limit exceeded
-    if (record.count >= LIMIT) {
-      const retryAfter = Math.ceil((WINDOW_MS - (now - record.windowStart)) / 1000);
-      return {
-        allowed: false,
-        retryAfter,
-        remaining: 0
-      };
-    }
-
-    // Increment count and update
-    record.count++;
-    cacheService.set(key, record, WINDOW_SECONDS);
-    return {
-      allowed: true,
-      remaining: LIMIT - record.count
-    };
   }
 
   /**
@@ -107,8 +117,10 @@ class PINService {
     // Check rate limits (per IP and per event) - both must pass
     // Rate limiting is ALWAYS enabled but with environment-aware limits
     // (higher limits in development for testing, stricter in production)
-    const ipLimit = rateLimitService.checkIPLimit(ipAddress);
-    const eventLimit = this._checkEventLimit(eventId);
+    const [ipLimit, eventLimit] = await Promise.all([
+      rateLimitService.checkIPLimit(ipAddress),
+      this._checkEventLimit(eventId)
+    ]);
 
     if (!ipLimit.allowed) {
       const retryMinutes = Math.ceil((ipLimit.retryAfter || 900) / 60);
@@ -143,8 +155,6 @@ class PINService {
       
       // Compare PIN
       if (event.pin !== pin) {
-        // Rate limit was already incremented at the start of verifyPIN (lines 109-110)
-        // No need to increment again here - that would double-count the failed attempt
         loggerService.warn(`Invalid PIN attempt for event: ${eventId} from IP: ${ipAddress} (PIN mismatch)`);
         return { 
           valid: false, 
@@ -153,7 +163,7 @@ class PINService {
       }
 
       // PIN is valid - create session with client fingerprinting
-      const sessionId = this.createPINSession(eventId, ipAddress, userAgent);
+      const sessionId = await this.createPINSession(eventId, ipAddress, userAgent);
       const duration = Date.now() - startTime;
       loggerService.info(`PIN verified successfully for event: ${eventId}, session created: ${sessionId} (${duration}ms)`);
       
@@ -175,14 +185,11 @@ class PINService {
    * @param {string} eventId - Event identifier
    * @param {string} ipAddress - Client IP address for fingerprinting
    * @param {string} userAgent - Client user agent for additional fingerprinting
-   * @returns {string} Session ID (UUID)
+   * @returns {Promise<string>} Session ID (UUID)
    */
-  createPINSession(eventId, ipAddress = 'unknown', userAgent = 'unknown') {
-    cacheService.initialize();
-
+  async createPINSession(eventId, ipAddress = 'unknown', userAgent = 'unknown') {
     // Generate session ID (simple UUID-like string)
     const sessionId = crypto.randomUUID();
-    const sessionKey = `pin:verified:${eventId}:${sessionId}`;
     
     // Create a simple client fingerprint from IP and user agent
     // This helps prevent session hijacking
@@ -192,17 +199,18 @@ class PINService {
       .digest('hex')
       .substring(0, 16);
     
-    // Store session in cache with long TTL (30 days)
+    // Store session with 30 day TTL
     // Sessions are invalidated when PIN is regenerated via invalidatePINSessions()
     const THIRTY_DAYS_SECONDS = 60 * 60 * 24 * 30;
-    cacheService.set(sessionKey, {
+    
+    await dataRepository.createPINSession(sessionId, {
       eventId,
       verifiedAt: Date.now(),
       clientFingerprint,
       ipAddress: ipAddress.substring(0, 45), // Truncate for storage (max IPv6 length)
     }, THIRTY_DAYS_SECONDS);
 
-    loggerService.debug(`PIN session created: ${sessionKey} with fingerprint`);
+    loggerService.debug(`PIN session created: ${sessionId} for event ${eventId} with fingerprint`);
     return sessionId;
   }
 
@@ -213,72 +221,68 @@ class PINService {
    * @param {string} sessionId - Session ID
    * @param {string} ipAddress - Client IP address for fingerprint validation
    * @param {string} userAgent - Client user agent for fingerprint validation
-   * @returns {{valid: boolean, reason?: string}} Validation result
+   * @returns {Promise<{valid: boolean, reason?: string}>} Validation result
    */
-  checkPINSession(eventId, sessionId, ipAddress = null, userAgent = null) {
+  async checkPINSession(eventId, sessionId, ipAddress = null, userAgent = null) {
     if (!eventId || !sessionId) {
       return { valid: false, reason: 'Missing eventId or sessionId' };
     }
 
-    cacheService.initialize();
-    const sessionKey = `pin:verified:${eventId}:${sessionId}`;
-    const session = cacheService.get(sessionKey);
-    
-    if (!session) {
-      return { valid: false, reason: 'Session not found or expired' };
-    }
-
-    // If client fingerprint is available, validate it
-    // This adds an extra layer of security against session hijacking
-    if (session.clientFingerprint && ipAddress && userAgent) {
-      const currentFingerprint = crypto
-        .createHash('sha256')
-        .update(`${ipAddress}:${userAgent}`)
-        .digest('hex')
-        .substring(0, 16);
+    try {
+      const session = await dataRepository.getPINSession(sessionId);
       
-      if (currentFingerprint !== session.clientFingerprint) {
-        loggerService.warn(`PIN session fingerprint mismatch for event ${eventId}, session ${sessionId}`);
-        // In strict mode, you could reject the session here
-        // For now, we log but allow (to avoid breaking legitimate users with dynamic IPs)
-        // In production, consider returning { valid: false, reason: 'Session fingerprint mismatch' }
+      if (!session) {
+        return { valid: false, reason: 'Session not found or expired' };
       }
-    }
 
-    return { valid: true };
+      // Verify session belongs to this event
+      if (session.eventId !== eventId) {
+        return { valid: false, reason: 'Session does not belong to this event' };
+      }
+
+      // If client fingerprint is available, validate it
+      // This adds an extra layer of security against session hijacking
+      if (session.clientFingerprint && ipAddress && userAgent) {
+        const currentFingerprint = crypto
+          .createHash('sha256')
+          .update(`${ipAddress}:${userAgent}`)
+          .digest('hex')
+          .substring(0, 16);
+        
+        if (currentFingerprint !== session.clientFingerprint) {
+          loggerService.warn(`PIN session fingerprint mismatch for event ${eventId}, session ${sessionId}`);
+          // In strict mode, you could reject the session here
+          // For now, we log but allow (to avoid breaking legitimate users with dynamic IPs)
+        }
+      }
+
+      return { valid: true };
+    } catch (error) {
+      loggerService.error(`Error checking PIN session for event ${eventId}: ${error.message}`, error);
+      return { valid: false, reason: 'Error checking session' };
+    }
   }
 
   /**
    * Invalidate all PIN verification sessions for an event
    * Called when PIN is regenerated
    * @param {string} eventId - Event identifier
-   * @returns {number} Number of sessions invalidated
+   * @returns {Promise<number>} Number of sessions invalidated
    */
-  invalidatePINSessions(eventId) {
+  async invalidatePINSessions(eventId) {
     if (!eventId) {
       loggerService.warn('Attempted to invalidate PIN sessions without eventId');
       return 0;
     }
 
-    cacheService.initialize();
-    const pattern = `pin:verified:${eventId}:`;
-    const keys = cacheService.keys();
-    let invalidated = 0;
-
-    keys.forEach(key => {
-      if (key.startsWith(pattern)) {
-        cacheService.del(key);
-        invalidated++;
-      }
-    });
-
-    if (invalidated > 0) {
-      loggerService.info(`Invalidated ${invalidated} PIN session(s) for event: ${eventId} (PIN regenerated)`);
-    } else {
-      loggerService.debug(`No PIN sessions found to invalidate for event: ${eventId}`);
+    try {
+      await dataRepository.deleteEventPINSessions(eventId);
+      loggerService.info(`Invalidated PIN sessions for event: ${eventId} (PIN regenerated)`);
+      return 1; // Can't know exact count without extra query
+    } catch (error) {
+      loggerService.error(`Error invalidating PIN sessions for event ${eventId}: ${error.message}`, error);
+      return 0;
     }
-
-    return invalidated;
   }
 }
 

@@ -14,6 +14,62 @@ const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
 const TEST_OTP = '123456';
 
+/**
+ * Helper function to authenticate via OTP flow
+ * Uses proper Playwright waits instead of hardcoded timeouts
+ */
+async function authenticateViaOTP(page, email = 'creator@example.com') {
+  await page.goto(`${BASE_URL}/auth`);
+  
+  // Fill email
+  const emailInput = page.locator('input[type="email"]');
+  await expect(emailInput).toBeVisible({ timeout: 10000 });
+  await emailInput.fill(email);
+  
+  // Click request OTP button
+  const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
+  await expect(requestButton).toBeEnabled({ timeout: 5000 });
+  await requestButton.click();
+  
+  // Wait for OTP input to appear (not a hardcoded timeout)
+  const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
+  await expect(otpInput).toBeVisible({ timeout: 10000 });
+  
+  // Fill OTP
+  await otpInput.fill(TEST_OTP);
+  
+  // Click verify button
+  const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });
+  await expect(verifyButton).toBeVisible({ timeout: 5000 });
+  await verifyButton.click();
+  
+  // Wait for authentication to complete - either redirect or success indicator
+  // The page might redirect to dashboard/home, or stay on auth with success message
+  await Promise.race([
+    page.waitForURL(/\/(create-event|dashboard|home|events)/, { timeout: 10000 }),
+    page.waitForSelector('[data-testid="auth-success"]', { timeout: 10000 }),
+    page.waitForTimeout(3000) // Fallback if no redirect/indicator
+  ]).catch(() => {});
+}
+
+/**
+ * Helper to navigate to create event page after authentication
+ */
+async function navigateToCreateEvent(page) {
+  await page.goto(`${BASE_URL}/create-event`);
+  await page.waitForLoadState('networkidle');
+  
+  // Wait for the create event form to be visible
+  const formVisible = await page.locator('input').first().isVisible().catch(() => false);
+  if (!formVisible) {
+    // If redirected to auth, we're not authenticated - throw error
+    const currentUrl = page.url();
+    if (currentUrl.includes('/auth')) {
+      throw new Error('Not authenticated - redirected to auth page');
+    }
+  }
+}
+
 test.describe('Create Event', () => {
 
   test.beforeEach(async ({ page }) => {
@@ -35,30 +91,11 @@ test.describe('Create Event', () => {
   });
 
   test('authenticated user can access create event page directly', async ({ page }) => {
-    // First authenticate
-    await page.goto(`${BASE_URL}/auth`);
+    // Authenticate via OTP
+    await authenticateViaOTP(page);
     
-    const emailInput = page.locator('input[type="email"]');
-    await emailInput.fill('creator@example.com');
-    
-    const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
-    await requestButton.click();
-    await page.waitForTimeout(1000);
-    
-    // Enter test OTP
-    const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
-    if (await otpInput.isVisible()) {
-      await otpInput.fill(TEST_OTP);
-      const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });
-      if (await verifyButton.isVisible()) {
-        await verifyButton.click();
-        await page.waitForTimeout(2000);
-      }
-    }
-    
-    // Now try to access create event page
-    await page.goto(`${BASE_URL}/create-event`);
-    await page.waitForLoadState('networkidle');
+    // Navigate to create event page
+    await navigateToCreateEvent(page);
     
     // Should be on create event page (not redirected)
     // Check for create event form elements
@@ -71,32 +108,14 @@ test.describe('Create Event', () => {
   // ===================================
 
   test('create event form has required fields', async ({ page }) => {
-    // This test assumes user is authenticated
-    // Skip detailed auth flow for brevity - focus on form structure
-    await page.goto(`${BASE_URL}/auth`);
+    // Authenticate via OTP
+    await authenticateViaOTP(page);
     
-    const emailInput = page.locator('input[type="email"]');
-    await emailInput.fill('creator@example.com');
-    
-    const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
-    await requestButton.click();
-    await page.waitForTimeout(1000);
-    
-    const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
-    if (await otpInput.isVisible()) {
-      await otpInput.fill(TEST_OTP);
-      const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });
-      if (await verifyButton.isVisible()) {
-        await verifyButton.click();
-        await page.waitForTimeout(2000);
-      }
-    }
-    
-    await page.goto(`${BASE_URL}/create-event`);
-    await page.waitForLoadState('networkidle');
+    // Navigate to create event page
+    await navigateToCreateEvent(page);
     
     // Check for name input
-    const nameInput = page.locator('input[name="name"]').or(page.getByLabel(/name/i));
+    const nameInput = page.locator('input[name="name"]').or(page.locator('input#event-name')).or(page.getByLabel(/name/i));
     await expect(nameInput).toBeVisible({ timeout: 5000 });
     
     // Check for type of item dropdown (wine)
@@ -105,36 +124,20 @@ test.describe('Create Event', () => {
   });
 
   test('shows validation error when name is missing', async ({ page }) => {
-    // Authenticate first
-    await page.goto(`${BASE_URL}/auth`);
-    const emailInput = page.locator('input[type="email"]');
-    await emailInput.fill('creator@example.com');
-    const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
-    await requestButton.click();
-    await page.waitForTimeout(1000);
+    // Authenticate via OTP
+    await authenticateViaOTP(page);
     
-    const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
-    if (await otpInput.isVisible()) {
-      await otpInput.fill(TEST_OTP);
-      const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });
-      if (await verifyButton.isVisible()) {
-        await verifyButton.click();
-        await page.waitForTimeout(2000);
-      }
-    }
-    
-    await page.goto(`${BASE_URL}/create-event`);
-    await page.waitForLoadState('networkidle');
+    // Navigate to create event page
+    await navigateToCreateEvent(page);
     
     // Try to submit without filling name
     const createButton = page.getByRole('button', { name: /create/i });
-    if (await createButton.isVisible()) {
-      await createButton.click();
-      
-      // Should show validation error
-      await page.waitForTimeout(1000);
-      // Error message should appear for required field
-    }
+    await expect(createButton).toBeVisible({ timeout: 5000 });
+    await createButton.click();
+    
+    // Should show validation error - wait for it
+    await page.waitForTimeout(500);
+    // Error message should appear for required field
   });
 
   // ===================================
@@ -142,32 +145,15 @@ test.describe('Create Event', () => {
   // ===================================
 
   test('newly created event has "created" state', async ({ page }) => {
-    // Authenticate via OTP flow
-    await page.goto(`${BASE_URL}/auth`);
-    
-    const emailInput = page.locator('input[type="email"]');
-    await emailInput.fill('creator@example.com');
-    
-    const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
-    await requestButton.click();
-    await page.waitForTimeout(1000);
-    
-    const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
-    if (await otpInput.isVisible()) {
-      await otpInput.fill(TEST_OTP);
-      const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });
-      if (await verifyButton.isVisible()) {
-        await verifyButton.click();
-        await page.waitForTimeout(2000);
-      }
-    }
+    // Authenticate via OTP
+    await authenticateViaOTP(page);
     
     // Navigate to create event page
-    await page.goto(`${BASE_URL}/create-event`);
-    await page.waitForLoadState('networkidle');
+    await navigateToCreateEvent(page);
     
     // Fill in event name
     const nameInput = page.locator('input#event-name').or(page.getByLabel(/event name/i));
+    await expect(nameInput).toBeVisible({ timeout: 5000 });
     await nameInput.fill('State Test Event');
     
     // Set up response promise BEFORE clicking (to capture the API response reliably)
@@ -227,32 +213,15 @@ test.describe('Create Event', () => {
   // ===================================
 
   test('handles special characters in event name', async ({ page }) => {
-    // Authenticate via OTP flow
-    await page.goto(`${BASE_URL}/auth`);
-    
-    const emailInput = page.locator('input[type="email"]');
-    await emailInput.fill('creator@example.com');
-    
-    const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
-    await requestButton.click();
-    await page.waitForTimeout(1000);
-    
-    const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
-    if (await otpInput.isVisible()) {
-      await otpInput.fill(TEST_OTP);
-      const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });
-      if (await verifyButton.isVisible()) {
-        await verifyButton.click();
-        await page.waitForTimeout(2000);
-      }
-    }
+    // Authenticate via OTP
+    await authenticateViaOTP(page);
     
     // Navigate to create event page
-    await page.goto(`${BASE_URL}/create-event`);
-    await page.waitForLoadState('networkidle');
+    await navigateToCreateEvent(page);
     
     // Fill in event name with special characters
     const nameInput = page.locator('input#event-name').or(page.getByLabel(/event name/i));
+    await expect(nameInput).toBeVisible({ timeout: 5000 });
     await nameInput.fill('Event @#$% Special!');
     
     // Trigger blur to show validation error
@@ -283,32 +252,15 @@ test.describe('Create Event', () => {
   });
 
   test('prevents duplicate event creation on rapid clicks', async ({ page }) => {
-    // Authenticate via OTP flow
-    await page.goto(`${BASE_URL}/auth`);
-    
-    const emailInput = page.locator('input[type="email"]');
-    await emailInput.fill('creator@example.com');
-    
-    const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
-    await requestButton.click();
-    await page.waitForTimeout(1000);
-    
-    const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
-    if (await otpInput.isVisible()) {
-      await otpInput.fill(TEST_OTP);
-      const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });
-      if (await verifyButton.isVisible()) {
-        await verifyButton.click();
-        await page.waitForTimeout(2000);
-      }
-    }
+    // Authenticate via OTP
+    await authenticateViaOTP(page);
     
     // Navigate to create event page
-    await page.goto(`${BASE_URL}/create-event`);
-    await page.waitForLoadState('networkidle');
+    await navigateToCreateEvent(page);
     
     // Fill in event name
     const nameInput = page.locator('input#event-name').or(page.getByLabel(/event name/i));
+    await expect(nameInput).toBeVisible({ timeout: 5000 });
     await nameInput.fill('Rapid Click Test Event');
     
     // Set up response promise BEFORE clicking to reliably capture the API response

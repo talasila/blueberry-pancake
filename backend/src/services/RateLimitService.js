@@ -1,8 +1,9 @@
-import cacheService from '../cache/CacheService.js';
+import dataRepository from '../data/DynamoDBRepository.js';
 
 /**
  * Rate Limiting Service
  * Implements sliding window rate limiting for email addresses and IP addresses
+ * Uses DynamoDB with TTL for automatic expiration
  * 
  * Production limits: 3 requests per email per 15 minutes, 5 requests per IP per 15 minutes
  * Development limits: 1000 requests per email per 15 minutes, 1000 requests per IP per 15 minutes
@@ -27,18 +28,18 @@ class RateLimitService {
   /**
    * Check if request is allowed for email address
    * @param {string} email - Email address
-   * @returns {{allowed: boolean, retryAfter?: number, remaining?: number}}
+   * @returns {Promise<{allowed: boolean, retryAfter?: number, remaining?: number}>}
    */
-  checkEmailLimit(email) {
+  async checkEmailLimit(email) {
     return this._checkLimit(email, 'email', this.EMAIL_LIMIT);
   }
 
   /**
    * Check if request is allowed for IP address
    * @param {string} ip - IP address
-   * @returns {{allowed: boolean, retryAfter?: number, remaining?: number}}
+   * @returns {Promise<{allowed: boolean, retryAfter?: number, remaining?: number}>}
    */
-  checkIPLimit(ip) {
+  async checkIPLimit(ip) {
     return this._checkLimit(ip, 'ip', this.IP_LIMIT);
   }
 
@@ -47,11 +48,13 @@ class RateLimitService {
    * Request is blocked if EITHER limit is exceeded (FR-011)
    * @param {string} email - Email address
    * @param {string} ip - IP address
-   * @returns {{allowed: boolean, retryAfter?: number, type?: string, remaining?: {email: number, ip: number}}}
+   * @returns {Promise<{allowed: boolean, retryAfter?: number, type?: string, remaining?: {email: number, ip: number}}>}
    */
-  checkLimits(email, ip) {
-    const emailResult = this.checkEmailLimit(email);
-    const ipResult = this.checkIPLimit(ip);
+  async checkLimits(email, ip) {
+    const [emailResult, ipResult] = await Promise.all([
+      this.checkEmailLimit(email),
+      this.checkIPLimit(ip)
+    ]);
 
     // Both must pass
     if (!emailResult.allowed) {
@@ -92,65 +95,80 @@ class RateLimitService {
    * @param {string} identifier - Email or IP address
    * @param {string} type - 'email' or 'ip'
    * @param {number} limit - Maximum requests allowed
-   * @returns {{allowed: boolean, retryAfter?: number, remaining?: number}}
+   * @returns {Promise<{allowed: boolean, retryAfter?: number, remaining?: number}>}
    */
-  _checkLimit(identifier, type, limit) {
+  async _checkLimit(identifier, type, limit) {
     if (!identifier) {
       return { allowed: false };
     }
 
-    cacheService.initialize();
+    try {
+      // Check current state first
+      const current = await dataRepository.getRateLimit(identifier, type);
+      const now = Date.now();
 
-    const key = `ratelimit:${type}:${identifier}`;
-    const now = Date.now();
-    const record = cacheService.get(key);
+      // If we have a current record and it's within the window
+      if (current && current.windowStart) {
+        const windowStartMs = new Date(current.windowStart).getTime();
+        
+        // Check if window has expired
+        if ((now - windowStartMs) > this.WINDOW_MS) {
+          // Window expired, reset
+          await dataRepository.resetRateLimit(identifier, type);
+        } else if (current.count >= limit) {
+          // Limit exceeded
+          const retryAfter = Math.ceil((this.WINDOW_MS - (now - windowStartMs)) / 1000);
+          return {
+            allowed: false,
+            retryAfter,
+            remaining: 0
+          };
+        }
+      }
 
-    // No record or window expired - start new window
-    if (!record || (now - record.windowStart) > this.WINDOW_MS) {
-      const newRecord = {
-        count: 1,
-        windowStart: now
-      };
-      cacheService.set(key, newRecord, this.WINDOW_SECONDS);
+      // Increment the counter (creates new record if needed)
+      const result = await dataRepository.incrementRateLimit(identifier, type, this.WINDOW_SECONDS);
+      
+      // Check if we just exceeded the limit
+      if (result.count > limit) {
+        const windowStartMs = new Date(result.windowStart).getTime();
+        const retryAfter = Math.ceil((this.WINDOW_MS - (now - windowStartMs)) / 1000);
+        return {
+          allowed: false,
+          retryAfter,
+          remaining: 0
+        };
+      }
+
       return {
         allowed: true,
-        remaining: limit - 1
+        remaining: limit - result.count
       };
+    } catch (error) {
+      console.error(`Error checking rate limit for ${type}:${identifier}:`, error);
+      // Fail open for availability, but log the error
+      return { allowed: true, remaining: limit };
     }
-
-    // Check if limit exceeded
-    if (record.count >= limit) {
-      const retryAfter = Math.ceil((this.WINDOW_MS - (now - record.windowStart)) / 1000);
-      return {
-        allowed: false,
-        retryAfter,
-        remaining: 0
-      };
-    }
-
-    // Increment count and update
-    record.count++;
-    cacheService.set(key, record, this.WINDOW_SECONDS);
-    return {
-      allowed: true,
-      remaining: limit - record.count
-    };
   }
 
   /**
    * Reset rate limit for an identifier (for testing)
    * @param {string} identifier - Email or IP address
    * @param {string} type - 'email' or 'ip'
-   * @returns {boolean} True if reset
+   * @returns {Promise<boolean>} True if reset
    */
-  resetLimit(identifier, type) {
+  async resetLimit(identifier, type) {
     if (!identifier || !type) {
       return false;
     }
 
-    cacheService.initialize();
-    const key = `ratelimit:${type}:${identifier}`;
-    return cacheService.del(key) > 0;
+    try {
+      await dataRepository.resetRateLimit(identifier, type);
+      return true;
+    } catch (error) {
+      console.error(`Error resetting rate limit for ${type}:${identifier}:`, error);
+      return false;
+    }
   }
 }
 

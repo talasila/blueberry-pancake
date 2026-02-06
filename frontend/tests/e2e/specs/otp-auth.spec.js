@@ -147,8 +147,8 @@ test.describe('OTP Authentication', () => {
     const verifyButton = page.getByRole('button', { name: /verify.*otp/i });
     await verifyButton.click();
     
-    // Verify error message is displayed
-    await expect(page.getByText(/invalid otp code/i)).toBeVisible({ timeout: 5000 });
+    // Verify error message is displayed (message is "Invalid or expired OTP code")
+    await expect(page.getByText('Invalid or expired OTP code')).toBeVisible({ timeout: 5000 });
     
     // Verify user stays on OTP page (not redirected)
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/otp`));
