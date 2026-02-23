@@ -130,7 +130,14 @@ router.post('/otp/verify', async (req, res) => {
       });
     }
 
-    if (!otp || typeof otp !== 'string') {
+    const rawOtp = otp;
+    if (rawOtp == null || (typeof rawOtp !== 'string' && typeof rawOtp !== 'number')) {
+      return res.status(400).json({
+        error: 'OTP code is required'
+      });
+    }
+    const otpTrimmed = String(rawOtp).trim();
+    if (!otpTrimmed) {
       return res.status(400).json({
         error: 'OTP code is required'
       });
@@ -149,7 +156,7 @@ router.post('/otp/verify', async (req, res) => {
     // If NODE_ENV is not set, treat as development environment
     const allowedTestEnvironments = ['development', 'test', undefined, ''];
     const isTestEnvironment = allowedTestEnvironments.includes(process.env.NODE_ENV);
-    const isTestOTP = isTestEnvironment && otp === '123456';
+    const isTestOTP = isTestEnvironment && otpTrimmed === '123456';
     
     let otpResult;
     if (isTestOTP) {
@@ -166,7 +173,7 @@ router.post('/otp/verify', async (req, res) => {
       }
 
       // Validate OTP (normal flow)
-      otpResult = otpService.validateOTP(email, otp);
+      otpResult = await otpService.validateOTP(email, otpTrimmed);
     }
 
     if (!otpResult.valid) {

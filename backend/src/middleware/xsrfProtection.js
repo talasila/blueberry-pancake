@@ -24,8 +24,8 @@ export function initializeXSRF() {
     return null;
   }
 
-  // In production, require CSRF_SECRET environment variable
-  const isProduction = process.env.NODE_ENV === 'production';
+  // In production (prod), require CSRF_SECRET environment variable
+  const isProduction = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'prod';
   if (isProduction && (!process.env.CSRF_SECRET || process.env.CSRF_SECRET === CSRF_DEFAULT_SECRET)) {
     loggerService.error('SECURITY ERROR: CSRF_SECRET environment variable must be set in production').catch(() => {});
     throw new Error('CSRF_SECRET environment variable must be set in production');
@@ -53,10 +53,11 @@ export function getCSRFToken(req, res, next) {
     // Generate new secret
     secret = csrfTokens.secretSync();
     // Store secret in cookie
+    const isProd = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'prod';
     res.cookie('csrfSecret', secret, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'strict', // 'none' required for cross-origin API (CloudFront -> API Gateway)
       maxAge: 24 * 60 * 60 * 1000 // 24 hours
     });
   }

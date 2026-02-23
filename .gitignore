@@ -56,3 +56,6 @@ config/local.json
 # Logs directory
 logs/
 *.log
+
+# SAM build output
+.aws-sam/

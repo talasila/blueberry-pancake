@@ -7,10 +7,8 @@
  * The localStorage fallback is maintained for backward compatibility during migration.
  */
 
-// In development, use Vite proxy (relative path)
-// In production, use full URL or environment variable
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 
-  (import.meta.env.DEV ? '/api' : 'http://localhost:3001/api');
+// Use relative /api - Vite proxy (dev) or CloudFront (prod) routes to backend
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 class ApiClient {
   constructor() {

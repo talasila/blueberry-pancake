@@ -1,7 +1,7 @@
 {
   "environment": "development",
   "dataDirectory": "./data",
-  "rootAdmins": ["sreenivas.talasila@gmail.com", "root@test.example.com"],
+  "rootAdmins": ["sreenivas.talasila@gmail.com"],
   "server": {
     "port": 3001,
     "host": "localhost"
@@ -32,6 +32,6 @@
   },
   "email": {
     "resendApiKey": "",
-    "fromAddress": "sreeni@7155421.xys"
+    "fromAddress": "sreeni@7155421.xyz"
   }
 }

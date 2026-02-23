@@ -76,8 +76,10 @@ class OTPService {
         return { valid: false, error: 'OTP not found or expired' };
       }
 
-      // Validate code
-      if (otpData.code !== otp) {
+      // Validate code (normalize types and trim - DynamoDB may return number, frontend may send whitespace)
+      const storedCode = String(otpData.code ?? '').trim();
+      const enteredCode = String(otp).trim();
+      if (storedCode !== enteredCode) {
         // Increment attempts counter
         await dataRepository.incrementOTPAttempts(email);
         return { valid: false, error: 'Invalid OTP code' };

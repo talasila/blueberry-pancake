@@ -1,4 +1,3 @@
-import config from 'config';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { watch } from 'fs';
@@ -7,126 +6,148 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
- * Configuration loader using config package
- * Reads JSON files: default.json, development.json, staging.json, production.json
- * Supports hot-reload for non-restart settings
+ * Lambda-only config: uses env vars, no config package (avoids bundling issues).
+ * Used when AWS_LAMBDA_FUNCTION_NAME is set.
  */
-class ConfigLoader {
-  constructor() {
-    // Set NODE_CONFIG_DIR if not already set
-    // Config directory is at project root, not in backend/
-    if (!process.env.NODE_CONFIG_DIR) {
-      const projectRoot = join(__dirname, '../../..');
-      const configDir = join(projectRoot, 'config');
-      process.env.NODE_CONFIG_DIR = configDir;
-    }
-    
-    this.config = config;
-    this.hotReloadCallbacks = new Set();
-    this.watcher = null;
-  }
+function createLambdaConfig() {
+  const frontendOrigin = process.env.FRONTEND_ORIGIN || process.env.FRONTEND_URL || '*';
+  const jwtSecret = process.env.JWT_SECRET || '';
+  const jwtExpiration = process.env.JWT_EXPIRATION || '24h';
+  const refreshExpiration = process.env.REFRESH_TOKEN_EXPIRATION || '7d';
+  const xsrfEnabled = process.env.XSRF_ENABLED !== 'false';
+  const resendApiKey = process.env.RESEND_API_KEY || '';
+  const fromAddress = process.env.EMAIL_FROM_ADDRESS || 'noreply@example.com';
+  const rootAdmins = process.env.ROOT_ADMIN_EMAILS
+    ? process.env.ROOT_ADMIN_EMAILS.split(',').map((s) => s.trim().toLowerCase()).filter(Boolean)
+    : [];
+  const environment = process.env.NODE_ENV || 'production';
 
-  /**
-   * Get configuration value
-   * @param {string} path - Configuration path (e.g., 'server.port')
-   * @returns {any} Configuration value
-   */
-  get(path) {
-    return this.config.get(path);
-  }
+  const lambdaConfig = {
+    environment,
+    security: {
+      jwtSecret,
+      jwtExpiration,
+      refreshTokenExpiration: refreshExpiration,
+      xsrfEnabled,
+    },
+    frontend: { url: frontendOrigin, apiBaseUrl: frontendOrigin },
+    email: { resendApiKey, fromAddress },
+    rootAdmins,
+    logging: { enabled: true, console: true, level: 'debug', file: false },
+  };
 
-  /**
-   * Check if configuration has a value
-   * @param {string} path - Configuration path
-   * @returns {boolean} True if value exists
-   */
-  has(path) {
-    return this.config.has(path);
-  }
-
-  /**
-   * Get all configuration
-   * @returns {object} Full configuration object
-   */
-  getAll() {
-    return this.config.util.toObject();
-  }
-
-  /**
-   * Register callback for hot-reload of non-restart settings
-   * @param {Function} callback - Function to call when config changes
-   */
-  onHotReload(callback) {
-    this.hotReloadCallbacks.add(callback);
-  }
-
-  /**
-   * Enable hot-reload for non-restart settings (cache TTL, logging levels)
-   * Note: Changes to server port, database connections, or security keys require restart
-   */
-  enableHotReload() {
-    if (this.watcher) {
-      return; // Already enabled
-    }
-
-    const configPath = join(__dirname, '../../../config');
-    
-    try {
-      this.watcher = watch(configPath, { recursive: false }, (eventType, filename) => {
-        if (filename && filename.endsWith('.json')) {
-          // Reload config for non-restart settings
-          this.config.util.loadFileConfigs();
-          
-          // Notify callbacks
-          this.hotReloadCallbacks.forEach(callback => {
-            try {
-              callback(this.getAll());
-            } catch (error) {
-              console.error('Error in hot-reload callback:', error);
-            }
-          });
-        }
-      });
-    } catch (error) {
-      console.warn('Could not enable config hot-reload:', error.message);
-    }
-  }
-
-  /**
-   * Disable hot-reload
-   */
-  disableHotReload() {
-    if (this.watcher) {
-      this.watcher.close();
-      this.watcher = null;
-    }
-  }
-
-  /**
-   * Get list of root admin email addresses
-   * @returns {string[]} Array of root admin emails (lowercase)
-   */
-  getRootAdmins() {
-    if (!this.has('rootAdmins')) {
-      return [];
-    }
-    const admins = this.get('rootAdmins');
-    return Array.isArray(admins) ? admins.map(email => email.toLowerCase()) : [];
-  }
-
-  /**
-   * Check if an email address belongs to a root administrator
-   * @param {string} email - Email address to check
-   * @returns {boolean} True if email is a root admin
-   */
-  isRootAdmin(email) {
-    if (!email || typeof email !== 'string') {
-      return false;
-    }
-    const rootAdmins = this.getRootAdmins();
-    return rootAdmins.includes(email.toLowerCase());
-  }
+  return {
+    get(path) {
+      const parts = path.split('.');
+      let value = lambdaConfig;
+      for (const p of parts) {
+        value = value?.[p];
+      }
+      return value;
+    },
+    has(path) {
+      return this.get(path) !== undefined;
+    },
+    getAll() {
+      return {
+        environment,
+        dataDirectory: '/tmp',
+        server: { port: 3001, host: '0.0.0.0' },
+        cache: { enabled: true, ttl: 3600, flushInterval: 60, maxSize: 1000 },
+        security: lambdaConfig.security,
+        frontend: lambdaConfig.frontend,
+        logging: lambdaConfig.logging,
+      };
+    },
+    getRootAdmins: () => rootAdmins,
+    isRootAdmin: (email) =>
+      Boolean(email && typeof email === 'string' && rootAdmins.includes(email.toLowerCase())),
+    onHotReload: () => {},
+    enableHotReload: () => {},
+    disableHotReload: () => {},
+  };
 }
 
-// Export singleton instance
-export default new ConfigLoader();
+/**
+ * Config loader using config package (local dev).
+ * Uses dynamic import so config can be marked external in Lambda builds.
+ */
+async function createNodeConfigLoader() {
+  const { default: config } = await import('config');
+
+  class ConfigLoader {
+    constructor() {
+      if (!process.env.NODE_CONFIG_DIR) {
+        const projectRoot = join(__dirname, '../../..');
+        process.env.NODE_CONFIG_DIR = join(projectRoot, 'config');
+      }
+      this.config = config;
+      this.hotReloadCallbacks = new Set();
+      this.watcher = null;
+    }
+
+    get(path) {
+      return this.config.get(path);
+    }
+
+    has(path) {
+      return this.config.has(path);
+    }
+
+    getAll() {
+      return this.config.util.toObject();
+    }
+
+    onHotReload(callback) {
+      this.hotReloadCallbacks.add(callback);
+    }
+
+    enableHotReload() {
+      if (this.watcher) return;
+      try {
+        const configPath = join(__dirname, '../../../config');
+        this.watcher = watch(configPath, { recursive: false }, (eventType, filename) => {
+          if (filename?.endsWith('.json')) {
+            this.config.util.loadFileConfigs();
+            this.hotReloadCallbacks.forEach((cb) => {
+              try {
+                cb(this.getAll());
+              } catch (e) {
+                console.error('Error in hot-reload callback:', e);
+              }
+            });
+          }
+        });
+      } catch (e) {
+        console.warn('Could not enable config hot-reload:', e.message);
+      }
+    }
+
+    disableHotReload() {
+      if (this.watcher) {
+        this.watcher.close();
+        this.watcher = null;
+      }
+    }
+
+    getRootAdmins() {
+      if (!this.has('rootAdmins')) return [];
+      const admins = this.get('rootAdmins');
+      return Array.isArray(admins) ? admins.map((e) => e.toLowerCase()) : [];
+    }
+
+    isRootAdmin(email) {
+      if (!email || typeof email !== 'string') return false;
+      return this.getRootAdmins().includes(email.toLowerCase());
+    }
+  }
+
+  return new ConfigLoader();
+}
+
+const configLoader =
+  process.env.AWS_LAMBDA_FUNCTION_NAME
+    ? createLambdaConfig()
+    : await createNodeConfigLoader();
+
+export default configLoader;

@@ -17,6 +17,51 @@ blueberry-pancake/
 
 - Node.js 22.12.0 or higher (upgraded from 18+ for latest package compatibility)
 - npm or yarn
+- **For local SAM CLI** (`sam build` / `sam deploy`): Python 3.8–3.12. Python 3.14 is not supported (SAM uses Pydantic V1). Use [pyenv](https://github.com/pyenv/pyenv) and run `pyenv install 3.12` then `pyenv local 3.12` in this repo, or ensure the `sam` command is run with a compatible Python.
+
+### SAM Build Setup
+
+Ensure all dependencies (Node.js, Python 3.8–3.12, AWS SAM CLI) are installed and backend deps are up to date:
+
+```bash
+npm run ensure-sam-deps
+```
+
+Then run `sam build`.
+
+### Deploy (two stacks)
+
+Deploy backend first, then frontend (order matters):
+
+```bash
+# 1. Build and deploy backend
+sam build
+sam deploy --config-env prod --resolve-s3 --parameter-overrides \
+  JwtSecret=xxx ResendApiKey=xxx RootAdminEmails=xxx FrontendDomain=placeholder
+
+# 2. Get ApiId from backend outputs
+API_ID=$(aws cloudformation describe-stacks --stack-name blueberry-pancake-prod \
+  --query 'Stacks[0].Outputs[?OutputKey==`ApiId`].OutputValue' --output text)
+
+# 3. Deploy frontend stack
+sam deploy --config-env frontend_prod --template-file template-frontend.yaml \
+  --parameter-overrides ApiId=$API_ID Environment=prod
+
+# 4. Update backend CORS with real CloudFront domain
+FRONTEND_URL=$(aws cloudformation describe-stacks --stack-name blueberry-pancake-frontend-prod \
+  --query 'Stacks[0].Outputs[?OutputKey==`FrontendUrl`].OutputValue' --output text)
+FRONTEND_DOMAIN=$(echo "$FRONTEND_URL" | sed 's|https://||' | sed 's|/.*||')
+sam deploy --config-env prod --parameter-overrides \
+  JwtSecret=xxx ResendApiKey=xxx RootAdminEmails=xxx FrontendDomain=$FRONTEND_DOMAIN
+
+# 5. Sync frontend build to S3 and invalidate CloudFront
+
+Or run the full prod deployment script:
+
+```bash
+JWT_SECRET=xxx RESEND_API_KEY=re_xxx ROOT_ADMIN_EMAILS="admin@example.com" npm run deploy:prod
+```
+```
 
 ## Quick Start
 

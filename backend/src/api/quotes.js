@@ -7,10 +7,10 @@ import loggerService from '../logging/Logger.js';
 
 const router = Router();
 
-// Get project root directory (where quote text files are located)
+// Quote files live in backend/src/quotes/ (works for both local and Lambda - included in src/)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const projectRoot = join(__dirname, '../../..');
+const quotesDir = join(__dirname, '..', 'quotes');
 
 // Simple in-memory cache for static quotes (they never change during runtime)
 const quotesCache = new Map();
@@ -53,7 +53,7 @@ async function loadQuotesFromFile(fileNum) {
     return quotesCache.get(cacheKey);
   }
   
-  const filePath = join(projectRoot, `${fileNum}.quotes.txt`);
+  const filePath = join(quotesDir, `${fileNum}.quotes.txt`);
   // Explicitly use UTF-8 encoding to preserve Unicode characters (em dashes, etc.)
   const content = await readFile(filePath, 'utf-8');
   const quotes = parseQuotesFromText(content);

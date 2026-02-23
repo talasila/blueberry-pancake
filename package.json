@@ -17,7 +17,9 @@
     "test:e2e": "cd frontend && npm run test:e2e",
     "validate": "node scripts/validate-baseline.mjs",
     "check:constitution": "node scripts/check-constitution.mjs",
-    "create:test-event": "node scripts/create-manual-test-event.js"
+    "create:test-event": "node scripts/create-manual-test-event.js",
+    "ensure-sam-deps": "bash scripts/ensure-sam-deps.sh",
+    "deploy:prod": "bash scripts/deploy-prod.sh"
   },
   "keywords": [],
   "author": "",

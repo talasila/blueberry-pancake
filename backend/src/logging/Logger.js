@@ -47,25 +47,26 @@ class Logger {
       return;
     }
 
-    // Get log directory from config
-    this.logDirectory = this.config.directory || './logs';
-    
-    // Resolve absolute path
-    if (!this.logDirectory.startsWith('/')) {
-      const projectRoot = join(__dirname, '../../..');
-      this.logDirectory = join(projectRoot, this.logDirectory);
+    // In Lambda, only /tmp is writable; use console only (CloudWatch captures stdout)
+    const isLambda = Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+    const useFileLogging = !isLambda && this.config.file !== false && this.config.directory !== false;
+    if (useFileLogging) {
+      this.logDirectory = this.config.directory || './logs';
+      // Resolve absolute path
+      if (!this.logDirectory.startsWith('/')) {
+        const projectRoot = join(__dirname, '../../..');
+        this.logDirectory = join(projectRoot, this.logDirectory);
+      }
+      // Create log directory if it doesn't exist
+      if (!existsSync(this.logDirectory)) {
+        await mkdir(this.logDirectory, { recursive: true });
+      }
+      await this.rotateLogFileIfNeeded();
+    } else {
+      this.logDirectory = null;
     }
 
-    // Create log directory if it doesn't exist
-    if (!existsSync(this.logDirectory)) {
-      await mkdir(this.logDirectory, { recursive: true });
-    }
-
-    // Set log level
     this.logLevel = this.config.level || 'info';
-
-    // Initialize current log file
-    await this.rotateLogFileIfNeeded();
 
     this.initialized = true;
   }

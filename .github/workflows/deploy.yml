@@ -129,8 +129,37 @@ jobs:
       - name: SAM Build
         run: sam build --use-container
 
-      - name: SAM Deploy
+      - name: SAM Deploy Backend
+        id: deploy-backend
         run: |
+          sam deploy \
+            --config-env ${{ github.event.inputs.environment || 'prod' }} \
+            --resolve-s3 \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides \
+              JwtSecret=${{ secrets.JWT_SECRET }} \
+              ResendApiKey=${{ secrets.RESEND_API_KEY }} \
+              RootAdminEmails=${{ secrets.ROOT_ADMIN_EMAILS }} \
+              FrontendDomain=placeholder
+          echo "api_id=$(aws cloudformation describe-stacks --stack-name blueberry-pancake-${{ github.event.inputs.environment || 'prod' }} --query 'Stacks[0].Outputs[?OutputKey==`ApiId`].OutputValue' --output text)" >> $GITHUB_OUTPUT
+
+      - name: Deploy Frontend Stack
+        run: |
+          sam deploy \
+            --template-file template-frontend.yaml \
+            --stack-name blueberry-pancake-frontend-${{ github.event.inputs.environment || 'prod' }} \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              ApiId=${{ steps.deploy-backend.outputs.api_id }} \
+              Environment=${{ github.event.inputs.environment || 'prod' }}
+
+      - name: Update Backend CORS
+        run: |
+          FRONTEND_URL=$(aws cloudformation describe-stacks --stack-name blueberry-pancake-frontend-${{ github.event.inputs.environment || 'prod' }} --query 'Stacks[0].Outputs[?OutputKey==`FrontendUrl`].OutputValue' --output text)
+          FRONTEND_DOMAIN=$(echo "$FRONTEND_URL" | sed 's|https://||' | sed 's|/.*||')
           sam deploy \
             --config-env ${{ github.event.inputs.environment || 'prod' }} \
             --no-confirm-changeset \
@@ -138,7 +167,8 @@ jobs:
             --parameter-overrides \
               JwtSecret=${{ secrets.JWT_SECRET }} \
               ResendApiKey=${{ secrets.RESEND_API_KEY }} \
-              RootAdminEmails=${{ secrets.ROOT_ADMIN_EMAILS }}
+              RootAdminEmails=${{ secrets.ROOT_ADMIN_EMAILS }} \
+              FrontendDomain=$FRONTEND_DOMAIN
 
   deploy-frontend:
     name: Deploy Frontend
@@ -179,7 +209,7 @@ jobs:
       - name: Get stack outputs
         id: stack-outputs
         run: |
-          STACK_NAME="blueberry-pancake-${{ github.event.inputs.environment || 'prod' }}"
+          STACK_NAME="blueberry-pancake-frontend-${{ github.event.inputs.environment || 'prod' }}"
           echo "bucket=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`FrontendBucketName`].OutputValue' --output text)" >> $GITHUB_OUTPUT
           echo "distribution=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`CloudFrontDistributionId`].OutputValue' --output text)" >> $GITHUB_OUTPUT
           echo "url=$(aws cloudformation describe-stacks --stack-name $STACK_NAME --query 'Stacks[0].Outputs[?OutputKey==`FrontendUrl`].OutputValue' --output text)" >> $GITHUB_OUTPUT

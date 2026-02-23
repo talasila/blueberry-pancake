@@ -52,3 +52,34 @@ confirm_changeset = true
 capabilities = "CAPABILITY_IAM"
 parameter_overrides = "Environment=prod"
 tags = "Environment=prod Application=blueberry-pancake"
+
+# Frontend stack - deploy after backend. Pass ApiId: --parameter-overrides ApiId=xxx Environment=dev
+[frontend_dev]
+[frontend_dev.deploy.parameters]
+stack_name = "blueberry-pancake-frontend-dev"
+template_file = "template-frontend.yaml"
+region = "us-east-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Environment=dev"
+tags = "Environment=dev Application=blueberry-pancake"
+
+[frontend_staging]
+[frontend_staging.deploy.parameters]
+stack_name = "blueberry-pancake-frontend-staging"
+template_file = "template-frontend.yaml"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Environment=staging"
+tags = "Environment=staging Application=blueberry-pancake"
+
+[frontend_prod]
+[frontend_prod.deploy.parameters]
+stack_name = "blueberry-pancake-frontend-prod"
+template_file = "template-frontend.yaml"
+region = "us-east-1"
+confirm_changeset = true
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = "Environment=prod"
+tags = "Environment=prod Application=blueberry-pancake"

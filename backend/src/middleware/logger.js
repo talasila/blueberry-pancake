@@ -8,12 +8,7 @@ export function logger(req, res, next) {
   const method = req.method;
   const path = req.path;
   const ip = req.ip || req.connection?.remoteAddress || 'unknown';
-  
-  // Log request
-  loggerService.info(`${method} ${path}`, {
-    ip,
-    userAgent: req.get('user-agent'),
-  });
-  
+
+  loggerService.info(`${method} ${path}`, { ip, userAgent: req.get('user-agent') }).catch(() => {});
   next();
 }

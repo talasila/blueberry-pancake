@@ -112,6 +112,9 @@ class ConfigValidator {
    * @throws {Error} If configuration is invalid
    */
   validateOrThrow() {
+    if (process.env.AWS_LAMBDA_FUNCTION_NAME) {
+      return; // Lambda uses env vars; skip file-based config validation
+    }
     const result = this.validate();
     if (!result.isValid) {
       throw new Error(`Configuration validation failed:\n${result.errors.join('\n')}`);
