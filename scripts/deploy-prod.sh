@@ -2,15 +2,20 @@
 # Blueberry Pancake - Production deployment script
 # Usage: ./scripts/deploy-prod.sh
 # Requires: JWT_SECRET, RESEND_API_KEY, ROOT_ADMIN_EMAILS env vars (or edit below)
+#
+# Custom domain (7155421.xyz): Set FRONTEND_DOMAIN and FRONTEND_DOMAIN_WWW.
+# To use CloudFront URL only: FRONTEND_DOMAIN=d1hqcu1xzc62pt.cloudfront.net FRONTEND_DOMAIN_WWW="" ./scripts/deploy-prod.sh
 
 set -e
 
 ENV=prod
 
 # Required - set via env or edit:
-# JWT_SECRET, RESEND_API_KEY, ROOT_ADMIN_EMAILS, CSRF_SECRET, EMAIL_FROM_ADDRESS (required when XSRF enabled)
+# JWT_SECRET, RESEND_API_KEY, ROOT_ADMIN_EMAILS, CSRF_SECRET, EMAIL_FROM_ADDRESS, FRONTEND_DOMAIN
 JWT_SECRET="Mcr7Bs4rFStYBlUrSxRhYOJ+j/kyMTMnE0/2HVCXdA0="
 EMAIL_FROM_ADDRESS="${EMAIL_FROM_ADDRESS:-sreeni@7155421.xyz}"  # must be verified in Resend
+FRONTEND_DOMAIN="${FRONTEND_DOMAIN:-blindwinetasting.party}"               # custom domain for CORS; use CloudFront domain if unset
+FRONTEND_DOMAIN_WWW="${FRONTEND_DOMAIN_WWW:-www.blindwinetasting.party}"   # optional www variant; empty to exclude
 CSRF_SECRET="${CSRF_SECRET:-$(openssl rand -base64 32)}"
 RESEND_API_KEY="re_6RipC75d_PhQmhfHdnnhT542ZaRHjwhqu"
 ROOT_ADMIN_EMAILS="sreenivas.talasila@gmail.com"
@@ -35,7 +40,8 @@ sam deploy \
     CsrfSecret="$CSRF_SECRET" \
     EmailFromAddress="$EMAIL_FROM_ADDRESS" \
     XsrfEnabled=true \
-    FrontendDomain=placeholder
+    FrontendDomain="$FRONTEND_DOMAIN" \
+    FrontendDomainWww="$FRONTEND_DOMAIN_WWW"
 
 echo ""
 echo "=== 3. Deploy frontend stack ==="
@@ -53,12 +59,12 @@ sam deploy \
   --parameter-overrides ApiId="$API_ID" Environment=$ENV
 
 echo ""
-echo "=== 4. Update backend CORS ==="
+echo "=== 4. Update backend CORS (add CloudFront domain) ==="
 FRONTEND_URL=$(aws cloudformation describe-stacks \
   --stack-name blueberry-pancake-frontend-$ENV \
   --query 'Stacks[0].Outputs[?OutputKey==`FrontendUrl`].OutputValue' \
   --output text)
-FRONTEND_DOMAIN=$(echo "$FRONTEND_URL" | sed 's|https://||' | sed 's|/.*||')
+FRONTEND_DOMAIN_CLOUDFRONT=$(echo "$FRONTEND_URL" | sed 's|https://||' | sed 's|http://||' | sed 's|/.*||')
 
 sam deploy \
   --config-env $ENV \
@@ -72,7 +78,9 @@ sam deploy \
     CsrfSecret="$CSRF_SECRET" \
     EmailFromAddress="$EMAIL_FROM_ADDRESS" \
     XsrfEnabled=true \
-    FrontendDomain="$FRONTEND_DOMAIN"
+    FrontendDomain="$FRONTEND_DOMAIN" \
+    FrontendDomainWww="$FRONTEND_DOMAIN_WWW" \
+    FrontendDomainCloudFront="$FRONTEND_DOMAIN_CLOUDFRONT"
 
 echo ""
 echo "=== 5. Build and sync frontend assets ==="
@@ -107,4 +115,5 @@ aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
 
 echo ""
 echo "=== Deployment complete ==="
-echo "Frontend URL: $FRONTEND_URL"
+echo "Frontend URL (CloudFront): $FRONTEND_URL"
+echo "Frontend URL (custom):     https://$FRONTEND_DOMAIN"

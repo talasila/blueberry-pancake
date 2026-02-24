@@ -25,8 +25,16 @@ Parameters:
     Description: Comma-separated list of root admin email addresses
   FrontendDomain:
     Type: String
-    Default: "placeholder"
-    Description: CloudFront domain for CORS. After frontend stack deploy, update with FrontendUrl domain and redeploy.
+    Default: "7155421.xyz"
+    Description: Primary frontend domain for CORS (custom domain e.g. 7155421.xyz, or CloudFront domain)
+  FrontendDomainWww:
+    Type: String
+    Default: "www.7155421.xyz"
+    Description: Optional www variant for CORS. Set empty to exclude.
+  FrontendDomainCloudFront:
+    Type: String
+    Default: ""
+    Description: CloudFront distribution domain for CORS (e.g. d1hqcu1xzc62pt.cloudfront.net). Set by deploy script after frontend deploy.
   EmailFromAddress:
     Type: String
     Default: "noreply@example.com"
@@ -43,6 +51,10 @@ Parameters:
       - "true"
       - "false"
     Description: Enable XSRF protection for state-changing requests
+
+Conditions:
+  HasFrontendDomainWww: !Not [!Equals [!Ref FrontendDomainWww, ""]]
+  HasFrontendDomainCloudFront: !Not [!Equals [!Ref FrontendDomainCloudFront, ""]]
 
 Globals:
   Function:
@@ -69,6 +81,14 @@ Resources:
       CorsConfiguration:
         AllowOrigins:
           - !Sub "https://${FrontendDomain}"
+          - !If
+            - HasFrontendDomainWww
+            - !Sub "https://${FrontendDomainWww}"
+            - !Ref AWS::NoValue
+          - !If
+            - HasFrontendDomainCloudFront
+            - !Sub "https://${FrontendDomainCloudFront}"
+            - !Ref AWS::NoValue
           - "http://localhost:5173"
         AllowMethods:
           - GET
