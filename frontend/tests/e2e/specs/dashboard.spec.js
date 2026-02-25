@@ -989,7 +989,7 @@ test.describe('Dashboard Page', () => {
     await page.waitForLoadState('networkidle');
     
     // Open the dropdown menu
-    const menuButton = page.getByRole('button', { name: /menu/i }).or(page.locator('[data-testid="menu-button"]')).or(page.locator('header button').last());
+    const menuButton = page.getByRole('button', { name: 'Open menu' });
     await menuButton.waitFor({ state: 'visible', timeout: 10000 });
     await menuButton.click();
     await page.waitForTimeout(500);
@@ -1028,7 +1028,7 @@ test.describe('Dashboard Page', () => {
     await page.waitForLoadState('networkidle');
     
     // Open the dropdown menu
-    const menuButton = page.getByRole('button', { name: /menu/i }).or(page.locator('[data-testid="menu-button"]')).or(page.locator('header button').last());
+    const menuButton = page.getByRole('button', { name: 'Open menu' });
     await menuButton.waitFor({ state: 'visible', timeout: 10000 });
     await menuButton.click();
     await page.waitForTimeout(500);
