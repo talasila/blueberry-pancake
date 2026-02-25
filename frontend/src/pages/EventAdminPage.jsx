@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
@@ -74,6 +74,7 @@ function getValidTransitions(currentState) {
 function EventAdminPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { event: contextEvent } = useEventContext();
   const { event: polledEvent } = useEventPolling(eventId);
   const [event, setEvent] = useState(contextEvent);
@@ -204,6 +205,15 @@ function EventAdminPage() {
     }
   }, [eventId, navigate]);
 
+  const hasShownCreationToast = useRef(false);
+  useEffect(() => {
+    if (location.state?.eventCreated && !hasShownCreationToast.current) {
+      hasShownCreationToast.current = true;
+      toast.success('Event created! Share the PIN with participants to get started');
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
   // Handle browser back/forward navigation (popstate) to sync drawer state
   useEffect(() => {
     const handlePopState = (event) => {
@@ -279,6 +289,7 @@ function EventAdminPage() {
 
   // Fetch items on load (admin sees all items)
   useEffect(() => {
+    let cancelled = false;
     const fetchItems = async () => {
       if (!eventId) return;
 
@@ -287,18 +298,21 @@ function EventAdminPage() {
 
       try {
         const allItems = await itemService.getItems(eventId);
+        if (cancelled) return;
         setItems(allItems || []);
       } catch (error) {
+        if (cancelled) return;
         console.error('Failed to fetch items:', error);
         setItemsError(error.message || 'Failed to load items');
       } finally {
-        setIsLoadingItems(false);
+        if (!cancelled) setIsLoadingItems(false);
       }
     };
 
     if (eventId) {
       fetchItems();
     }
+    return () => { cancelled = true; };
   }, [eventId]);
 
   // Calculate summary statistics
@@ -310,21 +324,24 @@ function EventAdminPage() {
 
   // Fetch item configuration on load
   useEffect(() => {
+    let cancelled = false;
     const fetchItemConfiguration = async () => {
       if (!eventId) return;
       
       try {
         const config = await apiClient.getItemConfiguration(eventId);
-        // Backend guarantees these values at event creation - no frontend fallbacks needed
+        if (cancelled) return;
         setNumberOfItems(config.numberOfItems);
         setExcludedItemIdsInput((config.excludedItemIds || []).join(', '));
       } catch (error) {
-        console.error('Failed to fetch item configuration:', error);
-        // Don't set fallback defaults - backend should always provide item configuration
+        if (!cancelled) {
+          console.error('Failed to fetch item configuration:', error);
+        }
       }
     };
 
     fetchItemConfiguration();
+    return () => { cancelled = true; };
   }, [eventId]);
 
   // Default rating presets (matching backend)

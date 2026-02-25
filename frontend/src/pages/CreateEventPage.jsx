@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,14 +11,14 @@ import apiClient from '@/services/apiClient';
  * 
  * Allows authenticated users to create new events.
  * Form includes event name and type of item (wine).
- * Displays success popup with event ID after creation.
+ * On success, redirects to the event's admin page.
  */
 function CreateEventPage() {
+  const navigate = useNavigate();
   const [name, setName] = useState('');
   const [typeOfItem, setTypeOfItem] = useState('wine');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
-  const [successEvent, setSuccessEvent] = useState(null);
   const [nameError, setNameError] = useState('');
 
   /**
@@ -81,22 +82,15 @@ function CreateEventPage() {
         typeOfItem
       });
       
-      setSuccessEvent(event);
-      // Reset form
-      setName('');
-      setTypeOfItem('wine');
+      navigate(`/event/${event.eventId}/admin`, {
+        replace: true,
+        state: { eventCreated: true }
+      });
     } catch (err) {
       setError(err.message || 'Failed to create event. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  /**
-   * Close success popup
-   */
-  const handleCloseSuccess = () => {
-    setSuccessEvent(null);
   };
 
   return (
@@ -178,39 +172,6 @@ function CreateEventPage() {
             </form>
           </Card>
 
-          {/* Success Popup */}
-          {successEvent && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-              <Card className="w-full max-w-md mx-4">
-                <CardHeader>
-                  <CardTitle>Event Created Successfully!</CardTitle>
-                  <CardDescription>
-                    Your event has been created
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">Event ID:</p>
-                    <p className="text-2xl font-mono font-bold text-center p-4 bg-muted rounded-md">
-                      {successEvent.eventId}
-                    </p>
-                    <p className="text-sm text-muted-foreground text-center">
-                      Save this ID to share with participants
-                    </p>
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button
-                    onClick={handleCloseSuccess}
-                    className="w-full"
-                    aria-label="Close success popup"
-                  >
-                    Close
-                  </Button>
-                </CardFooter>
-              </Card>
-            </div>
-          )}
         </div>
       </div>
     </div>

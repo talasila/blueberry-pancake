@@ -84,6 +84,8 @@ JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 ## Active Technologies
 - Node.js 22+, JavaScript ES2020+ + Express 5, React 19, Vite, Tailwind CSS 4, Radix UI (001-root-admin)
 - File-based (JSON config, CSV ratings) with in-memory cache (001-root-admin)
+- JavaScript (ES2022+), Node.js >=22.12.0 + React 19, react-router-dom 7, sonner 2, Vite 6, Tailwind CSS 4 (011-create-event-redirect)
+- N/A (no backend changes) (011-create-event-redirect)
 
 ## Recent Changes
 - 001-root-admin: Added Node.js 22+, JavaScript ES2020+ + Express 5, React 19, Vite, Tailwind CSS 4, Radix UI

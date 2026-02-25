@@ -180,31 +180,28 @@ test.describe('Create Event', () => {
       // Ignore parsing errors
     }
     
-    // Verify success popup appears with event ID
-    const successPopup = page.getByText(/event created successfully/i);
-    await expect(successPopup).toBeVisible({ timeout: 10000 });
-    
-    // Get the event ID from the popup
-    const eventIdElement = page.locator('.font-mono.font-bold');
-    const displayedEventId = await eventIdElement.textContent();
-    
-    // Track from popup as backup (in case response intercept missed it)
-    if (displayedEventId) {
-      trackEventForCleanup(displayedEventId.trim());
-    }
-    
+    // Verify redirect to admin page
+    await page.waitForURL(/\/event\/[A-Za-z0-9]{8}\/admin/, { timeout: 10000 });
+
+    // Verify toast notification
+    await expect(page.getByText(/event created/i)).toBeVisible({ timeout: 5000 });
+
     // Verify the event state via API
-    if (displayedEventId) {
-      const response = await fetch(`${API_URL}/api/events/${displayedEventId.trim()}`);
-      if (response.ok) {
-        const eventData = await response.json();
+    if (createdEventId) {
+      const stateResponse = await fetch(`${API_URL}/api/events/${createdEventId}`);
+      if (stateResponse.ok) {
+        const eventData = await stateResponse.json();
         expect(eventData.state).toBe('created');
       }
     }
-    
-    // Note: Cleanup handled by global teardown, but also try inline cleanup
-    if (displayedEventId) {
-      await deleteTestEvent(displayedEventId.trim());
+
+    // Verify back button skips the create form (FR-004)
+    await page.goBack();
+    await expect(page).not.toHaveURL(/\/create-event/);
+
+    // Cleanup
+    if (createdEventId) {
+      await deleteTestEvent(createdEventId);
     }
   });
 
@@ -237,9 +234,8 @@ test.describe('Create Event', () => {
     await createButton.click();
     await page.waitForTimeout(1000);
     
-    // Error should still be visible, no success popup
-    const successPopup = page.getByText(/event created successfully/i);
-    await expect(successPopup).not.toBeVisible();
+    // Error should still be visible, no redirect occurred
+    await expect(page).toHaveURL(/\/create-event/);
     
     // Now test that allowed special characters work (hyphens and underscores)
     await nameInput.clear();
@@ -293,17 +289,15 @@ test.describe('Create Event', () => {
       // Ignore parsing errors
     }
     
-    // Wait for success popup
-    const successPopup = page.getByText(/event created successfully/i);
-    await expect(successPopup).toBeVisible({ timeout: 10000 });
-    
+    // Wait for single redirect to admin page
+    await page.waitForURL(/\/event\/[A-Za-z0-9]{8}\/admin/, { timeout: 10000 });
+
     // Verify exactly one event was created
     expect(createdEventId).toBeTruthy();
-    
-    // Verify no duplicate events were created by checking the API
+
     // Wait a moment for any potential duplicate requests to complete
     await page.waitForTimeout(1000);
-    
+
     // Clean up
     if (createdEventId) {
       await deleteTestEvent(createdEventId);

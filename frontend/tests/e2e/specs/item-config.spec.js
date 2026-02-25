@@ -30,6 +30,11 @@ async function openBottlesDrawer(page) {
   
   // Wait for drawer to open - look for the number input (spinbutton)
   await page.getByRole('spinbutton').waitFor({ state: 'visible', timeout: 5000 });
+
+  // Wait for pending API responses to settle before interacting with form inputs.
+  // React Strict Mode double-fires useEffects, so a duplicate item-configuration
+  // fetch can arrive late and overwrite values the test has filled.
+  await page.waitForLoadState('networkidle');
 }
 
 /**
@@ -246,9 +251,14 @@ test.describe('Item Configuration', () => {
     // Open the Bottles drawer
     await openBottlesDrawer(page);
     
-    // First set number of bottles to a small number
+    // Set number of bottles to a small number and verify the value persists.
+    // React Strict Mode can fire a duplicate API fetch whose response overwrites
+    // the filled value; toPass retries until the value stabilizes.
     const bottlesInput = getNumberOfBottlesInput(page);
-    await bottlesInput.fill('3');
+    await expect(async () => {
+      await bottlesInput.fill('3');
+      await expect(bottlesInput).toHaveValue('3');
+    }).toPass({ timeout: 5000 });
     
     // Try to exclude all bottles
     const excludedInput = getExcludedBottleIdsInput(page);
@@ -259,7 +269,7 @@ test.describe('Item Configuration', () => {
     
     // Should show error - at least one bottle must be available - scope to drawer
     const drawer = page.locator('[role="dialog"]');
-    await expect(drawer.getByText(/error|at least|cannot exclude all/i)).toBeVisible({ timeout: 5000 });
+    await expect(drawer.getByText(/error|at least|cannot exclude all/i)).toBeVisible({ timeout: 10000 });
   });
 
   // ===================================

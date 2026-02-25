@@ -270,33 +270,37 @@ test.describe('System Administration Dashboard', () => {
     });
     
     test('should delete event and remove from list', async ({ page }) => {
-      // Create test event specifically for deletion
-      const eventId = await createTestEvent(null, 'To Be Deleted Event', '123456');
+      const uniqueName = `Delete Test ${Date.now()}`;
+      const eventId = await createTestEvent(null, uniqueName, '123456');
       
-      await setupRootAuth(page);
-      
-      // Navigate and wait for events API
-      await navigateToSystemPage(page);
-      
-      // Open drawer
-      await page.getByText('To Be Deleted Event').click();
-      await expect(page.getByRole('dialog')).toBeVisible();
-      
-      // Click delete and confirm
-      const drawer = page.locator('[role="dialog"]');
-      await drawer.getByRole('button', { name: /delete event/i }).click();
-      await expect(drawer.getByText(/are you sure/i)).toBeVisible();
-      
-      // Confirm deletion
-      await drawer.getByRole('button', { name: /^delete$/i }).click();
-      
-      // Wait for drawer to close
-      await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 10000 });
-      
-      // Event should be removed from list
-      await expect(page.getByText('To Be Deleted Event')).not.toBeVisible();
-      
-      // Note: No cleanup needed - event was deleted by the test
+      try {
+        await setupRootAuth(page);
+        
+        // Navigate and wait for events API
+        await navigateToSystemPage(page);
+        
+        // Open drawer
+        await page.getByText(uniqueName).click();
+        await expect(page.getByRole('dialog')).toBeVisible();
+        
+        // Click delete and confirm
+        const drawer = page.locator('[role="dialog"]');
+        await drawer.getByRole('button', { name: /delete event/i }).click();
+        await expect(drawer.getByText(/are you sure/i)).toBeVisible();
+        
+        // Confirm deletion
+        await drawer.getByRole('button', { name: /^delete$/i }).click();
+        
+        // Wait for drawer to close
+        await expect(page.getByRole('dialog')).not.toBeVisible({ timeout: 10000 });
+        
+        // Event should be removed from list
+        await expect(page.getByText(uniqueName)).not.toBeVisible();
+      } catch (error) {
+        // Clean up if deletion via UI failed
+        await deleteTestEvent(eventId);
+        throw error;
+      }
     });
     
   });
