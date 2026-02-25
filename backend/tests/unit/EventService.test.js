@@ -4,6 +4,9 @@ import pinService from '../../src/services/PINService.js';
 import dataRepository from '../../src/data/FileDataRepository.js';
 import cacheService from '../../src/cache/CacheService.js';
 import loggerService from '../../src/logging/Logger.js';
+import DynamoDBRepository from '../../src/data/DynamoDBRepository.js';
+
+const CROCKFORD_PATTERN = /^[0-9A-HJ-NP-TV-Z]{8}$/;
 
 // Mock data repository
 vi.mock('../../src/data/FileDataRepository.js', () => {
@@ -37,6 +40,16 @@ vi.mock('../../src/logging/Logger.js', () => {
   };
 });
 
+// Mock DynamoDB repository (used by EventService)
+vi.mock('../../src/data/DynamoDBRepository.js', () => ({
+  default: {
+    eventExists: vi.fn().mockResolvedValue(false),
+    readEventConfig: vi.fn(),
+    writeEventConfig: vi.fn().mockResolvedValue(),
+    addAdministratorAtomic: vi.fn().mockResolvedValue({ added: true, alreadyExists: false })
+  }
+}));
+
 // Mock cache service
 vi.mock('../../src/cache/CacheService.js', () => {
   return {
@@ -61,14 +74,14 @@ describe('EventService.getEvent', () => {
 
   describe('Event ID validation', () => {
     it('should throw error for missing event ID', async () => {
-      await expect(eventService.getEvent(null)).rejects.toThrow('Event ID is required');
-      await expect(eventService.getEvent(undefined)).rejects.toThrow('Event ID is required');
-      await expect(eventService.getEvent('')).rejects.toThrow('Event ID is required');
+      await expect(eventService.getEvent(null)).rejects.toThrow(/Invalid event ID format/);
+      await expect(eventService.getEvent(undefined)).rejects.toThrow(/Invalid event ID format/);
+      await expect(eventService.getEvent('')).rejects.toThrow(/Invalid event ID format/);
     });
 
     it('should throw error for non-string event ID', async () => {
-      await expect(eventService.getEvent(12345)).rejects.toThrow('Event ID is required');
-      await expect(eventService.getEvent({})).rejects.toThrow('Event ID is required');
+      await expect(eventService.getEvent(12345)).rejects.toThrow(/Invalid event ID format/);
+      await expect(eventService.getEvent({})).rejects.toThrow(/Invalid event ID format/);
     });
 
     it('should throw error for invalid event ID format (too short)', async () => {
@@ -85,9 +98,9 @@ describe('EventService.getEvent', () => {
       await expect(eventService.getEvent('ABC 1234')).rejects.toThrow('Invalid event ID format');
     });
 
-    it('should accept valid 8-character alphanumeric event ID', async () => {
+    it('should accept valid 8-character Crockford Base32 event ID', async () => {
       const mockEvent = {
-        eventId: 'A5ohYrHe',
+        eventId: 'A5BHYRHE',
         name: 'Test Event',
         state: 'created',
         typeOfItem: 'wine',
@@ -96,19 +109,19 @@ describe('EventService.getEvent', () => {
         updatedAt: new Date().toISOString()
       };
       
-      cacheService.ensureEventConfigLoaded.mockResolvedValue(mockEvent);
+      DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
       
-      const result = await eventService.getEvent('A5ohYrHe');
+      const result = await eventService.getEvent('A5BHYRHE');
       
       expect(result).toEqual(mockEvent);
-      expect(cacheService.ensureEventConfigLoaded).toHaveBeenCalledWith('A5ohYrHe');
+      expect(DynamoDBRepository.readEventConfig).toHaveBeenCalledWith('A5BHYRHE');
     });
   });
 
   describe('Event retrieval', () => {
     it('should retrieve event for valid event ID', async () => {
       const mockEvent = {
-        eventId: 'A5ohYrHe',
+        eventId: 'A5BHYRHE',
         name: 'Test Event',
         state: 'started',
         typeOfItem: 'wine',
@@ -117,33 +130,34 @@ describe('EventService.getEvent', () => {
         updatedAt: new Date().toISOString()
       };
       
-      cacheService.ensureEventConfigLoaded.mockResolvedValue(mockEvent);
+      DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
       
-      const result = await eventService.getEvent('A5ohYrHe');
+      const result = await eventService.getEvent('A5BHYRHE');
       
       expect(result).toEqual(mockEvent);
-      expect(cacheService.ensureEventConfigLoaded).toHaveBeenCalledWith('A5ohYrHe');
+      expect(DynamoDBRepository.readEventConfig).toHaveBeenCalledWith('A5BHYRHE');
       expect(loggerService.error).not.toHaveBeenCalled();
     });
 
     it('should throw error for non-existent event', async () => {
-      const error = new Error('Event configuration not found: NONEXIST');
-      cacheService.ensureEventConfigLoaded.mockRejectedValue(error);
+      const error = new Error('Event configuration not found: N0NEX1ST');
+      DynamoDBRepository.readEventConfig.mockRejectedValue(error);
       
-      await expect(eventService.getEvent('NONEXIST')).rejects.toThrow('Event not found: NONEXIST');
-      expect(cacheService.ensureEventConfigLoaded).toHaveBeenCalledWith('NONEXIST');
+      await expect(eventService.getEvent('N0NEX1ST')).rejects.toThrow('Event not found: N0NEX1ST');
+      expect(DynamoDBRepository.readEventConfig).toHaveBeenCalledWith('N0NEX1ST');
     });
 
     it('should throw error for file not found', async () => {
       const error = new Error('File not found: config.json');
-      cacheService.ensureEventConfigLoaded.mockRejectedValue(error);
+      DynamoDBRepository.readEventConfig.mockRejectedValue(error);
       
-      await expect(eventService.getEvent('FILENOTF')).rejects.toThrow('Event not found: FILENOTF');
+      await expect(eventService.getEvent('N0TF00ND')).rejects.toThrow('Event not found: N0TF00ND');
+      expect(DynamoDBRepository.readEventConfig).toHaveBeenCalledWith('N0TF00ND');
     });
 
     it('should re-throw other errors and log them', async () => {
       const error = new Error('Database connection failed');
-      cacheService.ensureEventConfigLoaded.mockRejectedValue(error);
+      DynamoDBRepository.readEventConfig.mockRejectedValue(error);
       
       await expect(eventService.getEvent('ABCD1234')).rejects.toThrow('Database connection failed');
       expect(loggerService.error).toHaveBeenCalledWith(
@@ -156,7 +170,7 @@ describe('EventService.getEvent', () => {
   describe('Case sensitivity', () => {
     it('should handle lowercase event IDs', async () => {
       const mockEvent = {
-        eventId: 'a5ohyrhe',
+        eventId: 'a5bhyrhe',
         name: 'Test Event',
         state: 'created',
         typeOfItem: 'wine',
@@ -165,16 +179,16 @@ describe('EventService.getEvent', () => {
         updatedAt: new Date().toISOString()
       };
       
-      cacheService.ensureEventConfigLoaded.mockResolvedValue(mockEvent);
+      DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
       
-      const result = await eventService.getEvent('a5ohyrhe');
+      const result = await eventService.getEvent('a5bhyrhe');
       
       expect(result).toEqual(mockEvent);
     });
 
     it('should handle mixed case event IDs', async () => {
       const mockEvent = {
-        eventId: 'A5oHyRhE',
+        eventId: 'A5bHyRhE',
         name: 'Test Event',
         state: 'created',
         typeOfItem: 'wine',
@@ -183,9 +197,9 @@ describe('EventService.getEvent', () => {
         updatedAt: new Date().toISOString()
       };
       
-      cacheService.ensureEventConfigLoaded.mockResolvedValue(mockEvent);
+      DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
       
-      const result = await eventService.getEvent('A5oHyRhE');
+      const result = await eventService.getEvent('A5bHyRhE');
       
       expect(result).toEqual(mockEvent);
     });
@@ -219,6 +233,20 @@ describe('EventService.getEvent', () => {
     });
   });
 
+  describe('generateEventId', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      DynamoDBRepository.eventExists.mockResolvedValue(false);
+    });
+
+    it('should generate event ID matching Crockford Base32 pattern', async () => {
+      const eventId = await eventService.generateEventId();
+      
+      expect(eventId).toMatch(CROCKFORD_PATTERN);
+      expect(eventId).toHaveLength(8);
+    });
+  });
+
   describe('regeneratePIN', () => {
     const eventId = 'TEST1234';
     const administratorEmail = 'admin@example.com';
@@ -236,8 +264,8 @@ describe('EventService.getEvent', () => {
 
     beforeEach(() => {
       vi.clearAllMocks();
-      cacheService.ensureEventConfigLoaded.mockResolvedValue(mockEvent);
-      cacheService.setWithPersist.mockResolvedValue(true);
+      DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
+      DynamoDBRepository.writeEventConfig.mockResolvedValue();
       pinService.generatePIN.mockReturnValue('789012');
       pinService.invalidatePINSessions.mockReturnValue(3);
     });
@@ -250,7 +278,7 @@ describe('EventService.getEvent', () => {
       expect(result).toHaveProperty('pinGeneratedAt');
       expect(pinService.generatePIN).toHaveBeenCalled();
       expect(pinService.invalidatePINSessions).toHaveBeenCalledWith(eventId);
-      expect(cacheService.setWithPersist).toHaveBeenCalled();
+      expect(DynamoDBRepository.writeEventConfig).toHaveBeenCalled();
     });
 
     it('should reject regeneration from non-administrator', async () => {
@@ -259,7 +287,7 @@ describe('EventService.getEvent', () => {
       ).rejects.toThrow('Only the event administrator can regenerate PINs');
       
       expect(pinService.generatePIN).not.toHaveBeenCalled();
-      expect(cacheService.setWithPersist).not.toHaveBeenCalled();
+      expect(DynamoDBRepository.writeEventConfig).not.toHaveBeenCalled();
     });
 
     it('should handle case-insensitive email comparison', async () => {
@@ -267,15 +295,15 @@ describe('EventService.getEvent', () => {
       const result = await eventService.regeneratePIN(eventId, 'ADMIN@EXAMPLE.COM');
       
       expect(result).toHaveProperty('pin');
-      expect(cacheService.setWithPersist).toHaveBeenCalled();
+      expect(DynamoDBRepository.writeEventConfig).toHaveBeenCalled();
     });
 
     it('should return error for non-existent event', async () => {
-      cacheService.ensureEventConfigLoaded.mockRejectedValue(new Error('Event not found: NONEXIST'));
+      DynamoDBRepository.readEventConfig.mockRejectedValue(new Error('Event not found: N0NEX1ST'));
       
       await expect(
-        eventService.regeneratePIN('NONEXIST', administratorEmail)
-      ).rejects.toThrow('Event not found: NONEXIST');
+        eventService.regeneratePIN('N0NEX1ST', administratorEmail)
+      ).rejects.toThrow('Event not found: N0NEX1ST');
     });
 
     it('should complete regeneration within 2 seconds (performance test per SC-005)', async () => {
@@ -550,6 +578,7 @@ describe('EventService.getEvent', () => {
 
     beforeEach(() => {
       vi.clearAllMocks();
+      DynamoDBRepository.addAdministratorAtomic.mockResolvedValue({ added: true, alreadyExists: false });
       mockEvent = {
         eventId,
         name: 'Test Event',
@@ -569,11 +598,25 @@ describe('EventService.getEvent', () => {
         createdAt: '2025-01-27T10:30:00.000Z',
         updatedAt: '2025-01-27T10:30:00.000Z'
       };
-      cacheService.ensureEventConfigLoaded.mockResolvedValue(mockEvent);
-      cacheService.setWithPersist.mockResolvedValue(true);
+      DynamoDBRepository.readEventConfig.mockImplementation(() => Promise.resolve({ ...mockEvent }));
     });
 
     it('should add new administrator successfully', async () => {
+      const updatedEvent = {
+        ...mockEvent,
+        administrators: {
+          ...mockEvent.administrators,
+          [newAdminEmail.toLowerCase()]: { assignedAt: '2025-01-27T12:00:00.000Z', owner: false }
+        },
+        users: {
+          ...mockEvent.users,
+          [newAdminEmail.toLowerCase()]: { registeredAt: '2025-01-27T12:00:00.000Z' }
+        }
+      };
+      DynamoDBRepository.readEventConfig
+        .mockResolvedValueOnce(mockEvent)
+        .mockResolvedValueOnce(updatedEvent);
+
       const result = await eventService.addAdministrator(eventId, newAdminEmail, requesterEmail);
 
       expect(result.administrators[newAdminEmail.toLowerCase()]).toBeDefined();
@@ -581,7 +624,7 @@ describe('EventService.getEvent', () => {
       expect(result.administrators[newAdminEmail.toLowerCase()]).toHaveProperty('assignedAt');
       expect(result.users[newAdminEmail.toLowerCase()]).toBeDefined();
       expect(result.users[newAdminEmail.toLowerCase()]).toHaveProperty('registeredAt');
-      expect(cacheService.setWithPersist).toHaveBeenCalled();
+      expect(DynamoDBRepository.addAdministratorAtomic).toHaveBeenCalled();
     });
 
     it('should throw error for duplicate administrator', async () => {
@@ -589,6 +632,7 @@ describe('EventService.getEvent', () => {
         assignedAt: '2025-01-27T11:00:00.000Z',
         owner: false
       };
+      DynamoDBRepository.addAdministratorAtomic.mockResolvedValue({ added: false, alreadyExists: true });
 
       await expect(
         eventService.addAdministrator(eventId, newAdminEmail, requesterEmail)
@@ -608,12 +652,23 @@ describe('EventService.getEvent', () => {
     });
 
     it('should throw error for self-addition attempt', async () => {
+      DynamoDBRepository.addAdministratorAtomic.mockResolvedValue({ added: false, alreadyExists: true });
+
       await expect(
         eventService.addAdministrator(eventId, requesterEmail, requesterEmail)
       ).rejects.toThrow(/already exists/);
     });
 
     it('should normalize email addresses', async () => {
+      const updatedEvent = {
+        ...mockEvent,
+        administrators: { ...mockEvent.administrators, 'newadmin@example.com': { assignedAt: '2025-01-27T12:00:00.000Z', owner: false } },
+        users: { ...mockEvent.users, 'newadmin@example.com': { registeredAt: '2025-01-27T12:00:00.000Z' } }
+      };
+      DynamoDBRepository.readEventConfig
+        .mockResolvedValueOnce(mockEvent)
+        .mockResolvedValueOnce(updatedEvent);
+
       const result = await eventService.addAdministrator(eventId, 'NEWADMIN@EXAMPLE.COM', requesterEmail);
 
       expect(result.administrators['newadmin@example.com']).toBeDefined();
@@ -621,6 +676,15 @@ describe('EventService.getEvent', () => {
     });
 
     it('should add administrator to users section if not already present', async () => {
+      const updatedEvent = {
+        ...mockEvent,
+        administrators: { ...mockEvent.administrators, [newAdminEmail.toLowerCase()]: { assignedAt: '2025-01-27T12:00:00.000Z', owner: false } },
+        users: { ...mockEvent.users, [newAdminEmail.toLowerCase()]: { registeredAt: '2025-01-27T12:00:00.000Z' } }
+      };
+      DynamoDBRepository.readEventConfig
+        .mockResolvedValueOnce(mockEvent)
+        .mockResolvedValueOnce(updatedEvent);
+
       const result = await eventService.addAdministrator(eventId, newAdminEmail, requesterEmail);
 
       expect(result.users[newAdminEmail.toLowerCase()]).toBeDefined();
@@ -629,9 +693,18 @@ describe('EventService.getEvent', () => {
 
     it('should not overwrite existing user registration timestamp', async () => {
       const existingTimestamp = '2025-01-27T09:00:00.000Z';
-      mockEvent.users[newAdminEmail.toLowerCase()] = {
-        registeredAt: existingTimestamp
+      const eventWithUser = {
+        ...mockEvent,
+        users: { ...mockEvent.users, [newAdminEmail.toLowerCase()]: { registeredAt: existingTimestamp } }
       };
+      const updatedEvent = {
+        ...mockEvent,
+        administrators: { ...mockEvent.administrators, [newAdminEmail.toLowerCase()]: { assignedAt: '2025-01-27T12:00:00.000Z', owner: false } },
+        users: { ...mockEvent.users, [newAdminEmail.toLowerCase()]: { registeredAt: existingTimestamp } }
+      };
+      DynamoDBRepository.readEventConfig
+        .mockResolvedValueOnce(eventWithUser)
+        .mockResolvedValueOnce(updatedEvent);
 
       const result = await eventService.addAdministrator(eventId, newAdminEmail, requesterEmail);
 
@@ -673,8 +746,8 @@ describe('EventService.getEvent', () => {
         createdAt: '2025-01-27T10:30:00.000Z',
         updatedAt: '2025-01-27T10:30:00.000Z'
       };
-      cacheService.ensureEventConfigLoaded.mockResolvedValue(mockEvent);
-      cacheService.setWithPersist.mockResolvedValue(true);
+      DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
+      DynamoDBRepository.writeEventConfig.mockResolvedValue();
     });
 
     it('should delete administrator successfully', async () => {
@@ -683,7 +756,7 @@ describe('EventService.getEvent', () => {
       expect(result.administrators[adminToDelete.toLowerCase()]).toBeUndefined();
       expect(result.users[adminToDelete.toLowerCase()]).toBeUndefined();
       expect(result.administrators[requesterEmail.toLowerCase()]).toBeDefined();
-      expect(cacheService.setWithPersist).toHaveBeenCalled();
+      expect(DynamoDBRepository.writeEventConfig).toHaveBeenCalled();
     });
 
     it('should prevent owner deletion', async () => {
@@ -755,7 +828,7 @@ describe('EventService.getEvent', () => {
         createdAt: '2025-01-27T10:30:00.000Z',
         updatedAt: '2025-01-27T10:30:00.000Z'
       };
-      cacheService.ensureEventConfigLoaded.mockResolvedValue(mockEvent);
+      DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
     });
 
     it('should return administrators object', async () => {
@@ -783,7 +856,7 @@ describe('EventService.getEvent', () => {
         }
       };
       // Mock returns event with just the requester, then we test what it returns
-      cacheService.ensureEventConfigLoaded.mockResolvedValue({
+      DynamoDBRepository.readEventConfig.mockResolvedValue({
         ...mockEvent,
         administrators: {} // Empty administrators to test the empty case
       });
@@ -791,7 +864,7 @@ describe('EventService.getEvent', () => {
       // But this test scenario doesn't make sense - if there are no admins, 
       // the requester can't be authorized. Let's test the case where we return
       // the administrators object which should contain the requester
-      cacheService.ensureEventConfigLoaded.mockResolvedValue(mockEvent);
+      DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
       const result = await eventService.getAdministrators(eventId, requesterEmail);
 
       expect(result).toBeDefined();
@@ -813,7 +886,7 @@ describe('EventService.getEvent', () => {
         name: 'Test Event',
         administrators: { [requesterEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
       };
-      cacheService.ensureEventConfigLoaded.mockResolvedValue(mockEvent);
+      DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
       const result = await eventService.getItemConfiguration(eventId);
 
@@ -821,7 +894,7 @@ describe('EventService.getEvent', () => {
         numberOfItems: 20,
         excludedItemIds: []
       });
-      expect(cacheService.ensureEventConfigLoaded).toHaveBeenCalledWith(eventId);
+      expect(DynamoDBRepository.readEventConfig).toHaveBeenCalledWith(eventId);
     });
 
     it('should return configured values when itemConfiguration present', async () => {
@@ -834,7 +907,7 @@ describe('EventService.getEvent', () => {
         },
         administrators: { [requesterEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
       };
-      cacheService.ensureEventConfigLoaded.mockResolvedValue(mockEvent);
+      DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
       const result = await eventService.getItemConfiguration(eventId);
 
@@ -842,7 +915,7 @@ describe('EventService.getEvent', () => {
         numberOfItems: 25,
         excludedItemIds: [5, 10, 15]
       });
-      expect(cacheService.ensureEventConfigLoaded).toHaveBeenCalledWith(eventId);
+      expect(DynamoDBRepository.readEventConfig).toHaveBeenCalledWith(eventId);
     });
   });
 
@@ -860,7 +933,7 @@ describe('EventService.getEvent', () => {
         name: 'Test Event',
         administrators: { [requesterEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
       };
-      cacheService.ensureEventConfigLoaded.mockResolvedValue(mockEvent);
+      DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
       await expect(
         eventService.updateItemConfiguration(eventId, { numberOfItems: 0 }, requesterEmail)
@@ -873,7 +946,7 @@ describe('EventService.getEvent', () => {
         name: 'Test Event',
         administrators: { [requesterEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
       };
-      cacheService.ensureEventConfigLoaded.mockResolvedValue(mockEvent);
+      DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
       await expect(
         eventService.updateItemConfiguration(eventId, { numberOfItems: 101 }, requesterEmail)
@@ -886,7 +959,7 @@ describe('EventService.getEvent', () => {
         name: 'Test Event',
         administrators: { [requesterEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
       };
-      cacheService.ensureEventConfigLoaded.mockResolvedValue(mockEvent);
+      DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
       await expect(
         eventService.updateItemConfiguration(eventId, { numberOfItems: 20.5 }, requesterEmail)
@@ -899,8 +972,7 @@ describe('EventService.getEvent', () => {
         name: 'Test Event',
         administrators: { [requesterEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
       };
-      cacheService.ensureEventConfigLoaded.mockResolvedValue(mockEvent);
-      cacheService.setWithPersist.mockResolvedValue(true);
+      DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
       const result = await eventService.updateItemConfiguration(
         eventId,
@@ -912,16 +984,14 @@ describe('EventService.getEvent', () => {
         numberOfItems: 30,
         excludedItemIds: []
       });
-      expect(cacheService.setWithPersist).toHaveBeenCalledWith(
-        expect.stringContaining(eventId),
+      expect(DynamoDBRepository.writeEventConfig).toHaveBeenCalledWith(
+        eventId,
         expect.objectContaining({
           itemConfiguration: {
             numberOfItems: 30,
             excludedItemIds: []
           }
-        }),
-        'config',
-        eventId
+        })
       );
     });
 
@@ -931,8 +1001,7 @@ describe('EventService.getEvent', () => {
         name: 'Test Event',
         administrators: { [requesterEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
       };
-      cacheService.ensureEventConfigLoaded.mockResolvedValue(mockEvent);
-      cacheService.setWithPersist.mockResolvedValue(true);
+      DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
       const result = await eventService.updateItemConfiguration(
         eventId,
@@ -944,16 +1013,14 @@ describe('EventService.getEvent', () => {
         numberOfItems: 20,
         excludedItemIds: [5, 10, 15]
       });
-      expect(cacheService.setWithPersist).toHaveBeenCalledWith(
-        expect.stringContaining(eventId),
+      expect(DynamoDBRepository.writeEventConfig).toHaveBeenCalledWith(
+        eventId,
         expect.objectContaining({
           itemConfiguration: {
             numberOfItems: 20,
             excludedItemIds: [5, 10, 15]
           }
-        }),
-        'config',
-        eventId
+        })
       );
     });
 
@@ -967,8 +1034,7 @@ describe('EventService.getEvent', () => {
         },
         administrators: { [requesterEmail]: { assignedAt: '2025-01-27T10:00:00.000Z', owner: true } }
       };
-      cacheService.ensureEventConfigLoaded.mockResolvedValue(mockEvent);
-      cacheService.setWithPersist.mockResolvedValue(true);
+      DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
       const result = await eventService.updateItemConfiguration(
         eventId,
@@ -981,16 +1047,14 @@ describe('EventService.getEvent', () => {
         excludedItemIds: [5, 10],
         warning: 'Item IDs 15, 25 were removed because they are outside the valid range (1-12)'
       });
-      expect(cacheService.setWithPersist).toHaveBeenCalledWith(
-        expect.stringContaining(eventId),
+      expect(DynamoDBRepository.writeEventConfig).toHaveBeenCalledWith(
+        eventId,
         expect.objectContaining({
           itemConfiguration: {
             numberOfItems: 12,
             excludedItemIds: [5, 10]
           }
-        }),
-        'config',
-        eventId
+        })
       );
     });
   });

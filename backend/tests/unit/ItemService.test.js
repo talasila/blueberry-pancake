@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import itemService from '../../src/services/ItemService.js';
 import dataRepository from '../../src/data/FileDataRepository.js';
 import eventService from '../../src/services/EventService.js';
+import { validateEventId } from '../../src/utils/validators.js';
 import cacheService from '../../src/cache/CacheService.js';
 import loggerService from '../../src/logging/Logger.js';
 
@@ -12,9 +13,12 @@ vi.mock('../../src/data/FileDataRepository.js', () => ({
   }
 }));
 
+vi.mock('../../src/utils/validators.js', () => ({
+  validateEventId: vi.fn()
+}));
+
 vi.mock('../../src/services/EventService.js', () => ({
   default: {
-    validateEventId: vi.fn(),
     getEvent: vi.fn(),
     isAdministrator: vi.fn()
   }
@@ -337,7 +341,7 @@ describe('ItemService', () => {
   describe('registerItem', () => {
     beforeEach(() => {
       vi.clearAllMocks();
-      eventService.validateEventId.mockReturnValue({ valid: true });
+      validateEventId.mockReturnValue({ valid: true });
     });
 
     it('should register item successfully', async () => {
@@ -387,7 +391,7 @@ describe('ItemService', () => {
     });
 
     it('should throw error for invalid event ID', async () => {
-      eventService.validateEventId.mockReturnValue({ valid: false, error: 'Invalid event ID' });
+      validateEventId.mockReturnValue({ valid: false, error: 'Invalid event ID' });
 
       await expect(
         itemService.registerItem('invalid', { name: 'Test' }, 'user@example.com')
@@ -496,7 +500,7 @@ describe('ItemService', () => {
   describe('getItems', () => {
     beforeEach(() => {
       vi.clearAllMocks();
-      eventService.validateEventId.mockReturnValue({ valid: true });
+      validateEventId.mockReturnValue({ valid: true });
     });
 
     it('should return all items for administrators', async () => {
@@ -550,7 +554,7 @@ describe('ItemService', () => {
     });
 
     it('should throw error for invalid event ID', async () => {
-      eventService.validateEventId.mockReturnValue({ valid: false, error: 'Invalid event ID' });
+      validateEventId.mockReturnValue({ valid: false, error: 'Invalid event ID' });
 
       await expect(
         itemService.getItems('invalid', 'user@example.com', false)
@@ -574,7 +578,7 @@ describe('ItemService', () => {
   describe('assignItemId', () => {
     beforeEach(() => {
       vi.clearAllMocks();
-      eventService.validateEventId.mockReturnValue({ valid: true });
+      validateEventId.mockReturnValue({ valid: true });
     });
 
     it('should assign item ID successfully', async () => {
@@ -694,7 +698,7 @@ describe('ItemService', () => {
   describe('updateItem', () => {
     beforeEach(() => {
       vi.clearAllMocks();
-      eventService.validateEventId.mockReturnValue({ valid: true });
+      validateEventId.mockReturnValue({ valid: true });
     });
 
     it('should update item successfully', async () => {
@@ -758,7 +762,7 @@ describe('ItemService', () => {
   describe('deleteItem', () => {
     beforeEach(() => {
       vi.clearAllMocks();
-      eventService.validateEventId.mockReturnValue({ valid: true });
+      validateEventId.mockReturnValue({ valid: true });
     });
 
     it('should delete item successfully', async () => {
@@ -821,7 +825,7 @@ describe('ItemService', () => {
   describe('getItemByItemId', () => {
     beforeEach(() => {
       vi.clearAllMocks();
-      eventService.validateEventId.mockReturnValue({ valid: true });
+      validateEventId.mockReturnValue({ valid: true });
     });
 
     it('should get item by assigned itemId successfully', async () => {

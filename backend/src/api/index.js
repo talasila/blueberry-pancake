@@ -6,6 +6,11 @@ import requireAuth from '../middleware/requireAuth.js';
 
 const router = Router();
 
+router.param('eventId', (req, res, next, id) => {
+  req.params.eventId = id.trim().toUpperCase();
+  next();
+});
+
 // Public routes (no authentication required)
 router.use('/health', healthRouter);
 router.use('/auth', authRouter);

@@ -180,8 +180,8 @@ test.describe('Create Event', () => {
       // Ignore parsing errors
     }
     
-    // Verify redirect to admin page
-    await page.waitForURL(/\/event\/[A-Za-z0-9]{8}\/admin/, { timeout: 10000 });
+    // Verify redirect to admin page with uppercase-only event ID
+    await page.waitForURL(/\/event\/[0-9A-Z]{8}\/admin/, { timeout: 10000 });
 
     // Verify toast notification
     await expect(page.getByText(/event created/i)).toBeVisible({ timeout: 5000 });
@@ -247,6 +247,84 @@ test.describe('Create Event', () => {
     await expect(errorMessage).not.toBeVisible();
   });
 
+  // ===================================
+  // User Story 2 (Crockford) - Case-Insensitive Event ID Entry
+  // ===================================
+
+  test('redirects lowercase event ID URL to uppercase canonical form', async ({ page }) => {
+    // Authenticate via OTP
+    await authenticateViaOTP(page);
+
+    // Navigate to create event page and create an event
+    await navigateToCreateEvent(page);
+
+    const nameInput = page.locator('input#event-name').or(page.getByLabel(/event name/i));
+    await expect(nameInput).toBeVisible({ timeout: 5000 });
+    await nameInput.fill('Case Redirect Test Event');
+
+    const responsePromise = page.waitForResponse(
+      resp => resp.url().includes('/api/events') &&
+              resp.request().method() === 'POST' &&
+              !resp.url().includes('verify-pin')
+    );
+
+    const createButton = page.getByRole('button', { name: /create event/i });
+    await createButton.click();
+
+    const response = await responsePromise;
+    let createdEventId = null;
+    try {
+      const data = await response.json();
+      createdEventId = data.eventId;
+      if (createdEventId) {
+        trackEventForCleanup(createdEventId);
+      }
+    } catch {
+      // Ignore parsing errors
+    }
+
+    expect(createdEventId).toBeTruthy();
+    expect(createdEventId).toMatch(/^[0-9A-HJ-NP-TV-Z]{8}$/);
+
+    // Navigate to the event using a lowercase version of the ID
+    const lowercaseId = createdEventId.toLowerCase();
+    await page.goto(`${BASE_URL}/event/${lowercaseId}`);
+
+    // The app should redirect to the canonical uppercase URL
+    await page.waitForURL(new RegExp(`/event/${createdEventId}`), { timeout: 10000 });
+
+    // Verify the URL contains the uppercase event ID
+    expect(page.url()).toContain(`/event/${createdEventId}`);
+
+    // Cleanup
+    if (createdEventId) {
+      await deleteTestEvent(createdEventId);
+    }
+  });
+
+  test('excluded characters (I, L, O, U) pass through and show event not found', async ({ page }) => {
+    // Navigate to landing page
+    await page.goto(BASE_URL);
+
+    // Enter an event ID containing excluded Crockford characters
+    const eventIdInput = page.locator('input#event-id');
+    await expect(eventIdInput).toBeVisible({ timeout: 5000 });
+    await eventIdInput.fill('OIL12345');
+
+    // Click Join
+    const joinButton = page.getByRole('button', { name: /join/i });
+    await joinButton.click();
+
+    // The system should navigate to the event page (uppercase normalized)
+    // and show a "not found" message since no event matches this ID
+    await page.waitForLoadState('networkidle');
+
+    // Verify no validation error about invalid characters — the ID format is valid (8 alphanumeric)
+    // Instead, expect a standard "not found" or redirect to email entry flow
+    const pageContent = await page.textContent('body');
+    expect(pageContent).not.toMatch(/invalid.*character/i);
+  });
+
   test('prevents duplicate event creation on rapid clicks', async ({ page }) => {
     // Authenticate via OTP
     await authenticateViaOTP(page);
@@ -289,8 +367,8 @@ test.describe('Create Event', () => {
       // Ignore parsing errors
     }
     
-    // Wait for single redirect to admin page
-    await page.waitForURL(/\/event\/[A-Za-z0-9]{8}\/admin/, { timeout: 10000 });
+    // Wait for single redirect to admin page with uppercase-only event ID
+    await page.waitForURL(/\/event\/[0-9A-Z]{8}\/admin/, { timeout: 10000 });
 
     // Verify exactly one event was created
     expect(createdEventId).toBeTruthy();

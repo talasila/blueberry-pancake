@@ -4,18 +4,29 @@
  */
 
 /**
- * Validate event ID format (8 alphanumeric characters)
+ * Validate event ID format (8 alphanumeric characters).
+ * Trims whitespace and normalizes to uppercase before validation.
  * @param {string} eventId - Event identifier to validate
- * @returns {{valid: boolean, error?: string}} Validation result
+ * @returns {{valid: boolean, eventId?: string, error?: string}} Validation result with normalized ID
  */
 export function validateEventId(eventId) {
-  if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+  if (!eventId || typeof eventId !== 'string') {
     return {
       valid: false,
       error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
     };
   }
-  return { valid: true };
+
+  const normalized = eventId.trim().toUpperCase();
+
+  if (!/^[A-Za-z0-9]{8}$/i.test(normalized)) {
+    return {
+      valid: false,
+      error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'
+    };
+  }
+
+  return { valid: true, eventId: normalized };
 }
 
 /**

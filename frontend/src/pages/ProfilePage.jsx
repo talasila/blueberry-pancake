@@ -8,7 +8,7 @@ import { useState, useEffect } from 'react';
 import apiClient from '@/services/apiClient';
 import { useEventContext } from '@/contexts/EventContext';
 import { useItemTerminology } from '@/utils/itemTerminology';
-import { clearAllBookmarks } from '@/utils/bookmarkStorage';
+import { normalizeEventId } from '@/utils/eventIdValidation';
 import itemService from '@/services/itemService';
 import Message from '@/components/Message';
 
@@ -24,10 +24,7 @@ import Message from '@/components/Message';
  */
 function ProfilePage() {
   const { eventId: eventIdParam } = useParams();
-  // Ensure eventId is a valid string and matches expected format
-  const eventId = eventIdParam && typeof eventIdParam === 'string' && /^[A-Za-z0-9]{8}$/.test(eventIdParam.trim()) 
-    ? eventIdParam.trim() 
-    : null;
+  const eventId = normalizeEventId(eventIdParam);
   const navigate = useNavigate();
   const { isAdmin, event } = useEventContext();
   const { singular, singularLower, plural, pluralLower } = useItemTerminology(event);
@@ -107,16 +104,7 @@ function ProfilePage() {
   // Load user's items
   useEffect(() => {
     const loadItems = async () => {
-      // Validate eventId format (must be exactly 8 alphanumeric characters)
-      if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-        // Don't show error if eventId is just not available yet (undefined/null)
-        // Only show error if eventId exists but is invalid format
-        if (eventId && eventId.trim() !== '' && !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-          setItemsError(`Invalid event ID format. Received: "${eventId}" (length: ${eventId?.length || 0})`);
-          console.error('Invalid eventId in loadItems:', { eventId, type: typeof eventId, length: eventId?.length });
-        } else {
-          setItemsError('');
-        }
+      if (!eventId) {
         setItemsLoading(false);
         return;
       }
@@ -130,23 +118,7 @@ function ProfilePage() {
       setItemsError('');
 
       try {
-        // Double-check eventId before making API call
-        const validatedEventId = eventId.trim();
-        if (!/^[A-Za-z0-9]{8}$/.test(validatedEventId)) {
-          console.error('EventId validation failed before API call:', { 
-            eventId, 
-            validatedEventId, 
-            type: typeof eventId, 
-            length: eventId?.length,
-            testResult: /^[A-Za-z0-9]{8}$/.test(validatedEventId)
-          });
-          setItemsError(`Invalid event ID format. Please check the URL.`);
-          setItemsLoading(false);
-          return;
-        }
-        
-        // Always fetch only user's own items on profile page, even for admins
-        const userItems = await itemService.getItems(validatedEventId, true);
+        const userItems = await itemService.getItems(eventId, true);
         setItems(userItems || []);
       } catch (err) {
         // Log all errors for debugging, but handle validation errors specially
@@ -238,10 +210,8 @@ function ProfilePage() {
       return;
     }
 
-    // Validate eventId format before making API call
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      setItemsError(`Invalid event ID format. Expected 8 alphanumeric characters, got: ${eventId || 'undefined'}`);
-      console.error('Invalid eventId in handleItemSubmit:', eventId, typeof eventId);
+    if (!eventId) {
+      setItemsError('Invalid event ID. Please check the URL.');
       return;
     }
 
@@ -332,8 +302,7 @@ function ProfilePage() {
       return;
     }
 
-    // Validate eventId format before making API call
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+    if (!eventId) {
       setItemsError('Invalid event ID. Please refresh the page and try again.');
       return;
     }
@@ -369,8 +338,7 @@ function ProfilePage() {
       return;
     }
 
-    // Validate eventId format before making API call
-    if (!eventId || typeof eventId !== 'string' || !/^[A-Za-z0-9]{8}$/.test(eventId)) {
+    if (!eventId) {
       setItemsError('Invalid event ID. Please refresh the page and try again.');
       return;
     }
@@ -460,7 +428,7 @@ function ProfilePage() {
           </Card>
 
           {/* My Items Section - only show if eventId is valid */}
-          {eventId && /^[A-Za-z0-9]{8}$/.test(eventId) && (
+          {eventId && (
           <Card>
             <CardContent className="pt-6">
               <div className="flex items-center justify-between mb-4">

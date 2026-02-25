@@ -3,6 +3,7 @@ import dashboardService from '../services/DashboardService.js';
 import eventService from '../services/EventService.js';
 import requireAuth from '../middleware/requireAuth.js';
 import loggerService from '../logging/Logger.js';
+import { validateEventId } from '../utils/validators.js';
 
 const router = Router({ mergeParams: true });
 
@@ -22,7 +23,7 @@ router.get('/', requireAuth, async (req, res) => {
     const { eventId } = req.params;
 
     // Validate event ID
-    const idValidation = eventService.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       return res.status(400).json({
         error: idValidation.error

@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Header from './components/Header.jsx';
 import LandingPage from './pages/LandingPage.jsx';
 import AuthPage from './pages/AuthPage.jsx';
@@ -34,6 +34,15 @@ function AppLayout() {
   // Extract eventId from pathname for event routes
   const eventIdMatch = location.pathname.match(/^\/event\/([A-Za-z0-9]{8})/);
   const eventId = eventIdMatch ? eventIdMatch[1] : null;
+
+  // Redirect non-uppercase event IDs to canonical uppercase URL
+  if (eventId && eventId !== eventId.toUpperCase()) {
+    const canonicalPath = location.pathname.replace(
+      `/event/${eventId}`,
+      `/event/${eventId.toUpperCase()}`
+    );
+    return <Navigate to={canonicalPath + location.search + location.hash} replace />;
+  }
   
   // Set viewport height for mobile browsers (accounts for browser UI)
   const [viewportHeight, setViewportHeight] = useState(window.innerHeight);

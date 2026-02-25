@@ -42,7 +42,7 @@ function LandingPage() {
     e.preventDefault();
     // Only navigate if eventId has a value
     if (eventId && eventId.length > 0) {
-      navigate(`/event/${eventId}`);
+      navigate(`/event/${eventId.trim().toUpperCase()}`);
     }
   };
 

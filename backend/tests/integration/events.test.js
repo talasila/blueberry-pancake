@@ -47,7 +47,7 @@ vi.mock('../../src/config/configLoader.js', () => {
 import app from '../../src/app.js';
 import eventService from '../../src/services/EventService.js';
 import pinService from '../../src/services/PINService.js';
-import { createTestEvent, getTestDataRepository } from './setup.js';
+import './setup.js';
 
 const request = supertest(app);
 
@@ -108,7 +108,7 @@ describe('GET /api/events/:eventId', () => {
   describe('Authentication', () => {
     it('should return 401 when no token is provided', async () => {
       const response = await request
-        .get('/api/events/A5ohYrHe')
+        .get('/api/events/A5B1CD2E')
         .expect(401);
 
       expect(response.body).toHaveProperty('error');
@@ -117,7 +117,7 @@ describe('GET /api/events/:eventId', () => {
 
     it('should return 401 when invalid token is provided', async () => {
       const response = await request
-        .get('/api/events/A5ohYrHe')
+        .get('/api/events/A5B1CD2E')
         .set('Authorization', 'Bearer invalid-token')
         .expect(401);
 
@@ -128,7 +128,7 @@ describe('GET /api/events/:eventId', () => {
     it('should accept valid JWT token', async () => {
       const token = generateTestToken('user@example.com');
       const mockEvent = {
-        eventId: 'A5ohYrHe',
+        eventId: 'A5B1CD2E',
         name: 'Test Event',
         state: 'started',
         typeOfItem: 'wine',
@@ -140,12 +140,12 @@ describe('GET /api/events/:eventId', () => {
       eventService.getEvent.mockResolvedValue(mockEvent);
 
       const response = await request
-        .get('/api/events/A5ohYrHe')
+        .get('/api/events/A5B1CD2E')
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
       expect(response.body).toEqual(mockEvent);
-      expect(eventService.getEvent).toHaveBeenCalledWith('A5ohYrHe');
+      expect(eventService.getEvent).toHaveBeenCalledWith('A5B1CD2E');
     });
   });
 
@@ -192,7 +192,7 @@ describe('GET /api/events/:eventId', () => {
     it('should return 200 with event data for valid event ID', async () => {
       const token = generateTestToken('user@example.com');
       const mockEvent = {
-        eventId: 'A5ohYrHe',
+        eventId: 'A5B1CD2E',
         name: 'Test Event',
         state: 'started',
         typeOfItem: 'wine',
@@ -204,27 +204,27 @@ describe('GET /api/events/:eventId', () => {
       eventService.getEvent.mockResolvedValue(mockEvent);
 
       const response = await request
-        .get('/api/events/A5ohYrHe')
+        .get('/api/events/A5B1CD2E')
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
       expect(response.body).toEqual(mockEvent);
-      expect(eventService.getEvent).toHaveBeenCalledWith('A5ohYrHe');
+      expect(eventService.getEvent).toHaveBeenCalledWith('A5B1CD2E');
     });
 
     it('should return 404 for non-existent event', async () => {
       const token = generateTestToken('user@example.com');
-      const error = new Error('Event not found: NONEXIST');
+      const error = new Error('Event not found: N0NEX1ST');
       eventService.getEvent.mockRejectedValue(error);
 
       const response = await request
-        .get('/api/events/NONEXIST')
+        .get('/api/events/N0NEX1ST')
         .set('Authorization', `Bearer ${token}`)
         .expect(404);
 
       expect(response.body).toHaveProperty('error');
       expect(response.body.error).toBe('Event not found');
-      expect(eventService.getEvent).toHaveBeenCalledWith('NONEXIST');
+      expect(eventService.getEvent).toHaveBeenCalledWith('N0NEX1ST');
     });
 
     it('should return 500 for server errors', async () => {
@@ -247,7 +247,7 @@ describe('GET /api/events/:eventId', () => {
       eventService.getEvent.mockRejectedValue(error);
 
       const response = await request
-        .get('/api/events/INVALID')
+        .get('/api/events/VAL1D01')
         .set('Authorization', `Bearer ${token}`)
         .expect(400);
 
@@ -260,7 +260,7 @@ describe('GET /api/events/:eventId', () => {
     it('should return event in created state', async () => {
       const token = generateTestToken('user@example.com');
       const mockEvent = {
-        eventId: 'A5ohYrHe',
+        eventId: 'A5B1CD2E',
         name: 'Test Event',
         state: 'created',
         typeOfItem: 'wine',
@@ -272,7 +272,7 @@ describe('GET /api/events/:eventId', () => {
       eventService.getEvent.mockResolvedValue(mockEvent);
 
       const response = await request
-        .get('/api/events/A5ohYrHe')
+        .get('/api/events/A5B1CD2E')
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
@@ -282,7 +282,7 @@ describe('GET /api/events/:eventId', () => {
     it('should return event in started state', async () => {
       const token = generateTestToken('user@example.com');
       const mockEvent = {
-        eventId: 'A5ohYrHe',
+        eventId: 'A5B1CD2E',
         name: 'Test Event',
         state: 'started',
         typeOfItem: 'wine',
@@ -294,7 +294,7 @@ describe('GET /api/events/:eventId', () => {
       eventService.getEvent.mockResolvedValue(mockEvent);
 
       const response = await request
-        .get('/api/events/A5ohYrHe')
+        .get('/api/events/A5B1CD2E')
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
@@ -304,7 +304,7 @@ describe('GET /api/events/:eventId', () => {
     it('should return event in paused state', async () => {
       const token = generateTestToken('user@example.com');
       const mockEvent = {
-        eventId: 'A5ohYrHe',
+        eventId: 'A5B1CD2E',
         name: 'Test Event',
         state: 'paused',
         typeOfItem: 'wine',
@@ -316,7 +316,7 @@ describe('GET /api/events/:eventId', () => {
       eventService.getEvent.mockResolvedValue(mockEvent);
 
       const response = await request
-        .get('/api/events/A5ohYrHe')
+        .get('/api/events/A5B1CD2E')
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
@@ -326,7 +326,7 @@ describe('GET /api/events/:eventId', () => {
     it('should return event in finished state', async () => {
       const token = generateTestToken('user@example.com');
       const mockEvent = {
-        eventId: 'A5ohYrHe',
+        eventId: 'A5B1CD2E',
         name: 'Test Event',
         state: 'finished',
         typeOfItem: 'wine',
@@ -338,7 +338,7 @@ describe('GET /api/events/:eventId', () => {
       eventService.getEvent.mockResolvedValue(mockEvent);
 
       const response = await request
-        .get('/api/events/A5ohYrHe')
+        .get('/api/events/A5B1CD2E')
         .set('Authorization', `Bearer ${token}`)
         .expect(200);
 
@@ -354,7 +354,7 @@ describe('GET /api/events/:eventId', () => {
     });
 
     it('should return 200 with sessionId for valid PIN', async () => {
-      const eventId = 'A5ohYrHe';
+      const eventId = 'A5B1CD2E';
       const pin = '123456';
       const email = 'user@example.com';
       const sessionId = '550e8400-e29b-41d4-a716-446655440000';
@@ -383,7 +383,7 @@ describe('GET /api/events/:eventId', () => {
     });
 
     it('should return 401 for invalid PIN', async () => {
-      const eventId = 'A5ohYrHe';
+      const eventId = 'A5B1CD2E';
       const pin = '999999';
       const email = 'user@example.com';
       const mockEvent = {
@@ -409,7 +409,7 @@ describe('GET /api/events/:eventId', () => {
     });
 
     it('should return 400 for invalid PIN format', async () => {
-      const eventId = 'A5ohYrHe';
+      const eventId = 'A5B1CD2E';
       const pin = '12345'; // Too short
       const email = 'user@example.com';
 
@@ -422,7 +422,7 @@ describe('GET /api/events/:eventId', () => {
     });
 
     it('should return 404 for non-existent event', async () => {
-      const eventId = 'NONEXIST';
+      const eventId = 'N0NEX1ST';
       const pin = '123456';
       const email = 'user@example.com';
 
@@ -437,7 +437,7 @@ describe('GET /api/events/:eventId', () => {
     });
 
     it('should return 429 for rate limit exceeded', async () => {
-      const eventId = 'A5ohYrHe';
+      const eventId = 'A5B1CD2E';
       const pin = '123456';
       const email = 'user@example.com';
       const mockEvent = {
@@ -464,7 +464,7 @@ describe('GET /api/events/:eventId', () => {
     });
 
     it('should return 400 when PIN is missing', async () => {
-      const eventId = 'A5ohYrHe';
+      const eventId = 'A5B1CD2E';
 
       const response = await request
         .post(`/api/events/${eventId}/verify-pin`)
@@ -475,7 +475,7 @@ describe('GET /api/events/:eventId', () => {
     });
 
     it('should return 400 when email is missing', async () => {
-      const eventId = 'A5ohYrHe';
+      const eventId = 'A5B1CD2E';
       const pin = '123456';
 
       const response = await request
@@ -487,7 +487,7 @@ describe('GET /api/events/:eventId', () => {
     });
 
     it('should return 401 when administrator tries to login via PIN', async () => {
-      const eventId = 'A5ohYrHe';
+      const eventId = 'A5B1CD2E';
       const pin = '123456';
       const adminEmail = 'admin@example.com';
       const mockEvent = {
@@ -523,7 +523,7 @@ describe('GET /api/events/:eventId', () => {
     });
 
     it('should allow non-admin users to login via PIN', async () => {
-      const eventId = 'A5ohYrHe';
+      const eventId = 'A5B1CD2E';
       const pin = '123456';
       const userEmail = 'user@example.com';
       const sessionId = '550e8400-e29b-41d4-a716-446655440000';
@@ -568,7 +568,7 @@ describe('GET /api/events/:eventId', () => {
     });
 
     it('should return 200 with event data when valid PIN session is provided', async () => {
-      const eventId = 'A5ohYrHe';
+      const eventId = 'A5B1CD2E';
       const sessionId = '550e8400-e29b-41d4-a716-446655440000';
       const mockEvent = {
         eventId,
@@ -596,7 +596,7 @@ describe('GET /api/events/:eventId', () => {
     });
 
     it('should return 401 when PIN session is invalid', async () => {
-      const eventId = 'A5ohYrHe';
+      const eventId = 'A5B1CD2E';
       const sessionId = 'invalid-session';
 
       pinService.checkPINSession.mockReturnValue(false);
@@ -610,7 +610,7 @@ describe('GET /api/events/:eventId', () => {
     });
 
     it('should return 401 when PIN session is missing', async () => {
-      const eventId = 'A5ohYrHe';
+      const eventId = 'A5B1CD2E';
 
       const response = await request
         .get(`/api/events/${eventId}`)
@@ -626,7 +626,7 @@ describe('GET /api/events/:eventId', () => {
     });
 
     it('should return 200 with new PIN for authorized administrator', async () => {
-      const eventId = 'A5ohYrHe';
+      const eventId = 'A5B1CD2E';
       const token = generateTestToken('admin@example.com');
       const mockEvent = {
         eventId,
@@ -660,7 +660,7 @@ describe('GET /api/events/:eventId', () => {
     });
 
     it('should return 401 for unauthorized user', async () => {
-      const eventId = 'A5ohYrHe';
+      const eventId = 'A5B1CD2E';
       const token = generateTestToken('other@example.com');
       const mockEvent = {
         eventId,
@@ -684,7 +684,7 @@ describe('GET /api/events/:eventId', () => {
     });
 
     it('should return 401 when no token is provided', async () => {
-      const eventId = 'A5ohYrHe';
+      const eventId = 'A5B1CD2E';
 
       const response = await request
         .post(`/api/events/${eventId}/regenerate-pin`)
@@ -695,10 +695,10 @@ describe('GET /api/events/:eventId', () => {
     });
 
     it('should return 404 for non-existent event', async () => {
-      const eventId = 'NONEXIST';
+      const eventId = 'N0NEX1ST';
       const token = generateTestToken('admin@example.com');
 
-      eventService.regeneratePIN.mockRejectedValue(new Error('Event not found: NONEXIST'));
+      eventService.regeneratePIN.mockRejectedValue(new Error('Event not found: N0NEX1ST'));
 
       const response = await request
         .post(`/api/events/${eventId}/regenerate-pin`)
@@ -712,7 +712,7 @@ describe('GET /api/events/:eventId', () => {
       const token = generateTestToken('admin@example.com');
 
       const response = await request
-        .post('/api/events/INVALID/regenerate-pin')
+        .post('/api/events/VAL1D01/regenerate-pin')
         .set('Authorization', `Bearer ${token}`)
         .expect(400);
 
@@ -763,6 +763,8 @@ describe('GET /api/events/:eventId', () => {
         .send(eventData)
         .expect(201);
 
+      expect(response.body).toHaveProperty('eventId');
+      expect(response.body.eventId).toMatch(/^[0-9A-HJ-NP-TV-Z]{8}$/);
       expect(response.body).toHaveProperty('administrators');
       expect(response.body.administrators).toBeDefined();
       expect(response.body.administrators['admin@example.com']).toBeDefined();

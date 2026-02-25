@@ -3,9 +3,10 @@ import dataRepository from '../data/DynamoDBRepository.js';
 import loggerService from '../logging/Logger.js';
 import pinService from './PINService.js';
 import { normalizeEmail as normalizeEmailUtil, isValidEmail as isValidEmailUtil } from '../utils/emailUtils.js';
+import { validateEventId } from '../utils/validators.js';
 
-// Use alphanumeric alphabet (A-Z, a-z, 0-9) for 8-character IDs
-const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 8);
+const CROCKFORD_BASE32 = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const nanoid = customAlphabet(CROCKFORD_BASE32, 8);
 
 /**
  * Default rating presets for different max rating values
@@ -240,24 +241,6 @@ class EventService {
   }
 
   /**
-   * Validate event ID format
-   * @param {string} eventId - Event ID to validate
-   * @returns {{valid: boolean, error?: string}} Validation result
-   */
-  validateEventId(eventId) {
-    if (!eventId || typeof eventId !== 'string') {
-      return { valid: false, error: 'Event ID is required' };
-    }
-
-    // Event ID must be exactly 8 alphanumeric characters
-    if (!/^[A-Za-z0-9]{8}$/.test(eventId)) {
-      return { valid: false, error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.' };
-    }
-
-    return { valid: true };
-  }
-
-  /**
    * Get event by ID
    * Reads directly from DynamoDB
    * @param {string} eventId - Event identifier
@@ -265,7 +248,7 @@ class EventService {
    */
   async getEvent(eventId) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -318,7 +301,7 @@ class EventService {
    */
   async updateEvent(eventId, event) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -347,7 +330,7 @@ class EventService {
    */
   async transitionState(eventId, newState, currentState, administratorEmail) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -415,7 +398,7 @@ class EventService {
    */
   async registerUser(eventId, email) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -599,7 +582,7 @@ class EventService {
    */
   async getUserBookmarks(eventId, email) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -644,7 +627,7 @@ class EventService {
    */
   async saveUserBookmarks(eventId, email, bookmarks) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -705,7 +688,7 @@ class EventService {
    */
   async deleteAllBookmarks(eventId) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -735,7 +718,7 @@ class EventService {
    */
   async deleteAllRatingsAndBookmarks(eventId, requesterEmail) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -786,7 +769,7 @@ class EventService {
    */
   async deleteAllUsers(eventId, requesterEmail) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -925,7 +908,7 @@ class EventService {
    */
   async deleteUser(eventId, userEmailToDelete, requesterEmail) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -1143,7 +1126,7 @@ class EventService {
    */
   async getAdministrators(eventId, requesterEmail) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -1173,7 +1156,7 @@ class EventService {
    */
   async addAdministrator(eventId, newAdminEmail, requesterEmail) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -1234,7 +1217,7 @@ class EventService {
    */
   async deleteAdministrator(eventId, emailToDelete, requesterEmail) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -1307,7 +1290,7 @@ class EventService {
    */
   async regeneratePIN(eventId, administratorEmail) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -1374,7 +1357,7 @@ class EventService {
    */
   async getItemConfiguration(eventId) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -1404,7 +1387,7 @@ class EventService {
    */
   async getRegisteredItemsCount(eventId) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -1429,7 +1412,7 @@ class EventService {
    */
   async updateItemConfiguration(eventId, config, requesterEmail) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -1673,7 +1656,7 @@ class EventService {
    */
   async getRatingConfiguration(eventId) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -1834,7 +1817,7 @@ class EventService {
    */
   async updateRatingConfiguration(eventId, config, requesterEmail, expectedUpdatedAt) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }
@@ -2013,7 +1996,7 @@ class EventService {
    */
   async deleteEvent(eventId, requesterEmail) {
     // Validate event ID format
-    const idValidation = this.validateEventId(eventId);
+    const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
       throw new Error(idValidation.error);
     }

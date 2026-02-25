@@ -2,6 +2,7 @@ import { customAlphabet } from 'nanoid';
 import eventService from './EventService.js';
 import loggerService from '../logging/Logger.js';
 import dataRepository from '../data/DynamoDBRepository.js';
+import { validateEventId } from '../utils/validators.js';
 
 // Use alphanumeric alphabet for 12-character item IDs (unique within event)
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 12);
@@ -184,7 +185,7 @@ class ItemService {
    */
   async registerItem(eventId, itemData, ownerEmail) {
     // Validate event ID format
-    const eventIdValidation = eventService.validateEventId(eventId);
+    const eventIdValidation = validateEventId(eventId);
     if (!eventIdValidation.valid) {
       throw new Error(eventIdValidation.error);
     }
@@ -267,7 +268,7 @@ class ItemService {
    */
   async getItems(eventId, userEmail, isAdministrator = false) {
     // Validate event ID format
-    const eventIdValidation = eventService.validateEventId(eventId);
+    const eventIdValidation = validateEventId(eventId);
     if (!eventIdValidation.valid) {
       throw new Error(eventIdValidation.error);
     }
@@ -310,7 +311,7 @@ class ItemService {
    */
   async assignItemId(eventId, itemId, itemIdToAssign, adminEmail) {
     // Validate event ID format
-    const eventIdValidation = eventService.validateEventId(eventId);
+    const eventIdValidation = validateEventId(eventId);
     if (!eventIdValidation.valid) {
       throw new Error(eventIdValidation.error);
     }
@@ -408,7 +409,7 @@ class ItemService {
    */
   async getItemByItemId(eventId, itemId, isAdmin = false) {
     // Validate event ID format
-    const eventIdValidation = eventService.validateEventId(eventId);
+    const eventIdValidation = validateEventId(eventId);
     if (!eventIdValidation.valid) {
       throw new Error(eventIdValidation.error);
     }
@@ -445,7 +446,7 @@ class ItemService {
    */
   async updateItem(eventId, itemId, updates, ownerEmail) {
     // Validate event ID format
-    const eventIdValidation = eventService.validateEventId(eventId);
+    const eventIdValidation = validateEventId(eventId);
     if (!eventIdValidation.valid) {
       throw new Error(eventIdValidation.error);
     }
@@ -529,7 +530,7 @@ class ItemService {
    */
   async deleteItem(eventId, itemId, ownerEmail) {
     // Validate event ID format
-    const eventIdValidation = eventService.validateEventId(eventId);
+    const eventIdValidation = validateEventId(eventId);
     if (!eventIdValidation.valid) {
       throw new Error(eventIdValidation.error);
     }
