@@ -1,4 +1,4 @@
-import { Menu, User, BarChart3, Settings, LogOut, ArrowLeft } from 'lucide-react';
+import { Menu, User, BarChart3, Settings, LogOut, ArrowLeft, HelpCircle, BookOpen } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMemo, useState, useEffect } from 'react';
 import Logo from './Logo.jsx';
@@ -21,7 +21,7 @@ import { StateIcon } from '@/utils/eventState.jsx';
  * 
  * @returns {JSX.Element} The header component
  */
-function Header() {
+function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { event, eventId, isAdmin } = useEventContext();
@@ -192,6 +192,24 @@ function Header() {
               </div>
             )}
           </div>
+          {/* Guide icon — visible to all users, independent of auth state */}
+          {guideVariant && (
+            <button
+              data-testid="guide-icon"
+              onClick={onToggleGuide}
+              aria-label={
+                isGuideOpen
+                  ? guideVariant === 'admin' ? 'Close admin guide' : 'Close hosting guide'
+                  : guideVariant === 'admin' ? 'Open admin guide' : 'Open hosting guide'
+              }
+              className="flex-shrink-0 flex h-10 w-10 items-center justify-center rounded-md hover:bg-accent transition-colors touch-manipulation"
+            >
+              {guideVariant === 'admin'
+                ? <BookOpen className="h-5 w-5" aria-hidden="true" />
+                : <HelpCircle className="h-5 w-5" aria-hidden="true" />
+              }
+            </button>
+          )}
           {/* For system routes: show logout icon only (no menu) */}
           {authState && isSystemRoute && (
             <div

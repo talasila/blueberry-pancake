@@ -2,7 +2,7 @@
  * Hosting Guide E2E Tests
  *
  * Tests the "How to Host a Blind Wine Tasting Party" help guide feature.
- * Covers all user stories: FAB visibility, role selection, host path,
+ * Covers all user stories: header icon visibility, role selection, host path,
  * guest path, overview/quick-scan, and cross-cutting concerns.
  */
 
@@ -15,9 +15,9 @@ const BASE_URL = 'http://localhost:3000';
 // ---------------------------------------------------------------------------
 
 async function openGuide(page) {
-  const fab = page.locator('[data-testid="guide-button"]');
-  await expect(fab).toBeVisible({ timeout: 5000 });
-  await fab.click();
+  const icon = page.locator('[data-testid="guide-icon"]');
+  await expect(icon).toBeVisible({ timeout: 5000 });
+  await icon.click();
   await expect(page.locator('[role="dialog"][aria-label="Hosting guide"]')).toBeVisible({ timeout: 3000 });
 }
 
@@ -36,14 +36,14 @@ async function selectRole(page, role) {
 // ---------------------------------------------------------------------------
 
 test.describe('US1: Guide access from any page', () => {
-  test('floating button visible on landing page', async ({ page }) => {
+  test('header icon visible on landing page', async ({ page }) => {
     await page.goto(BASE_URL);
-    await expect(page.locator('[data-testid="guide-button"]')).toBeVisible();
+    await expect(page.locator('[data-testid="guide-icon"]')).toBeVisible();
   });
 
-  test('floating button visible on auth page', async ({ page }) => {
+  test('header icon visible on auth page', async ({ page }) => {
     await page.goto(`${BASE_URL}/auth`);
-    await expect(page.locator('[data-testid="guide-button"]')).toBeVisible();
+    await expect(page.locator('[data-testid="guide-icon"]')).toBeVisible();
   });
 
   test('guide opens on tap and closes on close button', async ({ page }) => {
@@ -52,13 +52,21 @@ test.describe('US1: Guide access from any page', () => {
     await closeGuideViaButton(page);
   });
 
+  test('header icon toggles guide open and closed', async ({ page }) => {
+    await page.goto(BASE_URL);
+    const icon = page.locator('[data-testid="guide-icon"]');
+    await icon.click();
+    await expect(page.locator('[role="dialog"][aria-label="Hosting guide"]')).toBeVisible({ timeout: 3000 });
+    await icon.click();
+    await expect(page.locator('[role="dialog"][aria-label="Hosting guide"]')).toBeHidden({ timeout: 3000 });
+  });
+
   test('guide closes on backdrop click', async ({ page }) => {
     await page.goto(BASE_URL);
     await openGuide(page);
-    // Click the backdrop above the drawer but below the header (header is ~64px)
     const viewport = page.viewportSize();
     await page.mouse.click(viewport.width / 2, 80);
-    await expect(page.locator('[data-testid="guide-button"]')).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('[data-testid="guide-icon"]')).toBeVisible({ timeout: 3000 });
   });
 
   test('guide reopens at role selection after close', async ({ page }) => {
@@ -67,7 +75,6 @@ test.describe('US1: Guide access from any page', () => {
     await selectRole(page, 'host');
     await closeGuideViaButton(page);
     await openGuide(page);
-    // Should see role selection again, not the host path
     await expect(page.getByRole('button', { name: /I'm Hosting/i })).toBeVisible();
   });
 });

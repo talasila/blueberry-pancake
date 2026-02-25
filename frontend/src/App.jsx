@@ -19,10 +19,10 @@ import { EventContextProvider } from './contexts/EventContext.jsx';
 import { PINProvider } from './contexts/PINContext.jsx';
 import { Toaster } from './components/ui/sonner';
 import useEventPolling from '@/hooks/useEventPolling';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import apiClient from './services/apiClient.js';
-import GuideButton from './components/guide/GuideButton';
 import GuideDrawer from './components/guide/GuideDrawer';
+import AdminGuideDrawer from './components/guide/AdminGuideDrawer';
 
 /**
  * AppLayout Component
@@ -69,17 +69,36 @@ function AppLayout() {
   }, []);
   
   const [guideOpen, setGuideOpen] = useState(false);
-  const openGuide = useCallback(() => setGuideOpen(true), []);
   const closeGuide = useCallback(() => setGuideOpen(false), []);
 
-  const isAdminRoute = /^\/event\/[A-Za-z0-9]+\/admin$/.test(location.pathname);
+  const [adminGuideOpen, setAdminGuideOpen] = useState(false);
+  const closeAdminGuide = useCallback(() => setAdminGuideOpen(false), []);
+
+  const isAdminRoute = /^\/event\/[A-Za-z0-9]+\/admin(\/.*)?$/.test(location.pathname);
+  const isSystemRoute = location.pathname.startsWith('/system');
+
+  const guideVariant = useMemo(() => {
+    if (isAdminRoute) return 'admin';
+    if (isSystemRoute) return null;
+    return 'hosting';
+  }, [isAdminRoute, isSystemRoute]);
+
+  const isGuideOpen = guideVariant === 'admin' ? adminGuideOpen : guideOpen;
+
+  const onToggleGuide = useCallback(() => {
+    if (guideVariant === 'admin') {
+      setAdminGuideOpen(prev => !prev);
+    } else if (guideVariant === 'hosting') {
+      setGuideOpen(prev => !prev);
+    }
+  }, [guideVariant]);
 
   const content = (
     <div 
       className="bg-background flex flex-col overflow-hidden"
       style={{ height: `${viewportHeight}px` }}
     >
-      <Header />
+      <Header onToggleGuide={onToggleGuide} guideVariant={guideVariant} isGuideOpen={isGuideOpen} />
       <main className="flex-1 overflow-y-auto pt-16 min-h-0">
         <Routes>
           {/* Public routes - no authentication required */}
@@ -181,8 +200,8 @@ function AppLayout() {
           />
         </Routes>
       </main>
-      {!isAdminRoute && <GuideButton isOpen={guideOpen} onOpen={openGuide} />}
-      {!isAdminRoute && <GuideDrawer isOpen={guideOpen} onClose={closeGuide} />}
+      {!isAdminRoute && !isSystemRoute && <GuideDrawer isOpen={guideOpen} onClose={closeGuide} />}
+      {isAdminRoute && <AdminGuideDrawer isOpen={adminGuideOpen} onClose={closeAdminGuide} />}
     </div>
   );
 

@@ -65,9 +65,9 @@ async function transitionTo(eventId, targetState) {
 }
 
 async function openAdminGuide(page) {
-  const fab = page.locator('[data-testid="admin-guide-button"]');
-  await expect(fab).toBeVisible({ timeout: 5000 });
-  await fab.click();
+  const icon = page.locator('[data-testid="guide-icon"]');
+  await expect(icon).toBeVisible({ timeout: 5000 });
+  await icon.click();
   await expect(page.locator('[role="dialog"][aria-label="Admin guide"]')).toBeVisible({
     timeout: 3000,
   });
@@ -91,21 +91,25 @@ async function navigateToStep(page, stepIndex) {
 // ---------------------------------------------------------------------------
 
 test.describe('US1: State-aware admin guide access', () => {
-  test('admin guide FAB visible on admin page', async ({ page, testEvent }) => {
+  test('admin guide header icon visible on admin page', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     await setupAdmin(page, eventId);
     await navigateToAdmin(page, eventId);
-    await expect(page.locator('[data-testid="admin-guide-button"]')).toBeVisible();
+    await expect(page.locator('[data-testid="guide-icon"]')).toBeVisible();
   });
 
-  test('hosting guide FAB NOT visible on admin page', async ({ page, testEvent }) => {
+  test('header icon toggles admin guide open and closed', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     await setupAdmin(page, eventId);
     await navigateToAdmin(page, eventId);
-    await expect(page.locator('[data-testid="guide-button"]')).toBeHidden();
+    const icon = page.locator('[data-testid="guide-icon"]');
+    await icon.click();
+    await expect(page.locator('[role="dialog"][aria-label="Admin guide"]')).toBeVisible({ timeout: 3000 });
+    await icon.click();
+    await expect(page.locator('[role="dialog"][aria-label="Admin guide"]')).toBeHidden({ timeout: 3000 });
   });
 
-  test('guide opens on FAB tap with content matching "created" state', async ({
+  test('guide opens on header icon tap with content matching "created" state', async ({
     page,
     testEvent,
   }) => {
@@ -143,13 +147,13 @@ test.describe('US1: State-aware admin guide access', () => {
     await expect(page.getByRole('heading', { name: "It's a Wrap!" })).toBeVisible();
   });
 
-  test('guide closes on close button and FAB reappears', async ({ page, testEvent }) => {
+  test('guide closes on close button and header icon remains visible', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     await setupAdmin(page, eventId);
     await navigateToAdmin(page, eventId);
     await openAdminGuide(page);
     await closeGuideViaButton(page);
-    await expect(page.locator('[data-testid="admin-guide-button"]')).toBeVisible();
+    await expect(page.locator('[data-testid="guide-icon"]')).toBeVisible();
   });
 
   test('guide closes on backdrop click', async ({ page, testEvent }) => {
@@ -158,7 +162,7 @@ test.describe('US1: State-aware admin guide access', () => {
     await navigateToAdmin(page, eventId);
     await openAdminGuide(page);
     await page.locator('[data-testid="admin-guide-backdrop"]').click({ force: true });
-    await expect(page.locator('[data-testid="admin-guide-button"]')).toBeVisible({
+    await expect(page.locator('[data-testid="guide-icon"]')).toBeVisible({
       timeout: 5000,
     });
   });

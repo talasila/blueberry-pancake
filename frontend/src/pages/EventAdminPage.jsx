@@ -2,8 +2,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { RefreshCw, Copy, Check, Trash2, Edit2, X, AlertTriangle, Download, Search, Filter, ChevronDown, ChevronUp, ChevronRight, BookOpen } from 'lucide-react';
-import AdminGuideDrawer from '@/components/guide/AdminGuideDrawer';
+import { RefreshCw, Copy, Check, Trash2, Edit2, X, AlertTriangle, Download, Search, Filter, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -97,9 +96,6 @@ function EventAdminPage() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionError, setTransitionError] = useState('');
   const [transitionSuccess, setTransitionSuccess] = useState('');
-  const [adminGuideOpen, setAdminGuideOpen] = useState(false);
-  const openAdminGuide = useCallback(() => setAdminGuideOpen(true), []);
-  const closeAdminGuide = useCallback(() => setAdminGuideOpen(false), []);
   const [numberOfItems, setNumberOfItems] = useState(20);
   const [excludedItemIdsInput, setExcludedItemIdsInput] = useState('');
   const [isSavingConfig, setIsSavingConfig] = useState(false);
@@ -3157,19 +3153,6 @@ function EventAdminPage() {
         isDeleting={isDeletingUser}
       />
 
-      {/* Admin Guide FAB */}
-      {!adminGuideOpen && (
-        <button
-          onClick={openAdminGuide}
-          className="fixed bottom-6 right-6 z-30 flex h-12 w-12 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg transition-transform hover:scale-105 active:scale-95"
-          data-testid="admin-guide-button"
-          aria-label="Open admin guide"
-        >
-          <BookOpen className="h-5 w-5" />
-        </button>
-      )}
-
-      <AdminGuideDrawer isOpen={adminGuideOpen} onClose={closeAdminGuide} />
     </div>
   );
 }
