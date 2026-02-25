@@ -90,6 +90,7 @@ JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 - AWS DynamoDB (single-table design with GSI1) (012-crockford-event-ids)
 - JavaScript (ES2022+), Node.js >=22.12.0 + React 19.2, react-router-dom 7.10, Tailwind CSS 4.1, lucide-react 0.556, tailwindcss-animate 1.0 (013-hosting-guide)
 - N/A (static content, no persistence) (013-hosting-guide)
+- N/A (static content keyed by event state, no persistence) (014-admin-guide)
 
 ## Recent Changes
 - 001-root-admin: Added Node.js 22+, JavaScript ES2020+ + Express 5, React 19, Vite, Tailwind CSS 4, Radix UI

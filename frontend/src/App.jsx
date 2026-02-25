@@ -72,6 +72,8 @@ function AppLayout() {
   const openGuide = useCallback(() => setGuideOpen(true), []);
   const closeGuide = useCallback(() => setGuideOpen(false), []);
 
+  const isAdminRoute = /^\/event\/[A-Za-z0-9]+\/admin$/.test(location.pathname);
+
   const content = (
     <div 
       className="bg-background flex flex-col overflow-hidden"
@@ -179,8 +181,8 @@ function AppLayout() {
           />
         </Routes>
       </main>
-      <GuideButton isOpen={guideOpen} onOpen={openGuide} />
-      <GuideDrawer isOpen={guideOpen} onClose={closeGuide} />
+      {!isAdminRoute && <GuideButton isOpen={guideOpen} onOpen={openGuide} />}
+      {!isAdminRoute && <GuideDrawer isOpen={guideOpen} onClose={closeGuide} />}
     </div>
   );
 
