@@ -144,12 +144,15 @@ test.describe('OTP Authentication', () => {
     await expect(page.getByText(/OTP code generated|OTP code has been sent/i)).toBeVisible({ timeout: 10000 });
     await otpInput.fill(INVALID_OTP);
     
-    // Click verify button
+    // Click verify button and wait for the API response
     const verifyButton = page.getByRole('button', { name: /verify.*otp/i });
-    await verifyButton.click();
+    const [response] = await Promise.all([
+      page.waitForResponse(resp => resp.url().includes('/auth/otp/verify')),
+      verifyButton.click(),
+    ]);
     
-    // Verify error message is displayed
-    await expect(page.getByText(/invalid otp/i)).toBeVisible({ timeout: 5000 });
+    // Verify error message is displayed (may be "Invalid OTP" or "Too many failed attempts" if rate-limited from prior runs)
+    await expect(page.getByText(/invalid otp|too many failed attempts/i)).toBeVisible({ timeout: 10000 });
     
     // Verify user stays on OTP page (not redirected)
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/otp`));

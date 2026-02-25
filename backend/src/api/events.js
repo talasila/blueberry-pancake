@@ -39,23 +39,22 @@ router.post('/', requireAuth, async (req, res) => {
     const event = await eventService.createEvent(name, typeOfItem, administratorEmail);
 
     // Add newly created event to user's JWT token
+    let updatedToken = null;
     try {
       const existingToken = req.cookies?.[JWT_COOKIE_NAME] || 
         (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.substring(7) : null);
       
       if (existingToken) {
-        const updatedToken = addEventToToken(existingToken, event.eventId);
-        // Update cookie with new token that includes the new event
+        updatedToken = addEventToToken(existingToken, event.eventId);
         res.cookie(JWT_COOKIE_NAME, updatedToken, getJWTCookieOptions());
         loggerService.info(`Added new event ${event.eventId} to JWT for administrator ${administratorEmail}`);
       }
     } catch (tokenError) {
-      // Log error but don't fail the event creation - user can refresh to get access
       loggerService.warn(`Failed to update token with new event ${event.eventId}: ${tokenError.message}`);
     }
 
-    // Return created event
-    res.status(201).json(event);
+    // Return created event with updated token so frontend can sync localStorage
+    res.status(201).json({ ...event, ...(updatedToken && { token: updatedToken }) });
   } catch (error) {
     return handleApiError(res, error, 'create event');
   }

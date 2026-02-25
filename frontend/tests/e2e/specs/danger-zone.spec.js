@@ -96,6 +96,22 @@ async function getRatingsCount(eventId, token) {
 }
 
 /**
+ * Poll getRatingsCount until it reaches the expected value.
+ * DynamoDB BatchWrite deletes are eventually consistent — a query
+ * immediately after deletion may still see stale items.
+ */
+async function waitForRatingsCount(eventId, token, expected, { maxWaitMs = 5000, intervalMs = 500 } = {}) {
+  const start = Date.now();
+  let count;
+  while (Date.now() - start < maxWaitMs) {
+    count = await getRatingsCount(eventId, token);
+    if (count === expected) return count;
+    await new Promise(r => setTimeout(r, intervalMs));
+  }
+  return count;
+}
+
+/**
  * Helper: Get users count via API
  */
 async function getUsersCount(eventId, token) {
@@ -212,8 +228,8 @@ test.describe('Danger Zone - Delete Individual User', () => {
     // Wait for UI to update after deletion
     await page.waitForLoadState('networkidle');
     
-    // Verify user's ratings are also deleted (API is the source of truth)
-    const finalRatingsCount = await getRatingsCount(eventId, token);
+    // Verify user's ratings are also deleted (poll for eventual consistency)
+    const finalRatingsCount = await waitForRatingsCount(eventId, token, 0);
     expect(finalRatingsCount).toBe(0);
     
     // Verify user count decreased
@@ -441,8 +457,8 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     // Wait for UI to update after deletion
     await page.waitForLoadState('networkidle');
     
-    // Verify ratings are deleted (API is the source of truth)
-    const finalRatingsCount = await getRatingsCount(eventId, token);
+    // Verify ratings are deleted (poll for eventual consistency)
+    const finalRatingsCount = await waitForRatingsCount(eventId, token, 0);
     expect(finalRatingsCount).toBe(0);
   });
 

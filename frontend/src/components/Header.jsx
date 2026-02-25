@@ -28,9 +28,9 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
   const [authState, setAuthState] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   
-  // Check if we're in an event route or system route
   const isEventRoute = location.pathname.startsWith('/event/');
   const isSystemRoute = location.pathname.startsWith('/system');
+  const isStandalonePage = ['/my-events', '/create-event'].includes(location.pathname);
   const isLandingPage = location.pathname === '/';
   const eventName = event?.name;
 
@@ -215,10 +215,10 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
               }
             </button>
           )}
-          {/* For system routes: show logout icon only (no menu) */}
-          {authState && isSystemRoute && (
+          {/* For system routes and standalone pages: show logout icon only (no menu) */}
+          {authState && (isSystemRoute || isStandalonePage) && (
             <div
-              onClick={handleRootLogout}
+              onClick={isSystemRoute ? handleRootLogout : handleLogout}
               className="cursor-pointer focus:outline-none flex-shrink-0 flex items-center justify-center touch-manipulation hover:text-primary transition-colors"
               aria-label="Logout"
               title="Logout"
@@ -227,15 +227,14 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  handleRootLogout();
+                  (isSystemRoute ? handleRootLogout : handleLogout)();
                 }
               }}
             >
               <LogOut className="h-5 w-5" />
             </div>
           )}
-          {/* Show menu only if authenticated, not on landing page, and not on system route */}
-          {authState && !isLandingPage && !isSystemRoute && (
+          {authState && !isLandingPage && !isSystemRoute && !isStandalonePage && (
             <DropdownMenu
               isOpen={isMenuOpen}
               onClose={() => setIsMenuOpen(false)}

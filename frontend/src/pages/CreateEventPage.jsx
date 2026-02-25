@@ -77,12 +77,16 @@ function CreateEventPage() {
     setIsSubmitting(true);
 
     try {
-      const event = await apiClient.createEvent({
+      const response = await apiClient.createEvent({
         name: trimmedName,
         typeOfItem
       });
       
-      navigate(`/event/${event.eventId}/admin`, {
+      if (response.token) {
+        apiClient.setJWTToken(response.token);
+      }
+
+      navigate(`/event/${response.eventId}/admin`, {
         replace: true,
         state: { eventCreated: true }
       });

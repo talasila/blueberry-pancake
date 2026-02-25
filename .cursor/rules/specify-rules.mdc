@@ -94,6 +94,8 @@ JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 - JavaScript, React 19.x + React Router DOM 7.x, Tailwind CSS 4.x, Lucide Reac (015-header-guide-icons)
 - N/A (frontend-only layout change, no persistence) (015-header-guide-icons)
 - JavaScript (ES Modules), Node.js >=22.12.0 (local), nodejs22.x (Lambda) + Express 5.2, React 19.2, react-router-dom 7.10, Vite 6.0, Tailwind CSS 4.1, lucide-reac (016-my-events)
+- JavaScript (ES2022+), React 18, JSX + React Router DOM, Lucide React (icons) (017-standalone-logout)
+- N/A — no data changes (017-standalone-logout)
 
 ## Recent Changes
 - 001-root-admin: Added Node.js 22+, JavaScript ES2020+ + Express 5, React 19, Vite, Tailwind CSS 4, Radix UI

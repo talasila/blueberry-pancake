@@ -64,6 +64,7 @@ Resources:
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
           Compress: true
         CacheBehaviors:
+          # API behavior: no caching, forward all cookies/headers for auth
           - PathPattern: /api/*
             TargetOriginId: ApiOrigin
             ViewerProtocolPolicy: redirect-to-https
@@ -79,7 +80,10 @@ Resources:
               - GET
               - HEAD
               - OPTIONS
+            # CachingDisabled — no caching, Set-Cookie responses pass through to viewer
             CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad
+            # AllViewerExceptHostHeader — forwards ALL cookies (jwt_token, refresh_token,
+            # csrfSecret) and headers (Authorization, X-CSRF-Token) to API Gateway origin
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
         CustomErrorResponses:
           - ErrorCode: 403

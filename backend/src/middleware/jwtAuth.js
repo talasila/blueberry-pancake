@@ -16,7 +16,6 @@ const refreshTokenStore = new Map();
  */
 export function getJWTCookieOptions() {
   const expiration = configLoader.get('security.jwtExpiration') || '24h';
-  // Parse expiration to milliseconds (e.g., '24h' -> 86400000, '4h' -> 14400000)
   const match = expiration.match(/^(\d+)([hms])$/);
   let maxAge = 24 * 60 * 60 * 1000; // Default 24 hours
   if (match) {
@@ -29,10 +28,11 @@ export function getJWTCookieOptions() {
     }
   }
 
+  const isProd = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'prod';
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'strict',
     maxAge,
     path: '/',
   };
@@ -64,14 +64,11 @@ export function jwtAuth(req, res, next) {
       return res.status(500).json({ error: 'JWT secret not configured' });
     }
 
-    // In production, reject default secret
-    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const isProd = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'prod';
     const defaultSecret = 'CHANGE_THIS_IN_PRODUCTION_USE_ENV_VAR';
-    if (!isDevelopment && secret === defaultSecret) {
+    if (isProd && secret === defaultSecret) {
       return res.status(500).json({ error: 'JWT secret must be changed from default value in production' });
     }
-
-    // Verify token (use secret as-is - in development, default is allowed)
     const decoded = jwt.verify(token, secret);
     
     // Attach decoded token to request
@@ -100,16 +97,14 @@ export function generateToken(payload) {
   const secret = process.env.JWT_SECRET || configLoader.get('security.jwtSecret');
   const expiration = configLoader.get('security.jwtExpiration') || '4h';
 
-  // In development, allow default secret for testing
-  const isDevelopment = process.env.NODE_ENV !== 'production';
+  const isProd = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'prod';
   const defaultSecret = 'CHANGE_THIS_IN_PRODUCTION_USE_ENV_VAR';
   
   if (!secret) {
     throw new Error('JWT secret not configured');
   }
 
-  // In production, reject default secret
-  if (!isDevelopment && secret === defaultSecret) {
+  if (isProd && secret === defaultSecret) {
     throw new Error('JWT secret must be changed from default value in production');
   }
 
@@ -215,7 +210,6 @@ export function generateRefreshToken(email) {
 export function getRefreshCookieOptions() {
   const refreshExpiration = configLoader.get('security.refreshTokenExpiration') || '7d';
   
-  // Parse expiration to milliseconds
   const match = refreshExpiration.match(/^(\d+)([dhms])$/);
   let maxAge = 7 * 24 * 60 * 60 * 1000; // Default 7 days
   if (match) {
@@ -229,10 +223,11 @@ export function getRefreshCookieOptions() {
     }
   }
 
+  const isProd = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'prod';
   return {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'strict',
     maxAge,
     path: '/api/auth', // Only sent for auth endpoints
   };
