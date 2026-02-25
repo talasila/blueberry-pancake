@@ -19,8 +19,10 @@ import { EventContextProvider } from './contexts/EventContext.jsx';
 import { PINProvider } from './contexts/PINContext.jsx';
 import { Toaster } from './components/ui/sonner';
 import useEventPolling from '@/hooks/useEventPolling';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import apiClient from './services/apiClient.js';
+import GuideButton from './components/guide/GuideButton';
+import GuideDrawer from './components/guide/GuideDrawer';
 
 /**
  * AppLayout Component
@@ -66,6 +68,10 @@ function AppLayout() {
     };
   }, []);
   
+  const [guideOpen, setGuideOpen] = useState(false);
+  const openGuide = useCallback(() => setGuideOpen(true), []);
+  const closeGuide = useCallback(() => setGuideOpen(false), []);
+
   const content = (
     <div 
       className="bg-background flex flex-col overflow-hidden"
@@ -173,6 +179,8 @@ function AppLayout() {
           />
         </Routes>
       </main>
+      <GuideButton isOpen={guideOpen} onOpen={openGuide} />
+      <GuideDrawer isOpen={guideOpen} onClose={closeGuide} />
     </div>
   );
 

@@ -146,7 +146,7 @@ test.describe('Event Page', () => {
     await page.waitForLoadState('networkidle');
     
     // Admin should see settings/admin link in menu
-    const menuButton = page.locator('[aria-label="Open menu"]').or(page.locator('button').filter({ has: page.locator('svg') }));
+    const menuButton = page.locator('[aria-label="Open menu"]');
     if (await menuButton.isVisible()) {
       await menuButton.click();
       await page.waitForTimeout(500);
