@@ -9,7 +9,7 @@ Replace the 62-character alphanumeric alphabet used for event ID generation with
 
 ## Technical Context
 
-**Language/Version**: JavaScript (ES Modules), Node.js >=22.12.0 (local), nodejs20.x (Lambda)
+**Language/Version**: JavaScript (ES Modules), Node.js >=22.12.0 (local), nodejs22.x (Lambda)
 **Primary Dependencies**: Express 5.2, React 19.2, nanoid 5.1, Vite 6.0, Tailwind CSS 4.1
 **Storage**: AWS DynamoDB (single-table design with GSI1)
 **Testing**: Vitest 1.6 (unit/integration), Playwright 1.57 (E2E)

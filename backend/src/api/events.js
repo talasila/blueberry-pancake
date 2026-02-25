@@ -62,6 +62,28 @@ router.post('/', requireAuth, async (req, res) => {
 });
 
 /**
+ * GET /api/events/mine
+ * Get all events where the authenticated user is an administrator
+ * Returns event summaries sorted by createdAt descending
+ * Requires authentication (JWT token)
+ */
+router.get('/mine', requireAuth, async (req, res) => {
+  try {
+    const email = req.user?.email;
+
+    if (!email) {
+      return unauthorizedError(res, 'Authentication required');
+    }
+
+    const events = await eventService.getEventSummariesByAdministrator(email);
+
+    res.json({ events });
+  } catch (error) {
+    return handleApiError(res, error, 'retrieve events');
+  }
+});
+
+/**
  * POST /api/events/:eventId/verify-pin
  * Verify PIN and create verification session
  * Registers user for the event upon successful PIN verification
@@ -158,14 +180,16 @@ router.post('/:eventId/verify-pin', async (req, res) => {
           loggerService.warn(`Failed to add event to existing token, creating new: ${addError.message}`);
           token = generateToken({ 
             email: email.trim(),
-            events: [eventId]
+            events: [eventId],
+            authMethod: 'pin'
           });
         }
       } else {
         // New authentication - create token with this event
         token = generateToken({ 
           email: email.trim(),
-          events: [eventId] // Grant access to this specific event
+          events: [eventId],
+          authMethod: 'pin'
         });
       }
     } catch (tokenError) {

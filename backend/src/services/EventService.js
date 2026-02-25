@@ -1986,6 +1986,37 @@ class EventService {
   }
 
   /**
+   * Get event summaries for all events where user is an administrator
+   * Returns lightweight projections sorted by createdAt descending (most recent first)
+   * @param {string} email - User email address
+   * @returns {Promise<Array<{eventId: string, name: string, state: string, createdAt: string}>>}
+   */
+  async getEventSummariesByAdministrator(email) {
+    const normalizedEmail = this.normalizeEmail(email);
+    const eventIds = await dataRepository.listEvents();
+    const summaries = [];
+
+    for (const eventId of eventIds) {
+      try {
+        const event = await this.getEvent(eventId);
+        if (this.isAdministrator(event, normalizedEmail)) {
+          summaries.push({
+            eventId: event.eventId,
+            name: event.name,
+            state: event.state,
+            createdAt: event.createdAt
+          });
+        }
+      } catch (error) {
+        loggerService.warn(`Failed to load event ${eventId} for summaries: ${error.message}`);
+      }
+    }
+
+    summaries.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    return summaries;
+  }
+
+  /**
    * Delete an event and all its data
    * Only the owner can delete an event. This permanently deletes all event data including
    * configuration, ratings, profiles, and all files in the event directory.

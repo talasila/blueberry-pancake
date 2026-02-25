@@ -32,8 +32,8 @@ if ! command -v node &>/dev/null; then
   MISSING+=("Node.js (install via nvm: nvm install, or from https://nodejs.org)")
 else
   NODE_VER=$(node -v | sed 's/v//' | cut -d. -f1)
-  if [[ "$NODE_VER" -lt 18 ]]; then
-    MISSING+=("Node.js 18+ (current: $(node -v); use .nvmrc: nvm use)")
+  if [[ "$NODE_VER" -lt 22 ]]; then
+    MISSING+=("Node.js 22+ (current: $(node -v); use .nvmrc: nvm use)")
   fi
 fi
 

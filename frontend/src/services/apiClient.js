@@ -670,6 +670,23 @@ class ApiClient {
   }
 
   /**
+   * Get all events where the authenticated user is an administrator
+   * @returns {Promise<{events: Array}>} Response data with events array
+   */
+  async getMyEvents() {
+    return this.get('/events/mine');
+  }
+
+  /**
+   * Get authentication method from JWT token payload
+   * @returns {string|null} 'otp' or 'pin', or null if not present
+   */
+  getAuthMethod() {
+    const payload = this.decodeJWTPayload();
+    return payload?.authMethod || null;
+  }
+
+  /**
    * Delete a single user and all their associated data
    * Only event administrators can delete users
    * Prevents deletion of owner or last administrator

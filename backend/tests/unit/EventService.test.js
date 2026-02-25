@@ -46,7 +46,8 @@ vi.mock('../../src/data/DynamoDBRepository.js', () => ({
     eventExists: vi.fn().mockResolvedValue(false),
     readEventConfig: vi.fn(),
     writeEventConfig: vi.fn().mockResolvedValue(),
-    addAdministratorAtomic: vi.fn().mockResolvedValue({ added: true, alreadyExists: false })
+    addAdministratorAtomic: vi.fn().mockResolvedValue({ added: true, alreadyExists: false }),
+    listEvents: vi.fn().mockResolvedValue([])
   }
 }));
 
@@ -1056,6 +1057,86 @@ describe('EventService.getEvent', () => {
           }
         })
       );
+    });
+  });
+
+  describe('EventService.getEventSummariesByAdministrator', () => {
+    const adminEmail = 'admin@example.com';
+
+    beforeEach(() => {
+      DynamoDBRepository.listEvents.mockReset();
+      DynamoDBRepository.readEventConfig.mockReset();
+    });
+
+    it('should return event summaries for admin with multiple events sorted by createdAt desc', async () => {
+      const event1 = {
+        eventId: 'EVT00001',
+        name: 'Older Event',
+        state: 'completed',
+        createdAt: '2026-01-01T10:00:00.000Z',
+        administrators: { [adminEmail]: { assignedAt: '2026-01-01T10:00:00.000Z', owner: true } }
+      };
+      const event2 = {
+        eventId: 'EVT00002',
+        name: 'Newer Event',
+        state: 'created',
+        createdAt: '2026-02-20T14:00:00.000Z',
+        administrators: { [adminEmail]: { assignedAt: '2026-02-20T14:00:00.000Z', owner: true } }
+      };
+      const event3 = {
+        eventId: 'EVT00003',
+        name: 'Other Admin Event',
+        state: 'started',
+        createdAt: '2026-02-25T10:00:00.000Z',
+        administrators: { 'other@example.com': { assignedAt: '2026-02-25T10:00:00.000Z', owner: true } }
+      };
+
+      DynamoDBRepository.listEvents.mockResolvedValue(['EVT00001', 'EVT00002', 'EVT00003']);
+      DynamoDBRepository.readEventConfig
+        .mockResolvedValueOnce(event1)
+        .mockResolvedValueOnce(event2)
+        .mockResolvedValueOnce(event3);
+
+      const result = await eventService.getEventSummariesByAdministrator(adminEmail);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].eventId).toBe('EVT00002');
+      expect(result[1].eventId).toBe('EVT00001');
+      expect(result[0]).toEqual({
+        eventId: 'EVT00002',
+        name: 'Newer Event',
+        state: 'created',
+        createdAt: '2026-02-20T14:00:00.000Z'
+      });
+    });
+
+    it('should return empty array for admin with no events', async () => {
+      DynamoDBRepository.listEvents.mockResolvedValue([]);
+
+      const result = await eventService.getEventSummariesByAdministrator(adminEmail);
+
+      expect(result).toEqual([]);
+    });
+
+    it('should skip events that fail to load and log a warning', async () => {
+      const validEvent = {
+        eventId: 'EVT00001',
+        name: 'Valid Event',
+        state: 'created',
+        createdAt: '2026-02-25T10:00:00.000Z',
+        administrators: { [adminEmail]: { assignedAt: '2026-02-25T10:00:00.000Z', owner: true } }
+      };
+
+      DynamoDBRepository.listEvents.mockResolvedValue(['EVT00001', 'BADID001']);
+      DynamoDBRepository.readEventConfig
+        .mockResolvedValueOnce(validEvent)
+        .mockResolvedValueOnce(null);
+
+      const result = await eventService.getEventSummariesByAdministrator(adminEmail);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].eventId).toBe('EVT00001');
+      expect(loggerService.warn).toHaveBeenCalled();
     });
   });
 

@@ -64,7 +64,8 @@ vi.mock('../../src/services/EventService.js', () => {
       isAdministrator: vi.fn(),
       registerUser: vi.fn(),
       getItemConfiguration: vi.fn(),
-      updateItemConfiguration: vi.fn()
+      updateItemConfiguration: vi.fn(),
+      getEventSummariesByAdministrator: vi.fn()
     }
   };
 });
@@ -90,9 +91,9 @@ vi.mock('../../src/services/PINService.js', () => {
 });
 
 // Helper to generate JWT token for testing
+// Must match the secret used by the mocked configLoader ('test-secret')
 function generateTestToken(email = 'test@example.com') {
-  // Use the same secret as the app (default for development)
-  const secret = process.env.JWT_SECRET || 'CHANGE_THIS_IN_PRODUCTION_USE_ENV_VAR';
+  const secret = process.env.JWT_SECRET || 'test-secret';
   return jwt.sign(
     { email, iat: Math.floor(Date.now() / 1000) },
     secret,
@@ -1273,5 +1274,76 @@ describe('GET /api/events/:eventId', () => {
       expect(response.body).toHaveProperty('warning');
       expect(response.body.warning).toContain('Item IDs 15, 25 were removed');
     });
+  });
+});
+
+describe('GET /api/events/mine', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should return 401 when no token is provided', async () => {
+    const response = await request
+      .get('/api/events/mine')
+      .expect(401);
+
+    expect(response.body).toHaveProperty('error');
+  });
+
+  it('should return event summaries for authenticated admin', async () => {
+    const token = generateTestToken('admin@example.com');
+    const mockEvents = [
+      { eventId: 'EVT00001', name: 'Recent Event', state: 'created', createdAt: '2026-02-25T10:00:00.000Z' },
+      { eventId: 'EVT00002', name: 'Old Event', state: 'completed', createdAt: '2026-01-01T10:00:00.000Z' }
+    ];
+
+    eventService.getEventSummariesByAdministrator.mockResolvedValue(mockEvents);
+
+    const response = await request
+      .get('/api/events/mine')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(response.body).toHaveProperty('events');
+    expect(response.body.events).toHaveLength(2);
+    expect(response.body.events[0].eventId).toBe('EVT00001');
+    expect(response.body.events[1].eventId).toBe('EVT00002');
+  });
+
+  it('should return empty array for user with no events', async () => {
+    const token = generateTestToken('noevents@example.com');
+    eventService.getEventSummariesByAdministrator.mockResolvedValue([]);
+
+    const response = await request
+      .get('/api/events/mine')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(response.body).toHaveProperty('events');
+    expect(response.body.events).toEqual([]);
+  });
+
+  it('should include authMethod: otp in OTP-generated JWT tokens', () => {
+    const secret = process.env.JWT_SECRET || 'CHANGE_THIS_IN_PRODUCTION_USE_ENV_VAR';
+    const token = jwt.sign(
+      { email: 'admin@example.com', events: [], authMethod: 'otp' },
+      secret,
+      { expiresIn: '1h' }
+    );
+    const decoded = jwt.verify(token, secret);
+
+    expect(decoded.authMethod).toBe('otp');
+  });
+
+  it('should include authMethod: pin in PIN-generated JWT tokens', () => {
+    const secret = process.env.JWT_SECRET || 'CHANGE_THIS_IN_PRODUCTION_USE_ENV_VAR';
+    const token = jwt.sign(
+      { email: 'participant@example.com', events: ['EVT00001'], authMethod: 'pin' },
+      secret,
+      { expiresIn: '1h' }
+    );
+    const decoded = jwt.verify(token, secret);
+
+    expect(decoded.authMethod).toBe('pin');
   });
 });

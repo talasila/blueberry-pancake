@@ -53,9 +53,12 @@ function LandingPage() {
    */
   const handleCreateClick = (e) => {
     e.preventDefault();
-    // Always navigate to auth page first with intended destination
-    // This ensures user goes through login flow before creating event
     navigate('/auth', { state: { from: { pathname: '/create-event' } } });
+  };
+
+  const handleMyEventsClick = (e) => {
+    e.preventDefault();
+    navigate('/auth', { state: { from: { pathname: '/my-events' } } });
   };
 
   return (
@@ -127,6 +130,27 @@ function LandingPage() {
                   aria-label="Create event button"
                 >
                   Create
+                </Button>
+              </CardFooter>
+            </Card>
+
+            {/* My Events Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle>My Events</CardTitle>
+                <CardDescription>
+                  Find your previously created events
+                </CardDescription>
+              </CardHeader>
+              <CardFooter>
+                <Button
+                  type="button"
+                  onClick={handleMyEventsClick}
+                  className="w-full"
+                  variant="outline"
+                  aria-label="My events button"
+                >
+                  View My Events
                 </Button>
               </CardFooter>
             </Card>

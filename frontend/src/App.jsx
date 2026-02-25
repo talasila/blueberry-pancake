@@ -3,6 +3,7 @@ import Header from './components/Header.jsx';
 import LandingPage from './pages/LandingPage.jsx';
 import AuthPage from './pages/AuthPage.jsx';
 import CreateEventPage from './pages/CreateEventPage.jsx';
+import MyEventsPage from './pages/MyEventsPage.jsx';
 import EventPage from './pages/EventPage.jsx';
 import EventAdminPage from './pages/EventAdminPage.jsx';
 import EmailEntryPage from './pages/EmailEntryPage.jsx';
@@ -111,6 +112,14 @@ function AppLayout() {
             element={
               <ProtectedRoute>
                 <CreateEventPage />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/my-events" 
+            element={
+              <ProtectedRoute>
+                <MyEventsPage />
               </ProtectedRoute>
             } 
           />

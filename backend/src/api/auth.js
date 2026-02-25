@@ -218,7 +218,8 @@ router.post('/otp/verify', async (req, res) => {
     try {
       token = generateToken({ 
         email,
-        events: adminEvents // Include all events user is admin for
+        events: adminEvents,
+        authMethod: 'otp'
       });
     } catch (tokenError) {
       loggerService.error(`Failed to generate JWT token: ${tokenError.message}`).catch(() => {});
@@ -341,7 +342,8 @@ router.post('/refresh', async (req, res) => {
     try {
       token = generateToken({ 
         email,
-        events: adminEvents // Refresh event access list
+        events: adminEvents,
+        authMethod: 'otp'
       });
     } catch (tokenError) {
       loggerService.error(`Failed to generate JWT token during refresh: ${tokenError.message}`).catch(() => {});

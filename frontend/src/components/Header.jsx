@@ -1,4 +1,4 @@
-import { Menu, User, BarChart3, Settings, LogOut, ArrowLeft, HelpCircle, BookOpen } from 'lucide-react';
+import { Menu, User, BarChart3, Settings, LogOut, ArrowLeft, HelpCircle, BookOpen, List } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMemo, useState, useEffect } from 'react';
 import Logo from './Logo.jsx';
@@ -112,6 +112,11 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
       setIsMenuOpen(false);
       navigate(`/event/${pathEventId}/admin`);
     }
+  };
+
+  const handleMyEventsClick = () => {
+    setIsMenuOpen(false);
+    navigate('/my-events');
   };
 
   const handleLogout = async () => {
@@ -254,6 +259,15 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
                 </div>
               }
             >
+              {apiClient.getAuthMethod() === 'otp' && (
+                <DropdownMenuItem
+                  onClick={handleMyEventsClick}
+                  icon={<List className="h-4 w-4" />}
+                >
+                  My Events
+                </DropdownMenuItem>
+              )}
+
               {/* Back to Event - show only if not on main event page */}
               {!isMainEventPage && pathEventId && (
                 <DropdownMenuItem

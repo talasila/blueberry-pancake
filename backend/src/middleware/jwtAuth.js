@@ -116,7 +116,8 @@ export function generateToken(payload) {
   // Ensure events is an array (default to empty if not provided)
   const tokenPayload = {
     email: payload.email,
-    events: Array.isArray(payload.events) ? payload.events : []
+    events: Array.isArray(payload.events) ? payload.events : [],
+    ...(payload.authMethod && { authMethod: payload.authMethod })
   };
 
   // Use secret as-is (in development, default is allowed for testing)
@@ -148,10 +149,11 @@ export function addEventToToken(token, eventId) {
     events.push(eventId);
   }
   
-  // Generate new token with updated events
+  // Generate new token with updated events (preserve authMethod)
   return generateToken({
     email: decoded.email,
-    events
+    events,
+    ...(decoded.authMethod && { authMethod: decoded.authMethod })
   });
 }
 
