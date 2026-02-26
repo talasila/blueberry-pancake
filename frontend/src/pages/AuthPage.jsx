@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -27,6 +27,13 @@ function AuthPage() {
 
   // Get intended destination from location state (for post-auth redirect)
   const from = location.state?.from?.pathname || '/';
+
+  // If already authenticated, redirect immediately without showing sign-in form
+  useEffect(() => {
+    if (apiClient.isAuthenticated()) {
+      navigate(from, { replace: true });
+    }
+  }, [from, navigate]);
 
   /**
    * Handle OTP request

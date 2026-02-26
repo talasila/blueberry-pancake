@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Message from '@/components/Message';
 import { clearSuccessMessage } from '@/utils/helpers';
+import apiClient from '@/services/apiClient';
 
 /**
  * LandingPage Component
@@ -47,18 +48,26 @@ function LandingPage() {
   };
 
   /**
-   * Handle Create button click - navigate to auth page first
-   * User must go through login flow before being allowed to create event
-   * After authentication, user will be redirected to create event page
+   * Handle Create button click
+   * Navigates directly to create-event if already authenticated,
+   * otherwise goes through the auth flow first
    */
   const handleCreateClick = (e) => {
     e.preventDefault();
-    navigate('/auth', { state: { from: { pathname: '/create-event' } } });
+    if (apiClient.isAuthenticated()) {
+      navigate('/create-event');
+    } else {
+      navigate('/auth', { state: { from: { pathname: '/create-event' } } });
+    }
   };
 
   const handleMyEventsClick = (e) => {
     e.preventDefault();
-    navigate('/auth', { state: { from: { pathname: '/my-events' } } });
+    if (apiClient.isAuthenticated()) {
+      navigate('/my-events');
+    } else {
+      navigate('/auth', { state: { from: { pathname: '/my-events' } } });
+    }
   };
 
   return (

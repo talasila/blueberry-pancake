@@ -6,8 +6,10 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { clearAuth, createTestEvent, deleteTestEvent, addAdminToEvent, setAuthToken } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
+const API_URL = 'http://localhost:3001';
 
 test.describe('Landing Page', () => {
 
@@ -111,5 +113,54 @@ test.describe('Landing Page', () => {
     
     // Page should load within 2 seconds
     expect(loadTime).toBeLessThan(2000);
+  });
+});
+
+test.describe('Landing Page - Authenticated User', () => {
+  let eventId;
+  let token;
+
+  test.beforeAll(async () => {
+    eventId = await createTestEvent(null, 'Landing Auth Test', '654321');
+    token = await addAdminToEvent(eventId, 'landing-auth@example.com');
+  });
+
+  test.afterAll(async () => {
+    if (eventId) await deleteTestEvent(eventId);
+  });
+
+  test.beforeEach(async ({ page }) => {
+    await setAuthToken(page, token, 'landing-auth@example.com');
+  });
+
+  test('clicking Create navigates directly to create-event when authenticated', async ({ page }) => {
+    await page.goto(BASE_URL);
+    await page.waitForLoadState('networkidle');
+
+    const createButton = page.getByRole('button', { name: /create/i });
+    await createButton.click();
+
+    // Should go straight to create-event, NOT to /auth
+    await expect(page).toHaveURL(/\/create-event/, { timeout: 5000 });
+    await expect(page).not.toHaveURL(/\/auth/);
+
+    // Create event form should be visible
+    const nameInput = page.locator('input#event-name').or(page.getByLabel(/event name/i));
+    await expect(nameInput).toBeVisible({ timeout: 5000 });
+  });
+
+  test('clicking My Events navigates directly to my-events when authenticated', async ({ page }) => {
+    await page.goto(BASE_URL);
+    await page.waitForLoadState('networkidle');
+
+    const myEventsButton = page.getByRole('button', { name: /my events|view my events/i });
+    await myEventsButton.click();
+
+    // Should go straight to my-events, NOT to /auth
+    await expect(page).toHaveURL(/\/my-events/, { timeout: 5000 });
+    await expect(page).not.toHaveURL(/\/auth/);
+
+    // My Events page content should be visible
+    await expect(page.getByText('My Events')).toBeVisible({ timeout: 5000 });
   });
 });

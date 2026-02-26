@@ -15,40 +15,7 @@ function ProtectedRoute({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(null);
 
   useEffect(() => {
-    // Check if token exists and is valid
-    const token = apiClient.getJWTToken();
-    
-    if (token) {
-      // Token exists - verify it's not expired by checking if it's a valid JWT format
-      // Full validation happens on backend, but we can check basic format here
-      try {
-        const parts = token.split('.');
-        if (parts.length === 3) {
-          // Basic JWT format check - decode payload to check expiration
-          const payload = JSON.parse(atob(parts[1]));
-          const now = Math.floor(Date.now() / 1000);
-          
-          if (payload.exp && payload.exp < now) {
-            // Token expired
-            apiClient.clearJWTToken();
-            setIsAuthenticated(false);
-          } else {
-            setIsAuthenticated(true);
-            apiClient.setJWTToken(token); // Ensure it's set in apiClient
-          }
-        } else {
-          // Invalid token format
-          apiClient.clearJWTToken();
-          setIsAuthenticated(false);
-        }
-      } catch (error) {
-        // Invalid token
-        apiClient.clearJWTToken();
-        setIsAuthenticated(false);
-      }
-    } else {
-      setIsAuthenticated(false);
-    }
+    setIsAuthenticated(apiClient.isAuthenticated());
   }, []);
 
   // Show loading state while checking authentication

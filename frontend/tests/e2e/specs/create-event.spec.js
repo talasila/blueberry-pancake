@@ -325,6 +325,88 @@ test.describe('Create Event', () => {
     expect(pageContent).not.toMatch(/invalid.*character/i);
   });
 
+  // ===================================
+  // Session Persistence
+  // ===================================
+
+  test('authenticated user can create multiple events without re-authenticating', async ({ page }) => {
+    await authenticateViaOTP(page);
+
+    // --- Create first event ---
+    await navigateToCreateEvent(page);
+
+    const nameInput = page.locator('input#event-name').or(page.getByLabel(/event name/i));
+    await expect(nameInput).toBeVisible({ timeout: 5000 });
+    await nameInput.fill('Session Test Event 1');
+
+    const firstResponsePromise = page.waitForResponse(
+      resp => resp.url().includes('/api/events') &&
+              resp.request().method() === 'POST' &&
+              !resp.url().includes('verify-pin')
+    );
+
+    const createButton = page.getByRole('button', { name: /create event/i });
+    await createButton.click();
+
+    const firstResponse = await firstResponsePromise;
+    let firstEventId = null;
+    try {
+      const data = await firstResponse.json();
+      firstEventId = data.eventId;
+      if (firstEventId) trackEventForCleanup(firstEventId);
+    } catch { /* ignore */ }
+
+    await page.waitForURL(/\/event\/[0-9A-Z]{8}\/admin/, { timeout: 10000 });
+
+    // --- Navigate back to landing page ---
+    await page.goto(BASE_URL);
+    await page.waitForLoadState('networkidle');
+
+    // --- Click Create again — should NOT go to /auth ---
+    const landingCreateButton = page.getByRole('button', { name: /create/i });
+    await landingCreateButton.click();
+
+    await expect(page).toHaveURL(/\/create-event/, { timeout: 5000 });
+    await expect(page).not.toHaveURL(/\/auth/);
+
+    // --- Create second event ---
+    const nameInput2 = page.locator('input#event-name').or(page.getByLabel(/event name/i));
+    await expect(nameInput2).toBeVisible({ timeout: 5000 });
+    await nameInput2.fill('Session Test Event 2');
+
+    const secondResponsePromise = page.waitForResponse(
+      resp => resp.url().includes('/api/events') &&
+              resp.request().method() === 'POST' &&
+              !resp.url().includes('verify-pin')
+    );
+
+    const createButton2 = page.getByRole('button', { name: /create event/i });
+    await createButton2.click();
+
+    const secondResponse = await secondResponsePromise;
+    let secondEventId = null;
+    try {
+      const data = await secondResponse.json();
+      secondEventId = data.eventId;
+      if (secondEventId) trackEventForCleanup(secondEventId);
+    } catch { /* ignore */ }
+
+    await page.waitForURL(/\/event\/[0-9A-Z]{8}\/admin/, { timeout: 10000 });
+
+    // Both events should have been created with distinct IDs
+    expect(firstEventId).toBeTruthy();
+    expect(secondEventId).toBeTruthy();
+    expect(firstEventId).not.toBe(secondEventId);
+
+    // Cleanup
+    if (firstEventId) await deleteTestEvent(firstEventId);
+    if (secondEventId) await deleteTestEvent(secondEventId);
+  });
+
+  // ===================================
+  // Edge Cases
+  // ===================================
+
   test('prevents duplicate event creation on rapid clicks', async ({ page }) => {
     // Authenticate via OTP
     await authenticateViaOTP(page);

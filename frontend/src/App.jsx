@@ -276,21 +276,9 @@ function EventContextProviderForRoute({ eventId, children }) {
     }
   }, [polledEvent]);
   
-  // Extract user email from JWT token for admin check
   const getUserId = () => {
-    try {
-      const token = apiClient.getJWTToken();
-      if (token) {
-        const parts = token.split('.');
-        if (parts.length === 3) {
-          const payload = JSON.parse(atob(parts[1]));
-          return payload.email?.toLowerCase() || null;
-        }
-      }
-    } catch (error) {
-      console.error('Error extracting user email from token:', error);
-    }
-    return null;
+    const payload = apiClient.decodeJWTPayload();
+    return payload?.email?.toLowerCase() || null;
   };
 
   const userEmail = getUserId();

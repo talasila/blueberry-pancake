@@ -6,7 +6,7 @@
  */
 
 import { test, expect } from './fixtures.js';
-import { clearAuth, createTestEvent, deleteTestEvent, addAdminToEvent } from './helpers.js';
+import { clearAuth, createTestEvent, deleteTestEvent, addAdminToEvent, setAuthToken } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
 const TEST_OTP = '123456'; // Test OTP that bypasses validation in dev mode
@@ -177,5 +177,22 @@ test.describe('OTP Authentication', () => {
       // Should show validation error
       await page.waitForTimeout(1000);
     }
+  });
+
+  test('redirects away from auth page if already authenticated', async ({ page, testEvent }) => {
+    const { eventId } = testEvent;
+    const email = 'already-authed@example.com';
+
+    // Set up valid auth token
+    const token = await addAdminToEvent(eventId, email);
+    await setAuthToken(page, token, email);
+
+    // Navigate to /auth with a target redirect
+    await page.goto(`${BASE_URL}/auth`);
+    await page.waitForLoadState('networkidle');
+
+    // Should redirect to landing page (the default 'from' is '/')
+    // and NOT show the sign-in form
+    await expect(page).not.toHaveURL(/\/auth/, { timeout: 5000 });
   });
 });
