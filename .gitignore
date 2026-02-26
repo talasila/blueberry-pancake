@@ -8,6 +8,9 @@ coverage/
 *.lcov
 .nyc_output
 .e2e-tracked-events.json
+playwright-report/
+test-results/
+frontend/tests/smoke/smoke-report/
 
 # Production
 dist/
