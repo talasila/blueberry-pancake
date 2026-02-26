@@ -14,15 +14,17 @@ const systemApi = {
    * @param {string} options.state - Filter by event state (optional)
    * @param {string} options.owner - Filter by owner email (optional)
    * @param {string} options.name - Filter by event name (optional)
+   * @param {string} options.search - OR-search across eventId, name, ownerEmail (optional; takes precedence over name/owner)
    * @returns {Promise<{events: Array, total: number, limit: number, offset: number}>}
    */
-  async listEvents({ limit = 50, offset = 0, state, owner, name } = {}) {
+  async listEvents({ limit = 50, offset = 0, state, owner, name, search } = {}) {
     const params = new URLSearchParams();
     params.set('limit', limit.toString());
     params.set('offset', offset.toString());
     if (state) params.set('state', state);
     if (owner) params.set('owner', owner);
     if (name) params.set('name', name);
+    if (search) params.set('search', search);
     
     const response = await apiClient.request(`/system/events?${params.toString()}`);
     return response.json();

@@ -20,19 +20,20 @@ router.use(requireRoot);
  * - state: string (filter by state: created, started, paused, completed)
  * - owner: string (filter by owner email substring)
  * - name: string (filter by event name substring)
+ * - search: string (OR-match across eventId, name, ownerEmail; takes precedence over name/owner)
  */
 router.get('/events', async (req, res) => {
   try {
     // Parse query params
     const limit = Math.min(parseInt(req.query.limit) || 50, 100);
     const offset = parseInt(req.query.offset) || 0;
-    const { state, owner, name } = req.query;
+    const { state, owner, name, search } = req.query;
 
     // Log admin action
     await loggerService.info('Admin action', {
       action: 'VIEW_EVENTS',
       adminEmail: req.user.email,
-      filters: { state, owner, name, limit, offset },
+      filters: { state, owner, name, search, limit, offset },
       timestamp: new Date().toISOString()
     });
 
@@ -42,7 +43,8 @@ router.get('/events', async (req, res) => {
       offset,
       state,
       owner,
-      name
+      name,
+      search
     });
 
     res.json(result);

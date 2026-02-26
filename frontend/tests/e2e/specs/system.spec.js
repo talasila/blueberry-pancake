@@ -311,6 +311,55 @@ test.describe('System Administration Dashboard', () => {
   
   test.describe('US4: Search Events', () => {
     
+    test('should filter events by event ID search', async ({ page }) => {
+      const eventId = await createTestEvent(null, 'ID Search Test Event', '123456');
+      
+      try {
+        await setupRootAuth(page);
+        await navigateToSystemPage(page);
+        
+        // Wait for event to appear
+        await expect(page.getByText('ID Search Test Event')).toBeVisible({ timeout: 15000 });
+        
+        // Search by event ID
+        const searchInput = page.getByPlaceholder(/search/i);
+        const filteredResponse = page.waitForResponse(
+          resp => resp.url().includes('/api/system/events') && resp.url().includes('search='),
+          { timeout: 10000 }
+        );
+        await searchInput.fill(eventId);
+        await filteredResponse;
+        
+        // Event should appear in results
+        await expect(page.getByText('ID Search Test Event')).toBeVisible({ timeout: 5000 });
+      } finally {
+        await deleteTestEvent(eventId);
+      }
+    });
+    
+    test('should treat whitespace-only search as empty', async ({ page }) => {
+      const eventId = await createTestEvent(null, 'Whitespace Search Test', '123456');
+      
+      try {
+        await setupRootAuth(page);
+        await navigateToSystemPage(page);
+        
+        await expect(page.getByText('Whitespace Search Test')).toBeVisible({ timeout: 15000 });
+        
+        // Type only spaces — should not trigger a search= API call
+        const searchInput = page.getByPlaceholder(/search/i);
+        await searchInput.fill('   ');
+        
+        // Wait for debounce to settle
+        await page.waitForTimeout(500);
+        
+        // Events should still be visible (default view, not filtered)
+        await expect(page.getByText('Whitespace Search Test')).toBeVisible({ timeout: 5000 });
+      } finally {
+        await deleteTestEvent(eventId);
+      }
+    });
+    
     test('should filter events by name search', async ({ page }) => {
       // Create two test events with different names
       const eventId1 = await createTestEvent(null, 'Apple Tasting Event', '123456');
@@ -329,7 +378,7 @@ test.describe('System Administration Dashboard', () => {
         // Search for "Apple" and wait for filtered response
         const searchInput = page.getByPlaceholder(/search/i);
         const filteredResponse = page.waitForResponse(
-          resp => resp.url().includes('/api/system/events') && resp.url().includes('name=Apple'),
+          resp => resp.url().includes('/api/system/events') && resp.url().includes('search=Apple'),
           { timeout: 10000 }
         );
         await searchInput.fill('Apple');
@@ -341,7 +390,7 @@ test.describe('System Administration Dashboard', () => {
         
         // Clear search and wait for unfiltered response
         const unfilteredResponse = page.waitForResponse(
-          resp => resp.url().includes('/api/system/events') && !resp.url().includes('name='),
+          resp => resp.url().includes('/api/system/events') && !resp.url().includes('search='),
           { timeout: 10000 }
         );
         await searchInput.clear();
@@ -353,6 +402,80 @@ test.describe('System Administration Dashboard', () => {
       } finally {
         await deleteTestEvent(eventId1);
         await deleteTestEvent(eventId2);
+      }
+    });
+    
+  });
+  
+  // ============================================================
+  // Event Card & Drawer Details
+  // ============================================================
+  
+  test.describe('Event Card & Drawer Details', () => {
+    
+    test('should show event ID and PIN on event card', async ({ page }) => {
+      const eventId = await createTestEvent(null, 'Card PIN Test Event', '654321');
+      
+      try {
+        await setupRootAuth(page);
+        await navigateToSystemPage(page);
+        
+        // Find the event row
+        const eventRow = page.locator('[data-testid="event-row"]').filter({ hasText: 'Card PIN Test Event' });
+        await expect(eventRow.first()).toBeVisible({ timeout: 15000 });
+        
+        // Event card should display the event ID and PIN
+        await expect(eventRow.first()).toContainText(eventId);
+        await expect(eventRow.first()).toContainText('654321');
+      } finally {
+        await deleteTestEvent(eventId);
+      }
+    });
+    
+    test('should display PIN in event details drawer', async ({ page }) => {
+      const eventId = await createTestEvent(null, 'Drawer PIN Test', '987654');
+      
+      try {
+        await setupRootAuth(page);
+        await navigateToSystemPage(page);
+        
+        // Click the event to open drawer
+        await page.getByText('Drawer PIN Test').click();
+        await expect(page.getByRole('dialog')).toBeVisible();
+        
+        // Drawer should show the PIN
+        const drawer = page.locator('[role="dialog"]');
+        await expect(drawer.getByText('Event PIN')).toBeVisible();
+        await expect(drawer.getByText('987654')).toBeVisible();
+      } finally {
+        await deleteTestEvent(eventId);
+      }
+    });
+    
+  });
+  
+  // ============================================================
+  // Default View Label
+  // ============================================================
+  
+  test.describe('Default View', () => {
+    
+    test('should show most recent events label when total exceeds 25', async ({ page }) => {
+      await setupRootAuth(page);
+      await navigateToSystemPage(page);
+      
+      // If there are more than 25 total events, the label should be visible
+      // If fewer, the label should not appear
+      const label = page.getByText('Showing 25 most recent events');
+      
+      // Check if we have enough events for the label to show
+      const eventRows = page.locator('[data-testid="event-row"]');
+      const count = await eventRows.count();
+      
+      if (count >= 25) {
+        await expect(label).toBeVisible();
+      } else {
+        await expect(label).not.toBeVisible();
       }
     });
     

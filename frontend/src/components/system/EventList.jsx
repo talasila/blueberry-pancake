@@ -3,18 +3,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { Calendar, Users, Star, Package, Search, X } from 'lucide-react';
+import { Calendar, Users, Star, Package, Search, X, Hash, KeyRound } from 'lucide-react';
 import systemApi from '@/services/systemApi.js';
-
-/**
- * State badge colors
- */
-const STATE_COLORS = {
-  created: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
-  started: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
-  paused: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
-  completed: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
-};
+import { STATE_COLORS } from './constants.js';
 
 /**
  * Debounce hook for search input
@@ -42,7 +33,7 @@ export default function EventList({ onEventSelect }) {
   const [error, setError] = useState(null);
   const [pagination, setPagination] = useState({
     total: 0,
-    limit: 50,
+    limit: 25,
     offset: 0
   });
   
@@ -52,10 +43,12 @@ export default function EventList({ onEventSelect }) {
   // Debounce search input
   const debouncedSearch = useDebounce(searchText, 300);
 
-  // Build filters object
-  const filters = {
-    ...(debouncedSearch && { name: debouncedSearch })
-  };
+  const isSearching = debouncedSearch.trim().length > 0;
+
+  // Build filters: use unified search param when searching, which queries all events in DB
+  const filters = isSearching
+    ? { search: debouncedSearch, limit: 100 }
+    : {};
 
   // Fetch events when filters or pagination changes
   useEffect(() => {
@@ -178,6 +171,18 @@ export default function EventList({ onEventSelect }) {
       {/* Search control */}
       <SearchControl />
       
+      {/* Info labels */}
+      {!isLoading && isSearching && pagination.total > 100 && (
+        <p className="text-sm text-muted-foreground">
+          Showing first 100 of {pagination.total} results
+        </p>
+      )}
+      {!isLoading && !isSearching && pagination.total > 25 && (
+        <p className="text-sm text-muted-foreground">
+          Showing 25 most recent events
+        </p>
+      )}
+      
       {/* Loading state */}
       {isLoading && (
         <div className="space-y-3">
@@ -240,6 +245,16 @@ export default function EventList({ onEventSelect }) {
                     <p className="text-sm text-muted-foreground truncate mt-1">
                       {event.ownerEmail}
                     </p>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1" title="Event ID">
+                        <Hash className="h-3 w-3" />
+                        {event.eventId}
+                      </span>
+                      <span className="flex items-center gap-1" title="PIN">
+                        <KeyRound className="h-3 w-3" />
+                        {event.pin || 'No PIN'}
+                      </span>
+                    </div>
                   </div>
                   
                   {/* Right side: Stats */}
@@ -268,30 +283,6 @@ export default function EventList({ onEventSelect }) {
         </div>
       )}
 
-      {/* Pagination */}
-      {!isLoading && !error && pagination.total > pagination.limit && (
-        <div className="flex items-center justify-between pt-4 border-t">
-          <p className="text-sm text-muted-foreground">
-            Showing {pagination.offset + 1} - {Math.min(pagination.offset + events.length, pagination.total)} of {pagination.total}
-          </p>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setPagination(prev => ({ ...prev, offset: Math.max(0, prev.offset - prev.limit) }))}
-              disabled={pagination.offset === 0}
-              className="px-3 py-1 text-sm border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setPagination(prev => ({ ...prev, offset: prev.offset + prev.limit }))}
-              disabled={pagination.offset + pagination.limit >= pagination.total}
-              className="px-3 py-1 text-sm border rounded-md disabled:opacity-50 disabled:cursor-not-allowed hover:bg-accent"
-            >
-              Next
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

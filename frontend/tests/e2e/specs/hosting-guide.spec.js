@@ -222,7 +222,9 @@ test.describe('US5: Overview / table of contents', () => {
     await page.goto(BASE_URL);
     await openGuide(page);
     await selectRole(page, 'host');
-    await page.getByRole('button', { name: /overview|list|contents/i }).click();
+    const overviewBtn = page.getByRole('button', { name: /show overview/i });
+    await expect(overviewBtn).toBeVisible({ timeout: 5000 });
+    await overviewBtn.click();
     await expect(page.getByText('Pick Your Wines')).toBeVisible();
     await expect(page.getByText('Reveal & Compare')).toBeVisible();
   });
@@ -231,7 +233,9 @@ test.describe('US5: Overview / table of contents', () => {
     await page.goto(BASE_URL);
     await openGuide(page);
     await selectRole(page, 'host');
-    await page.getByRole('button', { name: /overview|list|contents/i }).click();
+    const overviewBtn = page.getByRole('button', { name: /show overview/i });
+    await expect(overviewBtn).toBeVisible({ timeout: 5000 });
+    await overviewBtn.click();
     await page.getByText('Share the Event Link').click();
     await expect(page.getByText(/6\s*(of|\/)\s*8/i)).toBeVisible();
   });

@@ -17,7 +17,7 @@ class SystemService {
    * @param {string} options.name - Filter by event name substring (optional)
    * @returns {Promise<{events: Array, total: number, limit: number, offset: number}>}
    */
-  async listAllEventsForAdmin({ limit = 50, offset = 0, state, owner, name } = {}) {
+  async listAllEventsForAdmin({ limit = 50, offset = 0, state, owner, name, search } = {}) {
     try {
       // Get all event IDs
       const allEventIds = await dataRepository.listEvents();
@@ -30,17 +30,29 @@ class SystemService {
       // Filter out null results (failed to load)
       let filtered = summaries.filter(s => s !== null);
       
-      // Apply filters
+      const trimmedSearch = search?.trim();
+      if (trimmedSearch) {
+        // Unified OR search across eventId, name, and ownerEmail
+        const searchLower = trimmedSearch.toLowerCase();
+        filtered = filtered.filter(e =>
+          e.eventId?.toLowerCase().includes(searchLower) ||
+          e.name?.toLowerCase().includes(searchLower) ||
+          e.ownerEmail?.toLowerCase().includes(searchLower)
+        );
+      } else {
+        // Legacy individual filters (only when search is absent)
+        if (owner) {
+          const ownerLower = owner.toLowerCase();
+          filtered = filtered.filter(e => e.ownerEmail?.toLowerCase().includes(ownerLower));
+        }
+        if (name) {
+          const nameLower = name.toLowerCase();
+          filtered = filtered.filter(e => e.name?.toLowerCase().includes(nameLower));
+        }
+      }
+
       if (state) {
         filtered = filtered.filter(e => e.state === state);
-      }
-      if (owner) {
-        const ownerLower = owner.toLowerCase();
-        filtered = filtered.filter(e => e.ownerEmail?.toLowerCase().includes(ownerLower));
-      }
-      if (name) {
-        const nameLower = name.toLowerCase();
-        filtered = filtered.filter(e => e.name?.toLowerCase().includes(nameLower));
       }
       
       // Sort by creation date (newest first)
@@ -94,7 +106,8 @@ class SystemService {
         itemCount,
         participantCount,
         ratingCount,
-        createdAt: config.createdAt || null
+        createdAt: config.createdAt || null,
+        pin: config.pin || null
       };
     } catch (error) {
       await loggerService.warn(`Failed to get summary for event ${eventId}: ${error.message}`);
@@ -178,7 +191,8 @@ class SystemService {
         ratingCount,
         registeredItems,
         admins,
-        createdAt: config.createdAt || null
+        createdAt: config.createdAt || null,
+        pin: config.pin || null
       };
     } catch (error) {
       await loggerService.error(`Failed to get details for event ${eventId}`, error);
