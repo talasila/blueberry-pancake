@@ -43,7 +43,7 @@ export default function EventList({ onEventSelect }) {
   // Debounce search input
   const debouncedSearch = useDebounce(searchText, 300);
 
-  const isSearching = debouncedSearch.trim().length > 0;
+  const isSearching = debouncedSearch.trim().length >= 3;
 
   // Build filters: use unified search param when searching, which queries all events in DB
   const filters = isSearching
@@ -116,8 +116,7 @@ export default function EventList({ onEventSelect }) {
     });
   };
 
-  // Search control
-  const SearchControl = () => (
+  const searchControl = (
     <div className="mb-4">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -144,7 +143,7 @@ export default function EventList({ onEventSelect }) {
   if (!isLoading && events.length === 0) {
     return (
       <>
-        <SearchControl />
+        {searchControl}
         <Card>
           <CardContent className="p-6 text-center">
             <p className="text-muted-foreground">
@@ -169,7 +168,7 @@ export default function EventList({ onEventSelect }) {
   return (
     <div className="space-y-4">
       {/* Search control */}
-      <SearchControl />
+      {searchControl}
       
       {/* Info labels */}
       {!isLoading && isSearching && pagination.total > 100 && (
