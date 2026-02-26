@@ -444,8 +444,8 @@ class ApiClient {
    * @param {string} email - Email address
    * @returns {Promise<any>} Response data
    */
-  async requestOTP(email) {
-    return this.post('/auth/otp/request', { email });
+  async requestOTP(email, turnstileToken = null) {
+    return this.post('/auth/otp/request', { email, turnstileToken });
   }
 
   /**
@@ -482,8 +482,12 @@ class ApiClient {
    * @param {string} email - Email address to check
    * @returns {Promise<{isAdmin: boolean}>} Response data with isAdmin flag
    */
-  async checkEventAdmin(eventId, email) {
-    return this.get(`/events/${eventId}/check-admin?email=${encodeURIComponent(email)}`);
+  async checkEventAdmin(eventId, email, turnstileToken = null) {
+    let url = `/events/${eventId}/check-admin?email=${encodeURIComponent(email)}`;
+    if (turnstileToken) {
+      url += `&turnstileToken=${encodeURIComponent(turnstileToken)}`;
+    }
+    return this.get(url);
   }
 
   /**

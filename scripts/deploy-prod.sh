@@ -17,6 +17,8 @@ EMAIL_FROM_ADDRESS="${EMAIL_FROM_ADDRESS:-sreeni@7155421.xyz}"  # must be verifi
 FRONTEND_DOMAIN="${FRONTEND_DOMAIN:-blindwinetasting.party}"               # custom domain for CORS; use CloudFront domain if unset
 FRONTEND_DOMAIN_WWW="${FRONTEND_DOMAIN_WWW:-www.blindwinetasting.party}"   # optional www variant; empty to exclude
 CSRF_SECRET="${CSRF_SECRET:-$(openssl rand -base64 32)}"
+TURNSTILE_SECRET_KEY="${TURNSTILE_SECRET_KEY:-0x4AAAAAACi2DaJC2UPtaSrpWWyCD39Pdco}"
+TURNSTILE_SITE_KEY="${TURNSTILE_SITE_KEY:-0x4AAAAAACi2DcdZQF5UNuKH}"
 RESEND_API_KEY="re_6RipC75d_PhQmhfHdnnhT542ZaRHjwhqu"
 ROOT_ADMIN_EMAILS="sreenivas.talasila@gmail.com"
 
@@ -41,7 +43,8 @@ sam deploy \
     EmailFromAddress="$EMAIL_FROM_ADDRESS" \
     XsrfEnabled=true \
     FrontendDomain="$FRONTEND_DOMAIN" \
-    FrontendDomainWww="$FRONTEND_DOMAIN_WWW"
+    FrontendDomainWww="$FRONTEND_DOMAIN_WWW" \
+    TurnstileSecretKey="$TURNSTILE_SECRET_KEY"
 
 echo ""
 echo "=== 3. Deploy frontend stack ==="
@@ -80,7 +83,8 @@ sam deploy \
     XsrfEnabled=true \
     FrontendDomain="$FRONTEND_DOMAIN" \
     FrontendDomainWww="$FRONTEND_DOMAIN_WWW" \
-    FrontendDomainCloudFront="$FRONTEND_DOMAIN_CLOUDFRONT"
+    FrontendDomainCloudFront="$FRONTEND_DOMAIN_CLOUDFRONT" \
+    TurnstileSecretKey="$TURNSTILE_SECRET_KEY"
 
 echo ""
 echo "=== 5. Build and sync frontend assets ==="
@@ -89,7 +93,7 @@ API_URL=$(aws cloudformation describe-stacks \
   --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' \
   --output text)
 # Frontend calls API Gateway directly (bypasses CloudFront routing issues)
-(cd frontend && VITE_API_BASE_URL="${API_URL}/api" npm run build)
+(cd frontend && VITE_API_BASE_URL="${API_URL}/api" VITE_TURNSTILE_SITE_KEY="${TURNSTILE_SITE_KEY}" npm run build)
 
 BUCKET=$(aws cloudformation describe-stacks \
   --stack-name blueberry-pancake-frontend-$ENV \

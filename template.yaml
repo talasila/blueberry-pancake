@@ -44,6 +44,11 @@ Parameters:
     NoEcho: true
     Default: ""
     Description: CSRF secret for XSRF token generation (required when XsrfEnabled=true; generate with openssl rand -base64 32)
+  TurnstileSecretKey:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Cloudflare Turnstile secret key for bot verification (required in production)
   XsrfEnabled:
     Type: String
     Default: "true"
@@ -72,6 +77,7 @@ Globals:
         EMAIL_FROM_ADDRESS: !Ref EmailFromAddress
         XSRF_ENABLED: !Ref XsrfEnabled
         CSRF_SECRET: !Ref CsrfSecret
+        TURNSTILE_SECRET_KEY: !Ref TurnstileSecretKey
 
 Resources:
   HttpApi:

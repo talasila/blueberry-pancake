@@ -16,6 +16,7 @@ import requireAuth from '../middleware/requireAuth.js';
 import { validateEventId } from '../utils/validators.js';
 import { handleApiError, badRequestError, unauthorizedError } from '../utils/apiErrorHandler.js';
 import { isValidEmail } from '../utils/emailUtils.js';
+import { verifyTurnstile } from '../middleware/turnstileProtection.js';
 
 const router = Router();
 
@@ -238,6 +239,10 @@ router.get('/:eventId/check-admin', async (req, res) => {
     if (!eventIdValidation.valid) {
       return badRequestError(res, 'Invalid event ID format');
     }
+
+    // Turnstile verification (rejects invalid/expired tokens; missing tokens fail open)
+    const turnstileResult = await verifyTurnstile(req, res);
+    if (!turnstileResult.success) return;
 
     // Rate limit check to prevent user enumeration
     // In test/development environments, bypass rate limiting entirely for test automation

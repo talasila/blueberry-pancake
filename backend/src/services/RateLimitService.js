@@ -13,16 +13,17 @@ import dataRepository from '../data/DynamoDBRepository.js';
  */
 class RateLimitService {
   constructor() {
-    // Determine environment for rate limit configuration
     const isProduction = process.env.NODE_ENV === 'production';
     
-    // Production limits are stricter for security
-    // Development limits are very relaxed for testing (1000 allows extensive testing)
     this.EMAIL_LIMIT = isProduction ? 3 : 1000;
     this.IP_LIMIT = isProduction ? 5 : 1000;
     this.WINDOW_MINUTES = 15;
     this.WINDOW_MS = this.WINDOW_MINUTES * 60 * 1000;
     this.WINDOW_SECONDS = this.WINDOW_MINUTES * 60;
+
+    this.GLOBAL_LIMIT = isProduction ? 100 : 10000;
+    this.GLOBAL_WINDOW_SECONDS = 60;
+    this.GLOBAL_WINDOW_MS = this.GLOBAL_WINDOW_SECONDS * 1000;
   }
 
   /**
@@ -148,6 +149,42 @@ class RateLimitService {
       console.error(`Error checking rate limit for ${type}:${identifier}:`, error);
       // Fail open for availability, but log the error
       return { allowed: true, remaining: limit };
+    }
+  }
+
+  /**
+   * Check global OTP request rate limit across all callers.
+   * Uses a fixed identifier so all requests share one counter.
+   * @returns {Promise<{allowed: boolean, retryAfter?: number}>}
+   */
+  async checkGlobalLimit() {
+    try {
+      const current = await dataRepository.getRateLimit('global', 'otp-request');
+      const now = Date.now();
+
+      if (current && current.windowStart) {
+        const windowStartMs = new Date(current.windowStart).getTime();
+
+        if ((now - windowStartMs) > this.GLOBAL_WINDOW_MS) {
+          await dataRepository.resetRateLimit('global', 'otp-request');
+        } else if (current.count >= this.GLOBAL_LIMIT) {
+          const retryAfter = Math.ceil((this.GLOBAL_WINDOW_MS - (now - windowStartMs)) / 1000);
+          return { allowed: false, retryAfter };
+        }
+      }
+
+      const result = await dataRepository.incrementRateLimit('global', 'otp-request', this.GLOBAL_WINDOW_SECONDS);
+
+      if (result.count > this.GLOBAL_LIMIT) {
+        const windowStartMs = new Date(result.windowStart).getTime();
+        const retryAfter = Math.ceil((this.GLOBAL_WINDOW_MS - (now - windowStartMs)) / 1000);
+        return { allowed: false, retryAfter };
+      }
+
+      return { allowed: true };
+    } catch (error) {
+      console.error('Error checking global rate limit:', error);
+      return { allowed: true };
     }
   }
 

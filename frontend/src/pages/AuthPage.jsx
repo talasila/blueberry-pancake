@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import apiClient from '@/services/apiClient';
 import { clearAllBookmarks } from '@/utils/bookmarkStorage';
+import { useTurnstile } from '@/hooks/useTurnstile';
 
 /**
  * AuthPage Component
@@ -25,7 +26,10 @@ function AuthPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // Get intended destination from location state (for post-auth redirect)
+  const { token: turnstileToken, resetWidget, containerRef: turnstileRef } = useTurnstile(
+    import.meta.env.VITE_TURNSTILE_SITE_KEY
+  );
+
   const from = location.state?.from?.pathname || '/';
 
   // If already authenticated, redirect immediately without showing sign-in form
@@ -45,14 +49,14 @@ function AuthPage() {
     setLoading(true);
 
     try {
-      const response = await apiClient.requestOTP(email);
-      // Use the message from the response (includes OTP in dev mode)
+      const response = await apiClient.requestOTP(email, turnstileToken);
       setSuccess(response.message || 'OTP code has been sent to your email. Please check your inbox.');
       setStep('verify');
+      resetWidget();
     } catch (err) {
-      // Show user-friendly error message
       const errorMessage = err.message || 'Unable to send OTP code. Please check your email address and try again.';
       setError(errorMessage);
+      resetWidget();
     } finally {
       setLoading(false);
     }
@@ -188,7 +192,7 @@ function AuthPage() {
                       {loading 
                         ? 'Processing...' 
                         : step === 'request' 
-                          ? 'Request OTP' 
+                          ? 'Request OTP'
                           : 'Verify OTP'}
                     </Button>
                   </div>
@@ -196,6 +200,7 @@ function AuthPage() {
               </form>
             </CardContent>
           </Card>
+          <div ref={turnstileRef} />
         </div>
       </div>
     </div>

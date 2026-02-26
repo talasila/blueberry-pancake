@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import apiClient from '@/services/apiClient';
+import { useTurnstile } from '@/hooks/useTurnstile';
 
 /**
  * EmailEntryPage Component
@@ -21,6 +22,9 @@ function EmailEntryPage() {
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const { token: turnstileToken, containerRef: turnstileRef } = useTurnstile(
+    import.meta.env.VITE_TURNSTILE_SITE_KEY
+  );
 
   /**
    * Validate email format
@@ -36,7 +40,7 @@ function EmailEntryPage() {
   const checkAdminStatus = async (email) => {
     try {
       // Use the check-admin endpoint
-      const response = await apiClient.checkEventAdmin(eventId, email.trim());
+      const response = await apiClient.checkEventAdmin(eventId, email.trim(), turnstileToken);
       return response.isAdmin || false;
     } catch (err) {
       // If we can't check (e.g., event not found), default to PIN entry
@@ -134,14 +138,13 @@ function EmailEntryPage() {
                     disabled={loading || !email.trim()}
                     className="w-full"
                   >
-                    {loading 
-                      ? 'Checking...' 
-                      : 'Continue'}
+                    {loading ? 'Checking...' : 'Continue'}
                   </Button>
                 </div>
               </form>
             </CardContent>
           </Card>
+          <div ref={turnstileRef} />
         </div>
       </div>
     </div>

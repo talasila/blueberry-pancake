@@ -16,6 +16,7 @@ import {
   getRefreshCookieOptions
 } from '../middleware/jwtAuth.js';
 import loggerService from '../logging/Logger.js';
+import { verifyTurnstile } from '../middleware/turnstileProtection.js';
 
 const router = Router();
 
@@ -41,6 +42,21 @@ router.post('/otp/request', async (req, res) => {
       });
     }
 
+    // Turnstile verification (rejects invalid/expired tokens; missing tokens fail open)
+    const turnstileResult = await verifyTurnstile(req, res);
+    if (!turnstileResult.success) return;
+
+    // Global rate limit (caps total OTP requests across all callers)
+    const globalResult = await rateLimitService.checkGlobalLimit();
+    if (!globalResult.allowed) {
+      const retryAfterSeconds = Math.ceil(globalResult.retryAfter || 0);
+      const retryAfterMinutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
+      return res.status(429).json({
+        error: `Too many requests. Please try again in ${retryAfterMinutes} minute(s).`,
+        retryAfter: retryAfterSeconds
+      });
+    }
+
     // Check if email is suspended
     const suspensionStatus = suspensionService.isSuspended(email);
     if (suspensionStatus.suspended) {
@@ -50,10 +66,7 @@ router.post('/otp/request', async (req, res) => {
       });
     }
 
-    // Check rate limits (both email and IP)
-    // Rate limiting is ALWAYS enabled but with environment-aware limits
-    // (higher limits in development for testing, stricter in production)
-    // In test/development environments, bypass rate limiting entirely for test automation
+    // Per-email and per-IP rate limits
     const allowedTestEnvironments = ['development', 'test', undefined, ''];
     const isTestEnvironment = allowedTestEnvironments.includes(process.env.NODE_ENV);
     

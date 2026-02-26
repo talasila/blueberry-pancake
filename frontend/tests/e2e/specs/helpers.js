@@ -196,7 +196,7 @@ export async function submitEmail(page, email) {
   
   const continueButton = page.getByRole('button', { name: /continue/i });
   await continueButton.click();
-  await page.waitForLoadState('networkidle');
+  await page.waitForURL(/\/(pin|otp)$/, { timeout: 10000 });
 }
 
 /**
