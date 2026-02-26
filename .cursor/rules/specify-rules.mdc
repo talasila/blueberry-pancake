@@ -96,6 +96,8 @@ JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 - JavaScript (ES Modules), Node.js >=22.12.0 (local), nodejs22.x (Lambda) + Express 5.2, React 19.2, react-router-dom 7.10, Vite 6.0, Tailwind CSS 4.1, lucide-reac (016-my-events)
 - JavaScript (ES2022+), React 18, JSX + React Router DOM, Lucide React (icons) (017-standalone-logout)
 - N/A — no data changes (017-standalone-logout)
+- Node.js 22.x (ES modules) + Express 5.x (backend), React 19.x + Vite 6.x + Tailwind CSS 4.x (frontend) (018-admin-event-list)
+- AWS DynamoDB (single-table design, pay-per-request) — no schema changes needed (018-admin-event-list)
 
 ## Recent Changes
 - 001-root-admin: Added Node.js 22+, JavaScript ES2020+ + Express 5, React 19, Vite, Tailwind CSS 4, Radix UI
