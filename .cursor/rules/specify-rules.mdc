@@ -98,6 +98,8 @@ JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 - N/A — no data changes (017-standalone-logout)
 - Node.js 22.x (ES modules) + Express 5.x (backend), React 19.x + Vite 6.x + Tailwind CSS 4.x (frontend) (018-admin-event-list)
 - AWS DynamoDB (single-table design, pay-per-request) — no schema changes needed (018-admin-event-list)
+- Node.js 22.12.0+ (backend), React 19.2.1 (frontend) + Express 5.2.1, @aws-sdk/client-dynamodb ^3.600.0, Vite 6.0.5, Tailwind CSS 4.1.17 (019-bot-protection)
+- DynamoDB single-table design (PAY_PER_REQUEST, TTL enabled) (019-bot-protection)
 
 ## Recent Changes
 - 001-root-admin: Added Node.js 22+, JavaScript ES2020+ + Express 5, React 19, Vite, Tailwind CSS 4, Radix UI
