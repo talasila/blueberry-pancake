@@ -23,7 +23,7 @@ export function getItemTerminology(typeOfItem) {
 }
 
 /**
- * React hook to get item terminology from event context
+ * Get item terminology from an event object
  * @param {object|null|undefined} event - Event object with typeOfItem property
  * @returns {object} Object with capitalized and lowercase labels
  */

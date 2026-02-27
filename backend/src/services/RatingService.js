@@ -41,6 +41,21 @@ class RatingService {
   }
 
   /**
+   * Get all ratings for a specific user in an event
+   * @param {string} eventId - Event identifier
+   * @param {string} email - User email
+   * @returns {Promise<Array<object>>} Array of rating objects for the user
+   */
+  async getUserRatings(eventId, email) {
+    try {
+      return await dataRepository.getUserRatings(eventId, email);
+    } catch (error) {
+      loggerService.error(`Error reading ratings for event ${eventId}, email ${email}: ${error.message}`, error);
+      throw error;
+    }
+  }
+
+  /**
    * Submit a rating (create new or update existing)
    * Implements replace-on-update: if user has existing rating for item, replaces it
    * DynamoDB PutItem with the same key atomically replaces the item
@@ -73,19 +88,8 @@ class RatingService {
     };
 
     try {
-      // Check if rating exists - if so, update; otherwise add
-      const existingRating = await dataRepository.getRating(eventId, normalizedUserEmail, itemId);
-      
-      if (existingRating) {
-        // Update existing rating
-        await dataRepository.updateRating(eventId, normalizedUserEmail, itemId, {
-          rating: newRating.rating,
-          note: newRating.note
-        });
-      } else {
-        // Add new rating
-        await dataRepository.addRating(eventId, newRating);
-      }
+      // DynamoDB PutItem is atomic upsert - no need to check existence first
+      await dataRepository.addRating(eventId, newRating);
 
       loggerService.info(`Rating submitted for event ${eventId}, item ${itemId}, email ${normalizedUserEmail}`);
       return newRating;
@@ -193,16 +197,8 @@ class RatingService {
     }
   }
 
-  /**
-   * Invalidate all caches related to ratings for an event
-   * With DynamoDB, we don't need in-memory cache invalidation
-   * This method is kept for API compatibility but is now a no-op
-   * @param {string} eventId - Event identifier
-   */
-  invalidateCache(eventId) {
-    // No-op: DynamoDB provides immediate consistency
-    loggerService.debug(`Rating cache invalidation called for event ${eventId} (no-op with DynamoDB)`);
-  }
+  /** @deprecated No-op with DynamoDB - kept for API compatibility */
+  invalidateCache() {}
 }
 
 export default new RatingService();

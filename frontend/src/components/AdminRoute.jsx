@@ -2,6 +2,7 @@ import { Navigate, useParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import apiClient from '@/services/apiClient';
 import useEvent from '@/hooks/useEvent';
+import { isUserAdmin } from '@/utils/adminCheck';
 
 /**
  * AdminRoute Component
@@ -30,23 +31,8 @@ function AdminRoute({ children }) {
       return;
     }
 
-    // Get user email from JWT token using apiClient utility
-    const userEmail = apiClient.getUserEmail()?.toLowerCase();
-    let isAdministrator = false;
-    
-    if (userEmail && event.administrators) {
-      // Check if user email exists in administrators object (case-insensitive)
-      const normalizedUserEmail = userEmail.toLowerCase();
-      isAdministrator = Object.keys(event.administrators).some(
-        adminEmail => adminEmail.toLowerCase() === normalizedUserEmail
-      );
-    } else if (userEmail && event.administrator) {
-      // Fallback: support old administrator field for backward compatibility
-      const adminEmail = event.administrator?.toLowerCase();
-      isAdministrator = userEmail === adminEmail;
-    }
-
-    setIsAdmin(isAdministrator);
+    const userEmail = apiClient.getUserEmail();
+    setIsAdmin(isUserAdmin(userEmail, event));
     setIsChecking(false);
   }, [event, eventLoading]);
 

@@ -1,6 +1,7 @@
 import Tokens from 'csrf';
 import configLoader from '../config/configLoader.js';
 import loggerService from '../logging/Logger.js';
+import { isProduction } from '../utils/environment.js';
 
 /**
  * XSRF protection middleware
@@ -9,9 +10,7 @@ import loggerService from '../logging/Logger.js';
  */
 let csrfTokens = null;
 
-// CSRF secret must be set via environment variable in production
 const CSRF_DEFAULT_SECRET = 'csrf-secret-for-development-only';
-const secretKey = process.env.CSRF_SECRET || CSRF_DEFAULT_SECRET;
 
 /**
  * Initialize CSRF protection
@@ -24,9 +23,7 @@ export function initializeXSRF() {
     return null;
   }
 
-  // In production (prod), require CSRF_SECRET environment variable
-  const isProduction = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'prod';
-  if (isProduction && (!process.env.CSRF_SECRET || process.env.CSRF_SECRET === CSRF_DEFAULT_SECRET)) {
+  if (isProduction() && (!process.env.CSRF_SECRET || process.env.CSRF_SECRET === CSRF_DEFAULT_SECRET)) {
     loggerService.error('SECURITY ERROR: CSRF_SECRET environment variable must be set in production').catch(() => {});
     throw new Error('CSRF_SECRET environment variable must be set in production');
   }
@@ -41,7 +38,7 @@ export function initializeXSRF() {
 /**
  * Get CSRF token (for GET requests to obtain token)
  */
-export function getCSRFToken(req, res, next) {
+export function getCSRFToken(req, res) {
   if (!csrfTokens) {
     return res.json({ csrfToken: null, message: 'XSRF protection disabled' });
   }
@@ -53,7 +50,7 @@ export function getCSRFToken(req, res, next) {
     // Generate new secret
     secret = csrfTokens.secretSync();
     // Store secret in cookie
-    const isProd = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'prod';
+    const isProd = isProduction();
     res.cookie('csrfSecret', secret, {
       httpOnly: true,
       secure: isProd,

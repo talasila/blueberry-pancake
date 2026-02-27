@@ -1,17 +1,20 @@
+import { isProduction } from '../utils/environment.js';
+import loggerService from '../logging/Logger.js';
+
 const TEST_SECRET_KEY = '1x0000000000000000000000000000000AA';
 const SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
 class TurnstileService {
   constructor() {
-    const isProduction = process.env.NODE_ENV === 'production';
+    const prod = isProduction();
     let secret = process.env.TURNSTILE_SECRET_KEY;
 
     if (!secret) {
-      if (isProduction) {
+      if (prod) {
         throw new Error('TURNSTILE_SECRET_KEY is required in production');
       }
       secret = TEST_SECRET_KEY;
-    } else if (isProduction && secret === TEST_SECRET_KEY) {
+    } else if (prod && secret === TEST_SECRET_KEY) {
       throw new Error('Turnstile test secret key is not allowed in production');
     }
 
@@ -19,7 +22,9 @@ class TurnstileService {
   }
 
   async verify(token, remoteIP) {
+    // FR-019: missing token → fail open (subject to all other rate limits)
     if (!token) {
+      loggerService.warn(`Turnstile token missing ip=${remoteIP} (fail-open per FR-019)`);
       return { success: true, failOpen: true };
     }
 
@@ -40,12 +45,13 @@ class TurnstileService {
       const errorCodes = result['error-codes'] || [];
 
       if (!success) {
-        console.log(`Turnstile verification rejected ip=${remoteIP} errorCodes=${JSON.stringify(errorCodes)}`);
+        loggerService.warn(`Turnstile verification rejected ip=${remoteIP} errorCodes=${JSON.stringify(errorCodes)}`);
       }
 
       return { success, errorCodes };
     } catch (err) {
-      console.warn(`Turnstile siteverify failed (fail-open): ${err.message}`);
+      // FR-013: siteverify unreachable → fail open (subject to all other rate limits)
+      loggerService.warn(`Turnstile siteverify unreachable ip=${remoteIP} (fail-open per FR-013): ${err.message}`);
       return { success: true, failOpen: true };
     }
   }

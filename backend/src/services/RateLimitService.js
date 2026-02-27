@@ -1,4 +1,6 @@
 import dataRepository from '../data/DynamoDBRepository.js';
+import loggerService from '../logging/Logger.js';
+import { isProduction } from '../utils/environment.js';
 
 /**
  * Rate Limiting Service
@@ -13,15 +15,15 @@ import dataRepository from '../data/DynamoDBRepository.js';
  */
 class RateLimitService {
   constructor() {
-    const isProduction = process.env.NODE_ENV === 'production';
+    const prod = isProduction();
     
-    this.EMAIL_LIMIT = isProduction ? 3 : 1000;
-    this.IP_LIMIT = isProduction ? 5 : 1000;
+    this.EMAIL_LIMIT = prod ? 3 : 1000;
+    this.IP_LIMIT = prod ? 5 : 1000;
     this.WINDOW_MINUTES = 15;
     this.WINDOW_MS = this.WINDOW_MINUTES * 60 * 1000;
     this.WINDOW_SECONDS = this.WINDOW_MINUTES * 60;
 
-    this.GLOBAL_LIMIT = isProduction ? 100 : 10000;
+    this.GLOBAL_LIMIT = prod ? 100 : 10000;
     this.GLOBAL_WINDOW_SECONDS = 60;
     this.GLOBAL_WINDOW_MS = this.GLOBAL_WINDOW_SECONDS * 1000;
   }
@@ -146,7 +148,7 @@ class RateLimitService {
         remaining: limit - result.count
       };
     } catch (error) {
-      console.error(`Error checking rate limit for ${type}:${identifier}:`, error);
+      loggerService.error(`Error checking rate limit for ${type}:${identifier}:`, error);
       // Fail open for availability, but log the error
       return { allowed: true, remaining: limit };
     }
@@ -183,30 +185,11 @@ class RateLimitService {
 
       return { allowed: true };
     } catch (error) {
-      console.error('Error checking global rate limit:', error);
+      loggerService.error('Error checking global rate limit:', error);
       return { allowed: true };
     }
   }
 
-  /**
-   * Reset rate limit for an identifier (for testing)
-   * @param {string} identifier - Email or IP address
-   * @param {string} type - 'email' or 'ip'
-   * @returns {Promise<boolean>} True if reset
-   */
-  async resetLimit(identifier, type) {
-    if (!identifier || !type) {
-      return false;
-    }
-
-    try {
-      await dataRepository.resetRateLimit(identifier, type);
-      return true;
-    } catch (error) {
-      console.error(`Error resetting rate limit for ${type}:${identifier}:`, error);
-      return false;
-    }
-  }
 }
 
 export default new RateLimitService();

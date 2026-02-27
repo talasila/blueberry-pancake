@@ -42,15 +42,4 @@ describe('Data Directory Access Integration', () => {
     expect(readConfig).toEqual(config);
   });
 
-  it('should handle CSV data files', async () => {
-    const eventId = 'csv-test-event';
-    await createTestEvent(eventId);
-
-    const csvRow = 'user-001,2025-01-27T10:00:00Z,item-001,8,"Test note"';
-    await repo.appendEventData(eventId, csvRow);
-
-    const data = await repo.readEventData(eventId);
-    expect(data).toContain('user-001');
-    expect(data).toContain('item-001');
-  });
 });

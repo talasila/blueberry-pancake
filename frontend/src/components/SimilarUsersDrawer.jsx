@@ -1,5 +1,5 @@
 import { X, Star, Sparkles } from 'lucide-react';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import Message from '@/components/Message';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -25,7 +25,6 @@ function SimilarUsersDrawer({
 }) {
   const { event } = useEventContext();
   const { singular } = useItemTerminology(event);
-  const openStartTimeRef = useRef(null);
   const hasBeenOpenedRef = useRef(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [similarUsers, setSimilarUsers] = useState([]);
@@ -51,6 +50,21 @@ function SimilarUsersDrawer({
     }
   }, [isOpen]);
 
+  const fetchSimilarUsers = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const data = await getSimilarUsers(eventId);
+      setSimilarUsers(data.similarUsers || []);
+    } catch (err) {
+      console.error('Error fetching similar users:', err);
+      setError(err.message || 'Failed to fetch similar users');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [eventId]);
+
   // Fetch similar users when drawer opens
   useEffect(() => {
     if (isOpen && eventId) {
@@ -61,7 +75,7 @@ function SimilarUsersDrawer({
       setError(null);
       setSelectedUser(null);
     }
-  }, [isOpen, eventId]);
+  }, [isOpen, eventId, fetchSimilarUsers]);
 
   // Handle user selection - open details drawer
   const handleUserClick = (user) => {
@@ -97,21 +111,6 @@ function SimilarUsersDrawer({
     };
   }, [selectedUser]);
 
-  const fetchSimilarUsers = async () => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const data = await getSimilarUsers(eventId);
-      setSimilarUsers(data.similarUsers || []);
-    } catch (err) {
-      console.error('Error fetching similar users:', err);
-      setError(err.message || 'Failed to fetch similar users');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
 
   // Sort items by ID in ascending order
   const sortItemsById = (items) => {
@@ -125,11 +124,6 @@ function SimilarUsersDrawer({
     }
     const ratingOption = ratingConfig.ratings.find(r => r.value === ratingValue);
     return ratingOption?.color || null;
-  };
-
-  // Check if ratings are aligned (same or very close)
-  const areRatingsAligned = (userRating, similarUserRating) => {
-    return Math.abs(userRating - similarUserRating) <= 1;
   };
 
   // Get alignment indicator
@@ -195,102 +189,6 @@ function SimilarUsersDrawer({
         <div className="space-y-2">
           {similarUsers.map((user, index) => {
             const matchPercentage = user.similarityScore !== null ? user.similarityScore * 100 : 0;
-            
-            // Generate sparkline for this user (removed - not showing sparkline)
-            const generateSparkline = () => {
-              return null;
-              if (!user.commonItems || user.commonItems.length < 2) return null;
-              
-              const sortedItems = sortItemsById(user.commonItems);
-              const deviations = sortedItems.map(item => item.similarUserRating - item.userRating);
-              const maxDeviation = Math.max(...deviations.map(Math.abs), 1);
-              
-              const width = 80;
-              const height = 32;
-              const padding = 2;
-              const chartWidth = width - (padding * 2);
-              const chartHeight = height - (padding * 2);
-              const centerY = padding + (chartHeight / 2);
-              // Use fixed bar width for consistency across all sparklines
-              const actualBarWidth = 3; // Fixed width in pixels
-              const barSpacing = 1; // Fixed spacing in pixels
-              const barWidth = actualBarWidth + barSpacing; // Total space per bar
-              
-              return (
-                <svg width={width} height={height} className="shrink-0">
-                  {/* Baseline */}
-                  <line
-                    x1={padding}
-                    y1={centerY}
-                    x2={width - padding}
-                    y2={centerY}
-                    stroke="#4b5563"
-                    strokeWidth="0.5"
-                  />
-                  
-                  {/* Bars */}
-                  {deviations.map((deviation, idx) => {
-                    const isPositive = deviation > 0;
-                    const absDeviation = Math.abs(deviation);
-                    const isPerfect = absDeviation < 0.1;
-                    const isClose = absDeviation >= 0.1 && absDeviation <= 1;
-                    const isDifferent = absDeviation > 1;
-                    
-                    const normalizedDev = deviation / maxDeviation;
-                    const barHeight = Math.abs(normalizedDev) * (chartHeight / 2);
-                    const barX = padding + (idx * barWidth) + (barSpacing / 2);
-                    const barY = isPositive ? centerY - barHeight : centerY;
-                    
-                    if (isPerfect) {
-                      // Perfect matches: green small dots
-                      return (
-                        <circle
-                          key={idx}
-                          cx={barX + (actualBarWidth / 2)}
-                          cy={centerY}
-                          r="1.5"
-                          fill="#10b981"
-                        />
-                      );
-                    }
-                    
-                    if (isClose) {
-                      // Close matches: blue bars
-                      return (
-                        <rect
-                          key={idx}
-                          x={barX}
-                          y={barY}
-                          width={actualBarWidth}
-                          height={barHeight || 0.5}
-                          fill="#3b82f6"
-                          opacity={0.7}
-                          rx="1"
-                        />
-                      );
-                    }
-                    
-                    if (isDifferent) {
-                      // Different opinions: red bars
-                      return (
-                        <rect
-                          key={idx}
-                          x={barX}
-                          y={barY}
-                          width={actualBarWidth}
-                          height={barHeight || 0.5}
-                          fill="#ef4444"
-                          opacity={0.7}
-                          rx="1"
-                        />
-                      );
-                    }
-                    
-                    return null;
-                  })}
-                </svg>
-              );
-            };
             
             const commonItemsCount = user.commonItemsCount || (user.commonItems ? user.commonItems.length : 0);
             
@@ -708,7 +606,7 @@ function SimilarUsersDrawer({
                               <td className="py-2 px-3 text-center">
                                 <div
                                   className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-900 shadow-sm flex items-center justify-center mx-auto"
-                                  style={userColor ? { backgroundColor: userColor } : { backgroundColor: '#gray-300' }}
+                                  style={userColor ? { backgroundColor: userColor } : { backgroundColor: '#D1D5DB' }}
                                   title={`Your rating: ${item.userRating}`}
                                 >
                                   <span className="text-xs font-semibold text-white">{item.userRating}</span>
@@ -717,7 +615,7 @@ function SimilarUsersDrawer({
                               <td className="py-2 px-3 text-center">
                                 <div
                                   className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-900 shadow-sm flex items-center justify-center mx-auto"
-                                  style={similarColor ? { backgroundColor: similarColor } : { backgroundColor: '#gray-300' }}
+                                  style={similarColor ? { backgroundColor: similarColor } : { backgroundColor: '#D1D5DB' }}
                                   title={`${selectedUser.name || selectedUser.email} rating: ${item.similarUserRating}`}
                                 >
                                   <span className="text-xs font-semibold text-white">{item.similarUserRating}</span>

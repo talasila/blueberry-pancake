@@ -52,11 +52,7 @@ router.get('/similar-users', requireAuth, async (req, res) => {
     }
 
     // Check if user has rated at least 3 items (FR-002, FR-008)
-    const allRatings = await ratingService.getRatings(eventId);
-    const userRatings = allRatings.filter(rating => {
-      const normalizedEmail = rating.email?.trim().toLowerCase();
-      return normalizedEmail === userEmail.trim().toLowerCase();
-    });
+    const userRatings = await ratingService.getUserRatings(eventId, userEmail);
 
     if (userRatings.length < 3) {
       return badRequestError(res, 'You need to rate at least 3 items before similar users can be found');
@@ -73,9 +69,7 @@ router.get('/similar-users', requireAuth, async (req, res) => {
       });
     }
 
-    // Find similar users
-    // Get all similar users (no limit)
-    const similarUsers = await similarityService.findSimilarUsers(eventId, userEmail, Infinity);
+    const similarUsers = await similarityService.findSimilarUsers(eventId, userEmail);
 
     // Add user names to response (show name if available, otherwise email per clarification)
     const similarUsersWithNames = similarUsers.map(user => ({

@@ -11,26 +11,15 @@ export const ratingService = {
    * @returns {Promise<Array<object>>} Array of rating objects
    */
   async getRatings(eventId) {
-    try {
-      const response = await apiClient.request(`/events/${eventId}/ratings`, {
-        method: 'GET',
-        headers: {
-          'Accept': 'text/csv'
-        }
-      });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Failed to get ratings' }));
-        throw new Error(error.error || 'Failed to get ratings');
+    const response = await apiClient.request(`/events/${eventId}/ratings`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'text/csv'
       }
+    });
 
-      const csvText = await response.text();
-      // Parse CSV to array of rating objects
-      return this.parseRatingsCSV(csvText);
-    } catch (error) {
-      console.error('Error getting ratings:', error);
-      throw error;
-    }
+    const csvText = await response.text();
+    return this.parseRatingsCSV(csvText);
   },
 
   /**

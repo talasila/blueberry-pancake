@@ -7,6 +7,7 @@ import { useEventContext } from '@/contexts/EventContext';
 import { useItemTerminology } from '@/utils/itemTerminology';
 import apiClient from '@/services/apiClient';
 import { loadBookmarksFromServer, getBookmarks } from '@/utils/bookmarkStorage';
+import { calculateUserRatingProgress } from '@/utils/ratingProgress';
 
 /**
  * UserDetailsDrawer Component
@@ -167,61 +168,10 @@ function UserDetailsDrawer({
     }
   };
 
-  // Calculate user rating progress data
-  const userRatingProgressData = useMemo(() => {
-    if (!ratings || ratings.length === 0 || !itemIds.length) {
-      return null;
-    }
-
-    const totalItems = itemIds.length;
-    
-    // Count unique items rated
-    const uniqueItemsRated = new Set();
-    ratings.forEach(rating => {
-      const itemId = parseInt(rating.itemId, 10);
-      if (!isNaN(itemId)) {
-        uniqueItemsRated.add(itemId);
-      }
-    });
-    const numberOfItemsRated = uniqueItemsRated.size;
-
-    // Calculate rating progression (percentage of items rated)
-    const ratingProgression = totalItems > 0 
-      ? (numberOfItemsRated / totalItems) * 100 
-      : 0;
-
-    // Calculate rating distribution
-    const ratingDistribution = {};
-    const maxRating = ratingConfiguration?.maxRating || 4;
-    for (let ratingValue = 1; ratingValue <= maxRating; ratingValue++) {
-      ratingDistribution[ratingValue] = ratings.filter(
-        r => parseInt(r.rating, 10) === ratingValue
-      ).length;
-    }
-
-    // Get all ratings in order (sorted by timestamp, oldest to newest for sparkline)
-    const sortedRatings = [...ratings]
-      .sort((a, b) => {
-        // Sort by timestamp (oldest to newest)
-        const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-        const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-        if (isNaN(aTime)) return 1;
-        if (isNaN(bTime)) return -1;
-        return aTime - bTime; // Ascending order (oldest first)
-      })
-      .map(rating => {
-        const ratingValue = parseInt(rating.rating, 10);
-        return isNaN(ratingValue) ? null : ratingValue;
-      })
-      .filter(rating => rating !== null);
-
-    return {
-      ratingProgression: parseFloat(ratingProgression.toFixed(2)),
-      ratingDistribution,
-      ratings: sortedRatings,
-      totalRatings: ratings.length
-    };
-  }, [ratings, itemIds, ratingConfiguration]);
+  const userRatingProgressData = useMemo(
+    () => calculateUserRatingProgress(ratings, itemIds, ratingConfiguration?.maxRating || 4),
+    [ratings, itemIds, ratingConfiguration]
+  );
 
   // Get user display name
   const getUserDisplayName = () => {

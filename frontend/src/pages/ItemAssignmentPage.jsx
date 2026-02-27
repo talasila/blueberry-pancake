@@ -36,10 +36,8 @@ function ItemAssignmentPage() {
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'assigned', 'unassigned'
   const [expandedItems, setExpandedItems] = useState(new Set());
 
-  // Check for OTP authentication (JWT token) - admin pages require OTP
   useEffect(() => {
-    const jwtToken = apiClient.getJWTToken();
-    if (!jwtToken) {
+    if (!apiClient.isAuthenticated()) {
       navigate('/auth', { 
         state: { from: { pathname: `/event/${eventId}/admin/items/assign` } },
         replace: true 
@@ -181,7 +179,7 @@ function ItemAssignmentPage() {
     }
 
     return filtered;
-  }, [items, searchQuery, statusFilter]);
+  }, [items, searchQuery, statusFilter, event]);
 
   // Toggle item expansion
   const toggleExpanded = (itemId) => {

@@ -4,6 +4,7 @@ import { join } from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import loggerService from '../logging/Logger.js';
+import { isProduction } from '../utils/environment.js';
 
 const router = Router();
 
@@ -203,7 +204,7 @@ router.get('/:ratingLevel', async (req, res) => {
     }
     
     // Handle other errors
-    const isDevelopment = process.env.NODE_ENV !== 'production';
+    const isDevelopment = !isProduction();
     res.status(500).json({
       error: 'Failed to load quotes suggestions',
       ...(isDevelopment && { details: error.message })

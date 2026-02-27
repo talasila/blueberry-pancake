@@ -64,8 +64,6 @@ function decodeSuggestions(suggestions) {
 class QuoteService {
   constructor() {
     this.error = null;
-    // Cache suggestions per rating level (small responses, can cache client-side too)
-    this.suggestionsCache = new Map();
   }
 
   /**

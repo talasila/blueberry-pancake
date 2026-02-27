@@ -68,13 +68,9 @@ const systemApi = {
    */
   async isRootAdmin() {
     try {
-      await apiClient.request('/system/stats');
-      return true;
-    } catch (error) {
-      if (error.message?.includes('403') || error.message?.includes('Root access required')) {
-        return false;
-      }
-      // For other errors (network, etc.), assume not root
+      const response = await apiClient.request('/system/stats');
+      return response.ok;
+    } catch {
       return false;
     }
   }

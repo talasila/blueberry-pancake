@@ -231,16 +231,6 @@ class EventService {
   }
 
   /**
-   * Get valid target states for a given current state
-   * Returns array of states that can be transitioned to from the current state
-   * @param {string} currentState - Current event state
-   * @returns {string[]} Array of valid target states, empty array if no valid transitions
-   */
-  getValidTransitions(currentState) {
-    return this.constructor.VALID_TRANSITIONS[currentState] || [];
-  }
-
-  /**
    * Get event by ID
    * Reads directly from DynamoDB
    * @param {string} eventId - Event identifier
@@ -1324,8 +1314,7 @@ class EventService {
       // Persist updated event using updateEvent method
       await this.updateEvent(eventId, updatedEvent);
 
-      // Invalidate all existing PIN sessions for this event
-      pinService.invalidatePINSessions(eventId);
+      await pinService.invalidatePINSessions(eventId);
 
       loggerService.info(`PIN regenerated for event: ${eventId} by ${administratorEmail}`);
       

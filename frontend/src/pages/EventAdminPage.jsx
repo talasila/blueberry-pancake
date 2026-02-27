@@ -15,7 +15,7 @@ import SideDrawer from '@/components/SideDrawer';
 import { isValidEmailFormat, clearSuccessMessage, downloadCSV } from '@/utils/helpers';
 import { calculateWeightedAverage } from '@/utils/bayesianAverage';
 import { useItemTerminology } from '@/utils/itemTerminology';
-import { getStateConfig, getStateDescription, StateBadge } from '@/utils/eventState.jsx';
+import { getStateConfig, StateBadge } from '@/utils/eventState.jsx';
 import itemService from '@/services/itemService';
 import { ratingService } from '@/services/ratingService';
 import DeleteEventDialog from '@/components/DeleteEventDialog';
@@ -182,26 +182,15 @@ function EventAdminPage() {
   const [exportItemsError, setExportItemsError] = useState('');
   const [exportItemsSuccess, setExportItemsSuccess] = useState('');
 
-  // Check for OTP authentication (JWT token) - admin pages require OTP even if accessed via PIN
+  // Check for OTP authentication - admin pages require OTP even if accessed via PIN
   useEffect(() => {
-    const jwtToken = apiClient.getJWTToken();
-    if (!jwtToken) {
-      // Redirect to OTP auth, preserving intended destination
+    if (!apiClient.isAuthenticated()) {
       navigate('/auth', { 
         state: { from: { pathname: `/event/${eventId}/admin` } },
         replace: true 
       });
     } else {
-      // Extract email from JWT token
-      try {
-        const parts = jwtToken.split('.');
-        if (parts.length === 3) {
-          const payload = JSON.parse(atob(parts[1]));
-          setCurrentUserEmail(payload.email || null);
-        }
-      } catch (error) {
-        console.error('Error extracting email from token:', error);
-      }
+      setCurrentUserEmail(apiClient.getUserEmail());
     }
   }, [eventId, navigate]);
 
@@ -712,11 +701,15 @@ function EventAdminPage() {
   };
 
   // Handle copy event link
-  const handleCopyEventLink = () => {
+  const handleCopyEventLink = async () => {
     const eventUrl = `${window.location.origin}/event/${eventId}`;
-    navigator.clipboard.writeText(eventUrl);
-    setLinkCopied(true);
-    setTimeout(() => setLinkCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(eventUrl);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      console.warn('Clipboard write failed');
+    }
   };
 
   // Check if current user is the owner
@@ -2522,10 +2515,12 @@ function EventAdminPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    navigator.clipboard.writeText(event.pin);
-                    setCopied(true);
-                    setTimeout(() => setCopied(false), 2000);
+                  onClick={async () => {
+                    try {
+                      await navigator.clipboard.writeText(event.pin);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    } catch { /* clipboard unavailable */ }
                   }}
                   className="h-8 w-8 p-0"
                   aria-label="Copy PIN"

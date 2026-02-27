@@ -260,9 +260,12 @@ test.describe('Item Configuration', () => {
       await expect(bottlesInput).toHaveValue('3');
     }).toPass({ timeout: 5000 });
     
-    // Try to exclude all bottles
+    // Try to exclude all bottles (with retry to handle React Strict Mode re-renders)
     const excludedInput = getExcludedBottleIdsInput(page);
-    await excludedInput.fill('1,2,3');
+    await expect(async () => {
+      await excludedInput.fill('1,2,3');
+      await expect(excludedInput).toHaveValue('1,2,3');
+    }).toPass({ timeout: 5000 });
     
     // Try to save
     await clickSaveButton(page);

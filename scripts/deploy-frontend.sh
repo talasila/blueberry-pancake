@@ -6,7 +6,7 @@ set -e
 
 # Configuration
 ENVIRONMENT="${1:-prod}"
-STACK_NAME="blueberry-pancake-${ENVIRONMENT}"
+STACK_NAME="blueberry-pancake-frontend-${ENVIRONMENT}"
 REGION="${AWS_REGION:-us-east-1}"
 
 echo "🚀 Deploying frontend for environment: ${ENVIRONMENT}"

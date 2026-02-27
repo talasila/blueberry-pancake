@@ -26,7 +26,7 @@ function AuthPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const { token: turnstileToken, resetWidget, containerRef: turnstileRef } = useTurnstile(
+  const { token: turnstileToken, isLoading: turnstileLoading, error: turnstileError, resetWidget, containerRef: turnstileRef } = useTurnstile(
     import.meta.env.VITE_TURNSTILE_SITE_KEY
   );
 
@@ -47,6 +47,13 @@ function AuthPage() {
     setError('');
     setSuccess('');
     setLoading(true);
+
+    if (!turnstileToken && !turnstileError) {
+      resetWidget();
+      setError('Security verification is loading. Please wait a moment and try again.');
+      setLoading(false);
+      return;
+    }
 
     try {
       const response = await apiClient.requestOTP(email, turnstileToken);
@@ -77,10 +84,8 @@ function AuthPage() {
       // Clear local bookmark cache (bookmarks are persisted on server, will be loaded on event page)
       clearAllBookmarks();
       
-      // Store JWT token in localStorage
-      if (response.token) {
-        localStorage.setItem('jwtToken', response.token);
-        apiClient.setJWTToken(response.token);
+      if (response.user) {
+        apiClient.setUserSession(response.user);
       }
 
       setSuccess('Authentication successful! Redirecting...');
@@ -186,7 +191,7 @@ function AuthPage() {
                     )}
                     <Button
                       type="submit"
-                      disabled={loading || (step === 'request' && !email) || (step === 'verify' && otp.length !== 6)}
+                      disabled={loading || (step === 'request' && (!email || (turnstileLoading && !turnstileError))) || (step === 'verify' && otp.length !== 6)}
                       className="flex-1"
                     >
                       {loading 

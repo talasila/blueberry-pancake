@@ -4,8 +4,7 @@
  */
 
 import loggerService from '../logging/Logger.js';
-
-const isDevelopment = process.env.NODE_ENV !== 'production';
+import { isProduction } from './environment.js';
 
 /**
  * Send a standardized error response
@@ -17,7 +16,7 @@ const isDevelopment = process.env.NODE_ENV !== 'production';
  */
 export function errorResponse(res, statusCode, message, error = null) {
   const response = { error: message };
-  if (isDevelopment && error) {
+  if (!isProduction() && error) {
     response.details = error.message;
     if (error.stack) {
       response.stack = error.stack;

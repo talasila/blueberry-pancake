@@ -158,7 +158,7 @@ describe('PINContext', () => {
       });
     });
 
-    it('should handle eventId changes', () => {
+    it('should handle eventId changes', async () => {
       const { rerender } = render(
         <BrowserRouter>
           <PINProvider>

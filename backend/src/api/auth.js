@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import jwt from 'jsonwebtoken';
 import emailService from '../services/EmailService.js';
 import otpService from '../services/OTPService.js';
 import rateLimitService from '../services/RateLimitService.js';
@@ -9,7 +10,6 @@ import {
   generateRefreshToken,
   validateRefreshToken,
   invalidateRefreshToken,
-  invalidateAllRefreshTokens,
   JWT_COOKIE_NAME, 
   REFRESH_COOKIE_NAME,
   getJWTCookieOptions,
@@ -17,6 +17,7 @@ import {
 } from '../middleware/jwtAuth.js';
 import loggerService from '../logging/Logger.js';
 import { verifyTurnstile } from '../middleware/turnstileProtection.js';
+import { isProduction, isDevelopment, isTest } from '../utils/environment.js';
 
 const router = Router();
 
@@ -35,8 +36,10 @@ router.post('/otp/request', async (req, res) => {
       });
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+
     // Validate email format
-    if (!emailService.isValidEmail(email)) {
+    if (!emailService.isValidEmail(normalizedEmail)) {
       return res.status(400).json({
         error: 'Invalid email address format'
       });
@@ -58,7 +61,7 @@ router.post('/otp/request', async (req, res) => {
     }
 
     // Check if email is suspended
-    const suspensionStatus = suspensionService.isSuspended(email);
+    const suspensionStatus = await suspensionService.isSuspended(normalizedEmail);
     if (suspensionStatus.suspended) {
       const remainingMinutes = Math.ceil((suspensionStatus.endTime - Date.now()) / 60000);
       return res.status(403).json({
@@ -66,17 +69,13 @@ router.post('/otp/request', async (req, res) => {
       });
     }
 
-    // Per-email and per-IP rate limits
-    const allowedTestEnvironments = ['development', 'test', undefined, ''];
-    const isTestEnvironment = allowedTestEnvironments.includes(process.env.NODE_ENV);
-    
-    if (!isTestEnvironment) {
-      const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
-      const rateLimitResult = await rateLimitService.checkLimits(email, clientIP);
+    if (isProduction()) {
+      const clientIP = req.ip || req.socket?.remoteAddress || 'unknown';
+      const rateLimitResult = await rateLimitService.checkLimits(normalizedEmail, clientIP);
 
       if (!rateLimitResult.allowed) {
         const retryAfterSeconds = Math.ceil(rateLimitResult.retryAfter || 0);
-        const retryAfterMinutes = Math.ceil(retryAfterSeconds / 60);
+        const retryAfterMinutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
         return res.status(429).json({
           error: `Rate limit exceeded. Please try again in ${retryAfterMinutes} minute(s).`,
           retryAfter: retryAfterSeconds
@@ -88,25 +87,22 @@ router.post('/otp/request', async (req, res) => {
     const otp = otpService.generateOTP();
 
     // Store OTP (this will invalidate any existing OTP for this email - FR-014)
-    otpService.storeOTP(email, otp);
+    otpService.storeOTP(normalizedEmail, otp);
 
     // Send OTP via email (or skip in development/test environments)
-    const emailResult = await emailService.sendOTP(email, otp);
+    const emailResult = await emailService.sendOTP(normalizedEmail, otp);
 
     if (!emailResult.success) {
-      loggerService.error(`Failed to send OTP email to ${email}: ${emailResult.error}`).catch(() => {});
+      loggerService.error(`Failed to send OTP email to ${normalizedEmail}: ${emailResult.error}`).catch(() => {});
       return res.status(500).json({
         error: emailResult.error || 'Failed to send OTP email. Please try again later.'
       });
     }
 
-    // Check if we're in a test/development environment for response formatting
-    // If NODE_ENV is not set, treat as development environment
-    const devTestEnvironments = ['development', 'test', undefined, ''];
-    const isDevOrTest = devTestEnvironments.includes(process.env.NODE_ENV);
+    const isDevOrTest = isDevelopment() || isTest();
     
     // Log successful OTP request
-    loggerService.info(`OTP requested for ${email}`).catch(() => {});
+    loggerService.info(`OTP requested for ${normalizedEmail}`).catch(() => {});
     const response = {
       success: true,
       message: isDevOrTest 
@@ -143,6 +139,8 @@ router.post('/otp/verify', async (req, res) => {
       });
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+
     const rawOtp = otp;
     if (rawOtp == null || (typeof rawOtp !== 'string' && typeof rawOtp !== 'number')) {
       return res.status(400).json({
@@ -157,19 +155,14 @@ router.post('/otp/verify', async (req, res) => {
     }
 
     // Validate email format
-    if (!emailService.isValidEmail(email)) {
+    if (!emailService.isValidEmail(normalizedEmail)) {
       return res.status(400).json({
         error: 'Invalid email address format'
       });
     }
 
-    // Check for test OTP bypass FIRST (before any other checks)
-    // Test OTP bypasses all restrictions: suspension, rate limits, expiration, etc. (FR-019)
-    // Explicitly whitelist allowed test environments for better security
-    // If NODE_ENV is not set, treat as development environment
-    const allowedTestEnvironments = ['development', 'test', undefined, ''];
-    const isTestEnvironment = allowedTestEnvironments.includes(process.env.NODE_ENV);
-    const isTestOTP = isTestEnvironment && otpTrimmed === '123456';
+    // Test OTP bypasses all restrictions in non-production environments (FR-019)
+    const isTestOTP = !isProduction() && otpTrimmed === '123456';
     
     let otpResult;
     if (isTestOTP) {
@@ -177,7 +170,7 @@ router.post('/otp/verify', async (req, res) => {
       otpResult = { valid: true, bypass: true };
     } else {
       // Check if email is suspended (always check, security best practice)
-      const suspensionStatus = suspensionService.isSuspended(email);
+      const suspensionStatus = await suspensionService.isSuspended(normalizedEmail);
       if (suspensionStatus.suspended) {
         const remainingMinutes = Math.ceil((suspensionStatus.endTime - Date.now()) / 60000);
         return res.status(403).json({
@@ -186,16 +179,16 @@ router.post('/otp/verify', async (req, res) => {
       }
 
       // Validate OTP (normal flow)
-      otpResult = await otpService.validateOTP(email, otpTrimmed);
+      otpResult = await otpService.validateOTP(normalizedEmail, otpTrimmed);
     }
 
     if (!otpResult.valid) {
       // Record failed attempt (unless it's a test OTP bypass)
       if (!otpResult.bypass) {
-        const attemptResult = suspensionService.recordFailedAttempt(email);
+        const attemptResult = await suspensionService.recordFailedAttempt(normalizedEmail);
 
         if (attemptResult.suspended) {
-          loggerService.warn(`Email ${email} suspended after ${attemptResult.attempts} failed attempts`).catch(() => {});
+          loggerService.warn(`Email ${normalizedEmail} suspended after ${attemptResult.attempts} failed attempts`).catch(() => {});
           return res.status(403).json({
             error: 'Too many failed attempts. Your account has been temporarily suspended for 5 minutes.'
           });
@@ -209,20 +202,20 @@ router.post('/otp/verify', async (req, res) => {
 
     // OTP is valid - reset failed attempts and generate JWT token
     // Always reset failed attempts on successful verification (including test OTP)
-    suspensionService.resetFailedAttempts(email);
+    await suspensionService.resetFailedAttempts(normalizedEmail);
     
     if (!otpResult.bypass) {
       // Invalidate used OTP (not needed for test OTP which is static)
-      otpService.invalidateOTP(email);
+      otpService.invalidateOTP(normalizedEmail);
     }
 
     // Get all events where user is an administrator
     let adminEvents = [];
     try {
-      adminEvents = await eventService.getEventsByAdministrator(email);
-      loggerService.info(`User ${email} has administrator access to ${adminEvents.length} event(s)`).catch(() => {});
+      adminEvents = await eventService.getEventsByAdministrator(normalizedEmail);
+      loggerService.info(`User ${normalizedEmail} has administrator access to ${adminEvents.length} event(s)`).catch(() => {});
     } catch (error) {
-      loggerService.error(`Failed to get events for administrator ${email}: ${error.message}`).catch(() => {});
+      loggerService.error(`Failed to get events for administrator ${normalizedEmail}: ${error.message}`).catch(() => {});
       // Continue with empty events array - user can still authenticate
     }
 
@@ -230,7 +223,7 @@ router.post('/otp/verify', async (req, res) => {
     let token;
     try {
       token = generateToken({ 
-        email,
+        email: normalizedEmail,
         events: adminEvents,
         authMethod: 'otp'
       });
@@ -241,21 +234,21 @@ router.post('/otp/verify', async (req, res) => {
       });
     }
 
-    // Generate refresh token for session persistence
-    const refreshToken = generateRefreshToken(email);
+    const refreshToken = await generateRefreshToken(normalizedEmail);
 
     // Log successful authentication
     const authType = otpResult.bypass ? 'test OTP' : 'OTP';
-    loggerService.info(`User ${email} authenticated successfully via ${authType}`).catch(() => {});
+    loggerService.info(`User ${normalizedEmail} authenticated successfully via ${authType}`).catch(() => {});
 
     // Set JWT as httpOnly cookie for security
     res.cookie(JWT_COOKIE_NAME, token, getJWTCookieOptions());
     // Set refresh token as httpOnly cookie
     res.cookie(REFRESH_COOKIE_NAME, refreshToken, getRefreshCookieOptions());
 
+    const decoded = jwt.decode(token);
     return res.status(200).json({
       success: true,
-      token, // Still return token for backward compatibility during migration
+      user: { email: normalizedEmail, exp: decoded?.exp, authMethod: 'otp' },
       message: 'Authentication successful'
     });
   } catch (error) {
@@ -274,35 +267,41 @@ router.post('/otp/verify', async (req, res) => {
  * POST /api/auth/logout
  * Clear JWT and refresh token cookies and log out user
  */
-router.post('/logout', (req, res) => {
-  // Invalidate refresh token if present
-  const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
-  if (refreshToken) {
-    invalidateRefreshToken(refreshToken);
+router.post('/logout', async (req, res) => {
+  try {
+    const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
+    if (refreshToken) {
+      await invalidateRefreshToken(refreshToken);
+    }
+
+    const isProd = isProduction();
+
+    res.clearCookie(JWT_COOKIE_NAME, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'strict',
+      path: '/',
+    });
+
+    res.clearCookie(REFRESH_COOKIE_NAME, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: isProd ? 'none' : 'strict',
+      path: '/api/auth',
+    });
+
+    loggerService.info('User logged out').catch(() => {});
+
+    return res.status(200).json({
+      success: true,
+      message: 'Logged out successfully'
+    });
+  } catch (error) {
+    loggerService.error(`Error during logout: ${error.message}`).catch(() => {});
+    return res.status(500).json({
+      error: 'An error occurred during logout'
+    });
   }
-
-  // Clear JWT cookie
-  res.clearCookie(JWT_COOKIE_NAME, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    path: '/',
-  });
-
-  // Clear refresh token cookie
-  res.clearCookie(REFRESH_COOKIE_NAME, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
-    path: '/api/auth',
-  });
-
-  loggerService.info('User logged out').catch(() => {});
-
-  return res.status(200).json({
-    success: true,
-    message: 'Logged out successfully'
-  });
 });
 
 /**
@@ -315,21 +314,20 @@ router.post('/refresh', async (req, res) => {
     // Get refresh token from cookie
     const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
     
-    // Validate refresh token
-    const validation = validateRefreshToken(refreshToken);
+    const validation = await validateRefreshToken(refreshToken);
     
     if (!validation.valid) {
-      // Clear invalid cookies
+      const isProd = isProduction();
       res.clearCookie(JWT_COOKIE_NAME, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: isProd,
+        sameSite: isProd ? 'none' : 'strict',
         path: '/',
       });
       res.clearCookie(REFRESH_COOKIE_NAME, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: isProd,
+        sameSite: isProd ? 'none' : 'strict',
         path: '/api/auth',
       });
       
@@ -370,9 +368,10 @@ router.post('/refresh', async (req, res) => {
 
     loggerService.info(`Token refreshed for ${email}`).catch(() => {});
 
+    const decoded = jwt.decode(token);
     return res.status(200).json({
       success: true,
-      token, // For backward compatibility
+      user: { email, exp: decoded?.exp, authMethod: 'otp' },
       message: 'Token refreshed successfully'
     });
   } catch (error) {

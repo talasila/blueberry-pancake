@@ -40,15 +40,16 @@ export function PINProvider({ children }) {
   // Also check if session is still valid by attempting to use it
   useEffect(() => {
     if (eventId) {
-      const stored = localStorage.getItem(`pin:session:${eventId}`);
-      if (stored) {
-        setSessionId(stored);
-        setPinVerified(true);
-        
-        // Note: Session validity is checked server-side on each request
-        // If session is invalid, the API will return 401 and the component
-        // should handle it by clearing the session and redirecting to PIN entry
-      } else {
+      try {
+        const stored = localStorage.getItem(`pin:session:${eventId}`);
+        if (stored) {
+          setSessionId(stored);
+          setPinVerified(true);
+        } else {
+          setSessionId(null);
+          setPinVerified(false);
+        }
+      } catch {
         setSessionId(null);
         setPinVerified(false);
       }
@@ -60,7 +61,9 @@ export function PINProvider({ children }) {
    */
   const clearPINSession = () => {
     if (eventId) {
-      localStorage.removeItem(`pin:session:${eventId}`);
+      try {
+        localStorage.removeItem(`pin:session:${eventId}`);
+      } catch { /* private browsing / storage full */ }
       setSessionId(null);
       setPinVerified(false);
     }
@@ -76,12 +79,16 @@ export function PINProvider({ children }) {
     if (verified && newSessionId) {
       setSessionId(newSessionId);
       if (eventId) {
-        localStorage.setItem(`pin:session:${eventId}`, newSessionId);
+        try {
+          localStorage.setItem(`pin:session:${eventId}`, newSessionId);
+        } catch { /* private browsing / storage full */ }
       }
     } else {
       setSessionId(null);
       if (eventId) {
-        localStorage.removeItem(`pin:session:${eventId}`);
+        try {
+          localStorage.removeItem(`pin:session:${eventId}`);
+        } catch { /* private browsing / storage full */ }
       }
     }
   };

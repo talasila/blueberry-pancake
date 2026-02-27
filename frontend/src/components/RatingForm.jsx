@@ -37,12 +37,21 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
   const [retryCount, setRetryCount] = useState(0);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
-  const MAX_RETRIES = 3; // Maximum number of retry attempts
+  const timeoutRefs = useRef([]);
+  const MAX_RETRIES = 3;
 
   // Quotes hook for note suggestions
   const { getSuggestionsForRating } = useQuotes();
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+
+  // Clear pending timeouts on unmount
+  useEffect(() => {
+    return () => {
+      timeoutRefs.current.forEach(clearTimeout);
+      timeoutRefs.current = [];
+    };
+  }, []);
 
   // Reset form state when itemId or existingRating changes
   useEffect(() => {
@@ -53,7 +62,7 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
     setIsSubmitting(false);
     setRetryCount(0);
     setIsDropdownOpen(false);
-    setSuggestions([]); // Clear suggestions when item changes
+    setSuggestions([]);
   }, [itemId, existingRating]);
 
   // Extract maxRating as primitive to avoid object reference issues in dependency array
@@ -203,9 +212,7 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
     setIsSubmitting(true);
     setError(null);
 
-    // Retry logic (T083)
-    const MAX_RETRIES = 3; // Maximum number of retry attempts
-    const RETRY_DELAY = 1000; // 1 second
+    const RETRY_DELAY = 1000;
 
     const attemptSubmit = async (attemptNumber = 0) => {
       try {
@@ -224,14 +231,13 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
         setSuccess(true);
         setRetryCount(0);
         
-        // Close drawer after short delay to show success
-        setTimeout(() => {
+        const successTimeout = setTimeout(() => {
           onClose();
-          // Trigger custom event to refresh ratings (EventPage will listen)
           window.dispatchEvent(new CustomEvent('ratingSubmitted', { 
             detail: { eventId: effectiveEventId, itemId } 
           }));
         }, 1000);
+        timeoutRefs.current.push(successTimeout);
       } catch (err) {
         // Check if error is retryable (network errors, 5xx errors)
         const isRetryable = 
@@ -243,9 +249,10 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
         if (isRetryable && attemptNumber < MAX_RETRIES) {
           // Retry after delay
           setRetryCount(attemptNumber + 1);
-          setTimeout(() => {
+          const retryTimeout = setTimeout(() => {
             attemptSubmit(attemptNumber + 1);
-          }, RETRY_DELAY * (attemptNumber + 1)); // Exponential backoff
+          }, RETRY_DELAY * (attemptNumber + 1));
+          timeoutRefs.current.push(retryTimeout);
         } else {
           // Max retries reached or non-retryable error
           setError(

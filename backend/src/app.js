@@ -11,7 +11,9 @@ import configLoader from './config/configLoader.js';
 import configValidator from './config/configValidator.js';
 import dataRepository from './data/DynamoDBRepository.js';
 import loggerService from './logging/Logger.js';
+import { isProduction, assertNodeEnvSet } from './utils/environment.js';
 
+assertNodeEnvSet();
 configValidator.validateOrThrow();
 await loggerService.initialize();
 await loggerService.info('Application starting...', {
@@ -41,8 +43,12 @@ app.use(helmet({
   hsts: { maxAge: 31536000, includeSubDomains: true, preload: true },
 }));
 
+const frontendUrl = configLoader.get('frontend.url');
+if (isProduction() && !frontendUrl) {
+  throw new Error('frontend.url must be configured in production');
+}
 app.use(cors({
-  origin: configLoader.get('frontend.url') || true,
+  origin: frontendUrl || true,
   credentials: true
 }));
 

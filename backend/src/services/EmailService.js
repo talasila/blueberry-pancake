@@ -2,6 +2,7 @@ import { Resend } from 'resend';
 import configLoader from '../config/configLoader.js';
 import loggerService from '../logging/Logger.js';
 import { isValidEmail as isValidEmailUtil } from '../utils/emailUtils.js';
+import { isProduction } from '../utils/environment.js';
 
 /**
  * Email service for sending OTP codes via Resend
@@ -35,10 +36,14 @@ class EmailService {
 
     this.resend = new Resend(apiKey);
 
-    // Get from address from environment variable (takes precedence) or config
     this.fromAddress = process.env.EMAIL_FROM_ADDRESS || 
-                       configLoader.get('email.fromAddress') || 
-                       'sreeni@7155421.xys';
+                       configLoader.get('email.fromAddress');
+
+    if (!this.fromAddress) {
+      loggerService.warn('EMAIL_FROM_ADDRESS not configured. Email sending will fail.').catch(() => {});
+      this.initialized = false;
+      return;
+    }
 
     this.initialized = true;
     loggerService.info('Email service initialized').catch(() => {});
@@ -69,11 +74,9 @@ class EmailService {
       };
     }
 
-    // In development/test environments, skip actual email sending
-    const isProduction = process.env.NODE_ENV === 'production' || process.env.NODE_ENV === 'prod';
-    const isDevelopment = !isProduction;
+    const isDev = !isProduction();
     
-    if (isDevelopment) {
+    if (isDev) {
       loggerService.info(`[DEV MODE] OTP ${otp} generated for ${email} (email not sent)`).catch(() => {});
       return {
         success: true,

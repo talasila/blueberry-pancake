@@ -83,7 +83,7 @@ export function StateIcon({ state, className = '' }) {
   const Icon = config.icon;
   
   return (
-    <Badge variant="outline" className={`capitalize flex items-center gap-1.5 ${config.className}`}>
+    <Badge variant="outline" className={`capitalize flex items-center gap-1.5 ${config.className} ${className}`}>
       <Icon className="h-3.5 w-3.5" />
     </Badge>
   );

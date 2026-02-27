@@ -20,6 +20,7 @@ function useEventPolling(eventId, intervalMs = 30000) {
   const [event, setEvent] = useState(null);
   const [isPolling, setIsPolling] = useState(false);
   const intervalRef = useRef(null);
+  const retryTimeoutRef = useRef(null);
   const retryCountRef = useRef(0);
   const maxRetries = 3;
 
@@ -28,13 +29,7 @@ function useEventPolling(eventId, intervalMs = 30000) {
       return;
     }
 
-    // Check authentication before attempting to fetch - CRITICAL: must check every time
-    // Must have a valid (non-empty) JWT token
-    const jwtToken = apiClient.getJWTToken();
-    const hasAuth = !!(jwtToken && jwtToken.trim());
-    
-    if (!hasAuth) {
-      // Don't fetch if no authentication - stop polling interval if it exists
+    if (!apiClient.isAuthenticated()) {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -46,9 +41,8 @@ function useEventPolling(eventId, intervalMs = 30000) {
     try {
       const eventData = await apiClient.getEvent(eventId);
       setEvent(eventData);
-      retryCountRef.current = 0; // Reset retry count on success
+      retryCountRef.current = 0;
     } catch (error) {
-      // If we get a 401, stop polling immediately
       if (error.message && error.message.includes('authentication required')) {
         if (intervalRef.current) {
           clearInterval(intervalRef.current);
@@ -58,14 +52,15 @@ function useEventPolling(eventId, intervalMs = 30000) {
         return;
       }
       
-      // Handle other errors gracefully - don't stop polling on single error
       console.error('Failed to fetch event during polling:', error);
       
-      // Exponential backoff for retries
       retryCountRef.current += 1;
       if (retryCountRef.current <= maxRetries) {
-        const backoffDelay = Math.min(intervalMs * Math.pow(2, retryCountRef.current - 1), 300000); // Max 5 minutes
-        setTimeout(() => {
+        const backoffDelay = Math.min(intervalMs * Math.pow(2, retryCountRef.current - 1), 120000);
+        if (retryTimeoutRef.current) {
+          clearTimeout(retryTimeoutRef.current);
+        }
+        retryTimeoutRef.current = setTimeout(() => {
           if (intervalRef.current) {
             fetchEvent();
           }
@@ -79,13 +74,7 @@ function useEventPolling(eventId, intervalMs = 30000) {
       return;
     }
 
-    // Check authentication before setting up polling
-    // Must have a valid (non-empty) JWT token
-    const jwtToken = apiClient.getJWTToken();
-    const hasAuth = !!(jwtToken && jwtToken.trim());
-    
-    if (!hasAuth) {
-      // Don't start polling if no authentication
+    if (!apiClient.isAuthenticated()) {
       return;
     }
 
@@ -127,14 +116,16 @@ function useEventPolling(eventId, intervalMs = 30000) {
     // Listen for visibility changes
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Cleanup on unmount or eventId change
     return () => {
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+        retryTimeoutRef.current = null;
+      }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      setIsPolling(false);
     };
   }, [eventId, intervalMs, fetchEvent]);
 

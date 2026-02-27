@@ -19,16 +19,13 @@ export default function SystemPage() {
   const [error, setError] = useState(null);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const [filters, setFilters] = useState({});
-  const [listKey, setListKey] = useState(0); // Key to force EventList refresh
+  const [listKey, setListKey] = useState(0);
 
   // Check authorization on mount
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // First check if user is authenticated
-        const token = apiClient.getJWTToken();
-        if (!token) {
+        if (!apiClient.isAuthenticated()) {
           navigate('/auth', { replace: true });
           return;
         }
@@ -124,7 +121,6 @@ export default function SystemPage() {
         <EventList 
           key={listKey}
           onEventSelect={handleEventSelect}
-          filters={filters}
         />
       </div>
 

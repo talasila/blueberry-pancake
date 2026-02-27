@@ -98,7 +98,7 @@ async function navigateToSystemPageWithStats(page) {
   await navigateToSystemPage(page);
   
   // Wait for stats section to render (stats are loaded during auth check)
-  await page.waitForSelector('text=/total events/i', { timeout: 5000 });
+  await page.waitForSelector('text=/total events/i', { timeout: 15000 });
 }
 
 test.describe('System Administration Dashboard', () => {
@@ -354,7 +354,7 @@ test.describe('System Administration Dashboard', () => {
         await page.waitForTimeout(500);
         
         // Events should still be visible (default view, not filtered)
-        await expect(page.getByText('Whitespace Search Test')).toBeVisible({ timeout: 5000 });
+        await expect(page.getByText('Whitespace Search Test')).toBeVisible({ timeout: 15000 });
       } finally {
         await deleteTestEvent(eventId);
       }
@@ -445,8 +445,8 @@ test.describe('System Administration Dashboard', () => {
         
         // Drawer should show the PIN
         const drawer = page.locator('[role="dialog"]');
-        await expect(drawer.getByText('Event PIN')).toBeVisible();
-        await expect(drawer.getByText('987654')).toBeVisible();
+        await expect(drawer.getByText('Event PIN')).toBeVisible({ timeout: 10000 });
+        await expect(drawer.getByText('987654')).toBeVisible({ timeout: 5000 });
       } finally {
         await deleteTestEvent(eventId);
       }

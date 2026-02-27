@@ -15,10 +15,6 @@ export async function getSimilarUsers(eventId) {
     const data = await apiClient.get(`/events/${eventId}/similar-users`);
     return data;
   } catch (error) {
-    // Re-throw with more context
-    if (error.message) {
-      throw error;
-    }
     throw new Error(`Failed to fetch similar users: ${error.message || 'Unknown error'}`);
   }
 }

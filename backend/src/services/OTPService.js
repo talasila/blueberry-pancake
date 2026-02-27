@@ -1,5 +1,7 @@
 import crypto from 'crypto';
 import dataRepository from '../data/DynamoDBRepository.js';
+import loggerService from '../logging/Logger.js';
+import { isDevelopment, isTest } from '../utils/environment.js';
 
 /**
  * OTP Service for generating, storing, and validating OTP codes
@@ -10,6 +12,7 @@ class OTPService {
     this.OTP_LENGTH = 6;
     this.OTP_EXPIRATION_MINUTES = 10;
     this.OTP_EXPIRATION_SECONDS = this.OTP_EXPIRATION_MINUTES * 60;
+    this.MAX_ATTEMPTS = 5;
   }
 
   /**
@@ -39,7 +42,7 @@ class OTPService {
       await dataRepository.setOTP(email, otp, this.OTP_EXPIRATION_SECONDS);
       return true;
     } catch (error) {
-      console.error(`Error storing OTP for ${email}:`, error);
+      loggerService.error(`Error storing OTP for ${email}:`, error);
       return false;
     }
   }
@@ -61,11 +64,7 @@ class OTPService {
     }
 
     // Check for test OTP bypass (explicitly allowed in development and test environments only)
-    // This is more secure than checking for NOT production, as it requires explicit whitelisting
-    // If NODE_ENV is not set, treat as development environment
-    const allowedTestEnvironments = ['development', 'test', undefined, ''];
-    const isTestEnvironment = allowedTestEnvironments.includes(process.env.NODE_ENV);
-    if (isTestEnvironment && otp === '123456') {
+    if ((isDevelopment() || isTest()) && otp === '123456') {
       return { valid: true, bypass: true };
     }
 
@@ -76,18 +75,23 @@ class OTPService {
         return { valid: false, error: 'OTP not found or expired' };
       }
 
-      // Validate code (normalize types and trim - DynamoDB may return number, frontend may send whitespace)
+      if (otpData.attempts >= this.MAX_ATTEMPTS) {
+        await dataRepository.deleteOTP(email);
+        return { valid: false, error: 'Too many failed attempts. Please request a new OTP.' };
+      }
+
       const storedCode = String(otpData.code ?? '').trim();
       const enteredCode = String(otp).trim();
-      if (storedCode !== enteredCode) {
-        // Increment attempts counter
+      const storedBuffer = Buffer.from(storedCode.padEnd(6));
+      const enteredBuffer = Buffer.from(enteredCode.padEnd(6));
+      if (!crypto.timingSafeEqual(storedBuffer, enteredBuffer)) {
         await dataRepository.incrementOTPAttempts(email);
         return { valid: false, error: 'Invalid OTP code' };
       }
 
       return { valid: true };
     } catch (error) {
-      console.error(`Error validating OTP for ${email}:`, error);
+      loggerService.error(`Error validating OTP for ${email}:`, error);
       return { valid: false, error: 'Error validating OTP' };
     }
   }
@@ -106,7 +110,7 @@ class OTPService {
       await dataRepository.deleteOTP(email);
       return true;
     } catch (error) {
-      console.error(`Error invalidating OTP for ${email}:`, error);
+      loggerService.error(`Error invalidating OTP for ${email}:`, error);
       return false;
     }
   }
@@ -122,9 +126,13 @@ class OTPService {
     }
 
     try {
-      return await dataRepository.getOTP(email);
+      const otpData = await dataRepository.getOTP(email);
+      if (!otpData) return null;
+      // Strip the raw code - only return metadata
+      const { code, ...metadata } = otpData;
+      return metadata;
     } catch (error) {
-      console.error(`Error getting OTP data for ${email}:`, error);
+      loggerService.error(`Error getting OTP data for ${email}:`, error);
       return null;
     }
   }

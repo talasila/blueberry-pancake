@@ -1,27 +1,24 @@
 import loggerService from '../logging/Logger.js';
+import { isDevelopment } from '../utils/environment.js';
 
 /**
  * Error handling middleware
  * Centralized error handling for Express application
  */
 export function errorHandler(err, req, res, next) {
+  const dev = isDevelopment();
   loggerService.error(err.message, {
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    stack: dev ? err.stack : undefined,
     path: req.path,
     method: req.method,
-    ip: req.ip || req.connection?.remoteAddress || 'unknown',
+    ip: req.ip || req.socket?.remoteAddress || 'unknown',
     statusCode: err.statusCode || err.status || 500,
   }).catch(() => {});
 
-  // Determine status code
   const statusCode = err.statusCode || err.status || 500;
 
-  // Send error response
   res.status(statusCode).json({
-    error: {
-      message: err.message || 'Internal Server Error',
-      statusCode,
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-    }
+    error: err.message || 'Internal Server Error',
+    ...(dev && { stack: err.stack })
   });
 }

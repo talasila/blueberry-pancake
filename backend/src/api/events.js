@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import jwt from 'jsonwebtoken';
 import eventService from '../services/EventService.js';
 import pinService from '../services/PINService.js';
 import ratingService from '../services/RatingService.js';
@@ -13,8 +14,9 @@ import {
   getRefreshCookieOptions
 } from '../middleware/jwtAuth.js';
 import requireAuth from '../middleware/requireAuth.js';
+import { isProduction } from '../utils/environment.js';
 import { validateEventId } from '../utils/validators.js';
-import { handleApiError, badRequestError, unauthorizedError } from '../utils/apiErrorHandler.js';
+import { handleApiError, badRequestError, unauthorizedError, forbiddenError } from '../utils/apiErrorHandler.js';
 import { isValidEmail } from '../utils/emailUtils.js';
 import { verifyTurnstile } from '../middleware/turnstileProtection.js';
 
@@ -39,14 +41,10 @@ router.post('/', requireAuth, async (req, res) => {
     // Create event
     const event = await eventService.createEvent(name, typeOfItem, administratorEmail);
 
-    // Add newly created event to user's JWT token
-    let updatedToken = null;
     try {
-      const existingToken = req.cookies?.[JWT_COOKIE_NAME] || 
-        (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.substring(7) : null);
-      
+      const existingToken = req.cookies?.[JWT_COOKIE_NAME];
       if (existingToken) {
-        updatedToken = addEventToToken(existingToken, event.eventId);
+        const updatedToken = addEventToToken(existingToken, event.eventId);
         res.cookie(JWT_COOKIE_NAME, updatedToken, getJWTCookieOptions());
         loggerService.info(`Added new event ${event.eventId} to JWT for administrator ${administratorEmail}`);
       }
@@ -54,8 +52,9 @@ router.post('/', requireAuth, async (req, res) => {
       loggerService.warn(`Failed to update token with new event ${event.eventId}: ${tokenError.message}`);
     }
 
-    // Return created event with updated token so frontend can sync localStorage
-    res.status(201).json({ ...event, ...(updatedToken && { token: updatedToken }) });
+    const token = req.cookies?.[JWT_COOKIE_NAME];
+    const decoded = token ? jwt.decode(token) : null;
+    res.status(201).json({ ...event, user: { email: administratorEmail, exp: decoded?.exp } });
   } catch (error) {
     return handleApiError(res, error, 'create event');
   }
@@ -93,7 +92,7 @@ router.post('/:eventId/verify-pin', async (req, res) => {
   try {
     const { eventId } = req.params;
     const { pin, email } = req.body;
-    const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+    const ipAddress = req.ip || req.socket?.remoteAddress || 'unknown';
 
     // Validate event ID format
     const eventIdValidation = validateEventId(eventId);
@@ -174,12 +173,12 @@ router.post('/:eventId/verify-pin', async (req, res) => {
         // User already authenticated - add this event to their existing token
         try {
           token = addEventToToken(existingToken, eventId);
-          loggerService.info(`Added event ${eventId} to existing JWT for user ${email.trim()}`);
+          loggerService.info(`Added event ${eventId} to existing JWT for user ${email.trim().toLowerCase()}`);
         } catch (addError) {
           // If adding fails (token expired, invalid, etc.), create new token
           loggerService.warn(`Failed to add event to existing token, creating new: ${addError.message}`);
           token = generateToken({ 
-            email: email.trim(),
+            email: email.trim().toLowerCase(),
             events: [eventId],
             authMethod: 'pin'
           });
@@ -187,7 +186,7 @@ router.post('/:eventId/verify-pin', async (req, res) => {
       } else {
         // New authentication - create token with this event
         token = generateToken({ 
-          email: email.trim(),
+          email: email.trim().toLowerCase(),
           events: [eventId],
           authMethod: 'pin'
         });
@@ -196,19 +195,19 @@ router.post('/:eventId/verify-pin', async (req, res) => {
       return handleApiError(res, tokenError, 'generate authentication token');
     }
 
-    // Generate refresh token for session persistence
-    const refreshToken = generateRefreshToken(email.trim());
+    const normalizedEmail = email.trim().toLowerCase();
+    const refreshToken = await generateRefreshToken(normalizedEmail);
 
     // Set JWT as httpOnly cookie for security
     res.cookie(JWT_COOKIE_NAME, token, getJWTCookieOptions());
     // Set refresh token as httpOnly cookie
     res.cookie(REFRESH_COOKIE_NAME, refreshToken, getRefreshCookieOptions());
 
-    // PIN verified successfully
+    const decoded = jwt.decode(token);
     res.json({
       sessionId: result.sessionId,
       eventId,
-      token, // Still return token for backward compatibility
+      user: { email: normalizedEmail, exp: decoded?.exp, authMethod: decoded?.authMethod || 'pin' },
       message: 'PIN verified successfully'
     });
   } catch (error) {
@@ -244,15 +243,10 @@ router.get('/:eventId/check-admin', async (req, res) => {
     const turnstileResult = await verifyTurnstile(req, res);
     if (!turnstileResult.success) return;
 
-    // Rate limit check to prevent user enumeration
-    // In test/development environments, bypass rate limiting entirely for test automation
-    const allowedTestEnvironments = ['development', 'test', undefined, ''];
-    const isTestEnvironment = allowedTestEnvironments.includes(process.env.NODE_ENV);
-    
-    if (!isTestEnvironment) {
+    if (isProduction()) {
       // Import rateLimitService dynamically to avoid circular dependencies
       const rateLimitService = (await import('../services/RateLimitService.js')).default;
-      const clientIP = req.ip || req.connection.remoteAddress || 'unknown';
+      const clientIP = req.ip || req.socket?.remoteAddress || 'unknown';
       const ipLimit = await rateLimitService.checkIPLimit(clientIP);
       
       if (!ipLimit.allowed) {
@@ -487,9 +481,7 @@ router.patch('/:eventId', requireAuth, async (req, res) => {
 
     // Check if requester is administrator
     if (!eventService.isAdministrator(event, requesterEmail)) {
-      return res.status(403).json({
-        error: 'Only administrators can update event name'
-      });
+      return forbiddenError(res, 'Only administrators can update event name');
     }
 
     // Update event name
@@ -590,20 +582,21 @@ router.patch('/:eventId/state', requireAuth, async (req, res) => {
 router.get('/:eventId/item-configuration', requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
+    }
     const requesterEmail = req.user?.email;
 
     if (!requesterEmail) {
       return unauthorizedError(res, 'Authentication required');
     }
 
-    // Get event to check authorization
-    const event = await eventService.getEvent(eventId);
+    const event = await eventService.getEvent(eventIdValidation.eventId);
 
     // Check if requester is administrator
     if (!eventService.isAdministrator(event, requesterEmail)) {
-      return res.status(403).json({
-        error: 'Only administrators can view item configuration'
-      });
+      return forbiddenError(res, 'Only administrators can view item configuration');
     }
 
     // Get item configuration
@@ -639,6 +632,10 @@ router.get('/:eventId/item-configuration', requireAuth, async (req, res) => {
 router.patch('/:eventId/item-configuration', requireAuth, async (req, res) => {
   try {
     const { eventId } = req.params;
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
+    }
     const requesterEmail = req.user?.email;
     const { numberOfItems, excludedItemIds } = req.body;
 
@@ -646,9 +643,8 @@ router.patch('/:eventId/item-configuration', requireAuth, async (req, res) => {
       return unauthorizedError(res, 'Authentication required');
     }
 
-    // Update item configuration
     const result = await eventService.updateItemConfiguration(
-      eventId,
+      eventIdValidation.eventId,
       { numberOfItems, excludedItemIds },
       requesterEmail
     );
@@ -723,13 +719,18 @@ router.patch('/:eventId/rating-configuration', requireAuth, async (req, res) => 
     const requesterEmail = req.user?.email;
     const { maxRating, ratings, noteSuggestionsEnabled, expectedUpdatedAt } = req.body;
 
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
+    }
+
     if (!requesterEmail) {
       return unauthorizedError(res, 'Authentication required');
     }
 
     // Update rating configuration
     const result = await eventService.updateRatingConfiguration(
-      eventId,
+      eventIdValidation.eventId,
       { maxRating, ratings, noteSuggestionsEnabled },
       requesterEmail,
       expectedUpdatedAt

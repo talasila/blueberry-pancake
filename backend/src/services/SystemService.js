@@ -17,7 +17,9 @@ class SystemService {
    * @param {string} options.name - Filter by event name substring (optional)
    * @returns {Promise<{events: Array, total: number, limit: number, offset: number}>}
    */
-  async listAllEventsForAdmin({ limit = 50, offset = 0, state, owner, name, search } = {}) {
+  async listAllEventsForAdmin({ limit: rawLimit = 50, offset: rawOffset = 0, state, owner, name, search } = {}) {
+    const limit = parseInt(rawLimit, 10) || 50;
+    const offset = parseInt(rawOffset, 10) || 0;
     try {
       // Get all event IDs
       const allEventIds = await dataRepository.listEvents();
@@ -106,8 +108,8 @@ class SystemService {
         itemCount,
         participantCount,
         ratingCount,
-        createdAt: config.createdAt || null,
-        pin: config.pin || null
+        pin: config.pin || null,
+        createdAt: config.createdAt || null
       };
     } catch (error) {
       await loggerService.warn(`Failed to get summary for event ${eventId}: ${error.message}`);
@@ -184,15 +186,15 @@ class SystemService {
         state: config.state || 'created',
         ownerEmail,
         typeOfItem: config.typeOfItem || 'wine',
-        maxRating: config.maxRating || 4,
+        maxRating: config.ratingConfiguration?.maxRating || 4,
         ratingPresets: config.ratingPresets || [],
         itemCount,
         participantCount,
         ratingCount,
         registeredItems,
         admins,
-        createdAt: config.createdAt || null,
-        pin: config.pin || null
+        pin: config.pin || null,
+        createdAt: config.createdAt || null
       };
     } catch (error) {
       await loggerService.error(`Failed to get details for event ${eventId}`, error);
@@ -299,8 +301,8 @@ class SystemService {
       if (participantCount === 0 && ratings.length > 0) {
         const participants = new Set();
         ratings.forEach(rating => {
-          if (rating.userId) {
-            participants.add(rating.userId.toLowerCase());
+          if (rating.email) {
+            participants.add(rating.email.toLowerCase());
           }
         });
         participantCount = participants.size;

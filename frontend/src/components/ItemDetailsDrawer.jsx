@@ -12,7 +12,7 @@ import dashboardService from '@/services/dashboardService';
 import { useItemTerminology } from '@/utils/itemTerminology';
 import { useEventContext } from '@/contexts/EventContext';
 import apiClient from '@/services/apiClient';
-import { usePIN } from '@/contexts/PINContext';
+
 import { calculateWeightedAverage } from '@/utils/bayesianAverage';
 
 /**
@@ -38,8 +38,6 @@ function ItemDetailsDrawer({
 }) {
   const { event } = useEventContext();
   const { singular } = useItemTerminology(event);
-  const { pinVerified } = usePIN();
-  const openStartTimeRef = useRef(null);
   const hasBeenOpenedRef = useRef(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [item, setItem] = useState(null);
@@ -50,6 +48,7 @@ function ItemDetailsDrawer({
   const [userEmail, setUserEmail] = useState(null);
   const [cachedDashboardData, setCachedDashboardData] = useState(null);
   const [isLoadingRanking, setIsLoadingRanking] = useState(false);
+  const [allRatings, setAllRatings] = useState([]);
 
   // Track if drawer has ever been opened (for animation)
   useEffect(() => {
@@ -69,23 +68,9 @@ function ItemDetailsDrawer({
   // Get user email on mount and when drawer opens
   useEffect(() => {
     if (isOpen && eventId) {
-      // Try to get email from JWT token
-      const jwtToken = apiClient.getJWTToken();
-      let email = null;
+      let email = apiClient.getUserEmail();
       
-      if (jwtToken) {
-        try {
-          const parts = jwtToken.split('.');
-          if (parts.length === 3) {
-            const payload = JSON.parse(atob(parts[1]));
-            email = payload.email || null;
-          }
-        } catch (error) {
-          console.error('Error extracting email from token:', error);
-        }
-      }
-      
-      // If no email from JWT, try sessionStorage (stored during email entry)
+      // Fall back to sessionStorage (stored during email entry)
       if (!email && eventId) {
         const storedEmail = sessionStorage.getItem(`event:${eventId}:email`);
         if (storedEmail) {
@@ -153,8 +138,6 @@ function ItemDetailsDrawer({
       setIsLoading(false);
     }
   };
-
-  const [allRatings, setAllRatings] = useState([]);
 
   const fetchRatings = async () => {
     if (!eventId || !itemId) return;

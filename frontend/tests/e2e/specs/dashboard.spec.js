@@ -12,6 +12,7 @@ import {
   clearAuth,
   submitEmail,
   enterAndSubmitPIN,
+  getUserToken,
 } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
@@ -157,19 +158,7 @@ test.describe('Dashboard Page', () => {
     }
     
     // Access as regular user - set up auth token directly like admin tests do
-    // Get a regular user token by calling verify-pin API
-    const pinResponse = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ pin, email: 'regularuser@example.com' })
-    });
-    if (!pinResponse.ok) {
-      throw new Error(`Failed to verify PIN: ${await pinResponse.text()}`);
-    }
-    const pinData = await pinResponse.json();
-    const userToken = pinData.token;
+    const userToken = await getUserToken(eventId, 'regularuser@example.com', pin);
     
     // Set the user's token directly (same pattern as admin tests)
     await setAuthToken(page, userToken, 'regularuser@example.com');
@@ -407,15 +396,7 @@ test.describe('Dashboard Page', () => {
     }
     
     // Get a user token via PIN verification
-    const pinResponse = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin, email: 'rater@example.com' })
-    });
-    if (!pinResponse.ok) {
-      throw new Error(`Failed to verify PIN: ${await pinResponse.text()}`);
-    }
-    const { token: userToken } = await pinResponse.json();
+    const userToken = await getUserToken(eventId, 'rater@example.com', pin);
     
     // Submit ratings for some items
     for (let itemId = 1; itemId <= 3; itemId++) {
@@ -515,12 +496,7 @@ test.describe('Dashboard Page', () => {
     });
     
     // Create first user and submit ratings
-    const user1Response = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin, email: 'user1@example.com' })
-    });
-    const { token: user1Token } = await user1Response.json();
+    const user1Token = await getUserToken(eventId, 'user1@example.com', pin);
     
     // Submit ratings for user1
     for (let itemId = 1; itemId <= 3; itemId++) {
@@ -580,12 +556,7 @@ test.describe('Dashboard Page', () => {
     });
     
     // Create first user with 5 ratings
-    const user1Response = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin, email: 'alice@example.com' })
-    });
-    const { token: user1Token } = await user1Response.json();
+    const user1Token = await getUserToken(eventId, 'alice@example.com', pin);
     
     for (let itemId = 1; itemId <= 5; itemId++) {
       await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
@@ -599,12 +570,7 @@ test.describe('Dashboard Page', () => {
     }
     
     // Create second user with 2 ratings
-    const user2Response = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin, email: 'bob@example.com' })
-    });
-    const { token: user2Token } = await user2Response.json();
+    const user2Token = await getUserToken(eventId, 'bob@example.com', pin);
     
     for (let itemId = 1; itemId <= 2; itemId++) {
       await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
@@ -666,12 +632,7 @@ test.describe('Dashboard Page', () => {
     });
     
     // Create users with ratings
-    const user1Response = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin, email: 'zack@example.com' })
-    });
-    const { token: user1Token } = await user1Response.json();
+    const user1Token = await getUserToken(eventId, 'zack@example.com', pin);
     
     await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
       method: 'POST',
@@ -682,12 +643,7 @@ test.describe('Dashboard Page', () => {
       body: JSON.stringify({ itemId: 1, rating: 5 })
     });
     
-    const user2Response = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin, email: 'anna@example.com' })
-    });
-    const { token: user2Token } = await user2Response.json();
+    const user2Token = await getUserToken(eventId, 'anna@example.com', pin);
     
     await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
       method: 'POST',
@@ -751,12 +707,7 @@ test.describe('Dashboard Page', () => {
     });
     
     // Create users in reverse alphabetical order
-    const user1Response = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin, email: 'zack@example.com' })
-    });
-    const { token: user1Token } = await user1Response.json();
+    const user1Token = await getUserToken(eventId, 'zack@example.com', pin);
     
     await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
       method: 'POST',
@@ -767,12 +718,7 @@ test.describe('Dashboard Page', () => {
       body: JSON.stringify({ itemId: 1, rating: 5 })
     });
     
-    const user2Response = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin, email: 'anna@example.com' })
-    });
-    const { token: user2Token } = await user2Response.json();
+    const user2Token = await getUserToken(eventId, 'anna@example.com', pin);
     
     await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
       method: 'POST',
@@ -829,12 +775,7 @@ test.describe('Dashboard Page', () => {
     });
     
     // Create user with ratings
-    const userResponse = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin, email: 'testuser@example.com' })
-    });
-    const { token: userToken } = await userResponse.json();
+    const userToken = await getUserToken(eventId, 'testuser@example.com', pin);
     
     await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
       method: 'POST',
@@ -893,12 +834,7 @@ test.describe('Dashboard Page', () => {
     });
     
     // Create user (no name set, only email)
-    const userResponse = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pin, email: 'john.doe@example.com' })
-    });
-    const { token: userToken } = await userResponse.json();
+    const userToken = await getUserToken(eventId, 'john.doe@example.com', pin);
     
     await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
       method: 'POST',

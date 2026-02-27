@@ -92,8 +92,8 @@ API_URL=$(aws cloudformation describe-stacks \
   --stack-name blueberry-pancake-$ENV \
   --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' \
   --output text)
-# Frontend calls API Gateway directly (bypasses CloudFront routing issues)
-(cd frontend && VITE_API_BASE_URL="${API_URL}/api" VITE_TURNSTILE_SITE_KEY="${TURNSTILE_SITE_KEY}" npm run build)
+# Frontend uses relative /api paths — CloudFront proxies /api/* to API Gateway (same-origin cookies)
+(cd frontend && VITE_TURNSTILE_SITE_KEY="${TURNSTILE_SITE_KEY}" npm run build)
 
 BUCKET=$(aws cloudformation describe-stacks \
   --stack-name blueberry-pancake-frontend-$ENV \

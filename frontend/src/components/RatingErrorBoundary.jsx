@@ -47,7 +47,7 @@ class RatingErrorBoundary extends React.Component {
           <Button onClick={this.handleReset} variant="outline" className="w-full">
             Try Again
           </Button>
-          {process.env.NODE_ENV === 'development' && this.state.errorInfo && (
+          {import.meta.env.DEV && this.state.errorInfo && (
             <details className="mt-4">
               <summary className="cursor-pointer text-sm text-muted-foreground">
                 Error Details (Development Only)

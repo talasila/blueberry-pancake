@@ -84,12 +84,14 @@ test.describe('Production Smoke Test', () => {
         await emailInput.fill(SMOKE_EMAIL);
 
         const requestButton = page.getByRole('button', { name: /request otp/i });
-        await expect(requestButton).toBeEnabled({ timeout: 5000 });
-        await requestButton.click();
+        await expect(requestButton).toBeEnabled({ timeout: 30_000 });
 
-        // OTP input appears once the request is accepted
+        // Click and wait for OTP input; retry if Turnstile verification wasn't ready yet
         const otpInput = page.locator('input#otp');
-        await expect(otpInput).toBeVisible({ timeout: 15_000 });
+        await expect(async () => {
+          await requestButton.click();
+          await expect(otpInput).toBeVisible({ timeout: 5_000 });
+        }).toPass({ timeout: 45_000, intervals: [3_000] });
 
         // Pause so the operator can type the OTP into the browser.
         // Check your email, type the 6-digit code into the OTP field,
@@ -109,7 +111,10 @@ test.describe('Production Smoke Test', () => {
         await expect(page.getByText(/authentication successful/i)).toBeVisible({ timeout: 10_000 });
         await page.waitForURL((url) => !new URL(url).pathname.includes('/auth'), { timeout: 10_000 });
 
-        adminJWT = await page.evaluate(() => localStorage.getItem('jwtToken'));
+        // JWT is now stored as an httpOnly cookie, read it via Playwright API
+        const cookies = await page.context().cookies();
+        const jwtCookie = cookies.find(c => c.name === 'jwt_token');
+        adminJWT = jwtCookie?.value;
         expect(adminJWT).toBeTruthy();
       });
 

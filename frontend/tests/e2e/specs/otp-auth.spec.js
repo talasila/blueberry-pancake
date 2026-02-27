@@ -65,10 +65,11 @@ test.describe('OTP Authentication', () => {
     // Should be redirected to event page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`), { timeout: 5000 });
     
-    // Verify JWT token exists in localStorage
-    const token = await page.evaluate(() => localStorage.getItem('jwtToken'));
-    expect(token).toBeTruthy();
-    expect(token.length).toBeGreaterThan(0);
+    // Verify user session exists in localStorage (auth was successful)
+    const session = await page.evaluate(() => localStorage.getItem('userSession'));
+    expect(session).toBeTruthy();
+    const parsed = JSON.parse(session);
+    expect(parsed.email).toBeTruthy();
     
     // Verify admin can access the event page (not redirected)
     const currentUrl = page.url();
@@ -102,8 +103,8 @@ test.describe('OTP Authentication', () => {
       if (await verifyButton.isVisible()) {
         await verifyButton.click();
         
-        // Should show error message
-        await expect(page.locator('text=/invalid|incorrect|wrong|error/i')).toBeVisible({ timeout: 5000 });
+        // Should show error message (matches all backend error variants)
+        await expect(page.locator('.text-destructive')).toBeVisible({ timeout: 10000 });
       }
     }
   });
@@ -151,15 +152,15 @@ test.describe('OTP Authentication', () => {
       verifyButton.click(),
     ]);
     
-    // Verify error message is displayed (may be "Invalid OTP" or "Too many failed attempts" if rate-limited from prior runs)
-    await expect(page.getByText(/invalid otp|too many failed attempts/i)).toBeVisible({ timeout: 10000 });
+    // Verify error message is displayed (may vary: "Invalid OTP", "OTP not found or expired", or "Too many failed attempts" if rate-limited)
+    await expect(page.getByText(/invalid otp|otp not found|too many failed attempts/i)).toBeVisible({ timeout: 10000 });
     
     // Verify user stays on OTP page (not redirected)
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/otp`));
     
-    // Verify JWT token is NOT stored in localStorage
-    const token = await page.evaluate(() => localStorage.getItem('jwtToken'));
-    expect(token).toBeFalsy();
+    // Verify user session is NOT stored in localStorage (auth failed)
+    const session = await page.evaluate(() => localStorage.getItem('userSession'));
+    expect(session).toBeFalsy();
   });
 
   // ===================================

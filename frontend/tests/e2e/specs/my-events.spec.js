@@ -3,15 +3,15 @@
  *
  * Tests the My Events feature including:
  * - Landing page card → OTP auth → events list
- * - Header menu "My Events" link for OTP-auth users
+ * - Header menu "My Events" link visible for OTP-auth users and navigates to /my-events
+ * - Header menu "My Events" NOT visible for PIN-authenticated participants
  * - Empty state for users with no events
- * - "My Events" not visible for PIN-authenticated participants
  * - Clicking an event navigates to admin page
  * - Standalone page logout icon (replaces hamburger menu on /my-events, /create-event)
  */
 
 import { test, expect } from '@playwright/test';
-import { clearAuth, createTestEvent, deleteTestEvent, addAdminToEvent, setAuthToken, setupRootAdmin } from './helpers.js';
+import { clearAuth, createTestEvent, deleteTestEvent, addAdminToEvent, setAuthToken, setupRootAdmin, getUserToken } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
@@ -129,7 +129,7 @@ test.describe('My Events', () => {
     }
   });
 
-  test('header menu shows My Events for OTP-authenticated admin', async ({ page }) => {
+  test('header menu shows My Events for OTP-authenticated admin and navigates on click', async ({ page }) => {
     const eventId = await createTestEvent(null, 'Header Menu Test', '654321');
     const token = await addAdminToEvent(eventId, 'headermenu@example.com');
 
@@ -138,16 +138,43 @@ test.describe('My Events', () => {
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await page.waitForLoadState('networkidle');
 
-      // Open menu
       const menuButton = page.getByRole('button', { name: /open menu/i });
       await expect(menuButton).toBeVisible({ timeout: 10000 });
       await menuButton.click();
 
-      // The "My Events" menu item visibility depends on JWT authMethod.
-      // Tokens created via addAdminToEvent may not include authMethod: 'otp',
-      // so this test verifies the menu structure is present.
-      // Full authMethod-based visibility is tested in the OTP flow test above.
-      await page.waitForTimeout(500);
+      // "My Events" should be visible for OTP-authenticated admins
+      const myEventsItem = page.locator('button[role="menuitem"]', { hasText: 'My Events' });
+      await expect(myEventsItem).toBeVisible({ timeout: 5000 });
+
+      // Clicking it should navigate to /my-events
+      await myEventsItem.click();
+      await expect(page).toHaveURL(/\/my-events/, { timeout: 10000 });
+    } finally {
+      await deleteTestEvent(eventId);
+    }
+  });
+
+  test('header menu does not show My Events for PIN-authenticated user', async ({ page }) => {
+    const eventId = await createTestEvent(null, 'PIN Menu Test', '654321');
+
+    try {
+      const token = await getUserToken(eventId, 'pin-user@example.com', '654321');
+      await setAuthToken(page, token, 'pin-user@example.com');
+      await page.goto(`${BASE_URL}/event/${eventId}`);
+      await page.waitForLoadState('networkidle');
+
+      const menuButton = page.getByRole('button', { name: /open menu/i });
+      await expect(menuButton).toBeVisible({ timeout: 10000 });
+      await menuButton.click();
+
+      // "My Events" should NOT be visible for PIN-authenticated participants
+      await expect(page.locator('[role="menu"]')).toBeVisible({ timeout: 3000 });
+      const myEventsItem = page.locator('[role="menu"] >> text=My Events');
+      await expect(myEventsItem).not.toBeVisible();
+
+      // Other menu items should still be present
+      await expect(page.locator('[role="menu"] >> text=Profile')).toBeVisible();
+      await expect(page.locator('[role="menu"] >> text=Logout')).toBeVisible();
     } finally {
       await deleteTestEvent(eventId);
     }

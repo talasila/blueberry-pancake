@@ -44,9 +44,7 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
   // Check authentication state and update when location or eventId changes
   useEffect(() => {
     const checkAuth = () => {
-      // Check for JWT token
-      const jwtToken = apiClient.getJWTToken();
-      setAuthState(!!jwtToken);
+      setAuthState(apiClient.isAuthenticated());
     };
 
     checkAuth();

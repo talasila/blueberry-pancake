@@ -18,11 +18,6 @@ class ConfigValidator {
       errors.push('environment must be one of: development, staging, production');
     }
 
-    // Validate dataDirectory
-    if (!config.dataDirectory || typeof config.dataDirectory !== 'string') {
-      errors.push('dataDirectory must be a valid string path');
-    }
-
     // Validate server configuration
     if (!config.server) {
       errors.push('server configuration is required');
@@ -33,21 +28,6 @@ class ConfigValidator {
       }
       if (!config.server.host || typeof config.server.host !== 'string') {
         errors.push('server.host must be a valid string');
-      }
-    }
-
-    // Validate cache configuration
-    if (!config.cache) {
-      errors.push('cache configuration is required');
-    } else {
-      if (typeof config.cache.enabled !== 'boolean') {
-        errors.push('cache.enabled must be a boolean');
-      }
-      if (!config.cache.ttl || typeof config.cache.ttl !== 'number' || config.cache.ttl <= 0) {
-        errors.push('cache.ttl must be a positive integer (seconds)');
-      }
-      if (!config.cache.maxSize || typeof config.cache.maxSize !== 'number' || config.cache.maxSize <= 0) {
-        errors.push('cache.maxSize must be a positive integer');
       }
     }
 

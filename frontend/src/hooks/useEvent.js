@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import apiClient from '@/services/apiClient';
 
@@ -16,23 +16,17 @@ function useEvent() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  const fetchEvent = async () => {
+  const fetchEvent = useCallback(async () => {
     if (!eventId) {
       setError('Event ID is required');
       setIsLoading(false);
       return;
     }
 
-    // Check authentication before attempting to fetch - CRITICAL: must check every time
-    // Must have a valid (non-empty) JWT token
-    const jwtToken = apiClient.getJWTToken();
-    const hasAuth = !!(jwtToken && jwtToken.trim());
-    
-    if (!hasAuth) {
-      // Don't fetch if no authentication - let the page component handle redirect
+    if (!apiClient.isAuthenticated()) {
       setIsLoading(false);
       setEvent(null);
-      setError(null); // Don't set error, just silently skip
+      setError(null);
       return;
     }
 
@@ -44,7 +38,6 @@ function useEvent() {
       setEvent(eventData);
       setError(null);
     } catch (err) {
-      // If we get a 401, don't set error - just silently fail and let redirect handle it
       if (err.message && err.message.includes('authentication required')) {
         setEvent(null);
         setError(null);
@@ -55,11 +48,11 @@ function useEvent() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [eventId]);
 
   useEffect(() => {
     fetchEvent();
-  }, [eventId]);
+  }, [fetchEvent]);
 
   return {
     event,

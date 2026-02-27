@@ -58,21 +58,9 @@ function ProfilePage() {
     const loadUserProfile = async () => {
       let email = '';
       
-      // Try to get email from JWT token first (for admins)
-      const token = apiClient.getJWTToken();
-      if (token) {
-        try {
-          const parts = token.split('.');
-          if (parts.length === 3) {
-            const payload = JSON.parse(atob(parts[1]));
-            email = payload.email || '';
-          }
-        } catch (error) {
-          console.error('Error extracting email from token:', error);
-        }
-      }
+      email = apiClient.getUserEmail() || '';
       
-      // If no email from JWT, try to get from sessionStorage (stored during email entry)
+      // Fall back to sessionStorage (stored during email entry)
       if (!email && eventId) {
         const storedEmail = sessionStorage.getItem(`event:${eventId}:email`);
         if (storedEmail) {

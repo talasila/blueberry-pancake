@@ -19,7 +19,7 @@ export function validateEventId(eventId) {
 
   const normalized = eventId.trim().toUpperCase();
 
-  if (!/^[A-Za-z0-9]{8}$/i.test(normalized)) {
+  if (!/^[A-Z0-9]{8}$/.test(normalized)) {
     return {
       valid: false,
       error: 'Invalid event ID format. Event ID must be exactly 8 alphanumeric characters.'

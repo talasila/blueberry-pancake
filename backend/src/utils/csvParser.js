@@ -133,11 +133,11 @@ export function toCSV(ratings) {
 
   for (const rating of ratings) {
     const row = [
-      rating.email || '',
-      rating.timestamp || '',
-      String(rating.itemId || ''),
-      String(rating.rating || ''),
-      rating.note || ''
+      rating.email ?? '',
+      rating.timestamp ?? '',
+      String(rating.itemId ?? ''),
+      String(rating.rating ?? ''),
+      rating.note ?? ''
     ];
     lines.push(row.map(escapeCSVField).join(','));
   }

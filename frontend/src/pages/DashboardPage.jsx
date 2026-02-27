@@ -1,5 +1,5 @@
-import { useParams, useNavigate } from 'react-router-dom';
-import { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { RefreshCw } from 'lucide-react';
@@ -24,59 +24,16 @@ import { useItemTerminology } from '@/utils/itemTerminology';
  */
 function DashboardPage() {
   const { eventId } = useParams();
-  const navigate = useNavigate();
   const { event, isAdmin } = useEventContext();
+  const { singular, plural, pluralLower } = useItemTerminology(event);
   const [dashboardData, setDashboardData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [openItemDetailsItemId, setOpenItemDetailsItemId] = useState(null);
   const [openUserDetailsEmail, setOpenUserDetailsEmail] = useState(null);
-  const isHandlingPopStateRef = useRef(false); // Prevent infinite loops when handling popstate
+  const isHandlingPopStateRef = useRef(false);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, [eventId]);
-
-  // Handle browser back/forward navigation (popstate) to sync drawer state
-  useEffect(() => {
-    const handlePopState = (event) => {
-      if (isHandlingPopStateRef.current) return;
-      
-      isHandlingPopStateRef.current = true;
-      
-      // If history state has drawer info, open that drawer
-      if (event.state?.drawer) {
-        const { drawer, itemId, userEmail: stateUserEmail } = event.state;
-        
-        // Close all drawers first
-        setOpenItemDetailsItemId(null);
-        setOpenUserDetailsEmail(null);
-        
-        // Open the drawer from history state
-        setTimeout(() => {
-          if (drawer === 'item' && itemId) {
-            setOpenItemDetailsItemId(itemId);
-          } else if (drawer === 'user' && stateUserEmail) {
-            setOpenUserDetailsEmail(stateUserEmail);
-          }
-          isHandlingPopStateRef.current = false;
-        }, 10);
-      } else {
-        // No drawer in history state - close all drawers
-        setOpenItemDetailsItemId(null);
-        setOpenUserDetailsEmail(null);
-        isHandlingPopStateRef.current = false;
-      }
-    };
-    
-    window.addEventListener('popstate', handlePopState);
-    
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, []);
-
-  const loadDashboardData = async (showLoading = true) => {
+  const loadDashboardData = useCallback(async (showLoading = true) => {
     if (!eventId) {
       setError('Event ID is required');
       setIsLoading(false);
@@ -106,7 +63,48 @@ function DashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [eventId]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
+
+  useEffect(() => {
+    const handlePopState = (popEvent) => {
+      if (isHandlingPopStateRef.current) return;
+      
+      isHandlingPopStateRef.current = true;
+      
+      if (popEvent.state?.drawer) {
+        const { drawer, itemId, userEmail: stateUserEmail } = popEvent.state;
+        
+        // Close all drawers first
+        setOpenItemDetailsItemId(null);
+        setOpenUserDetailsEmail(null);
+        
+        // Open the drawer from history state
+        setTimeout(() => {
+          if (drawer === 'item' && itemId) {
+            setOpenItemDetailsItemId(itemId);
+          } else if (drawer === 'user' && stateUserEmail) {
+            setOpenUserDetailsEmail(stateUserEmail);
+          }
+          isHandlingPopStateRef.current = false;
+        }, 10);
+      } else {
+        // No drawer in history state - close all drawers
+        setOpenItemDetailsItemId(null);
+        setOpenUserDetailsEmail(null);
+        isHandlingPopStateRef.current = false;
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
 
   const handleRefresh = async () => {
     await loadDashboardData(false); // Don't show full loading state on refresh
@@ -153,9 +151,6 @@ function DashboardPage() {
   // Render dashboard content
   const { statistics } = dashboardData;
   const isRefreshing = isLoading && dashboardData; // Refreshing if loading but data exists
-
-  // Get item terminology based on event type
-  const { singular, plural, pluralLower } = useItemTerminology(event);
 
   // Calculate progress percentage for Total Ratings
   // Progress = (totalRatings / expectedRatings) * 100

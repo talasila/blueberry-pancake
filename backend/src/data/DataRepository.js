@@ -423,24 +423,4 @@ export default class DataRepository {
   // ==================== LEGACY COMPATIBILITY ====================
   // These methods are for backward compatibility during migration
 
-  /**
-   * Read event data (legacy - returns CSV string)
-   * @param {string} eventId - Event identifier
-   * @returns {Promise<string>} CSV data as string
-   * @deprecated Use getRatings instead
-   */
-  async readEventData(eventId) {
-    throw new Error('readEventData not implemented');
-  }
-
-  /**
-   * Append data to event CSV (legacy)
-   * @param {string} eventId - Event identifier
-   * @param {string} data - CSV row data
-   * @returns {Promise<void>}
-   * @deprecated Use addRating instead
-   */
-  async appendEventData(eventId, data) {
-    throw new Error('appendEventData not implemented');
-  }
 }

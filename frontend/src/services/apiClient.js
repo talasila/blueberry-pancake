@@ -1,87 +1,86 @@
 /**
  * API client service for backend communication
- * Handles JWT token management via httpOnly cookies (secure) and XSRF token handling
+ * Handles authentication via httpOnly cookies (secure) and XSRF token handling
  * 
- * Security Note: JWT tokens are now stored in httpOnly cookies set by the server.
- * This protects against XSS attacks as JavaScript cannot access httpOnly cookies.
- * The localStorage fallback is maintained for backward compatibility during migration.
+ * Authentication is handled via httpOnly cookies set by the server.
+ * User session info (email, expiration) is stored locally for UI purposes only.
  */
+
+const SESSION_KEY = 'userSession';
 
 // Use relative /api - Vite proxy (dev) or CloudFront (prod) routes to backend
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api';
 
 class ApiClient {
   constructor() {
-    // In-memory token cache for backward compatibility
-    // The primary token storage is now httpOnly cookies (set by server)
-    this.jwtToken = null;
+    this.userSession = null;
     this.csrfToken = null;
+    this._csrfFetchPromise = null;
+    this._loadSession();
+  }
+
+  _loadSession() {
+    try {
+      const stored = localStorage.getItem(SESSION_KEY);
+      if (stored) {
+        this.userSession = JSON.parse(stored);
+      }
+      // Migrate legacy jwtToken to new format
+      if (!this.userSession) {
+        const legacyToken = localStorage.getItem('jwtToken');
+        if (legacyToken) {
+          const payload = this._decodeLegacyJWT(legacyToken);
+          if (payload?.email) {
+            this.setUserSession({ email: payload.email, exp: payload.exp });
+          }
+          localStorage.removeItem('jwtToken');
+        }
+      }
+    } catch {
+      this.userSession = null;
+    }
+  }
+
+  _decodeLegacyJWT(token) {
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) return null;
+      const decoded = atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'));
+      return JSON.parse(decoded);
+    } catch {
+      return null;
+    }
   }
 
   /**
-   * Set JWT token (for backward compatibility)
-   * Note: Primary JWT storage is now via httpOnly cookies set by the server
-   * @param {string} token - JWT token
+   * Store user session info (from server response)
+   * @param {{email: string, exp: number, authMethod?: string}} session
    */
-  setJWTToken(token) {
-    this.jwtToken = token;
-    // Store in localStorage as fallback during migration
-    // This will be removed in a future version once httpOnly cookie auth is fully adopted
-    if (token) {
-      localStorage.setItem('jwtToken', token);
+  setUserSession(session) {
+    if (session?.email) {
+      this.userSession = { email: session.email, exp: session.exp, authMethod: session.authMethod || null };
+      localStorage.setItem(SESSION_KEY, JSON.stringify(this.userSession));
     } else {
-      localStorage.removeItem('jwtToken');
+      this.userSession = null;
+      localStorage.removeItem(SESSION_KEY);
     }
   }
 
   /**
-   * Get JWT token (for decoding/checking expiration only)
-   * Note: The actual authentication is handled via httpOnly cookies sent with requests
-   * @returns {string|null} JWT token
-   */
-  getJWTToken() {
-    // Try memory first, then localStorage (fallback)
-    if (this.jwtToken) {
-      return this.jwtToken;
-    }
-    const stored = localStorage.getItem('jwtToken');
-    if (stored) {
-      this.jwtToken = stored;
-      return stored;
-    }
-    return null;
-  }
-
-  /**
-   * Clear JWT token and call logout endpoint to clear httpOnly cookie
+   * Clear session and call logout endpoint to clear httpOnly cookie
    */
   async clearJWTToken() {
-    this.jwtToken = null;
-    localStorage.removeItem('jwtToken');
-    
-    // Call logout endpoint to clear httpOnly cookie on server
-    try {
-      await fetch(`${API_BASE_URL}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-    } catch (error) {
-      // Ignore logout errors - user is logging out anyway
-      console.warn('Logout request failed:', error);
-    }
+    await this.clearAllAuthState();
   }
 
   /**
-   * Clear all authentication state (tokens, PIN sessions, etc.)
-   * Used when user loses access to events (403 error)
+   * Clear all authentication state (session, PIN sessions, etc.)
    */
   async clearAllAuthState() {
-    // Clear JWT tokens
-    this.jwtToken = null;
+    this.userSession = null;
+    localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem('jwtToken');
     
-    // Clear all PIN session IDs from localStorage
-    // PIN sessions are stored as 'pin:session:{eventId}'
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -91,80 +90,44 @@ class ApiClient {
     }
     keysToRemove.forEach(key => localStorage.removeItem(key));
     
-    // Call logout endpoint to clear httpOnly cookies on server
     try {
       await fetch(`${API_BASE_URL}/auth/logout`, {
         method: 'POST',
         credentials: 'include',
       });
     } catch (error) {
-      // Ignore logout errors - proceed with local cleanup
-      console.warn('Logout request failed during auth state clear:', error);
+      console.warn('Logout request failed:', error);
     }
   }
 
   /**
-   * Check if user is currently authenticated (has valid JWT token)
-   * @returns {boolean} True if authenticated
+   * Check if user is currently authenticated
+   * @returns {boolean}
    */
   isAuthenticated() {
-    const token = this.getJWTToken();
-    if (!token) return false;
-    
-    // Check if token is expired
-    const payload = this.decodeJWTPayload(token);
-    if (!payload) return false;
-    
-    // Check expiration (exp is in seconds)
-    if (payload.exp && payload.exp * 1000 < Date.now()) {
-      this.clearJWTToken();
+    if (!this.userSession?.email) return false;
+    if (this.userSession.exp && this.userSession.exp * 1000 < Date.now()) {
+      this.setUserSession(null);
       return false;
     }
-    
     return true;
   }
 
   /**
-   * Decode JWT token payload without verification
-   * Note: This only decodes, does not verify signature
-   * @param {string} token - JWT token (optional, uses stored token if not provided)
-   * @returns {object|null} Decoded payload or null if invalid
-   */
-  decodeJWTPayload(token = null) {
-    const jwtToken = token || this.getJWTToken();
-    if (!jwtToken) return null;
-    
-    try {
-      const parts = jwtToken.split('.');
-      if (parts.length !== 3) return null;
-      
-      // Decode base64url payload (middle part)
-      const payload = parts[1];
-      const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
-      return JSON.parse(decoded);
-    } catch (error) {
-      console.error('Failed to decode JWT payload:', error);
-      return null;
-    }
-  }
-
-  /**
-   * Get user email from JWT token
-   * @returns {string|null} User email or null if not authenticated
+   * Get user email from session
+   * @returns {string|null}
    */
   getUserEmail() {
-    const payload = this.decodeJWTPayload();
-    return payload?.email || null;
+    return this.userSession?.email || null;
   }
 
   /**
-   * Get token expiration time
-   * @returns {Date|null} Expiration date or null if not available
+   * Get session expiration time
+   * @returns {Date|null}
    */
   getTokenExpiration() {
-    const payload = this.decodeJWTPayload();
-    if (!payload?.exp) return null;
-    return new Date(payload.exp * 1000);
+    if (!this.userSession?.exp) return null;
+    return new Date(this.userSession.exp * 1000);
   }
 
   /**
@@ -172,23 +135,31 @@ class ApiClient {
    * @returns {Promise<string>} CSRF token
    */
   async fetchCSRFToken() {
-    try {
-      const response = await fetch(`${API_BASE_URL}/csrf-token`, {
-        method: 'GET',
-        credentials: 'include',
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch CSRF token');
+    if (this._csrfFetchPromise) return this._csrfFetchPromise;
+
+    this._csrfFetchPromise = (async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/csrf-token`, {
+          method: 'GET',
+          credentials: 'include',
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch CSRF token');
+        }
+        
+        const data = await response.json();
+        this.csrfToken = data.csrfToken;
+        return this.csrfToken;
+      } catch (error) {
+        console.error('Error fetching CSRF token:', error);
+        throw error;
+      } finally {
+        this._csrfFetchPromise = null;
       }
-      
-      const data = await response.json();
-      this.csrfToken = data.csrfToken;
-      return this.csrfToken;
-    } catch (error) {
-      console.error('Error fetching CSRF token:', error);
-      throw error;
-    }
+    })();
+
+    return this._csrfFetchPromise;
   }
 
   /**
@@ -220,18 +191,14 @@ class ApiClient {
     try {
       const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: 'POST',
-        credentials: 'include', // Include cookies for refresh token
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
       });
       
       if (response.ok) {
         const data = await response.json();
-        // Update in-memory token for backward compatibility
-        if (data.token) {
-          this.jwtToken = data.token;
-          localStorage.setItem('jwtToken', data.token);
+        if (data.user) {
+          this.setUserSession(data.user);
         }
         return true;
       }
@@ -255,13 +222,6 @@ class ApiClient {
       'Content-Type': 'application/json',
       ...options.headers,
     };
-
-    // Add JWT token if available (check both memory and localStorage)
-    // Note: Primary authentication is via httpOnly cookies, this is for backward compatibility
-    const token = this.getJWTToken();
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
 
     // Add CSRF token for state-changing requests
     if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method?.toUpperCase())) {
@@ -324,9 +284,8 @@ class ApiClient {
           return this.request(endpoint, options, true);
         }
         
-        // Refresh failed - clear tokens and handle redirect
-        this.jwtToken = null;
-        localStorage.removeItem('jwtToken');
+        // Refresh failed - clear session and handle redirect
+        this.setUserSession(null);
         
         // Don't redirect for event pages - they can use PIN authentication
         // Only redirect to landing page for other protected endpoints
@@ -682,12 +641,11 @@ class ApiClient {
   }
 
   /**
-   * Get authentication method from JWT token payload
+   * Get authentication method from session
    * @returns {string|null} 'otp' or 'pin', or null if not present
    */
   getAuthMethod() {
-    const payload = this.decodeJWTPayload();
-    return payload?.authMethod || null;
+    return this.userSession?.authMethod || null;
   }
 
   /**

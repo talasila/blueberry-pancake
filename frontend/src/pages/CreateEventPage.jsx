@@ -82,8 +82,8 @@ function CreateEventPage() {
         typeOfItem
       });
       
-      if (response.token) {
-        apiClient.setJWTToken(response.token);
+      if (response.user) {
+        apiClient.setUserSession(response.user);
       }
 
       navigate(`/event/${response.eventId}/admin`, {

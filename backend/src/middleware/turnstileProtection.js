@@ -1,4 +1,5 @@
 import turnstileService from '../services/TurnstileService.js';
+import loggerService from '../logging/Logger.js';
 
 export async function verifyTurnstile(req, res) {
   const turnstileToken = req.body?.turnstileToken ?? req.query?.turnstileToken;
@@ -10,7 +11,7 @@ export async function verifyTurnstile(req, res) {
     return { success: true };
   }
 
-  console.log('Turnstile verification failed', {
+  loggerService.warn('Turnstile verification failed', {
     ip: clientIP,
     path: req.originalUrl,
     errorCodes: result.errorCodes

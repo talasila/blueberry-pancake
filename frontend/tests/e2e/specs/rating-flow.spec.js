@@ -212,15 +212,16 @@ test.describe('Rating Flow', () => {
     await expect(bookmarkIndicator).toBeVisible({ timeout: 5000 });
     
     // Verify bookmark is stored in backend API
-    // Get the user's JWT token from localStorage
-    const userToken = await page.evaluate(() => localStorage.getItem('jwtToken'));
-    expect(userToken).toBeTruthy();
+    // Get JWT from the httpOnly cookie via Playwright
+    const cookies = await page.context().cookies();
+    const jwtCookie = cookies.find(c => c.name === 'jwt_token');
+    expect(jwtCookie).toBeTruthy();
     
     // Call API to verify bookmark is stored
     const bookmarksResponse = await fetch(`${API_URL}/api/events/${eventId}/bookmarks`, {
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${userToken}`
+        'Authorization': `Bearer ${jwtCookie.value}`
       }
     });
     

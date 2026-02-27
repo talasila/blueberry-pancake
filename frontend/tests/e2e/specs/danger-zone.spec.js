@@ -18,6 +18,7 @@ import { test, expect } from './fixtures.js';
 import {
   addAdminToEvent,
   setAuthToken,
+  getUserToken,
 } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
@@ -64,18 +65,7 @@ async function submitRating(eventId, token, itemId, rating, note = '') {
  * This registers the user and returns their JWT token
  */
 async function addRegularUser(eventId, email, pin) {
-  const response = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pin, email })
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Failed to add regular user via PIN: ${await response.text()}`);
-  }
-  
-  const data = await response.json();
-  return data.token;
+  return getUserToken(eventId, email, pin);
 }
 
 /**
@@ -123,6 +113,22 @@ async function getUsersCount(eventId, token) {
   
   const event = await response.json();
   return Object.keys(event.users || {}).length;
+}
+
+/**
+ * Poll getUsersCount until it reaches the expected value.
+ * DynamoDB updates are eventually consistent — a read
+ * immediately after deletion may still see stale data.
+ */
+async function waitForUsersCount(eventId, token, expected, { maxWaitMs = 5000, intervalMs = 500 } = {}) {
+  const start = Date.now();
+  let count;
+  while (Date.now() - start < maxWaitMs) {
+    count = await getUsersCount(eventId, token);
+    if (count === expected) return count;
+    await new Promise(r => setTimeout(r, intervalMs));
+  }
+  return count;
 }
 
 /**
@@ -232,9 +238,9 @@ test.describe('Danger Zone - Delete Individual User', () => {
     const finalRatingsCount = await waitForRatingsCount(eventId, token, 0);
     expect(finalRatingsCount).toBe(0);
     
-    // Verify user count decreased
+    // Verify user count decreased (poll for eventual consistency)
     // Event has 2 admins: test@example.com (owner from creation) + admin@example.com
-    const finalUserCount = await getUsersCount(eventId, token);
+    const finalUserCount = await waitForUsersCount(eventId, token, 2);
     expect(finalUserCount).toBe(2); // Both admins remain
   });
 
@@ -310,9 +316,9 @@ test.describe('Danger Zone - Delete All Users', () => {
     // Wait for UI to update after deletion
     await page.waitForLoadState('networkidle');
     
-    // Verify only admins remain (API is the source of truth)
+    // Verify only admins remain (poll for eventual consistency)
     // Event has 2 admins: test@example.com (owner from creation) + admin@example.com
-    const finalUserCount = await getUsersCount(eventId, token);
+    const finalUserCount = await waitForUsersCount(eventId, token, 2);
     expect(finalUserCount).toBe(2); // Both admins remain
     
     // Verify UI shows no users to delete - scope to drawer to avoid matching event name
@@ -403,9 +409,9 @@ test.describe('Danger Zone - Delete All Users', () => {
     // Wait for UI to update
     await page.waitForLoadState('networkidle');
     
-    // Verify all admins still exist (should be 3 users remaining)
+    // Verify all admins still exist (poll for eventual consistency)
     // Event has 3 admins: test@example.com (owner from creation) + owner@example.com + admin@example.com
-    const finalUserCount = await getUsersCount(eventId, ownerToken);
+    const finalUserCount = await waitForUsersCount(eventId, ownerToken, 3);
     expect(finalUserCount).toBe(3); // All 3 admins preserved
   });
 });

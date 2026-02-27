@@ -4,7 +4,6 @@ import { BrowserRouter } from 'react-router-dom';
 import PINEntryPage from '../../src/pages/PINEntryPage.jsx';
 import apiClient from '../../src/services/apiClient.js';
 
-// Mock react-router-dom
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
@@ -15,234 +14,264 @@ vi.mock('react-router-dom', async () => {
   };
 });
 
-// Mock API client
-vi.mock('../../src/services/apiClient.js', () => {
+vi.mock('../../src/services/apiClient.js', () => ({
+  default: {
+    verifyPIN: vi.fn(),
+    checkEventAdmin: vi.fn(),
+    setUserSession: vi.fn(),
+  }
+}));
+
+vi.mock('../../src/utils/bookmarkStorage', () => ({
+  clearAllBookmarks: vi.fn(),
+}));
+
+const sessionStorageMock = (() => {
+  let store = {};
   return {
-    default: {
-      verifyPIN: vi.fn()
-    }
+    getItem: vi.fn(key => store[key] ?? null),
+    setItem: vi.fn((key, value) => { store[key] = value; }),
+    removeItem: vi.fn(key => { delete store[key]; }),
+    clear: vi.fn(() => { store = {}; }),
   };
-});
+})();
+Object.defineProperty(global, 'sessionStorage', { value: sessionStorageMock });
 
-// Mock localStorage
-const localStorageMock = {
-  getItem: vi.fn(),
-  setItem: vi.fn(),
-  removeItem: vi.fn(),
-  clear: vi.fn()
-};
-global.localStorage = localStorageMock;
+function renderComponent() {
+  return render(
+    <BrowserRouter>
+      <PINEntryPage />
+    </BrowserRouter>
+  );
+}
 
-describe('PINEntryPage Component', () => {
+describe('PINEntryPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    localStorageMock.setItem.mockClear();
-    mockNavigate.mockClear();
+    sessionStorageMock.clear();
+    apiClient.checkEventAdmin.mockResolvedValue({ isAdmin: false });
   });
 
   describe('Rendering', () => {
-    it('should render PIN entry form', () => {
-      render(
-        <BrowserRouter>
-          <PINEntryPage />
-        </BrowserRouter>
-      );
+    it('renders PIN input and submit button', async () => {
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
+      renderComponent();
 
-      expect(screen.getByText('Enter Event PIN')).toBeInTheDocument();
-      expect(screen.getByText(/Enter the 6-digit PIN/i)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /Verify PIN/i })).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
+      });
+      expect(screen.getByRole('button', { name: /Access Event/i })).toBeInTheDocument();
     });
 
-    it('should render PIN input field', () => {
-      render(
-        <BrowserRouter>
-          <PINEntryPage />
-        </BrowserRouter>
-      );
+    it('redirects to email entry when no email in sessionStorage', async () => {
+      renderComponent();
 
-      // PIN input field should be present
-      const pinInput = screen.getByPlaceholderText(/Enter 6-digit PIN/i);
-      expect(pinInput).toBeInTheDocument();
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/event/A5ohYrHe/email', { replace: true });
+      });
+    });
+
+    it('redirects admin users to OTP entry', async () => {
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'admin@example.com');
+      apiClient.checkEventAdmin.mockResolvedValue({ isAdmin: true });
+      renderComponent();
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith('/event/A5ohYrHe/otp', { replace: true });
+      });
     });
   });
 
-  describe('PIN input', () => {
-    it('should disable submit button when PIN is incomplete', () => {
-      render(
-        <BrowserRouter>
-          <PINEntryPage />
-        </BrowserRouter>
-      );
+  describe('Button state', () => {
+    it('disables submit button when PIN is less than 6 digits', async () => {
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
+      renderComponent();
 
-      const submitButton = screen.getByRole('button', { name: /Verify PIN/i });
-      expect(submitButton).toBeDisabled();
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
+      });
+
+      const pinInput = screen.getByPlaceholderText(/Enter 6-digit PIN/i);
+      fireEvent.change(pinInput, { target: { value: '123' } });
+
+      expect(screen.getByRole('button', { name: /Access Event/i })).toBeDisabled();
     });
 
-    it('should enable submit button when PIN is 6 digits', async () => {
-      render(
-        <BrowserRouter>
-          <PINEntryPage />
-        </BrowserRouter>
-      );
+    it('enables submit button when PIN is exactly 6 digits', async () => {
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
+      renderComponent();
 
-      // PIN input component handles input
-      // We can test that the button state changes based on PIN length
-      const submitButton = screen.getByRole('button', { name: /Verify PIN/i });
-      expect(submitButton).toBeDisabled();
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
+      });
+
+      const pinInput = screen.getByPlaceholderText(/Enter 6-digit PIN/i);
+      fireEvent.change(pinInput, { target: { value: '123456' } });
+
+      expect(screen.getByRole('button', { name: /Access Event/i })).not.toBeDisabled();
     });
   });
 
   describe('PIN verification', () => {
-    it('should call verifyPIN API on form submit', async () => {
-      const mockSessionId = '550e8400-e29b-41d4-a716-446655440000';
+    it('calls verifyPIN API on form submit', async () => {
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
       apiClient.verifyPIN.mockResolvedValue({
-        sessionId: mockSessionId,
-        eventId: 'A5ohYrHe'
+        sessionId: 'test-session-id',
+        eventId: 'A5ohYrHe',
+        user: { email: 'user@example.com', exp: 9999999999 },
+      });
+      renderComponent();
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
       });
 
-      render(
-        <BrowserRouter>
-          <PINEntryPage />
-        </BrowserRouter>
-      );
+      const pinInput = screen.getByPlaceholderText(/Enter 6-digit PIN/i);
+      fireEvent.change(pinInput, { target: { value: '123456' } });
 
-      // Note: PIN input component handles input
-      // In a real test, we'd need to interact with the input component
-      // For now, we'll test the API call when form is submitted with valid PIN
-      const form = screen.getByRole('button', { name: /Verify PIN/i }).closest('form');
-      
-      // Simulate form submission (would normally require valid PIN input)
-      // This test verifies the API integration
-      expect(apiClient.verifyPIN).not.toHaveBeenCalled();
+      const form = screen.getByRole('button', { name: /Access Event/i }).closest('form');
+      fireEvent.submit(form);
+
+      await waitFor(() => {
+        expect(apiClient.verifyPIN).toHaveBeenCalledWith('A5ohYrHe', '123456', 'user@example.com');
+      });
     });
 
-    it('should store session ID in localStorage on successful verification', async () => {
-      const mockSessionId = '550e8400-e29b-41d4-a716-446655440000';
+    it('stores user session on successful verification', async () => {
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
       apiClient.verifyPIN.mockResolvedValue({
-        sessionId: mockSessionId,
-        eventId: 'A5ohYrHe'
+        sessionId: 'test-session-id',
+        user: { email: 'user@example.com', exp: 9999999999 },
+      });
+      renderComponent();
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
       });
 
-      render(
-        <BrowserRouter>
-          <PINEntryPage />
-        </BrowserRouter>
-      );
+      fireEvent.change(screen.getByPlaceholderText(/Enter 6-digit PIN/i), { target: { value: '123456' } });
+      fireEvent.submit(screen.getByRole('button', { name: /Access Event/i }).closest('form'));
 
-      // The component stores session on successful verification
-      // This is tested through the integration flow
-      expect(localStorageMock.setItem).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(apiClient.setUserSession).toHaveBeenCalledWith({ email: 'user@example.com', exp: 9999999999 });
+      });
     });
 
-    it('should redirect to event page on successful verification', async () => {
-      const mockSessionId = '550e8400-e29b-41d4-a716-446655440000';
+    it('shows success message and navigates on successful verification', async () => {
+      vi.useFakeTimers();
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
       apiClient.verifyPIN.mockResolvedValue({
-        sessionId: mockSessionId,
-        eventId: 'A5ohYrHe'
+        sessionId: 'test-session-id',
+        user: { email: 'user@example.com', exp: 9999999999 },
+      });
+      renderComponent();
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
       });
 
-      render(
-        <BrowserRouter>
-          <PINEntryPage />
-        </BrowserRouter>
-      );
+      fireEvent.change(screen.getByPlaceholderText(/Enter 6-digit PIN/i), { target: { value: '123456' } });
+      fireEvent.submit(screen.getByRole('button', { name: /Access Event/i }).closest('form'));
 
-      // Component redirects after 1 second timeout
-      // In a real scenario, we'd wait for the timeout
-      expect(mockNavigate).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(screen.getByText(/PIN verified successfully/i)).toBeInTheDocument();
+      });
+
+      vi.advanceTimersByTime(1100);
+
+      expect(mockNavigate).toHaveBeenCalledWith('/event/A5ohYrHe', { replace: true });
+      vi.useRealTimers();
     });
   });
 
   describe('Error handling', () => {
-    it('should display error message for invalid PIN', async () => {
-      apiClient.verifyPIN.mockRejectedValue(new Error('Invalid PIN. Please try again.'));
+    it('displays error message for invalid PIN', async () => {
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
+      apiClient.verifyPIN.mockRejectedValue(new Error('Invalid PIN'));
+      renderComponent();
 
-      render(
-        <BrowserRouter>
-          <PINEntryPage />
-        </BrowserRouter>
-      );
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
+      });
 
-      // Error would be displayed after failed verification
-      expect(screen.queryByText(/Invalid PIN/i)).not.toBeInTheDocument();
+      fireEvent.change(screen.getByPlaceholderText(/Enter 6-digit PIN/i), { target: { value: '000000' } });
+      fireEvent.submit(screen.getByRole('button', { name: /Access Event/i }).closest('form'));
+
+      await waitFor(() => {
+        expect(screen.getByText(/Invalid PIN/i)).toBeInTheDocument();
+      });
     });
 
-    it('should display error message for rate limit exceeded', async () => {
-      apiClient.verifyPIN.mockRejectedValue(
-        new Error('Too many attempts. Please try again in 15 minutes.')
-      );
+    it('displays rate limit error message', async () => {
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
+      apiClient.verifyPIN.mockRejectedValue(new Error('Too many attempts. Please try again in 15 minutes.'));
+      renderComponent();
 
-      render(
-        <BrowserRouter>
-          <PINEntryPage />
-        </BrowserRouter>
-      );
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
+      });
 
-      // Error would be displayed after rate limit error
-      expect(screen.queryByText(/Too many attempts/i)).not.toBeInTheDocument();
+      fireEvent.change(screen.getByPlaceholderText(/Enter 6-digit PIN/i), { target: { value: '000000' } });
+      fireEvent.submit(screen.getByRole('button', { name: /Access Event/i }).closest('form'));
+
+      await waitFor(() => {
+        expect(screen.getByText(/Too many attempts/i)).toBeInTheDocument();
+      });
     });
 
-    it('should display error message for network errors', async () => {
-      apiClient.verifyPIN.mockRejectedValue(new Error('Network error'));
+    it('displays network error message', async () => {
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
+      apiClient.verifyPIN.mockRejectedValue(new Error('Failed to fetch'));
+      renderComponent();
 
-      render(
-        <BrowserRouter>
-          <PINEntryPage />
-        </BrowserRouter>
-      );
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
+      });
 
-      // Network errors should be handled gracefully
-      expect(apiClient.verifyPIN).not.toHaveBeenCalled();
+      fireEvent.change(screen.getByPlaceholderText(/Enter 6-digit PIN/i), { target: { value: '000000' } });
+      fireEvent.submit(screen.getByRole('button', { name: /Access Event/i }).closest('form'));
+
+      await waitFor(() => {
+        expect(screen.getByText(/Unable to connect to the server/i)).toBeInTheDocument();
+      });
     });
   });
 
   describe('Loading state', () => {
-    it('should show loading state during verification', async () => {
-      apiClient.verifyPIN.mockImplementation(
-        () => new Promise(resolve => setTimeout(() => resolve({ sessionId: 'test' }), 100))
-      );
+    it('shows loading text and disables input during verification', async () => {
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
+      let resolveVerify;
+      apiClient.verifyPIN.mockImplementation(() => new Promise(resolve => { resolveVerify = resolve; }));
+      renderComponent();
 
-      render(
-        <BrowserRouter>
-          <PINEntryPage />
-        </BrowserRouter>
-      );
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
+      });
 
-      // Button should show loading state during verification
-      const button = screen.getByRole('button', { name: /Verify PIN/i });
-      expect(button).toBeInTheDocument();
-    });
+      fireEvent.change(screen.getByPlaceholderText(/Enter 6-digit PIN/i), { target: { value: '123456' } });
+      fireEvent.submit(screen.getByRole('button', { name: /Access Event/i }).closest('form'));
 
-    it('should disable input during loading', async () => {
-      render(
-        <BrowserRouter>
-          <PINEntryPage />
-        </BrowserRouter>
-      );
+      await waitFor(() => {
+        expect(screen.getByText('Verifying...')).toBeInTheDocument();
+      });
+      expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeDisabled();
 
-      // PIN input should be disabled when loading
-      // This is handled by the disabled prop
-      const pinInput = screen.getByPlaceholderText(/Enter 6-digit PIN/i);
-      // Input manages its own disabled state through props
+      resolveVerify({ sessionId: 'x', user: { email: 'user@example.com', exp: 9999999999 } });
     });
   });
 
-  describe('Success state', () => {
-    it('should display success message on successful verification', async () => {
-      const mockSessionId = '550e8400-e29b-41d4-a716-446655440000';
-      apiClient.verifyPIN.mockResolvedValue({
-        sessionId: mockSessionId,
-        eventId: 'A5ohYrHe'
+  describe('Back button', () => {
+    it('navigates back to email entry page', async () => {
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
+      renderComponent();
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
       });
 
-      render(
-        <BrowserRouter>
-          <PINEntryPage />
-        </BrowserRouter>
-      );
+      fireEvent.click(screen.getByRole('button', { name: /Back/i }));
 
-      // Success message appears after successful verification
-      expect(screen.queryByText(/PIN verified successfully/i)).not.toBeInTheDocument();
+      expect(mockNavigate).toHaveBeenCalledWith('/event/A5ohYrHe/email', { replace: true });
     });
   });
 });

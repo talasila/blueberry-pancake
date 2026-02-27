@@ -1,4 +1,5 @@
 import dataRepository from '../data/DynamoDBRepository.js';
+import loggerService from '../logging/Logger.js';
 
 /**
  * Suspension Service
@@ -43,7 +44,7 @@ class SuspensionService {
         reason: suspension.reason
       };
     } catch (error) {
-      console.error(`Error checking suspension for ${email}:`, error);
+      loggerService.error(`Error checking suspension for ${email}:`, error);
       return { suspended: false };
     }
   }
@@ -79,7 +80,7 @@ class SuspensionService {
         maxReached: false
       };
     } catch (error) {
-      console.error(`Error recording failed attempt for ${email}:`, error);
+      loggerService.error(`Error recording failed attempt for ${email}:`, error);
       return { suspended: false, attempts: 0, maxReached: false };
     }
   }
@@ -100,7 +101,7 @@ class SuspensionService {
       await dataRepository.resetFailedAttempts(email);
       return true;
     } catch (error) {
-      console.error(`Error suspending email ${email}:`, error);
+      loggerService.error(`Error suspending email ${email}:`, error);
       return false;
     }
   }
@@ -119,7 +120,7 @@ class SuspensionService {
       await dataRepository.resetFailedAttempts(email);
       return true;
     } catch (error) {
-      console.error(`Error resetting failed attempts for ${email}:`, error);
+      loggerService.error(`Error resetting failed attempts for ${email}:`, error);
       return false;
     }
   }
@@ -140,7 +141,7 @@ class SuspensionService {
       const result = await dataRepository.getRateLimit(email, 'failed');
       return result?.count || 0;
     } catch (error) {
-      console.error(`Error getting failed attempts for ${email}:`, error);
+      loggerService.error(`Error getting failed attempts for ${email}:`, error);
       return 0;
     }
   }
@@ -159,7 +160,7 @@ class SuspensionService {
       await dataRepository.removeSuspension(email);
       return true;
     } catch (error) {
-      console.error(`Error clearing suspension for ${email}:`, error);
+      loggerService.error(`Error clearing suspension for ${email}:`, error);
       return false;
     }
   }

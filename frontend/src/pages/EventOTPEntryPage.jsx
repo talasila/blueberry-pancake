@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import apiClient from '@/services/apiClient';
+import { useTurnstile } from '@/hooks/useTurnstile';
 
 /**
  * EventOTPEntryPage Component
@@ -26,12 +27,16 @@ function EventOTPEntryPage() {
   const [success, setSuccess] = useState('');
   const [otpRequested, setOtpRequested] = useState(false);
 
+  const { token: turnstileToken, resetWidget, containerRef: turnstileRef } = useTurnstile(
+    import.meta.env.VITE_TURNSTILE_SITE_KEY
+  );
+
   /**
    * Request OTP code
    */
   const requestOTP = useCallback(async (emailToUse) => {
     if (!emailToUse) {
-      return; // Can't request OTP without email
+      return;
     }
     
     setRequestingOTP(true);
@@ -39,18 +44,18 @@ function EventOTPEntryPage() {
     setSuccess('');
 
     try {
-      const response = await apiClient.requestOTP(emailToUse);
-      // Use the message from the response (includes OTP in dev mode)
+      const response = await apiClient.requestOTP(emailToUse, turnstileToken);
       setSuccess(response.message || 'OTP code has been sent to your email. Please check your inbox.');
       setOtpRequested(true);
+      resetWidget();
     } catch (err) {
-      // Show user-friendly error message
       const errorMessage = err.message || 'Unable to send OTP code. Please check your email address and try again.';
       setError(errorMessage);
+      resetWidget();
     } finally {
       setRequestingOTP(false);
     }
-  }, []);
+  }, [turnstileToken, resetWidget]);
 
   // Get email from sessionStorage (set in EmailEntryPage) and auto-request OTP
   useEffect(() => {
@@ -77,10 +82,8 @@ function EventOTPEntryPage() {
     try {
       const response = await apiClient.verifyOTP(email, otp);
       
-      // Store JWT token in localStorage
-      if (response.token) {
-        localStorage.setItem('jwtToken', response.token);
-        apiClient.setJWTToken(response.token);
+      if (response.user) {
+        apiClient.setUserSession(response.user);
       }
 
       // Clear email from sessionStorage
@@ -199,6 +202,7 @@ function EventOTPEntryPage() {
                     </Button>
                   </div>
                 </div>
+                <div ref={turnstileRef} />
               </form>
             </CardContent>
           </Card>

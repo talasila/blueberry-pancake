@@ -1,5 +1,6 @@
 import { X } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
+import { useViewportHeight } from '@/hooks/useViewportHeight';
 
 /**
  * SideDrawer Component
@@ -21,15 +22,11 @@ function SideDrawer({
 }) {
   const [isAnimating, setIsAnimating] = useState(false);
   const hasBeenOpenedRef = useRef(false);
-  
-  // Set viewport height for mobile browsers (accounts for browser UI)
-  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
+  const viewportHeight = useViewportHeight();
 
-  // Track if drawer has ever been opened (for animation)
   useEffect(() => {
     if (isOpen) {
       hasBeenOpenedRef.current = true;
-      // Trigger animation on next frame
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
           setIsAnimating(true);
@@ -39,26 +36,6 @@ function SideDrawer({
       setIsAnimating(false);
     }
   }, [isOpen]);
-
-  // Update viewport height for mobile browsers
-  useEffect(() => {
-    const updateViewportHeight = () => {
-      setViewportHeight(window.innerHeight);
-    };
-    
-    // Update on resize and orientation change
-    window.addEventListener('resize', updateViewportHeight);
-    window.addEventListener('orientationchange', updateViewportHeight);
-    
-    // Initial update after a short delay to ensure accurate measurement
-    const timer = setTimeout(updateViewportHeight, 100);
-    
-    return () => {
-      window.removeEventListener('resize', updateViewportHeight);
-      window.removeEventListener('orientationchange', updateViewportHeight);
-      clearTimeout(timer);
-    };
-  }, []);
 
   // Prevent body scroll when drawer is open
   useEffect(() => {

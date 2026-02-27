@@ -16,6 +16,7 @@
  * | FailedAttempt| FAILED#{email}       | FAILED                       | -        | -             |
  * | PINSession   | PINSESSION#{sid}     | PINSESSION                   | EVENT#{eventId} | PINSESSION#{sid} |
  * | SimilarUsers | SIMILAR#{eventId}    | SIMILAR#{email}              | -        | -             |
+ * | RefreshToken | REFRESH#{hash}       | REFRESH                      | -        | -             |
  */
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import {
@@ -26,6 +27,7 @@ import {
   DeleteCommand,
   BatchWriteCommand,
   UpdateCommand,
+  ScanCommand,
 } from '@aws-sdk/lib-dynamodb';
 import DataRepository from './DataRepository.js';
 
@@ -72,6 +74,55 @@ class DynamoDBRepository extends DataRepository {
 
     this.initialized = true;
     console.log(`[DynamoDB] Initialized: table=${this.tableName}, endpoint=${endpoint || 'AWS'}`);
+  }
+
+  /**
+   * BatchWrite with automatic retry for UnprocessedItems (exponential backoff).
+   */
+  async _batchWrite(deleteItems) {
+    const BATCH_SIZE = 25;
+    const MAX_RETRIES = 3;
+
+    for (let i = 0; i < deleteItems.length; i += BATCH_SIZE) {
+      let requests = deleteItems.slice(i, i + BATCH_SIZE).map(item => ({
+        DeleteRequest: { Key: { PK: item.PK, SK: item.SK } },
+      }));
+
+      for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+        const result = await this.docClient.send(new BatchWriteCommand({
+          RequestItems: { [this.tableName]: requests },
+        }));
+
+        const unprocessed = result.UnprocessedItems?.[this.tableName];
+        if (!unprocessed || unprocessed.length === 0) break;
+
+        if (attempt === MAX_RETRIES) {
+          throw new Error(`BatchWrite failed after ${MAX_RETRIES} retries, ${unprocessed.length} items unprocessed`);
+        }
+
+        requests = unprocessed;
+        await new Promise(r => setTimeout(r, 100 * Math.pow(2, attempt)));
+      }
+    }
+  }
+
+  /**
+   * Paginated Query that follows LastEvaluatedKey to return all items.
+   */
+  async _queryAll(params) {
+    const allItems = [];
+    let lastKey = undefined;
+
+    do {
+      const response = await this.docClient.send(new QueryCommand({
+        ...params,
+        ExclusiveStartKey: lastKey,
+      }));
+      allItems.push(...(response.Items || []));
+      lastKey = response.LastEvaluatedKey;
+    } while (lastKey);
+
+    return allItems;
   }
 
   // ==================== KEY BUILDERS ====================
@@ -182,7 +233,7 @@ class DynamoDBRepository extends DataRepository {
   async listEvents() {
     await this.initialize();
 
-    const response = await this.docClient.send(new QueryCommand({
+    const items = await this._queryAll({
       TableName: this.tableName,
       IndexName: 'GSI1',
       KeyConditionExpression: 'GSI1PK = :pk',
@@ -190,63 +241,35 @@ class DynamoDBRepository extends DataRepository {
         ':pk': 'EVENTS',
       },
       ProjectionExpression: 'eventId',
-    }));
+    });
 
-    return (response.Items || []).map(item => item.eventId);
+    return items.map(item => item.eventId);
   }
 
   async deleteEvent(eventId) {
     await this.initialize();
 
-    // Query all items for this event
-    const response = await this.docClient.send(new QueryCommand({
+    const eventItems = await this._queryAll({
       TableName: this.tableName,
       KeyConditionExpression: 'PK = :pk',
-      ExpressionAttributeValues: {
-        ':pk': this.eventPK(eventId),
-      },
+      ExpressionAttributeValues: { ':pk': this.eventPK(eventId) },
       ProjectionExpression: 'PK, SK',
-    }));
+    });
 
-    if (!response.Items || response.Items.length === 0) {
+    if (eventItems.length === 0) {
       throw new Error(`Event not found: ${eventId}`);
     }
 
-    // Also delete similar users cache and PIN sessions for this event
-    const similarResponse = await this.docClient.send(new QueryCommand({
+    const similarItems = await this._queryAll({
       TableName: this.tableName,
       KeyConditionExpression: 'PK = :pk',
-      ExpressionAttributeValues: {
-        ':pk': this.similarUsersPK(eventId),
-      },
+      ExpressionAttributeValues: { ':pk': this.similarUsersPK(eventId) },
       ProjectionExpression: 'PK, SK',
-    }));
+    });
 
-    const allItems = [...response.Items, ...(similarResponse.Items || [])];
-
-    // Delete PIN sessions for this event using GSI1
     await this.deleteEventPINSessions(eventId);
-
-    // Delete rate limit data for this event (PIN verification rate limits)
     await this.resetRateLimit(eventId, 'pin');
-
-    // Batch delete all items (max 25 per batch)
-    const batches = [];
-    for (let i = 0; i < allItems.length; i += 25) {
-      batches.push(allItems.slice(i, i + 25));
-    }
-
-    for (const batch of batches) {
-      await this.docClient.send(new BatchWriteCommand({
-        RequestItems: {
-          [this.tableName]: batch.map(item => ({
-            DeleteRequest: {
-              Key: { PK: item.PK, SK: item.SK },
-            },
-          })),
-        },
-      }));
-    }
+    await this._batchWrite([...eventItems, ...similarItems]);
   }
 
   /**
@@ -295,7 +318,7 @@ class DynamoDBRepository extends DataRepository {
     const normalizedEmail = email.toLowerCase();
 
     try {
-      await this.docClient.send(new UpdateCommand({
+      const result = await this.docClient.send(new UpdateCommand({
         TableName: this.tableName,
         Key: {
           PK: this.eventPK(eventId),
@@ -311,11 +334,12 @@ class DynamoDBRepository extends DataRepository {
           ':userData': { registeredAt },
           ':now': new Date().toISOString(),
         },
+        ReturnValues: 'UPDATED_OLD',
       }));
-      return { registered: true, alreadyExists: false };
+      const alreadyExists = !!result.Attributes?.users?.[normalizedEmail];
+      return { registered: true, alreadyExists };
     } catch (error) {
       if (error.name === 'ConditionalCheckFailedException') {
-        // Event doesn't exist
         throw new Error(`Event not found: ${eventId}`);
       }
       throw error;
@@ -373,16 +397,16 @@ class DynamoDBRepository extends DataRepository {
   async getRatings(eventId) {
     await this.initialize();
 
-    const response = await this.docClient.send(new QueryCommand({
+    const items = await this._queryAll({
       TableName: this.tableName,
       KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
       ExpressionAttributeValues: {
         ':pk': this.eventPK(eventId),
         ':prefix': 'RATING#',
       },
-    }));
+    });
 
-    return (response.Items || []).map(({ PK, SK, ...rating }) => rating);
+    return items.map(({ PK, SK, ...rating }) => rating);
   }
 
   async addRating(eventId, rating) {
@@ -457,8 +481,7 @@ class DynamoDBRepository extends DataRepository {
   async deleteAllRatings(eventId) {
     await this.initialize();
 
-    // Query all ratings for this event
-    const response = await this.docClient.send(new QueryCommand({
+    const items = await this._queryAll({
       TableName: this.tableName,
       KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
       ExpressionAttributeValues: {
@@ -466,45 +489,26 @@ class DynamoDBRepository extends DataRepository {
         ':prefix': 'RATING#',
       },
       ProjectionExpression: 'PK, SK',
-    }));
+    });
 
-    if (!response.Items || response.Items.length === 0) {
-      return;
-    }
-
-    // Batch delete (max 25 per batch)
-    const batches = [];
-    for (let i = 0; i < response.Items.length; i += 25) {
-      batches.push(response.Items.slice(i, i + 25));
-    }
-
-    for (const batch of batches) {
-      await this.docClient.send(new BatchWriteCommand({
-        RequestItems: {
-          [this.tableName]: batch.map(item => ({
-            DeleteRequest: {
-              Key: { PK: item.PK, SK: item.SK },
-            },
-          })),
-        },
-      }));
-    }
+    if (items.length === 0) return;
+    await this._batchWrite(items);
   }
 
   async getUserRatings(eventId, email) {
     await this.initialize();
 
     const normalizedEmail = email.toLowerCase();
-    const response = await this.docClient.send(new QueryCommand({
+    const items = await this._queryAll({
       TableName: this.tableName,
       KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
       ExpressionAttributeValues: {
         ':pk': this.eventPK(eventId),
         ':prefix': `RATING#${normalizedEmail}#`,
       },
-    }));
+    });
 
-    return (response.Items || []).map(({ PK, SK, ...rating }) => rating);
+    return items.map(({ PK, SK, ...rating }) => rating);
   }
 
   async getRating(eventId, email, itemId) {
@@ -681,19 +685,21 @@ class DynamoDBRepository extends DataRepository {
         windowStart: response.Attributes?.windowStart || now.toISOString(),
       };
     } catch (error) {
-      // If item doesn't exist, create it
-      const windowStart = now.toISOString();
-      await this.docClient.send(new PutCommand({
-        TableName: this.tableName,
-        Item: {
-          PK: this.rateLimitPK(identifier, action),
-          SK: 'RATELIMIT',
-          TTL: ttl,
-          count: 1,
-          windowStart,
-        },
-      }));
-      return { count: 1, windowStart };
+      if (error.name === 'ConditionalCheckFailedException') {
+        const windowStart = now.toISOString();
+        await this.docClient.send(new PutCommand({
+          TableName: this.tableName,
+          Item: {
+            PK: this.rateLimitPK(identifier, action),
+            SK: 'RATELIMIT',
+            TTL: ttl,
+            count: 1,
+            windowStart,
+          },
+        }));
+        return { count: 1, windowStart };
+      }
+      throw error;
     }
   }
 
@@ -824,17 +830,19 @@ class DynamoDBRepository extends DataRepository {
 
       return response.Attributes?.count || 1;
     } catch (error) {
-      // If item doesn't exist, create it
-      await this.docClient.send(new PutCommand({
-        TableName: this.tableName,
-        Item: {
-          PK: this.failedAttemptsPK(normalizedEmail),
-          SK: 'FAILED',
-          TTL: ttl,
-          count: 1,
-        },
-      }));
-      return 1;
+      if (error.name === 'ConditionalCheckFailedException') {
+        await this.docClient.send(new PutCommand({
+          TableName: this.tableName,
+          Item: {
+            PK: this.failedAttemptsPK(normalizedEmail),
+            SK: 'FAILED',
+            TTL: ttl,
+            count: 1,
+          },
+        }));
+        return 1;
+      }
+      throw error;
     }
   }
 
@@ -911,8 +919,7 @@ class DynamoDBRepository extends DataRepository {
   async deleteEventPINSessions(eventId) {
     await this.initialize();
 
-    // Query all PIN sessions for this event using GSI1
-    const response = await this.docClient.send(new QueryCommand({
+    const items = await this._queryAll({
       TableName: this.tableName,
       IndexName: 'GSI1',
       KeyConditionExpression: 'GSI1PK = :pk AND begins_with(GSI1SK, :prefix)',
@@ -921,29 +928,10 @@ class DynamoDBRepository extends DataRepository {
         ':prefix': 'PINSESSION#',
       },
       ProjectionExpression: 'PK, SK',
-    }));
+    });
 
-    if (!response.Items || response.Items.length === 0) {
-      return;
-    }
-
-    // Batch delete (max 25 per batch)
-    const batches = [];
-    for (let i = 0; i < response.Items.length; i += 25) {
-      batches.push(response.Items.slice(i, i + 25));
-    }
-
-    for (const batch of batches) {
-      await this.docClient.send(new BatchWriteCommand({
-        RequestItems: {
-          [this.tableName]: batch.map(item => ({
-            DeleteRequest: {
-              Key: { PK: item.PK, SK: item.SK },
-            },
-          })),
-        },
-      }));
-    }
+    if (items.length === 0) return;
+    await this._batchWrite(items);
   }
 
   // ==================== SIMILAR USERS CACHE ====================
@@ -1039,86 +1027,103 @@ class DynamoDBRepository extends DataRepository {
   async deleteAllBookmarks(eventId) {
     await this.initialize();
 
-    // Query all bookmarks for this event
-    const response = await this.docClient.send(new QueryCommand({
+    const items = await this._queryAll({
       TableName: this.tableName,
       KeyConditionExpression: 'PK = :pk AND begins_with(SK, :sk)',
       ExpressionAttributeValues: {
         ':pk': this.eventPK(eventId),
         ':sk': 'BOOKMARK#',
       },
+      ProjectionExpression: 'PK, SK',
+    });
+
+    if (items.length === 0) return;
+    await this._batchWrite(items);
+  }
+
+  // ==================== REFRESH TOKENS ====================
+
+  async storeRefreshToken(tokenHash, email, expiresAt) {
+    await this.initialize();
+
+    const ttl = Math.floor(expiresAt / 1000);
+
+    await this.docClient.send(new PutCommand({
+      TableName: this.tableName,
+      Item: {
+        PK: `REFRESH#${tokenHash}`,
+        SK: 'REFRESH',
+        email,
+        createdAt: new Date().toISOString(),
+        expiresAt,
+        TTL: ttl,
+      },
+    }));
+  }
+
+  async getRefreshToken(tokenHash) {
+    await this.initialize();
+
+    const response = await this.docClient.send(new GetCommand({
+      TableName: this.tableName,
+      Key: {
+        PK: `REFRESH#${tokenHash}`,
+        SK: 'REFRESH',
+      },
     }));
 
-    if (!response.Items || response.Items.length === 0) {
-      return;
+    if (!response.Item) return null;
+
+    if (response.Item.TTL && response.Item.TTL < Math.floor(Date.now() / 1000)) {
+      return null;
     }
 
-    // Delete in batches of 25
-    const batches = [];
-    for (let i = 0; i < response.Items.length; i += 25) {
-      batches.push(response.Items.slice(i, i + 25));
-    }
+    return {
+      email: response.Item.email,
+      createdAt: response.Item.createdAt,
+      expiresAt: response.Item.expiresAt,
+    };
+  }
 
-    for (const batch of batches) {
-      const deleteRequests = batch.map(item => ({
-        DeleteRequest: {
-          Key: { PK: item.PK, SK: item.SK },
+  async deleteRefreshToken(tokenHash) {
+    await this.initialize();
+
+    await this.docClient.send(new DeleteCommand({
+      TableName: this.tableName,
+      Key: {
+        PK: `REFRESH#${tokenHash}`,
+        SK: 'REFRESH',
+      },
+    }));
+  }
+
+  async deleteRefreshTokensByEmail(email) {
+    await this.initialize();
+
+    // Paginated scan - rare operation (logout-all), TTL keeps table small
+    const allItems = [];
+    let lastKey = undefined;
+
+    do {
+      const response = await this.docClient.send(new ScanCommand({
+        TableName: this.tableName,
+        FilterExpression: 'begins_with(PK, :prefix) AND email = :email',
+        ExpressionAttributeValues: {
+          ':prefix': 'REFRESH#',
+          ':email': email,
         },
+        ProjectionExpression: 'PK, SK',
+        ExclusiveStartKey: lastKey,
       }));
+      allItems.push(...(response.Items || []));
+      lastKey = response.LastEvaluatedKey;
+    } while (lastKey);
 
-      await this.docClient.send(new BatchWriteCommand({
-        RequestItems: {
-          [this.tableName]: deleteRequests,
-        },
-      }));
-    }
+    if (allItems.length === 0) return 0;
+    await this._batchWrite(allItems);
+    return allItems.length;
   }
 
-  // ==================== LEGACY COMPATIBILITY ====================
-
-  /**
-   * Read event data as CSV string (legacy compatibility)
-   * @deprecated Use getRatings instead
-   */
-  async readEventData(eventId) {
-    const ratings = await this.getRatings(eventId);
-    
-    // Build CSV from ratings
-    const header = 'email,timestamp,itemId,rating,note';
-    
-    if (ratings.length === 0) {
-      return header + '\n';
-    }
-
-    const rows = ratings.map(r => 
-      `${r.email},${r.timestamp},${r.itemId},${r.rating},"${(r.note || '').replace(/"/g, '""')}"`
-    );
-
-    return header + '\n' + rows.join('\n') + '\n';
-  }
-
-  /**
-   * Append data to event CSV (legacy compatibility)
-   * @deprecated Use addRating instead
-   */
-  async appendEventData(eventId, data) {
-    // Parse CSV row: email,timestamp,itemId,rating,note
-    const parts = data.match(/(?:[^,"]|"(?:[^"]|"")*")+/g);
-    if (!parts || parts.length < 4) {
-      throw new Error('Invalid rating data format');
-    }
-
-    const [email, timestamp, itemId, rating, ...noteParts] = parts;
-    const note = noteParts.join(',').replace(/^"|"$/g, '').replace(/""/g, '"');
-
-    await this.addRating(eventId, {
-      email,
-      timestamp,
-      itemId: parseInt(itemId, 10),
-      rating: parseFloat(rating),
-      note: note || null,
-    });
-  }
 }
 
 // Export singleton instance

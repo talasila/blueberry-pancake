@@ -13,6 +13,7 @@ import { generateToken } from '../middleware/jwtAuth.js';
 import configLoader from '../config/configLoader.js';
 import dataRepository from '../data/DynamoDBRepository.js';
 import pinService from '../services/PINService.js';
+import { isProduction } from '../utils/environment.js';
 
 /**
  * Reset the test event counter (kept for backward compatibility, but no-op now)
@@ -21,7 +22,7 @@ import pinService from '../services/PINService.js';
  * Note: With DynamoDB, we use generated event IDs directly without TEST#### renaming.
  */
 export async function resetTestCounter(req, res) {
-  if (process.env.NODE_ENV === 'production') {
+  if (isProduction()) {
     return res.status(403).json({ 
       error: 'Test endpoints not available in production' 
     });
@@ -39,7 +40,7 @@ export async function resetTestCounter(req, res) {
  */
 export async function createTestEvent(req, res) {
   // Only allow in non-production environments
-  if (process.env.NODE_ENV === 'production') {
+  if (isProduction()) {
     return res.status(403).json({ 
       error: 'Test endpoints not available in production' 
     });
@@ -102,7 +103,7 @@ export async function createTestEvent(req, res) {
  */
 export async function deleteTestEvent(req, res) {
   // Only allow in non-production environments
-  if (process.env.NODE_ENV === 'production') {
+  if (isProduction()) {
     return res.status(403).json({ 
       error: 'Test endpoints not available in production' 
     });
@@ -164,28 +165,34 @@ export async function deleteTestEvent(req, res) {
  */
 export async function deleteAllTestEvents(req, res) {
   // Only allow in non-production environments
-  if (process.env.NODE_ENV === 'production') {
+  if (isProduction()) {
     return res.status(403).json({ 
       error: 'Test endpoints not available in production' 
     });
   }
 
   try {
-    // Get all events and filter for test events
-    const events = await EventService.getAllEvents();
-    const testEvents = events.filter(e => e._testData || e._createdBy === 'test-suite');
+    const eventIds = await dataRepository.listEvents();
+    let deletedCount = 0;
 
-    // Delete all test events
-    for (const event of testEvents) {
-      await EventService.deleteEvent(event.id);
+    for (const eventId of eventIds) {
+      try {
+        const event = await dataRepository.readEventConfig(eventId);
+        if (event?._testData || event?._createdBy === 'test-suite') {
+          await dataRepository.deleteEvent(eventId);
+          deletedCount++;
+        }
+      } catch {
+        // Skip events that can't be loaded
+      }
     }
 
-    logger.info(`Deleted ${testEvents.length} test events`);
+    logger.info(`Deleted ${deletedCount} test events`);
 
     res.status(200).json({ 
       success: true,
-      deletedCount: testEvents.length,
-      message: `Deleted ${testEvents.length} test events` 
+      deletedCount,
+      message: `Deleted ${deletedCount} test events` 
     });
   } catch (error) {
     logger.error('Error deleting test events:', error);
@@ -204,7 +211,7 @@ export async function deleteAllTestEvents(req, res) {
  */
 export async function addAdminAndGenerateToken(req, res) {
   // Only allow in non-production environments
-  if (process.env.NODE_ENV === 'production') {
+  if (isProduction()) {
     return res.status(403).json({ 
       error: 'Test endpoints not available in production' 
     });
@@ -257,8 +264,8 @@ export async function addAdminAndGenerateToken(req, res) {
       logger.info(`Added ${email} as administrator to test event ${eventId} (addToUsers: ${addToUsers})`);
     }
 
-    // Generate JWT token with email and event access
-    const token = generateToken({ email, events: [eventId] });
+    // Generate JWT token with email, event access, and authMethod
+    const token = generateToken({ email, events: [eventId], authMethod: 'otp' });
 
     res.status(200).json({ 
       success: true,
@@ -284,7 +291,7 @@ export async function addAdminAndGenerateToken(req, res) {
  */
 export async function clearCache(req, res) {
   // Only allow in non-production environments
-  if (process.env.NODE_ENV === 'production') {
+  if (isProduction()) {
     return res.status(403).json({ 
       error: 'Test endpoints not available in production' 
     });
@@ -323,7 +330,7 @@ export async function clearCache(req, res) {
  */
 export async function generateRootToken(req, res) {
   // Only allow in non-production environments
-  if (process.env.NODE_ENV === 'production') {
+  if (isProduction()) {
     return res.status(403).json({ 
       error: 'Test endpoints not available in production' 
     });
@@ -369,7 +376,7 @@ export async function generateRootToken(req, res) {
  */
 export function registerTestHelperRoutes(app) {
   // Only register in non-production
-  if (process.env.NODE_ENV === 'production') {
+  if (isProduction()) {
     return;
   }
 

@@ -21,7 +21,7 @@ on:
 
 env:
   AWS_REGION: us-east-1
-  NODE_VERSION: '20'
+  NODE_VERSION: '22'
 
 jobs:
   test:
@@ -85,7 +85,7 @@ jobs:
       - name: Run frontend tests
         run: npm run test:run
         working-directory: frontend
-        continue-on-error: true  # Don't fail build on frontend test failures
+        continue-on-error: false
 
       - name: Build frontend
         run: npm run build
@@ -141,6 +141,10 @@ jobs:
               JwtSecret=${{ secrets.JWT_SECRET }} \
               ResendApiKey=${{ secrets.RESEND_API_KEY }} \
               RootAdminEmails=${{ secrets.ROOT_ADMIN_EMAILS }} \
+              CsrfSecret=${{ secrets.CSRF_SECRET }} \
+              EmailFromAddress=${{ secrets.EMAIL_FROM_ADDRESS }} \
+              TurnstileSecretKey=${{ secrets.TURNSTILE_SECRET_KEY }} \
+              XsrfEnabled=true \
               FrontendDomain=placeholder
           echo "api_id=$(aws cloudformation describe-stacks --stack-name blueberry-pancake-${{ github.event.inputs.environment || 'prod' }} --query 'Stacks[0].Outputs[?OutputKey==`ApiId`].OutputValue' --output text)" >> $GITHUB_OUTPUT
 
@@ -168,7 +172,12 @@ jobs:
               JwtSecret=${{ secrets.JWT_SECRET }} \
               ResendApiKey=${{ secrets.RESEND_API_KEY }} \
               RootAdminEmails=${{ secrets.ROOT_ADMIN_EMAILS }} \
-              FrontendDomain=$FRONTEND_DOMAIN
+              CsrfSecret=${{ secrets.CSRF_SECRET }} \
+              EmailFromAddress=${{ secrets.EMAIL_FROM_ADDRESS }} \
+              TurnstileSecretKey=${{ secrets.TURNSTILE_SECRET_KEY }} \
+              XsrfEnabled=true \
+              FrontendDomain=$FRONTEND_DOMAIN \
+              FrontendDomainCloudFront=$FRONTEND_DOMAIN
 
   deploy-frontend:
     name: Deploy Frontend
@@ -226,6 +235,7 @@ jobs:
           # Sync HTML and JSON with short cache
           aws s3 sync frontend/dist/ s3://${{ steps.stack-outputs.outputs.bucket }}/ \
             --cache-control "public, max-age=60" \
+            --exclude "*" \
             --include "index.html" \
             --include "*.json"
 

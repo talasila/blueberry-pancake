@@ -3,6 +3,7 @@ import dataRepository from '../data/DynamoDBRepository.js';
 import rateLimitService from './RateLimitService.js';
 import eventService from './EventService.js';
 import loggerService from '../logging/Logger.js';
+import { isProduction } from '../utils/environment.js';
 
 /**
  * PINService
@@ -44,9 +45,7 @@ class PINService {
    * @returns {Promise<{allowed: boolean, retryAfter?: number, remaining?: number}>}
    */
   async _checkEventLimit(eventId) {
-    // Environment-aware limits: strict in production, relaxed in development
-    const isProduction = process.env.NODE_ENV === 'production';
-    const LIMIT = isProduction ? 5 : 1000;
+    const LIMIT = isProduction() ? 5 : 1000;
     const WINDOW_MINUTES = 15;
     const WINDOW_MS = WINDOW_MINUTES * 60 * 1000;
     const WINDOW_SECONDS = WINDOW_MINUTES * 60;
@@ -91,7 +90,7 @@ class PINService {
         remaining: LIMIT - result.count
       };
     } catch (error) {
-      console.error(`Error checking PIN rate limit for event ${eventId}:`, error);
+      loggerService.error(`Error checking PIN rate limit for event ${eventId}:`, error);
       // Fail open for availability
       return { allowed: true, remaining: LIMIT };
     }
@@ -153,8 +152,9 @@ class PINService {
         };
       }
       
-      // Compare PIN
-      if (event.pin !== pin) {
+      const pinBuffer = Buffer.from(pin.padEnd(6));
+      const storedBuffer = Buffer.from(String(event.pin).padEnd(6));
+      if (!crypto.timingSafeEqual(pinBuffer, storedBuffer)) {
         loggerService.warn(`Invalid PIN attempt for event: ${eventId} from IP: ${ipAddress} (PIN mismatch)`);
         return { 
           valid: false, 

@@ -40,24 +40,4 @@ describe('FileDataRepository Integration', () => {
     expect(events).toContain('event-3');
   });
 
-  it('should handle event data CSV operations', async () => {
-    const eventId = 'test-event-csv';
-    await createTestEvent(eventId);
-
-    // Append data
-    await repo.appendEventData(eventId, 'user-001,2025-01-27T10:00:00Z,item-001,8,"Great"');
-
-    // Read data
-    const data = await repo.readEventData(eventId);
-    expect(data).toContain('user-001');
-    expect(data).toContain('item-001');
-  });
-
-  it('should return empty CSV with header if data file does not exist', async () => {
-    const eventId = 'test-event-empty';
-    await createTestEvent(eventId);
-
-    const data = await repo.readEventData(eventId);
-    expect(data).toBe('participantId,timestamp,itemId,rating,notes\n');
-  });
 });

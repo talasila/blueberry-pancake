@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import apiClient from '@/services/apiClient';
 import { clearAllBookmarks } from '@/utils/bookmarkStorage';
+import { useTurnstile } from '@/hooks/useTurnstile';
 
 /**
  * PINEntryPage Component
@@ -26,13 +27,17 @@ function PINEntryPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  const { token: turnstileToken, containerRef: turnstileRef } = useTurnstile(
+    import.meta.env.VITE_TURNSTILE_SITE_KEY
+  );
+
   // Get email from sessionStorage (set in EmailEntryPage)
   useEffect(() => {
     const storedEmail = sessionStorage.getItem(`event:${eventId}:email`);
     if (storedEmail) {
       // Security check: Verify this is not an admin email
       // Admins should use OTP authentication, not PIN
-      apiClient.checkEventAdmin(eventId, storedEmail)
+      apiClient.checkEventAdmin(eventId, storedEmail, turnstileToken)
         .then(response => {
           if (response.isAdmin) {
             // Admin detected - redirect to OTP entry
@@ -53,7 +58,7 @@ function PINEntryPage() {
       // If no email found, redirect back to email entry
       navigate(`/event/${eventId}/email`, { replace: true });
     }
-  }, [eventId, navigate]);
+  }, [eventId, navigate, turnstileToken]);
 
   /**
    * Handle PIN verification
@@ -83,9 +88,8 @@ function PINEntryPage() {
       // Clear local bookmark cache (bookmarks are persisted on server, will be loaded on event page)
       clearAllBookmarks();
       
-      // Store JWT token from PIN verification
-      if (response.token) {
-        apiClient.setJWTToken(response.token);
+      if (response.user) {
+        apiClient.setUserSession(response.user);
       }
 
       // Clear email from sessionStorage
@@ -197,6 +201,7 @@ function PINEntryPage() {
                     </Button>
                   </div>
                 </div>
+                <div ref={turnstileRef} />
               </form>
             </CardContent>
           </Card>

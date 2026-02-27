@@ -8,7 +8,7 @@
  * @param {Array} ratingConfiguration - Array of rating config objects with value, label, and color
  * @param {number} maxRating - Maximum rating value (default: 4)
  */
-function Sparkline({ ratings = [], ratingConfiguration = [], maxRating = 4 }) {
+function Sparkline({ ratings = [], ratingConfiguration = [] }) {
   if (!ratings || ratings.length === 0) {
     return (
       <div className="w-full h-2 bg-muted rounded-full">

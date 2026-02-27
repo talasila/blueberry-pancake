@@ -28,8 +28,9 @@ vi.mock('../../src/hooks/useEventPolling.js', () => {
 vi.mock('../../src/services/apiClient.js', () => {
   return {
     default: {
-      getJWTToken: vi.fn(() => 'mock-token'),
-      getEvent: vi.fn()
+      isAuthenticated: vi.fn(() => true),
+      getEvent: vi.fn(),
+      getUserEmail: vi.fn(() => 'test@example.com')
     }
   };
 });

@@ -4,6 +4,7 @@
  * @returns {boolean} True if email format is valid
  */
 export function isValidEmailFormat(email) {
+  if (!email || typeof email !== 'string') return false;
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email.trim());
 }
@@ -14,7 +15,8 @@ export function isValidEmailFormat(email) {
  * @param {number} delay - Delay in milliseconds (default: 3000)
  */
 export function clearSuccessMessage(setter, delay = 3000) {
-  setTimeout(() => setter(''), delay);
+  const timer = setTimeout(() => setter(''), delay);
+  return timer;
 }
 
 /**
@@ -58,7 +60,7 @@ export function downloadCSV(data, columns, filename) {
 
   // Create data rows
   for (const row of data) {
-    const values = columns.map(col => escapeCSVField(row[col] || ''));
+    const values = columns.map(col => escapeCSVField(row[col] ?? ''));
     lines.push(values.join(','));
   }
 

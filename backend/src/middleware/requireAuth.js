@@ -7,12 +7,7 @@ import { jwtAuth, hasEventAccess } from './jwtAuth.js';
  * Redirects unauthenticated users are handled by frontend
  */
 export function requireAuth(req, res, next) {
-  // First, validate JWT token
-  jwtAuth(req, res, (err) => {
-    if (err) {
-      return next(err);
-    }
-    
+  jwtAuth(req, res, () => {
     // JWT is valid, now check event access if this is an event-specific route
     const eventId = req.params.eventId;
     

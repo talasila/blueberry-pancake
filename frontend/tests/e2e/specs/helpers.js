@@ -128,6 +128,37 @@ export async function addAdminToEvent(eventId, email) {
 }
 
 /**
+ * Extract JWT from the Set-Cookie header of a fetch response.
+ * The backend sets the JWT as an httpOnly cookie on auth responses.
+ */
+export function extractJWTFromCookie(response) {
+  const setCookie = response.headers.get('set-cookie');
+  if (!setCookie) return null;
+  const match = setCookie.match(/jwt_token=([^;]+)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Get a user JWT token via PIN verification.
+ * Extracts the token from the response's Set-Cookie header.
+ */
+export async function getUserToken(eventId, email, pin) {
+  const response = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pin, email }),
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to get user token: ${await response.text()}`);
+  }
+  const token = extractJWTFromCookie(response);
+  if (!token) {
+    throw new Error('No JWT cookie found in verify-pin response');
+  }
+  return token;
+}
+
+/**
  * Clear authentication (localStorage, sessionStorage, and httpOnly cookies)
  */
 export async function clearAuth(page) {
@@ -154,14 +185,38 @@ export async function clearAuth(page) {
 }
 
 /**
- * Set authentication token in localStorage and email in sessionStorage
+ * Set authentication token as httpOnly cookie and user session in localStorage.
+ * The cookie is used for backend auth; localStorage is used for frontend state.
  */
 export async function setAuthToken(page, token, email = 'admin@example.com') {
   await page.goto(BASE_URL);
-  await page.evaluate(({ token, email }) => {
-    localStorage.setItem('jwtToken', token);  // App expects 'jwtToken' not 'token'
+
+  // Decode JWT payload to extract exp and authMethod
+  let exp;
+  let authMethod = null;
+  try {
+    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
+    exp = payload.exp;
+    authMethod = payload.authMethod || null;
+  } catch {
+    exp = Math.floor(Date.now() / 1000) + 86400;
+  }
+
+  // Set JWT as httpOnly cookie (backend reads this for auth via Vite proxy)
+  await page.context().addCookies([{
+    name: 'jwt_token',
+    value: token,
+    url: 'http://localhost:3000',
+    httpOnly: true,
+    secure: false,
+    sameSite: 'Strict',
+  }]);
+
+  // Set user session in localStorage (frontend reads this for UI state)
+  await page.evaluate(({ email, exp, authMethod }) => {
+    localStorage.setItem('userSession', JSON.stringify({ email, exp, authMethod }));
     sessionStorage.setItem('email', email);
-  }, { token, email });
+  }, { email, exp, authMethod });
 }
 
 /**

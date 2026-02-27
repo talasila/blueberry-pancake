@@ -20,8 +20,10 @@ import { EventContextProvider } from './contexts/EventContext.jsx';
 import { PINProvider } from './contexts/PINContext.jsx';
 import { Toaster } from './components/ui/sonner';
 import useEventPolling from '@/hooks/useEventPolling';
+import { useViewportHeight } from '@/hooks/useViewportHeight';
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import apiClient from './services/apiClient.js';
+import { isUserAdmin } from './utils/adminCheck.js';
 import GuideDrawer from './components/guide/GuideDrawer';
 import AdminGuideDrawer from './components/guide/AdminGuideDrawer';
 
@@ -47,27 +49,7 @@ function AppLayout() {
     return <Navigate to={canonicalPath + location.search + location.hash} replace />;
   }
   
-  // Set viewport height for mobile browsers (accounts for browser UI)
-  const [viewportHeight, setViewportHeight] = useState(window.innerHeight);
-  
-  useEffect(() => {
-    const updateViewportHeight = () => {
-      setViewportHeight(window.innerHeight);
-    };
-    
-    // Update on resize and orientation change
-    window.addEventListener('resize', updateViewportHeight);
-    window.addEventListener('orientationchange', updateViewportHeight);
-    
-    // Initial update after a short delay to ensure accurate measurement
-    const timer = setTimeout(updateViewportHeight, 100);
-    
-    return () => {
-      window.removeEventListener('resize', updateViewportHeight);
-      window.removeEventListener('orientationchange', updateViewportHeight);
-      clearTimeout(timer);
-    };
-  }, []);
+  const viewportHeight = useViewportHeight();
   
   const [guideOpen, setGuideOpen] = useState(false);
   const closeGuide = useCallback(() => setGuideOpen(false), []);
@@ -234,24 +216,14 @@ function AppLayout() {
 function EventContextProviderForRoute({ eventId, children }) {
   const [currentEvent, setCurrentEvent] = useState(null);
   
-  // Check authentication before polling
-  // Must have a valid (non-empty) JWT token
-  const jwtToken = apiClient.getJWTToken();
-  const hasAuth = !!(jwtToken && jwtToken.trim());
-  
-  // Only poll if we have authentication
+  const hasAuth = apiClient.isAuthenticated();
   const { event: polledEvent } = useEventPolling(hasAuth ? eventId : null);
   
   // Fetch initial event data
   useEffect(() => {
     if (!eventId) return;
     
-    // Check authentication before attempting to fetch
-    // Must have a valid (non-empty) JWT token
-    const jwtToken = apiClient.getJWTToken();
-    const hasAuth = !!(jwtToken && jwtToken.trim());
-    
-    if (!hasAuth) {
+    if (!apiClient.isAuthenticated()) {
       // Don't fetch if no authentication - let the page component handle redirect
       return;
     }
@@ -276,25 +248,8 @@ function EventContextProviderForRoute({ eventId, children }) {
     }
   }, [polledEvent]);
   
-  const getUserId = () => {
-    const payload = apiClient.decodeJWTPayload();
-    return payload?.email?.toLowerCase() || null;
-  };
-
-  const userEmail = getUserId();
-  let isAdmin = false;
-  
-  if (userEmail && currentEvent?.administrators) {
-    // Check if user email exists in administrators object (case-insensitive)
-    const normalizedUserEmail = userEmail.toLowerCase();
-    isAdmin = Object.keys(currentEvent.administrators).some(
-      adminEmail => adminEmail.toLowerCase() === normalizedUserEmail
-    );
-  } else if (userEmail && currentEvent?.administrator) {
-    // Fallback: support old administrator field for backward compatibility
-    const adminEmail = currentEvent.administrator?.toLowerCase();
-    isAdmin = userEmail === adminEmail;
-  }
+  const userEmail = apiClient.getUserEmail();
+  const isAdmin = isUserAdmin(userEmail, currentEvent);
 
   return (
     <EventContextProvider event={currentEvent} eventId={eventId} isAdmin={isAdmin}>

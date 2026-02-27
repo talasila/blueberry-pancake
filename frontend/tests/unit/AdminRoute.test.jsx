@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { BrowserRouter, Routes, Route, MemoryRouter } from 'react-router-dom';
+import { Routes, Route, MemoryRouter } from 'react-router-dom';
 import AdminRoute from '../../src/components/AdminRoute.jsx';
 import useEvent from '../../src/hooks/useEvent.js';
 import apiClient from '../../src/services/apiClient.js';
@@ -12,11 +12,11 @@ vi.mock('../../src/hooks/useEvent.js', () => {
   };
 });
 
-// Mock API client
 vi.mock('../../src/services/apiClient.js', () => {
   return {
     default: {
-      getJWTToken: vi.fn()
+      isAuthenticated: vi.fn(() => true),
+      getUserEmail: vi.fn()
     }
   };
 });
@@ -48,11 +48,7 @@ describe('AdminRoute Component', () => {
         refetch: vi.fn()
       });
 
-      // Mock JWT token with uppercase email
-      apiClient.getJWTToken.mockReturnValue('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6IkFETUlOQEVYQU1QTEUuQ09NIiwiaWF0IjoxNjAwMDAwMDAwfQ.test');
-      
-      // Decode mock token payload: { email: "ADMIN@EXAMPLE.COM" }
-      vi.spyOn(global, 'atob').mockReturnValue('{"email":"ADMIN@EXAMPLE.COM","iat":1600000000}');
+      apiClient.getUserEmail.mockReturnValue('ADMIN@EXAMPLE.COM');
 
       render(
         <MemoryRouter initialEntries={['/event/A5ohYrHe/admin']}>
@@ -89,8 +85,7 @@ describe('AdminRoute Component', () => {
         refetch: vi.fn()
       });
 
-      apiClient.getJWTToken.mockReturnValue('mock-token');
-      vi.spyOn(global, 'atob').mockReturnValue('{"email":"admin@example.com","iat":1600000000}');
+      apiClient.getUserEmail.mockReturnValue('admin@example.com');
 
       render(
         <MemoryRouter initialEntries={['/event/A5ohYrHe/admin']}>
@@ -127,8 +122,7 @@ describe('AdminRoute Component', () => {
         refetch: vi.fn()
       });
 
-      apiClient.getJWTToken.mockReturnValue('mock-token');
-      vi.spyOn(global, 'atob').mockReturnValue('{"email":"user@example.com","iat":1600000000}');
+      apiClient.getUserEmail.mockReturnValue('user@example.com');
 
       render(
         <MemoryRouter initialEntries={['/event/A5ohYrHe/admin']}>
@@ -160,7 +154,7 @@ describe('AdminRoute Component', () => {
         refetch: vi.fn()
       });
 
-      apiClient.getJWTToken.mockReturnValue('mock-token');
+      apiClient.getUserEmail.mockReturnValue('admin@example.com');
 
       render(
         <MemoryRouter initialEntries={['/event/A5ohYrHe/admin']}>
@@ -188,7 +182,7 @@ describe('AdminRoute Component', () => {
         refetch: vi.fn()
       });
 
-      apiClient.getJWTToken.mockReturnValue('mock-token');
+      apiClient.getUserEmail.mockReturnValue('admin@example.com');
 
       render(
         <MemoryRouter initialEntries={['/event/A5ohYrHe/admin']}>
@@ -211,8 +205,8 @@ describe('AdminRoute Component', () => {
     });
   });
 
-  describe('JWT token extraction', () => {
-    it('should extract email from JWT token', async () => {
+  describe('Email from session', () => {
+    it('should grant access when getUserEmail returns matching email', async () => {
       const mockEvent = {
         eventId: 'A5ohYrHe',
         name: 'Test Event',
@@ -230,8 +224,7 @@ describe('AdminRoute Component', () => {
         refetch: vi.fn()
       });
 
-      apiClient.getJWTToken.mockReturnValue('mock-token');
-      vi.spyOn(global, 'atob').mockReturnValue('{"email":"admin@example.com","iat":1600000000}');
+      apiClient.getUserEmail.mockReturnValue('admin@example.com');
 
       render(
         <MemoryRouter initialEntries={['/event/A5ohYrHe/admin']}>
@@ -246,7 +239,7 @@ describe('AdminRoute Component', () => {
       );
 
       await waitFor(() => {
-        expect(apiClient.getJWTToken).toHaveBeenCalled();
+        expect(apiClient.getUserEmail).toHaveBeenCalled();
       });
 
       await waitFor(() => {
@@ -254,7 +247,7 @@ describe('AdminRoute Component', () => {
       });
     });
 
-    it('should handle missing email in JWT token', async () => {
+    it('should handle missing email in session', async () => {
       const mockEvent = {
         eventId: 'A5ohYrHe',
         name: 'Test Event',
@@ -272,8 +265,7 @@ describe('AdminRoute Component', () => {
         refetch: vi.fn()
       });
 
-      apiClient.getJWTToken.mockReturnValue('mock-token');
-      vi.spyOn(global, 'atob').mockReturnValue('{"iat":1600000000}'); // No email
+      apiClient.getUserEmail.mockReturnValue(null);
 
       render(
         <MemoryRouter initialEntries={['/event/A5ohYrHe/admin']}>

@@ -2,8 +2,6 @@ import { Router } from 'express';
 import healthRouter from './health.js';
 import authRouter from './auth.js';
 import systemRouter from './system.js';
-import requireAuth from '../middleware/requireAuth.js';
-
 const router = Router();
 
 router.param('eventId', (req, res, next, id) => {

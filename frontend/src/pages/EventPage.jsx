@@ -15,6 +15,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import { Button } from '@/components/ui/button';
 import { Users, BarChart3 } from 'lucide-react';
 import { useItemTerminology } from '@/utils/itemTerminology';
+import { calculateUserRatingProgress } from '@/utils/ratingProgress';
 
 /**
  * EventPage Component
@@ -35,9 +36,7 @@ function EventPage() {
   const { event: contextEvent, isAdmin } = useEventContext();
   const { pluralLower } = useItemTerminology(contextEvent);
   
-  // Check authentication synchronously before any API calls
-  const jwtToken = apiClient.getJWTToken();
-  const hasAuth = !!jwtToken;
+  const hasAuth = apiClient.isAuthenticated();
   
   const [event, setEvent] = useState(contextEvent);
   const [isLoading, setIsLoading] = useState(!contextEvent);
@@ -53,27 +52,24 @@ function EventPage() {
   const [userEmail, setUserEmail] = useState(null);
   const [ratingsLoading, setRatingsLoading] = useState(false);
   const [dashboardData, setDashboardData] = useState(null);
-  const loadStartTimeRef = useRef(null);
-  const ratingConfigFetchedRef = useRef(null); // Track which eventId we've fetched rating config for
+  const ratingConfigFetchedRef = useRef(null);
   const isHandlingPopStateRef = useRef(false); // Prevent infinite loops when handling popstate
 
   // Redirect to PIN entry if no authentication - must happen immediately
   // Use a ref to track if we've already checked to avoid multiple redirects
-  const redirectCheckedRef = useRef(false);
+  const redirectCheckedForEventRef = useRef(null);
   
   useEffect(() => {
-    if (!eventId || redirectCheckedRef.current) return;
+    if (!eventId) return;
+    if (redirectCheckedForEventRef.current === eventId) return;
     
-    const currentJwtToken = apiClient.getJWTToken();
-    
-    // If no JWT token, redirect to email entry immediately
-    if (!currentJwtToken) {
-      redirectCheckedRef.current = true;
+    if (!apiClient.isAuthenticated()) {
+      redirectCheckedForEventRef.current = eventId;
       navigate(`/event/${eventId}/email`, { replace: true });
       return;
     }
     
-    redirectCheckedRef.current = true;
+    redirectCheckedForEventRef.current = eventId;
   }, [eventId, navigate]);
 
   // Handle invalid authentication - redirect if API returns 401
@@ -86,22 +82,6 @@ function EventPage() {
       }
     }
   }, [error, eventId, navigate]);
-
-  // Performance monitoring: track page load time
-  useEffect(() => {
-    if (!loadStartTimeRef.current) {
-      loadStartTimeRef.current = performance.now();
-    }
-    
-    if (event && !isLoading) {
-      const loadTime = performance.now() - loadStartTimeRef.current;
-      if (loadTime > 2000) {
-        console.warn(`Event page load time: ${loadTime.toFixed(2)}ms (exceeds 2s target)`);
-      } else {
-        console.log(`Event page load time: ${loadTime.toFixed(2)}ms`);
-      }
-    }
-  }, [event, isLoading]);
 
   // Update event when context updates (context is already being polled by EventContextProviderForRoute)
   useEffect(() => {
@@ -180,14 +160,13 @@ function EventPage() {
 
   // Handle browser back/forward navigation (popstate) to sync drawer state
   useEffect(() => {
-    const handlePopState = (event) => {
+    const handlePopState = (popEvent) => {
       if (isHandlingPopStateRef.current) return;
       
       isHandlingPopStateRef.current = true;
       
-      // If history state has drawer info, open that drawer
-      if (event.state?.drawer) {
-        const { drawer, itemId, userEmail: stateUserEmail } = event.state;
+      if (popEvent.state?.drawer) {
+        const { drawer, itemId, userEmail: stateUserEmail } = popEvent.state;
         
         // Close all drawers first
         setOpenDrawerItemId(null);
@@ -227,7 +206,7 @@ function EventPage() {
 
   // Load user's ratings (T082 - with loading state)
   const loadRatings = () => {
-    if (eventId && hasAuth && redirectCheckedRef.current && userEmail) {
+    if (eventId && hasAuth && redirectCheckedForEventRef.current === eventId && userEmail) {
       setRatingsLoading(true);
       ratingService.getRatings(eventId)
         .then(allRatings => {
@@ -310,8 +289,8 @@ function EventPage() {
 
   // Listen for rating submission events to refresh ratings
   useEffect(() => {
-    const handleRatingSubmitted = (event) => {
-      if (event.detail.eventId === eventId) {
+    const handleRatingSubmitted = (customEvent) => {
+      if (customEvent.detail.eventId === eventId) {
         loadRatings();
       }
     };
@@ -324,8 +303,8 @@ function EventPage() {
 
   // Listen for bookmark toggle events to refresh bookmarks
   useEffect(() => {
-    const handleBookmarkToggled = async (event) => {
-      if (event.detail.eventId === eventId && userEmail) {
+    const handleBookmarkToggled = async (customEvent) => {
+      if (customEvent.detail.eventId === eventId && userEmail) {
         // Reload from server to ensure sync
         try {
           const bookmarkedItems = await loadBookmarksFromServer(eventId);
@@ -336,7 +315,7 @@ function EventPage() {
           const cachedBookmarks = getBookmarks(eventId);
           setBookmarks(cachedBookmarks);
         }
-      } else if (event.detail.eventId === eventId) {
+      } else if (customEvent.detail.eventId === eventId) {
         // If no userEmail, just use local cache
         const bookmarkedItems = getBookmarks(eventId);
         setBookmarks(bookmarkedItems);
@@ -485,74 +464,21 @@ function EventPage() {
     }, 100);
   };
 
-  // Calculate user rating progress data
-  const userRatingProgressData = useMemo(() => {
-    if (!ratings || ratings.length === 0 || !availableItemIds.length) {
-      return null;
-    }
-
-    const totalItems = availableItemIds.length;
-    
-    // Count unique items rated
-    const uniqueItemsRated = new Set();
-    ratings.forEach(rating => {
-      const itemId = parseInt(rating.itemId, 10);
-      if (!isNaN(itemId)) {
-        uniqueItemsRated.add(itemId);
-      }
-    });
-    const numberOfItemsRated = uniqueItemsRated.size;
-
-    // Calculate rating progression (percentage of items rated)
-    const ratingProgression = totalItems > 0 
-      ? (numberOfItemsRated / totalItems) * 100 
-      : 0;
-
-    // Calculate rating distribution
-    const ratingDistribution = {};
-    const maxRating = ratingConfig?.maxRating || 4;
-    for (let ratingValue = 1; ratingValue <= maxRating; ratingValue++) {
-      ratingDistribution[ratingValue] = ratings.filter(
-        r => parseInt(r.rating, 10) === ratingValue
-      ).length;
-    }
-
-    // Get all ratings in order (sorted by timestamp, oldest to newest for sparkline)
-    const sortedRatings = [...ratings]
-      .sort((a, b) => {
-        // Sort by timestamp (oldest to newest)
-        const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-        const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-        if (isNaN(aTime)) return 1;
-        if (isNaN(bTime)) return -1;
-        return aTime - bTime; // Ascending order (oldest first)
-      })
-      .map(rating => {
-        const ratingValue = parseInt(rating.rating, 10);
-        return isNaN(ratingValue) ? null : ratingValue;
-      })
-      .filter(rating => rating !== null);
-
-    return {
-      ratingProgression: parseFloat(ratingProgression.toFixed(2)),
-      ratingDistribution,
-      ratings: sortedRatings,
-      totalRatings: ratings.length
-    };
-  }, [ratings, availableItemIds, ratingConfig]);
+  const userRatingProgressData = useMemo(
+    () => calculateUserRatingProgress(ratings, availableItemIds, ratingConfig?.maxRating || 4),
+    [ratings, availableItemIds, ratingConfig]
+  );
 
   // Check if user has rated at least 3 items (for button visibility)
+  // ratings state already contains only the current user's ratings (filtered in loadRatings)
   const hasMinimumRatings = () => {
-    if (!userEmail || !ratings.length) return false;
-    const userRatings = ratings.filter(r => r.email?.toLowerCase() === userEmail.toLowerCase());
-    return userRatings.length >= 3;
+    return ratings.length >= 3;
   };
 
   // Get user's rating for a specific item
   const getUserRating = (itemId) => {
-    if (!userEmail || !ratings.length) return null;
-    // Filter ratings by user email
-    return ratings.find(r => r.itemId === itemId && r.email?.toLowerCase() === userEmail.toLowerCase()) || null;
+    if (!ratings.length) return null;
+    return ratings.find(r => r.itemId === itemId) || null;
   };
 
   // Get rating color for an item
@@ -829,7 +755,6 @@ function EventPage() {
           ratingConfig={ratingConfig}
           eventType={event?.typeOfItem}
           noteSuggestionsEnabled={ratingConfig?.noteSuggestionsEnabled}
-          userEmail={userEmail}
         />
       )}
 

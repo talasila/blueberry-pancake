@@ -7,7 +7,7 @@ import loggerService from '../logging/Logger.js';
 export function logger(req, res, next) {
   const method = req.method;
   const path = req.path;
-  const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
 
   loggerService.info(`${method} ${path}`, { ip, userAgent: req.get('user-agent') }).catch(() => {});
   next();

@@ -21,7 +21,6 @@ import { useItemTerminology } from '@/utils/itemTerminology';
  * @param {object} props.ratingConfig - Rating configuration (maxRating, ratings array)
  * @param {string} props.eventType - Type of event (e.g., "wine")
  * @param {boolean} props.noteSuggestionsEnabled - Whether note suggestions are enabled
- * @param {string} props.userEmail - User email address (optional, for server sync)
  */
 function RatingDrawer({ 
   isOpen, 
@@ -32,12 +31,10 @@ function RatingDrawer({
   existingRating,
   ratingConfig,
   eventType,
-  noteSuggestionsEnabled,
-  userEmail
+  noteSuggestionsEnabled
 }) {
   const { event } = useEventContext();
   const { singular } = useItemTerminology(event);
-  const openStartTimeRef = useRef(null);
   const hasBeenOpenedRef = useRef(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -76,21 +73,6 @@ function RatingDrawer({
       }));
     }
   };
-
-  // Performance monitoring: track drawer open time (T080)
-  useEffect(() => {
-    if (isOpen && !openStartTimeRef.current) {
-      openStartTimeRef.current = performance.now();
-    } else if (!isOpen && openStartTimeRef.current) {
-      const openTime = performance.now() - openStartTimeRef.current;
-      if (openTime > 500) {
-        console.warn(`Drawer open time: ${openTime.toFixed(2)}ms (exceeds 500ms target)`);
-      } else {
-        console.log(`Drawer open time: ${openTime.toFixed(2)}ms`);
-      }
-      openStartTimeRef.current = null;
-    }
-  }, [isOpen]);
 
   // Determine content based on event state
   let content;
