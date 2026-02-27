@@ -12,14 +12,16 @@ ENV=prod
 
 # Required - set via env or edit:
 # JWT_SECRET, RESEND_API_KEY, ROOT_ADMIN_EMAILS, CSRF_SECRET, EMAIL_FROM_ADDRESS, FRONTEND_DOMAIN
-JWT_SECRET="Mcr7Bs4rFStYBlUrSxRhYOJ+j/kyMTMnE0/2HVCXdA0="
+# store secrets in AWS ssm and refer to them here
+# Example for JWT_SECRET: aws ssm put-parameter --name "/blueberry-pancake/prod/jwt-secret" --value "<TBD>" --type SecureString 
+JWT_SECRET="${JWT_SECRET:-$(aws ssm get-parameter --name /blueberry-pancake/prod/jwt-secret --with-decryption --query Parameter.Value --output text)}"
 EMAIL_FROM_ADDRESS="${EMAIL_FROM_ADDRESS:-sreeni@7155421.xyz}"  # must be verified in Resend
 FRONTEND_DOMAIN="${FRONTEND_DOMAIN:-blindwinetasting.party}"               # custom domain for CORS; use CloudFront domain if unset
 FRONTEND_DOMAIN_WWW="${FRONTEND_DOMAIN_WWW:-www.blindwinetasting.party}"   # optional www variant; empty to exclude
 CSRF_SECRET="${CSRF_SECRET:-$(openssl rand -base64 32)}"
-TURNSTILE_SECRET_KEY="${TURNSTILE_SECRET_KEY:-0x4AAAAAACi2DaJC2UPtaSrpWWyCD39Pdco}"
-TURNSTILE_SITE_KEY="${TURNSTILE_SITE_KEY:-0x4AAAAAACi2DcdZQF5UNuKH}"
-RESEND_API_KEY="re_6RipC75d_PhQmhfHdnnhT542ZaRHjwhqu"
+TURNSTILE_SECRET_KEY="${TURNSTILE_SECRET_KEY:-$(aws ssm get-parameter --name /blueberry-pancake/prod/turnstile-secret --with-decryption --query Parameter.Value --output text)}"
+TURNSTILE_SITE_KEY="${TURNSTILE_SITE_KEY:-$(aws ssm get-parameter --name /blueberry-pancake/prod/turnstile-site-key --with-decryption --query Parameter.Value --output text)}"
+RESEND_API_KEY="${RESEND_API_KEY:-$(aws ssm get-parameter --name /blueberry-pancake/prod/resend-api-key --with-decryption --query Parameter.Value --output text)}"
 ROOT_ADMIN_EMAILS="sreenivas.talasila@gmail.com"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
