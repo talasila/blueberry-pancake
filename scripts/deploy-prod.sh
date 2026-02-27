@@ -15,7 +15,7 @@ ENV=prod
 # store secrets in AWS ssm and refer to them here
 # Example for JWT_SECRET: aws ssm put-parameter --name "/blueberry-pancake/prod/jwt-secret" --value "<TBD>" --type SecureString 
 JWT_SECRET="${JWT_SECRET:-$(aws ssm get-parameter --name /blueberry-pancake/prod/jwt-secret --with-decryption --query Parameter.Value --output text)}"
-EMAIL_FROM_ADDRESS="${EMAIL_FROM_ADDRESS:-sreeni@7155421.xyz}"  # must be verified in Resend
+EMAIL_FROM_ADDRESS="${EMAIL_FROM_ADDRESS:-noreply@blindwinetasting.party}"  # must be verified in Resend
 FRONTEND_DOMAIN="${FRONTEND_DOMAIN:-blindwinetasting.party}"               # custom domain for CORS; use CloudFront domain if unset
 FRONTEND_DOMAIN_WWW="${FRONTEND_DOMAIN_WWW:-www.blindwinetasting.party}"   # optional www variant; empty to exclude
 CSRF_SECRET="${CSRF_SECRET:-$(openssl rand -base64 32)}"
