@@ -100,6 +100,8 @@ JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 - AWS DynamoDB (single-table design, pay-per-request) — no schema changes needed (018-admin-event-list)
 - Node.js 22.12.0+ (backend), React 19.2.1 (frontend) + Express 5.2.1, @aws-sdk/client-dynamodb ^3.600.0, Vite 6.0.5, Tailwind CSS 4.1.17 (019-bot-protection)
 - DynamoDB single-table design (PAY_PER_REQUEST, TTL enabled) (019-bot-protection)
+- JavaScript (React 19.2.1 with JSX) + React Router DOM 7.10.1, Tailwind CSS 4.1.17, lucide-react 0.556.0, sonner 2.0.7 (toast being removed) (020-post-creation-welcome-modal)
+- N/A (reads existing in-memory event state; no new persistence) (020-post-creation-welcome-modal)
 
 ## Recent Changes
 - 001-root-admin: Added Node.js 22+, JavaScript ES2020+ + Express 5, React 19, Vite, Tailwind CSS 4, Radix UI

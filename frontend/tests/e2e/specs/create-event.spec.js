@@ -183,8 +183,8 @@ test.describe('Create Event', () => {
     // Verify redirect to admin page with uppercase-only event ID
     await page.waitForURL(/\/event\/[0-9A-Z]{8}\/admin/, { timeout: 10000 });
 
-    // Verify toast notification
-    await expect(page.getByText(/event created/i)).toBeVisible({ timeout: 5000 });
+    // Verify welcome bottom sheet appears (replaces the old toast notification)
+    await expect(page.locator('[data-testid="welcome-bottom-sheet"]')).toBeVisible({ timeout: 5000 });
 
     // Verify the event state via API
     if (createdEventId) {

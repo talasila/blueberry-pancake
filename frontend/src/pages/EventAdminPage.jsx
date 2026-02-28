@@ -23,6 +23,7 @@ import DeleteRatingsDialog from '@/components/DeleteRatingsDialog';
 import DeleteAllUsersDialog from '@/components/DeleteAllUsersDialog';
 import DeleteUserDialog from '@/components/DeleteUserDialog';
 import { toast } from 'sonner';
+import WelcomeBottomSheet from '@/components/WelcomeBottomSheet';
 
 /**
  * Get transition description (what the transition will do)
@@ -71,7 +72,7 @@ function getValidTransitions(currentState) {
  * - Shows loading and error states
  */
 
-function EventAdminPage() {
+function EventAdminPage({ onOpenAdminGuide }) {
   const { eventId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -194,14 +195,18 @@ function EventAdminPage() {
     }
   }, [eventId, navigate]);
 
-  const hasShownCreationToast = useRef(false);
-  useEffect(() => {
-    if (location.state?.eventCreated && !hasShownCreationToast.current) {
-      hasShownCreationToast.current = true;
-      toast.success('Event created! Share the PIN with participants to get started');
-      window.history.replaceState({}, document.title);
-    }
-  }, [location.state]);
+  const [showWelcome, setShowWelcome] = useState(() => !!location.state?.eventCreated);
+
+  const handleWelcomeDismiss = useCallback(() => {
+    setShowWelcome(false);
+    window.history.replaceState({}, document.title);
+  }, []);
+
+  const handleOpenGuideFromWelcome = useCallback(() => {
+    setShowWelcome(false);
+    window.history.replaceState({}, document.title);
+    if (onOpenAdminGuide) onOpenAdminGuide();
+  }, [onOpenAdminGuide]);
 
   // Handle browser back/forward navigation (popstate) to sync drawer state
   useEffect(() => {
@@ -3146,6 +3151,14 @@ function EventAdminPage() {
         ratingsCount={deleteUserDialogState.ratingsCount}
         isAdministrator={deleteUserDialogState.isAdministrator}
         isDeleting={isDeletingUser}
+      />
+
+      {/* Post-creation welcome bottom sheet */}
+      <WelcomeBottomSheet
+        isOpen={showWelcome && !!event}
+        onDismiss={handleWelcomeDismiss}
+        onOpenAdminGuide={handleOpenGuideFromWelcome}
+        event={event}
       />
 
     </div>

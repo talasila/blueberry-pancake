@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
+import { BrowserRouter, MemoryRouter, Routes, Route } from 'react-router-dom';
 import { useParams } from 'react-router-dom';
 import EventAdminPage from '../../src/pages/EventAdminPage.jsx';
 import { EventContextProvider } from '../../src/contexts/EventContext.jsx';
@@ -28,7 +28,7 @@ const renderWithProviders = (event = null) => {
   return render(
     <BrowserRouter>
       <EventContextProvider event={event} eventId="A5ohYrHe" isAdmin={true}>
-        <EventAdminPage />
+        <EventAdminPage onOpenAdminGuide={vi.fn()} />
       </EventContextProvider>
     </BrowserRouter>
   );
@@ -201,7 +201,7 @@ describe('EventAdminPage Component', () => {
       rerender(
         <BrowserRouter>
           <EventContextProvider event={updatedEvent} eventId="A5ohYrHe" isAdmin={true}>
-            <EventAdminPage />
+            <EventAdminPage onOpenAdminGuide={vi.fn()} />
           </EventContextProvider>
         </BrowserRouter>
       );
@@ -209,6 +209,63 @@ describe('EventAdminPage Component', () => {
       await waitFor(() => {
         expect(screen.getByText(/paused/i)).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('Welcome bottom sheet integration', () => {
+    const fullEvent = {
+      eventId: 'A5ohYrHe',
+      name: 'Test Event',
+      state: 'created',
+      typeOfItem: 'wine',
+      pin: 'AB12CD34',
+      administrator: 'admin@example.com',
+      administrators: { 'admin@example.com': { role: 'owner' } },
+      itemConfiguration: { numberOfItems: 20, excludedItemIds: [] },
+      ratingConfiguration: { maxRating: 4, noteSuggestionsEnabled: true },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const renderWithLocationState = (event, locationState = {}) => {
+      return render(
+        <MemoryRouter initialEntries={[{ pathname: '/event/A5ohYrHe/admin', state: locationState }]}>
+          <Routes>
+            <Route path="/event/:eventId/admin" element={
+              <EventContextProvider event={event} eventId="A5ohYrHe" isAdmin={true}>
+                <EventAdminPage onOpenAdminGuide={vi.fn()} />
+              </EventContextProvider>
+            } />
+          </Routes>
+        </MemoryRouter>
+      );
+    };
+
+    it('renders WelcomeBottomSheet when location.state.eventCreated is true', async () => {
+      useEventPolling.mockReturnValue({
+        event: fullEvent,
+        isPolling: false,
+        refetch: vi.fn()
+      });
+
+      renderWithLocationState(fullEvent, { eventCreated: true });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('welcome-bottom-sheet')).toBeInTheDocument();
+      });
+      expect(screen.getByText('Your event is ready!')).toBeInTheDocument();
+    });
+
+    it('does NOT render WelcomeBottomSheet on normal admin page visit', () => {
+      useEventPolling.mockReturnValue({
+        event: fullEvent,
+        isPolling: false,
+        refetch: vi.fn()
+      });
+
+      renderWithLocationState(fullEvent);
+
+      expect(screen.queryByTestId('welcome-bottom-sheet')).not.toBeInTheDocument();
     });
   });
 });

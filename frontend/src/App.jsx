@@ -153,7 +153,7 @@ function AppLayout() {
               <ProtectedRoute>
                 <PINProvider>
                   <AdminRoute>
-                    <EventAdminPage />
+                    <EventAdminPage onOpenAdminGuide={() => setAdminGuideOpen(true)} />
                   </AdminRoute>
                 </PINProvider>
               </ProtectedRoute>
