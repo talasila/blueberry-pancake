@@ -19,28 +19,11 @@ import {
   clearAuth,
   submitEmail,
   enterAndSubmitPIN,
+  changeEventState,
 } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
-
-/**
- * Helper: Change event state via API
- */
-async function changeEventState(eventId, newState, currentState, token) {
-  const response = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ state: newState, currentState })
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Failed to change state: ${await response.text()}`);
-  }
-}
 
 /**
  * Helper: Register an item via API

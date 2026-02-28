@@ -8,47 +8,10 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { clearAuth, deleteTestEvent, trackEventForCleanup } from './helpers.js';
+import { clearAuth, deleteTestEvent, trackEventForCleanup, authenticateViaOTP } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
-const TEST_OTP = '123456';
-
-/**
- * Helper function to authenticate via OTP flow
- * Uses proper Playwright waits instead of hardcoded timeouts
- */
-async function authenticateViaOTP(page, email = 'creator@example.com') {
-  await page.goto(`${BASE_URL}/auth`);
-  
-  // Fill email
-  const emailInput = page.locator('input[type="email"]');
-  await expect(emailInput).toBeVisible({ timeout: 10000 });
-  await emailInput.fill(email);
-  
-  // Click request OTP button
-  const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
-  await expect(requestButton).toBeEnabled({ timeout: 5000 });
-  await requestButton.click();
-  
-  // Wait for OTP input to appear (not a hardcoded timeout)
-  const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
-  await expect(otpInput).toBeVisible({ timeout: 10000 });
-  
-  // Fill OTP
-  await otpInput.fill(TEST_OTP);
-  
-  // Click verify button
-  const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });
-  await expect(verifyButton).toBeVisible({ timeout: 5000 });
-  await verifyButton.click();
-  
-  // Wait for authentication to complete - either redirect or success indicator
-  await Promise.race([
-    page.waitForURL(/\/(create-event|dashboard|home|events)/, { timeout: 10000 }),
-    page.waitForSelector('[data-testid="auth-success"]', { timeout: 10000 }),
-  ]).catch(() => {});
-}
 
 /**
  * Helper to navigate to create event page after authentication

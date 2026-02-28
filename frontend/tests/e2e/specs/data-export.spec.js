@@ -18,47 +18,12 @@ import {
   submitEmail,
   enterAndSubmitPIN,
   getUserToken,
+  submitRating,
+  startEvent,
 } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
-
-// ===================================
-// Helper Functions
-// ===================================
-
-
-/**
- * Submit a rating via API
- */
-async function submitRating(eventId, token, itemId, rating, note = '') {
-  const response = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ itemId, rating, note })
-  });
-  return { ok: response.ok, status: response.status };
-}
-
-/**
- * Start an event (transition from created to started)
- */
-async function startEvent(eventId, adminToken) {
-  const response = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`
-    },
-    body: JSON.stringify({ state: 'started', currentState: 'created' })
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to start event: ${await response.text()}`);
-  }
-}
 
 /**
  * Register an item via API

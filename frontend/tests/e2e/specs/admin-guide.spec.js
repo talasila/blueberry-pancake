@@ -7,10 +7,9 @@
  */
 
 import { test, expect } from './fixtures.js';
-import { addAdminToEvent, setAuthToken } from './helpers.js';
+import { addAdminToEvent, setAuthToken, changeEventState } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
-const API_URL = 'http://localhost:3001';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -29,21 +28,8 @@ async function navigateToAdmin(page, eventId) {
 
 async function transitionEventViaAPI(eventId, targetState, currentState) {
   const adminEmail = 'admin@example.com';
-  const tokenResponse = await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: adminEmail }),
-  });
-  const { token } = await tokenResponse.json();
-
-  await fetch(`${API_URL}/api/events/${eventId}/state`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ state: targetState, currentState }),
-  });
+  const token = await addAdminToEvent(eventId, adminEmail);
+  await changeEventState(eventId, targetState, currentState, token);
 }
 
 async function transitionTo(eventId, targetState) {

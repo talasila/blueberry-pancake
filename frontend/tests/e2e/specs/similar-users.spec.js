@@ -12,45 +12,11 @@ import {
   submitEmail,
   enterAndSubmitPIN,
   getUserToken,
+  submitRating,
+  startEvent,
 } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
-const API_URL = 'http://localhost:3001';
-
-
-/**
- * Helper to submit a rating via API
- */
-async function submitRating(eventId, token, itemId, rating) {
-  const response = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ itemId, rating })
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to submit rating: ${await response.text()}`);
-  }
-}
-
-/**
- * Helper to start an event
- */
-async function startEvent(eventId, adminToken) {
-  const response = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`
-    },
-    body: JSON.stringify({ state: 'started', currentState: 'created' })
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to start event: ${await response.text()}`);
-  }
-}
 
 test.describe('Similar Users Discovery', () => {
 
@@ -64,14 +30,7 @@ test.describe('Similar Users Discovery', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
+    await startEvent(eventId, token);
     
     // Access as regular user (no ratings yet)
     await clearAuth(page);

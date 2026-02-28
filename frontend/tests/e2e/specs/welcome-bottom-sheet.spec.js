@@ -7,40 +7,13 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { clearAuth, deleteTestEvent, trackEventForCleanup } from './helpers.js';
+import { clearAuth, deleteTestEvent, trackEventForCleanup, authenticateViaOTP } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
-const API_URL = 'http://localhost:3001';
-const TEST_OTP = '123456';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-async function authenticateViaOTP(page, email = 'creator@example.com') {
-  await page.goto(`${BASE_URL}/auth`);
-  const emailInput = page.locator('input[type="email"]');
-  await expect(emailInput).toBeVisible({ timeout: 10000 });
-  await emailInput.fill(email);
-
-  const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
-  await expect(requestButton).toBeEnabled({ timeout: 5000 });
-  await requestButton.click();
-
-  const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
-  await expect(otpInput).toBeVisible({ timeout: 10000 });
-  await otpInput.fill(TEST_OTP);
-
-  const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });
-  await expect(verifyButton).toBeVisible({ timeout: 5000 });
-  await verifyButton.click();
-
-  await Promise.race([
-    page.waitForURL(/\/(create-event|dashboard|home|events)/, { timeout: 10000 }),
-    page.waitForSelector('[data-testid="auth-success"]', { timeout: 10000 }),
-    page.waitForTimeout(3000),
-  ]).catch(() => {});
-}
 
 async function createEventViaUI(page, eventName = 'Welcome Sheet Test') {
   await page.goto(`${BASE_URL}/create-event`);

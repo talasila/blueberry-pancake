@@ -372,3 +372,92 @@ export async function setupRootAdmin(page, email) {
   await setAuthToken(page, token, email);
 }
 
+// ===================================
+// Event State & Rating Helpers
+// ===================================
+
+/**
+ * Submit a rating for an item via API.
+ * Returns raw response shape so callers can inspect ok/status for error scenarios.
+ * @returns {{ ok: boolean, status: number, data: any }}
+ */
+export async function submitRating(eventId, token, itemId, rating, note = '') {
+  const response = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ itemId, rating, note })
+  });
+  const data = response.ok ? await response.json() : await response.text();
+  return { ok: response.ok, status: response.status, data };
+}
+
+/**
+ * Transition an event to a new state via API.
+ * Returns raw response shape so callers can inspect ok/status for race condition tests.
+ * @returns {{ ok: boolean, status: number, data: any }}
+ */
+export async function changeEventState(eventId, newState, currentState, token) {
+  const response = await fetch(`${API_URL}/api/events/${eventId}/state`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ state: newState, currentState })
+  });
+  const data = response.ok ? await response.json() : await response.text();
+  return { ok: response.ok, status: response.status, data };
+}
+
+/**
+ * Start an event (shorthand for changing state from 'created' to 'started').
+ * Throws if the operation fails (used in test setup).
+ */
+export async function startEvent(eventId, adminToken) {
+  const result = await changeEventState(eventId, 'started', 'created', adminToken);
+  if (!result.ok) {
+    throw new Error(`Failed to start event: ${result.data}`);
+  }
+  return result;
+}
+
+// ===================================
+// OTP Authentication Helper
+// ===================================
+
+const TEST_OTP = '123456';
+
+/**
+ * Authenticate via OTP flow in the browser.
+ * Navigates to /auth, enters email, fills OTP, and waits for redirect.
+ * @param {import('@playwright/test').Page} page
+ * @param {string} email
+ */
+export async function authenticateViaOTP(page, email = 'creator@example.com') {
+  await page.goto(`${BASE_URL}/auth`);
+
+  const emailInput = page.locator('input[type="email"]');
+  await expect(emailInput).toBeVisible({ timeout: 10000 });
+  await emailInput.fill(email);
+
+  const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
+  await expect(requestButton).toBeEnabled({ timeout: 5000 });
+  await requestButton.click();
+
+  const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
+  await expect(otpInput).toBeVisible({ timeout: 10000 });
+  await otpInput.fill(TEST_OTP);
+
+  const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });
+  await expect(verifyButton).toBeVisible({ timeout: 5000 });
+  await verifyButton.click();
+
+  await Promise.race([
+    page.waitForURL(/\/(create-event|dashboard|home|events)/, { timeout: 10000 }),
+    page.waitForSelector('[data-testid="auth-success"]', { timeout: 10000 }),
+  ]).catch(() => {});
+}
+

@@ -19,46 +19,12 @@ import {
   addAdminToEvent,
   setAuthToken,
   getUserToken,
+  changeEventState,
+  submitRating,
 } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
-
-/**
- * Helper: Change event state via API
- */
-async function changeEventState(eventId, newState, currentState, token) {
-  const response = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ state: newState, currentState })
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Failed to change state: ${await response.text()}`);
-  }
-}
-
-/**
- * Helper: Submit a rating via API
- */
-async function submitRating(eventId, token, itemId, rating, note = '') {
-  const response = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ itemId, rating, note })
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Failed to submit rating: ${await response.text()}`);
-  }
-}
 
 /**
  * Helper: Add a regular (non-admin) user to event via PIN verification

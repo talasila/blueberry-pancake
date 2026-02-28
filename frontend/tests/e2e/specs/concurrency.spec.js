@@ -6,39 +6,21 @@
  * admin concurrent actions, cache consistency, event lifecycle, and rate limiting.
  */
 
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 import {
   createTestEvent,
   deleteTestEvent,
   addAdminToEvent,
-  clearAuth,
-  submitEmail,
-  enterAndSubmitPIN,
   getUserToken,
+  submitRating,
+  startEvent,
+  changeEventState,
 } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
 
-// Test event IDs for cleanup
-const testEventIds = [];
 const testEventPin = '654321';
-
-
-/**
- * Helper to submit a rating via API
- */
-async function submitRating(eventId, token, itemId, rating, note = '') {
-  const response = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
-    },
-    body: JSON.stringify({ itemId, rating, note })
-  });
-  return { ok: response.ok, status: response.status, data: response.ok ? await response.json() : await response.text() };
-}
 
 /**
  * Helper to get ratings via API (returns CSV, parse to array)
@@ -51,14 +33,10 @@ async function getRatings(eventId, token) {
   if (!response.ok) {
     throw new Error(`Failed to get ratings: ${await response.text()}`);
   }
-  // API returns CSV, parse it
   const csvText = await response.text();
   return parseCSV(csvText);
 }
 
-/**
- * Parse CSV text to array of objects
- */
 function parseCSV(csvText) {
   const lines = csvText.trim().split('\n');
   if (lines.length === 0) return [];
@@ -71,7 +49,6 @@ function parseCSV(csvText) {
     const rating = {};
     headers.forEach((header, index) => {
       let value = values[index] || '';
-      // Try to parse numbers
       if (header === 'itemId' || header === 'rating') {
         value = parseInt(value, 10);
       }
@@ -81,36 +58,6 @@ function parseCSV(csvText) {
   }
   
   return ratings;
-}
-
-/**
- * Helper to start an event
- */
-async function startEvent(eventId, adminToken) {
-  const response = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`
-    },
-    body: JSON.stringify({ state: 'started', currentState: 'created' })
-  });
-  return { ok: response.ok, status: response.status, data: response.ok ? await response.json() : await response.text() };
-}
-
-/**
- * Helper to transition event state
- */
-async function transitionState(eventId, adminToken, newState, currentState) {
-  const response = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`
-    },
-    body: JSON.stringify({ state: newState, currentState })
-  });
-  return { ok: response.ok, status: response.status, data: response.ok ? await response.json() : await response.text() };
 }
 
 /**
@@ -194,18 +141,11 @@ async function getBookmarks(eventId, token) {
   return { ok: response.ok, status: response.status, data: response.ok ? await response.json() : await response.text() };
 }
 
-/**
- * Cleanup helper - delete all test events
- */
-async function cleanupTestEvents() {
-  for (const eventId of testEventIds) {
-    try {
-      await deleteTestEvent(eventId);
-    } catch (e) {
-      // Ignore cleanup errors
-    }
+async function cleanupEvents(eventIds) {
+  for (const eventId of eventIds) {
+    try { await deleteTestEvent(eventId); } catch { /* ignore */ }
   }
-  testEventIds.length = 0;
+  eventIds.length = 0;
 }
 
 // ===================================
@@ -213,13 +153,10 @@ async function cleanupTestEvents() {
 // ===================================
 
 test.describe('Multi-Tenant Isolation', () => {
-  test.afterEach(async () => {
-    await cleanupTestEvents();
-  });
+  const eventIds = [];
 
-  test.afterAll(async () => {
-    // Safety net: clean up if afterEach failed
-    await cleanupTestEvents();
+  test.afterEach(async () => {
+    await cleanupEvents(eventIds);
   });
 
   test('parallel event creation generates unique IDs', async () => {
@@ -229,7 +166,7 @@ test.describe('Multi-Tenant Isolation', () => {
     );
     
     const eventIds = await Promise.all(createPromises);
-    testEventIds.push(...eventIds);
+    eventIds.push(...eventIds);
     
     // All event IDs should be unique
     const uniqueIds = new Set(eventIds);
@@ -247,7 +184,7 @@ test.describe('Multi-Tenant Isolation', () => {
     // Create two separate events
     const event1Id = await createTestEvent(null, 'Isolation Event 1', testEventPin);
     const event2Id = await createTestEvent(null, 'Isolation Event 2', testEventPin);
-    testEventIds.push(event1Id, event2Id);
+    eventIds.push(event1Id, event2Id);
     
     // Setup both events
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
@@ -280,7 +217,7 @@ test.describe('Multi-Tenant Isolation', () => {
     // Create two events
     const event1Id = await createTestEvent(null, 'Parallel Ops Event 1', testEventPin);
     const event2Id = await createTestEvent(null, 'Parallel Ops Event 2', testEventPin);
-    testEventIds.push(event1Id, event2Id);
+    eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
     const admin2Token = await addAdminToEvent(event2Id, 'admin2@example.com');
@@ -328,7 +265,7 @@ test.describe('Multi-Tenant Isolation', () => {
     // Create two events
     const event1Id = await createTestEvent(null, 'Token Isolation Event 1', testEventPin);
     const event2Id = await createTestEvent(null, 'Token Isolation Event 2', testEventPin);
-    testEventIds.push(event1Id, event2Id);
+    eventIds.push(event1Id, event2Id);
     
     // Setup both events
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
@@ -352,7 +289,7 @@ test.describe('Multi-Tenant Isolation', () => {
   test('user token from Event 1 cannot access Event 2 bookmarks endpoint', async () => {
     const event1Id = await createTestEvent(null, 'Bookmark Auth Event 1', testEventPin);
     const event2Id = await createTestEvent(null, 'Bookmark Auth Event 2', testEventPin);
-    testEventIds.push(event1Id, event2Id);
+    eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
     const admin2Token = await addAdminToEvent(event2Id, 'admin2@example.com');
@@ -382,7 +319,7 @@ test.describe('Multi-Tenant Isolation', () => {
   test('user token from Event 1 cannot access Event 2 similar-users endpoint', async () => {
     const event1Id = await createTestEvent(null, 'Similar Users Auth Event 1', testEventPin);
     const event2Id = await createTestEvent(null, 'Similar Users Auth Event 2', testEventPin);
-    testEventIds.push(event1Id, event2Id);
+    eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
     const admin2Token = await addAdminToEvent(event2Id, 'admin2@example.com');
@@ -403,7 +340,7 @@ test.describe('Multi-Tenant Isolation', () => {
   test('user token from Event 1 cannot submit rating to Event 2', async () => {
     const event1Id = await createTestEvent(null, 'Rating Submit Auth Event 1', testEventPin);
     const event2Id = await createTestEvent(null, 'Rating Submit Auth Event 2', testEventPin);
-    testEventIds.push(event1Id, event2Id);
+    eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
     const admin2Token = await addAdminToEvent(event2Id, 'admin2@example.com');
@@ -429,7 +366,7 @@ test.describe('Multi-Tenant Isolation', () => {
   test('admin token from Event 1 cannot access Event 2 dashboard', async () => {
     const event1Id = await createTestEvent(null, 'Dashboard Auth Event 1', testEventPin);
     const event2Id = await createTestEvent(null, 'Dashboard Auth Event 2', testEventPin);
-    testEventIds.push(event1Id, event2Id);
+    eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
     await addAdminToEvent(event2Id, 'admin2@example.com');
@@ -447,7 +384,7 @@ test.describe('Multi-Tenant Isolation', () => {
   test('admin token from Event 1 cannot modify Event 2 state', async () => {
     const event1Id = await createTestEvent(null, 'State Auth Event 1', testEventPin);
     const event2Id = await createTestEvent(null, 'State Auth Event 2', testEventPin);
-    testEventIds.push(event1Id, event2Id);
+    eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
     await addAdminToEvent(event2Id, 'admin2@example.com');
@@ -470,7 +407,7 @@ test.describe('Multi-Tenant Isolation', () => {
   test('admin token from Event 1 cannot modify Event 2 item configuration', async () => {
     const event1Id = await createTestEvent(null, 'Config Auth Event 1', testEventPin);
     const event2Id = await createTestEvent(null, 'Config Auth Event 2', testEventPin);
-    testEventIds.push(event1Id, event2Id);
+    eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
     await addAdminToEvent(event2Id, 'admin2@example.com');
@@ -498,7 +435,7 @@ test.describe('Multi-Tenant Isolation', () => {
     // Create two events
     const event1Id = await createTestEvent(null, 'Same Email Event 1', testEventPin);
     const event2Id = await createTestEvent(null, 'Same Email Event 2', testEventPin);
-    testEventIds.push(event1Id, event2Id);
+    eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin@example.com');
     const admin2Token = await addAdminToEvent(event2Id, 'admin@example.com');
@@ -537,7 +474,7 @@ test.describe('Multi-Tenant Isolation', () => {
   test('bookmarks in Event 1 do not appear in Event 2 (negative test)', async () => {
     const event1Id = await createTestEvent(null, 'Bookmark Isolation Event 1', testEventPin);
     const event2Id = await createTestEvent(null, 'Bookmark Isolation Event 2', testEventPin);
-    testEventIds.push(event1Id, event2Id);
+    eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
     const admin2Token = await addAdminToEvent(event2Id, 'admin2@example.com');
@@ -563,7 +500,7 @@ test.describe('Multi-Tenant Isolation', () => {
   test('dashboard data is isolated between events', async () => {
     const event1Id = await createTestEvent(null, 'Dashboard Isolation Event 1', testEventPin);
     const event2Id = await createTestEvent(null, 'Dashboard Isolation Event 2', testEventPin);
-    testEventIds.push(event1Id, event2Id);
+    eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
     const admin2Token = await addAdminToEvent(event2Id, 'admin2@example.com');
@@ -596,7 +533,7 @@ test.describe('Multi-Tenant Isolation', () => {
   test('similar users are isolated between events', async () => {
     const event1Id = await createTestEvent(null, 'Similar Isolation Event 1', testEventPin);
     const event2Id = await createTestEvent(null, 'Similar Isolation Event 2', testEventPin);
-    testEventIds.push(event1Id, event2Id);
+    eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
     const admin2Token = await addAdminToEvent(event2Id, 'admin2@example.com');
@@ -645,7 +582,7 @@ test.describe('Multi-Tenant Isolation', () => {
   test('user profiles are isolated between events', async () => {
     const event1Id = await createTestEvent(null, 'Profile Isolation Event 1', testEventPin);
     const event2Id = await createTestEvent(null, 'Profile Isolation Event 2', testEventPin);
-    testEventIds.push(event1Id, event2Id);
+    eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
     const admin2Token = await addAdminToEvent(event2Id, 'admin2@example.com');
@@ -691,33 +628,18 @@ test.describe('Multi-Tenant Isolation', () => {
 // ===================================
 
 test.describe('Concurrent User Actions', () => {
-  let testEventId;
-  let adminToken;
-  
-  test.beforeEach(async () => {
-    testEventId = await createTestEvent(null, 'Concurrent Users Event', testEventPin);
-    testEventIds.push(testEventId);
-    adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
+
+  test('multiple users can each submit ratings for same item', async ({ testEvent }) => {
+    const { eventId: testEventId, pin } = testEvent;
+    const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
     await startEvent(testEventId, adminToken);
-  });
-  
-  test.afterEach(async () => {
-    await cleanupTestEvents();
-  });
 
-  test.afterAll(async () => {
-    // Safety net: clean up if afterEach failed
-    await cleanupTestEvents();
-  });
-
-  test('multiple users can each submit ratings for same item', async () => {
-    // Create 5 users and get their tokens
     const users = await Promise.all([
-      getUserToken(testEventId, 'user1@example.com', testEventPin),
-      getUserToken(testEventId, 'user2@example.com', testEventPin),
-      getUserToken(testEventId, 'user3@example.com', testEventPin),
-      getUserToken(testEventId, 'user4@example.com', testEventPin),
-      getUserToken(testEventId, 'user5@example.com', testEventPin),
+      getUserToken(testEventId, 'user1@example.com', pin),
+      getUserToken(testEventId, 'user2@example.com', pin),
+      getUserToken(testEventId, 'user3@example.com', pin),
+      getUserToken(testEventId, 'user4@example.com', pin),
+      getUserToken(testEventId, 'user5@example.com', pin),
     ]);
     
     // Each user rates item #1 (sequential to avoid write-back cache race)
@@ -733,18 +655,17 @@ test.describe('Concurrent User Actions', () => {
     expect(item1Ratings.length).toBe(5);
   });
 
-  test('simultaneous rating submissions from multiple users on same item', async () => {
-    // This test verifies the mutex/lock fix for the write-back cache race condition.
-    // Before the fix, concurrent submissions would cause lost updates (last write wins).
-    // With the per-event lock, all ratings should be preserved.
-    
-    // Create 5 users and get their tokens
+  test('simultaneous rating submissions from multiple users on same item', async ({ testEvent }) => {
+    const { eventId: testEventId, pin } = testEvent;
+    const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
+    await startEvent(testEventId, adminToken);
+
     const users = await Promise.all([
-      getUserToken(testEventId, 'simuser1@example.com', testEventPin),
-      getUserToken(testEventId, 'simuser2@example.com', testEventPin),
-      getUserToken(testEventId, 'simuser3@example.com', testEventPin),
-      getUserToken(testEventId, 'simuser4@example.com', testEventPin),
-      getUserToken(testEventId, 'simuser5@example.com', testEventPin),
+      getUserToken(testEventId, 'simuser1@example.com', pin),
+      getUserToken(testEventId, 'simuser2@example.com', pin),
+      getUserToken(testEventId, 'simuser3@example.com', pin),
+      getUserToken(testEventId, 'simuser4@example.com', pin),
+      getUserToken(testEventId, 'simuser5@example.com', pin),
     ]);
     
     // All 5 users rate the SAME item (#1) simultaneously
@@ -772,12 +693,15 @@ test.describe('Concurrent User Actions', () => {
     expect(raterEmails).toContain('simuser5@example.com');
   });
 
-  test('concurrent bookmark saves from multiple users', async () => {
-    // Create 3 users
+  test('concurrent bookmark saves from multiple users', async ({ testEvent }) => {
+    const { eventId: testEventId, pin } = testEvent;
+    const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
+    await startEvent(testEventId, adminToken);
+
     const users = await Promise.all([
-      getUserToken(testEventId, 'bookmark1@example.com', testEventPin),
-      getUserToken(testEventId, 'bookmark2@example.com', testEventPin),
-      getUserToken(testEventId, 'bookmark3@example.com', testEventPin),
+      getUserToken(testEventId, 'bookmark1@example.com', pin),
+      getUserToken(testEventId, 'bookmark2@example.com', pin),
+      getUserToken(testEventId, 'bookmark3@example.com', pin),
     ]);
     
     // All users save different bookmarks simultaneously
@@ -800,10 +724,13 @@ test.describe('Concurrent User Actions', () => {
     expect(bookmarks2.data.bookmarks).toEqual([7, 8, 9]);
   });
 
-  test('parallel user registration via PIN', async () => {
-    // Multiple users join event simultaneously
+  test('parallel user registration via PIN', async ({ testEvent }) => {
+    const { eventId: testEventId, pin } = testEvent;
+    const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
+    await startEvent(testEventId, adminToken);
+
     const joinPromises = Array.from({ length: 5 }, (_, i) =>
-      getUserToken(testEventId, `newuser${i}@example.com`, testEventPin)
+      getUserToken(testEventId, `newuser${i}@example.com`, pin)
     );
     
     const tokens = await Promise.all(joinPromises);
@@ -815,9 +742,13 @@ test.describe('Concurrent User Actions', () => {
     });
   });
 
-  test('rating and bookmark same item concurrently', async () => {
-    const userA = await getUserToken(testEventId, 'rater@example.com', testEventPin);
-    const userB = await getUserToken(testEventId, 'bookmarker@example.com', testEventPin);
+  test('rating and bookmark same item concurrently', async ({ testEvent }) => {
+    const { eventId: testEventId, pin } = testEvent;
+    const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
+    await startEvent(testEventId, adminToken);
+
+    const userA = await getUserToken(testEventId, 'rater@example.com', pin);
+    const userB = await getUserToken(testEventId, 'bookmarker@example.com', pin);
     
     // User A rates item #1 while User B bookmarks it
     const [ratingResult, bookmarkResult] = await Promise.all([
@@ -842,18 +773,15 @@ test.describe('Concurrent User Actions', () => {
 // ===================================
 
 test.describe('Race Conditions', () => {
-  test.afterEach(async () => {
-    await cleanupTestEvents();
-  });
+  const eventIds = [];
 
-  test.afterAll(async () => {
-    // Safety net: clean up if afterEach failed
-    await cleanupTestEvents();
+  test.afterEach(async () => {
+    await cleanupEvents(eventIds);
   });
 
   test('optimistic locking prevents concurrent state transitions', async () => {
     const testEventId = await createTestEvent(null, 'Race Condition Event', testEventPin);
-    testEventIds.push(testEventId);
+    eventIds.push(testEventId);
     
     // Add two admins
     const admin1Token = await addAdminToEvent(testEventId, 'admin1@example.com');
@@ -861,8 +789,8 @@ test.describe('Race Conditions', () => {
     
     // Both admins try to start the event at the same time
     const [result1, result2] = await Promise.all([
-      transitionState(testEventId, admin1Token, 'started', 'created'),
-      transitionState(testEventId, admin2Token, 'started', 'created'),
+      changeEventState(testEventId, 'started', 'created', admin1Token),
+      changeEventState(testEventId, 'started', 'created', admin2Token),
     ]);
     
     // One should succeed, one should fail with optimistic lock error
@@ -878,7 +806,7 @@ test.describe('Race Conditions', () => {
 
   test('user updates same rating rapidly - latest wins', async () => {
     const testEventId = await createTestEvent(null, 'Rapid Rating Event', testEventPin);
-    testEventIds.push(testEventId);
+    eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
     await startEvent(testEventId, adminToken);
@@ -904,7 +832,7 @@ test.describe('Race Conditions', () => {
 
   test('item config update during rating does not corrupt data', async () => {
     const testEventId = await createTestEvent(null, 'Config During Rating Event', testEventPin);
-    testEventIds.push(testEventId);
+    eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
     await startEvent(testEventId, adminToken);
@@ -936,7 +864,7 @@ test.describe('Race Conditions', () => {
 
   test('concurrent state transitions from started state', async () => {
     const testEventId = await createTestEvent(null, 'State Race Event', testEventPin);
-    testEventIds.push(testEventId);
+    eventIds.push(testEventId);
     
     const admin1Token = await addAdminToEvent(testEventId, 'admin1@example.com');
     const admin2Token = await addAdminToEvent(testEventId, 'admin2@example.com');
@@ -946,8 +874,8 @@ test.describe('Race Conditions', () => {
     
     // Both admins try different transitions from started state
     const [pauseResult, completeResult] = await Promise.all([
-      transitionState(testEventId, admin1Token, 'paused', 'started'),
-      transitionState(testEventId, admin2Token, 'completed', 'started'),
+      changeEventState(testEventId, 'paused', 'started', admin1Token),
+      changeEventState(testEventId, 'completed', 'started', admin2Token),
     ]);
     
     // One should succeed, one should fail
@@ -964,18 +892,15 @@ test.describe('Race Conditions', () => {
 // ===================================
 
 test.describe('Admin Concurrent Actions', () => {
-  test.afterEach(async () => {
-    await cleanupTestEvents();
-  });
+  const eventIds = [];
 
-  test.afterAll(async () => {
-    // Safety net: clean up if afterEach failed
-    await cleanupTestEvents();
+  test.afterEach(async () => {
+    await cleanupEvents(eventIds);
   });
 
   test('two admins adding same administrator simultaneously', async () => {
     const testEventId = await createTestEvent(null, 'Admin Add Race Event', testEventPin);
-    testEventIds.push(testEventId);
+    eventIds.push(testEventId);
     
     const admin1Token = await addAdminToEvent(testEventId, 'admin1@example.com');
     const admin2Token = await addAdminToEvent(testEventId, 'admin2@example.com');
@@ -997,7 +922,7 @@ test.describe('Admin Concurrent Actions', () => {
 
   test('parallel PIN regeneration by multiple admins', async () => {
     const testEventId = await createTestEvent(null, 'PIN Regen Race Event', testEventPin);
-    testEventIds.push(testEventId);
+    eventIds.push(testEventId);
     
     const admin1Token = await addAdminToEvent(testEventId, 'admin1@example.com');
     const admin2Token = await addAdminToEvent(testEventId, 'admin2@example.com');
@@ -1019,7 +944,7 @@ test.describe('Admin Concurrent Actions', () => {
 
   test('concurrent item configuration updates', async () => {
     const testEventId = await createTestEvent(null, 'Config Race Event', testEventPin);
-    testEventIds.push(testEventId);
+    eventIds.push(testEventId);
     
     const admin1Token = await addAdminToEvent(testEventId, 'admin1@example.com');
     const admin2Token = await addAdminToEvent(testEventId, 'admin2@example.com');
@@ -1045,13 +970,10 @@ test.describe('Admin Concurrent Actions', () => {
 // ===================================
 
 test.describe('Cache Consistency', () => {
-  test.afterEach(async () => {
-    await cleanupTestEvents();
-  });
+  const eventIds = [];
 
-  test.afterAll(async () => {
-    // Safety net: clean up if afterEach failed
-    await cleanupTestEvents();
+  test.afterEach(async () => {
+    await cleanupEvents(eventIds);
   });
 
   test('concurrent rating submissions are all persisted', async () => {
@@ -1059,7 +981,7 @@ test.describe('Cache Consistency', () => {
     // and their results are eventually visible when read.
     
     const testEventId = await createTestEvent(null, 'Cache Read Event', testEventPin);
-    testEventIds.push(testEventId);
+    eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
     const startResult = await startEvent(testEventId, adminToken);
@@ -1103,7 +1025,7 @@ test.describe('Cache Consistency', () => {
     // 4. After writes complete, all data is visible (eventual consistency)
     
     const testEventId = await createTestEvent(null, 'Reads During Writes Event', testEventPin);
-    testEventIds.push(testEventId);
+    eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
     await startEvent(testEventId, adminToken);
@@ -1152,7 +1074,7 @@ test.describe('Cache Consistency', () => {
 
   test('dashboard data consistency during concurrent ratings', async () => {
     const testEventId = await createTestEvent(null, 'Dashboard Cache Event', testEventPin);
-    testEventIds.push(testEventId);
+    eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
     await startEvent(testEventId, adminToken);
@@ -1195,18 +1117,15 @@ test.describe('Cache Consistency', () => {
 // ===================================
 
 test.describe('Event Lifecycle Concurrency', () => {
-  test.afterEach(async () => {
-    await cleanupTestEvents();
-  });
+  const eventIds = [];
 
-  test.afterAll(async () => {
-    // Safety net: clean up if afterEach failed
-    await cleanupTestEvents();
+  test.afterEach(async () => {
+    await cleanupEvents(eventIds);
   });
 
   test('rating during state transition to paused', async () => {
     const testEventId = await createTestEvent(null, 'Lifecycle Race Event', testEventPin);
-    testEventIds.push(testEventId);
+    eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
     await startEvent(testEventId, adminToken);
@@ -1216,7 +1135,7 @@ test.describe('Event Lifecycle Concurrency', () => {
     // User tries to rate while admin pauses
     const [ratingResult, pauseResult] = await Promise.all([
       submitRating(testEventId, userToken, 1, 4),
-      transitionState(testEventId, adminToken, 'paused', 'started'),
+      changeEventState(testEventId, 'paused', 'started', adminToken),
     ]);
     
     // State transition should succeed
@@ -1231,7 +1150,7 @@ test.describe('Event Lifecycle Concurrency', () => {
 
   test('bookmark during event completion', async () => {
     const testEventId = await createTestEvent(null, 'Complete During Bookmark Event', testEventPin);
-    testEventIds.push(testEventId);
+    eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
     await startEvent(testEventId, adminToken);
@@ -1241,7 +1160,7 @@ test.describe('Event Lifecycle Concurrency', () => {
     // User saves bookmarks while admin completes event
     const [bookmarkResult, completeResult] = await Promise.all([
       saveBookmarks(testEventId, userToken, [1, 2, 3]),
-      transitionState(testEventId, adminToken, 'completed', 'started'),
+      changeEventState(testEventId, 'completed', 'started', adminToken),
     ]);
     
     // State transition should succeed
@@ -1253,7 +1172,7 @@ test.describe('Event Lifecycle Concurrency', () => {
 
   test('similar users request during event state change', async () => {
     const testEventId = await createTestEvent(null, 'Similar Users Lifecycle Event', testEventPin);
-    testEventIds.push(testEventId);
+    eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
     await startEvent(testEventId, adminToken);
@@ -1276,7 +1195,7 @@ test.describe('Event Lifecycle Concurrency', () => {
     
     const [similarResult, pauseResult] = await Promise.all([
       similarUsersPromise,
-      transitionState(testEventId, adminToken, 'paused', 'started'),
+      changeEventState(testEventId, 'paused', 'started', adminToken),
     ]);
     
     // Pause should succeed
@@ -1292,18 +1211,15 @@ test.describe('Event Lifecycle Concurrency', () => {
 // ===================================
 
 test.describe('Rate Limiting', () => {
-  test.afterEach(async () => {
-    await cleanupTestEvents();
-  });
+  const eventIds = [];
 
-  test.afterAll(async () => {
-    // Safety net: clean up if afterEach failed
-    await cleanupTestEvents();
+  test.afterEach(async () => {
+    await cleanupEvents(eventIds);
   });
 
   test('burst rating submissions from same user', async () => {
     const testEventId = await createTestEvent(null, 'Rate Limit Event', testEventPin);
-    testEventIds.push(testEventId);
+    eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
     await startEvent(testEventId, adminToken);
@@ -1331,7 +1247,7 @@ test.describe('Rate Limiting', () => {
 
   test('multiple users within rate limit windows', async () => {
     const testEventId = await createTestEvent(null, 'Multi User Rate Limit Event', testEventPin);
-    testEventIds.push(testEventId);
+    eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
     await startEvent(testEventId, adminToken);
@@ -1359,7 +1275,7 @@ test.describe('Rate Limiting', () => {
 
   test('sustained low-rate submissions stay within limits', async () => {
     const testEventId = await createTestEvent(null, 'Sustained Rate Event', testEventPin);
-    testEventIds.push(testEventId);
+    eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
     await startEvent(testEventId, adminToken);
@@ -1388,19 +1304,16 @@ test.describe('Rate Limiting', () => {
 // ===================================
 
 test.describe('Full Concurrent Workflow', () => {
-  test.afterEach(async () => {
-    await cleanupTestEvents();
-  });
+  const eventIds = [];
 
-  test.afterAll(async () => {
-    // Safety net: clean up if afterEach failed
-    await cleanupTestEvents();
+  test.afterEach(async () => {
+    await cleanupEvents(eventIds);
   });
 
   test('complete event lifecycle with concurrent operations', async () => {
     // Create event
     const testEventId = await createTestEvent(null, 'Full Workflow Event', testEventPin);
-    testEventIds.push(testEventId);
+    eventIds.push(testEventId);
     
     // Setup admins
     const ownerToken = await addAdminToEvent(testEventId, 'owner@example.com');
@@ -1442,7 +1355,7 @@ test.describe('Full Concurrent Workflow', () => {
     phase2Ops.forEach(result => expect(result.ok).toBe(true));
     
     // Phase 3: Complete event and verify final state
-    const completeResult = await transitionState(testEventId, ownerToken, 'completed', 'started');
+    const completeResult = await changeEventState(testEventId, 'completed', 'started', ownerToken);
     expect(completeResult.ok).toBe(true);
     
     // Verify final state
