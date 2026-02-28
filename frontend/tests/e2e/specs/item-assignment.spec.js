@@ -14,6 +14,8 @@
 
 import { test, expect } from './fixtures.js';
 import {
+  BASE_URL,
+  API_URL,
   addAdminToEvent,
   setAuthToken,
   clearAuth,
@@ -21,9 +23,6 @@ import {
   enterAndSubmitPIN,
   changeEventState,
 } from './helpers.js';
-
-const BASE_URL = 'http://localhost:3000';
-const API_URL = 'http://localhost:3001';
 
 /**
  * Helper: Register an item via API

@@ -11,10 +11,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { clearAuth, createTestEvent, deleteTestEvent, addAdminToEvent, setAuthToken, setupRootAdmin, getUserToken, authenticateViaOTP } from './helpers.js';
-
-const BASE_URL = 'http://localhost:3000';
-const API_URL = 'http://localhost:3001';
+import { BASE_URL, clearAuth, createTestEvent, deleteTestEvent, addAdminToEvent, setAuthToken, setupRootAdmin, getUserToken, authenticateViaOTP } from './helpers.js';
 
 test.describe('My Events', () => {
   test.beforeEach(async ({ page }) => {

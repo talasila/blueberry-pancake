@@ -21,10 +21,9 @@ import {
   getUserToken,
   changeEventState,
   submitRating,
+  BASE_URL,
+  API_URL,
 } from './helpers.js';
-
-const BASE_URL = 'http://localhost:3000';
-const API_URL = 'http://localhost:3001';
 
 /**
  * Helper: Add a regular (non-admin) user to event via PIN verification

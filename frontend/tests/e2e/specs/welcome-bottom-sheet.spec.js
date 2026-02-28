@@ -7,9 +7,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { clearAuth, deleteTestEvent, trackEventForCleanup, authenticateViaOTP } from './helpers.js';
-
-const BASE_URL = 'http://localhost:3000';
+import { BASE_URL, clearAuth, deleteTestEvent, trackEventForCleanup, authenticateViaOTP } from './helpers.js';
 
 // ---------------------------------------------------------------------------
 // Helpers

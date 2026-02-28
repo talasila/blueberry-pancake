@@ -13,9 +13,8 @@ import {
   submitEmail,
   enterAndSubmitPIN,
   changeEventState,
+  BASE_URL,
 } from './helpers.js';
-
-const BASE_URL = 'http://localhost:3000';
 
 test.describe('Event State Management', () => {
 
@@ -39,7 +38,7 @@ test.describe('Event State Management', () => {
     await expect(notStartedMessage).toBeVisible();
     
     // Click on one of the 20 bottle items to try rating
-    const bottleItem = page.locator('button').filter({ hasText: '1' }).first();
+    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     // Drawer should open with message that rating is not available
@@ -86,7 +85,7 @@ test.describe('Event State Management', () => {
     await expect(rateMessage).toBeVisible();
     
     // Click on a bottle item to open rating drawer
-    const bottleItem = page.locator('button').filter({ hasText: '1' }).first();
+    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     // Drawer should open with rating selector
@@ -161,7 +160,7 @@ test.describe('Event State Management', () => {
     await expect(pausedMessage).toBeVisible();
     
     // Click on a bottle item to try rating
-    const bottleItem = page.locator('button').filter({ hasText: '1' }).first();
+    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     // Drawer should open with message that rating is not available
@@ -210,7 +209,7 @@ test.describe('Event State Management', () => {
     await expect(rateMessage).toBeVisible();
     
     // Click on a bottle item to open rating drawer
-    const bottleItem = page.locator('button').filter({ hasText: '1' }).first();
+    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     // Drawer should open with rating selector
@@ -260,7 +259,7 @@ test.describe('Event State Management', () => {
     await expect(viewDetailsMessage).toBeVisible();
     
     // Click on a bottle item to view details
-    const bottleItem = page.locator('button').filter({ hasText: '1' }).first();
+    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     // Drawer should open with header containing number and "Details"
@@ -313,7 +312,7 @@ test.describe('Event State Management', () => {
     await expect(viewDetailsMessage).toBeVisible();
     
     // Click on a bottle item to view details
-    const bottleItem = page.locator('button').filter({ hasText: '1' }).first();
+    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     // Drawer should open with header containing number and "Details"
@@ -371,7 +370,7 @@ test.describe('Event State Management', () => {
     await expect(rateMessage).toBeVisible();
     
     // Click on a bottle item to open rating drawer
-    const bottleItem = page.locator('button').filter({ hasText: '1' }).first();
+    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     // Drawer should open with rating selector
@@ -423,7 +422,8 @@ test.describe('Event State Management', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await changeEventState(eventId, 'started', 'created', token);
+    const result = await changeEventState(eventId, 'started', 'created', token);
+    if (!result.ok) throw new Error(`Failed to start event: ${result.data}`);
     
     // Navigate to admin page where state is displayed explicitly
     await setAuthToken(page, token, adminEmail);

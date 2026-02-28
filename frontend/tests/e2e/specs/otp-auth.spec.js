@@ -6,10 +6,8 @@
  */
 
 import { test, expect } from './fixtures.js';
-import { clearAuth, createTestEvent, deleteTestEvent, addAdminToEvent, setAuthToken } from './helpers.js';
-
-const BASE_URL = 'http://localhost:3000';
-const TEST_OTP = '123456'; // Test OTP that bypasses validation in dev mode
+import { clearAuth, createTestEvent, deleteTestEvent, addAdminToEvent, setAuthToken, BASE_URL } from './helpers.js';
+import { TEST_OTP } from '../e2e-config.js';
 
 test.describe('OTP Authentication', () => {
 

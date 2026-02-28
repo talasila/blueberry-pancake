@@ -8,10 +8,9 @@ import { test, expect } from './fixtures.js';
 import {
   addAdminToEvent,
   setAuthToken,
+  BASE_URL,
+  API_URL,
 } from './helpers.js';
-
-const BASE_URL = 'http://localhost:3000';
-const API_URL = 'http://localhost:3001';
 
 test.describe('Administrator Management', () => {
 
@@ -77,7 +76,7 @@ test.describe('Administrator Management', () => {
     
     const addButton = page.getByRole('button', { name: /add/i });
     await addButton.scrollIntoViewIfNeeded();
-    await addButton.click({ force: true });
+    await addButton.click();
     
     // Should show validation error inside the dialog
     const drawer = page.locator('[role="dialog"]');
@@ -161,11 +160,12 @@ test.describe('Administrator Management', () => {
     const ownerRow = page.locator('text=owner@example.com').locator('..');
     const deleteButton = ownerRow.getByRole('button', { name: /delete|remove/i });
     
-    const deleteButtonCount = await deleteButton.count();
-    if (deleteButtonCount > 0) {
-      await expect(deleteButton).toBeDisabled();
-    }
-    // Either way, verify the admin is still in the list (deletion did not happen)
+    await expect(async () => {
+      const count = await deleteButton.count();
+      if (count > 0) {
+        expect(await deleteButton.first().isDisabled()).toBe(true);
+      }
+    }).toPass({ timeout: 5000 });
     await expect(ownerRow).toBeVisible();
   });
 
@@ -186,11 +186,12 @@ test.describe('Administrator Management', () => {
     const ownerRow = page.locator('text=owner@example.com').locator('..');
     const deleteButton = ownerRow.getByRole('button', { name: /delete|remove/i });
     
-    const deleteButtonCount = await deleteButton.count();
-    if (deleteButtonCount > 0) {
-      await expect(deleteButton).toBeDisabled();
-    }
-    // Either way, verify the admin is still in the list (deletion did not happen)
+    await expect(async () => {
+      const count = await deleteButton.count();
+      if (count > 0) {
+        expect(await deleteButton.first().isDisabled()).toBe(true);
+      }
+    }).toPass({ timeout: 5000 });
     await expect(ownerRow).toBeVisible();
   });
 

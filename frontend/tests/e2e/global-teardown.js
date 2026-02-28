@@ -2,53 +2,35 @@
  * Global Teardown for Playwright E2E Tests
  * 
  * Cleans up all test events after the test run completes.
+ * Uses the test API to delete events (no direct filesystem access).
  * 
  * Cleanup strategy:
- * 1. Delete all TEST* directories (created by test helper API)
- * 2. Delete any tracked UI-created events
+ * 1. Delete all TEST* events via API
+ * 2. Delete any tracked UI-created events via API
  * 3. Clear the tracking file
  */
 
-import { rmSync, readdirSync, existsSync, readFileSync, unlinkSync } from 'fs';
+import { existsSync, readFileSync, unlinkSync } from 'fs';
 import { join } from 'path';
+import { API_URL } from './e2e-config.js';
 
-const API_URL = process.env.API_URL || 'http://localhost:3001';
+async function deleteEventViaAPI(eventId) {
+  try {
+    await fetch(`${API_URL}/api/test/events/${eventId}`, { method: 'DELETE' });
+  } catch {
+    // Ignore — best-effort cleanup
+  }
+}
 
 export default async function globalTeardown() {
   console.log('\n[E2E Cleanup] Starting post-test cleanup...');
   
   const projectRoot = join(process.cwd(), '..');
-  const eventsDir = join(projectRoot, 'data', 'events');
   const trackingFile = join(projectRoot, '.e2e-tracked-events.json');
   
-  let testEventsDeleted = 0;
   let trackedEventsDeleted = 0;
-  
-  // 1. Delete all TEST* directories
-  if (existsSync(eventsDir)) {
-    try {
-      const entries = readdirSync(eventsDir);
-      const testDirs = entries.filter(name => name.startsWith('TEST'));
-      
-      for (const dir of testDirs) {
-        const dirPath = join(eventsDir, dir);
-        try {
-          rmSync(dirPath, { recursive: true, force: true });
-          testEventsDeleted++;
-        } catch (error) {
-          console.warn(`[E2E Cleanup] Failed to delete ${dir}: ${error.message}`);
-        }
-      }
-      
-      if (testEventsDeleted > 0) {
-        console.log(`[E2E Cleanup] Deleted ${testEventsDeleted} TEST* events`);
-      }
-    } catch (error) {
-      console.warn(`[E2E Cleanup] Error reading events directory: ${error.message}`);
-    }
-  }
-  
-  // 2. Delete tracked UI-created events
+
+  // 1. Clean up tracked UI-created events via API
   if (existsSync(trackingFile)) {
     try {
       const tracked = readFileSync(trackingFile, 'utf-8')
@@ -57,34 +39,34 @@ export default async function globalTeardown() {
         .filter(Boolean);
       
       for (const eventId of tracked) {
-        // Skip TEST* events (already handled above)
-        if (eventId.startsWith('TEST')) continue;
-        
-        const eventPath = join(eventsDir, eventId);
-        if (existsSync(eventPath)) {
-          try {
-            rmSync(eventPath, { recursive: true, force: true });
-            trackedEventsDeleted++;
-          } catch (error) {
-            console.warn(`[E2E Cleanup] Failed to delete tracked event ${eventId}: ${error.message}`);
-          }
-        }
+        await deleteEventViaAPI(eventId);
+        trackedEventsDeleted++;
       }
       
       if (trackedEventsDeleted > 0) {
-        console.log(`[E2E Cleanup] Deleted ${trackedEventsDeleted} tracked UI-created events`);
+        console.log(`[E2E Cleanup] Deleted ${trackedEventsDeleted} tracked events via API`);
       }
       
-      // 3. Clear the tracking file
+      // 2. Clear the tracking file
       unlinkSync(trackingFile);
     } catch (error) {
       console.warn(`[E2E Cleanup] Error processing tracking file: ${error.message}`);
     }
   }
+
+  // 3. Bulk-cleanup TEST* events via API (catch-all)
+  try {
+    const response = await fetch(`${API_URL}/api/test/cleanup`, { method: 'POST' });
+    if (response.ok) {
+      const data = await response.json();
+      console.log(`[E2E Cleanup] Bulk API cleanup: ${data.deleted ?? 0} TEST* events`);
+    }
+  } catch {
+    // Endpoint may not exist — that's fine, tracked cleanup above handles it
+  }
   
-  const total = testEventsDeleted + trackedEventsDeleted;
-  if (total === 0) {
-    console.log('[E2E Cleanup] No test events to clean up');
+  if (trackedEventsDeleted === 0) {
+    console.log('[E2E Cleanup] No tracked events to clean up');
   }
   
   console.log('[E2E Cleanup] Complete\n');

@@ -10,27 +10,11 @@
 import { expect } from '@playwright/test';
 import { appendFileSync, readFileSync, existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
+import { BASE_URL, API_URL, TEST_OTP } from '../e2e-config.js';
 
-const BASE_URL = 'http://localhost:3000';
-const API_URL = 'http://localhost:3001';
+export { BASE_URL, API_URL };
 
-// Path to tracking file for UI-created events (relative to project root)
 const TRACKING_FILE = join(process.cwd(), '..', '.e2e-tracked-events.json');
-
-/**
- * Reset the test event counter on the backend
- * Call this at the start of a test run
- */
-export async function resetTestEventCounter() {
-  try {
-    const response = await fetch(`${API_URL}/api/test/reset-counter`, { method: 'POST' });
-    if (!response.ok) {
-      console.warn('Failed to reset test counter:', response.status);
-    }
-  } catch (error) {
-    console.warn('Failed to reset test counter:', error.message);
-  }
-}
 
 /**
  * Track a UI-created event ID for cleanup.
@@ -94,12 +78,16 @@ export async function createTestEvent(name, pin) {
  * Delete a test event via API
  */
 export async function deleteTestEvent(eventId) {
-  const response = await fetch(`${API_URL}/api/test/events/${eventId}`, {
-    method: 'DELETE',
-  });
-  
-  if (!response.ok) {
-    console.warn(`Failed to delete test event ${eventId}: ${response.status} ${response.statusText}`);
+  try {
+    const response = await fetch(`${API_URL}/api/test/events/${eventId}`, {
+      method: 'DELETE',
+    });
+    
+    if (!response.ok) {
+      console.warn(`Failed to delete test event ${eventId}: ${response.status} ${response.statusText}`);
+    }
+  } catch (error) {
+    console.warn(`Network error deleting test event ${eventId}: ${error.message}`);
   }
 }
 
@@ -125,7 +113,7 @@ export async function addAdminToEvent(eventId, email) {
  * Extract JWT from the Set-Cookie header of a fetch response.
  * The backend sets the JWT as an httpOnly cookie on auth responses.
  */
-export function extractJWTFromCookie(response) {
+function extractJWTFromCookie(response) {
   const setCookie = response.headers.get('set-cookie');
   if (!setCookie) return null;
   const match = setCookie.match(/jwt_token=([^;]+)/);
@@ -158,7 +146,6 @@ export async function getUserToken(eventId, email, pin) {
 export async function clearAuth(page) {
   await page.context().clearCookies();
   
-  // Navigate and clear client-side storage
   await page.goto(BASE_URL);
   await page.evaluate(() => {
     localStorage.clear();
@@ -173,28 +160,26 @@ export async function clearAuth(page) {
 export async function setAuthToken(page, token, email = 'admin@example.com') {
   await page.goto(BASE_URL);
 
-  // Decode JWT payload to extract exp and authMethod
   let exp;
   let authMethod = null;
   try {
     const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
     exp = payload.exp;
     authMethod = payload.authMethod || null;
-  } catch {
+  } catch (e) {
+    console.warn('Failed to decode JWT, using fallback expiry:', e.message);
     exp = Math.floor(Date.now() / 1000) + 86400;
   }
 
-  // Set JWT as httpOnly cookie (backend reads this for auth via Vite proxy)
   await page.context().addCookies([{
     name: 'jwt_token',
     value: token,
-    url: 'http://localhost:3000',
+    url: BASE_URL,
     httpOnly: true,
     secure: false,
     sameSite: 'Strict',
   }]);
 
-  // Set user session in localStorage (frontend reads this for UI state)
   await page.evaluate(({ email, exp, authMethod }) => {
     localStorage.setItem('userSession', JSON.stringify({ email, exp, authMethod }));
     sessionStorage.setItem('email', email);
@@ -202,28 +187,23 @@ export async function setAuthToken(page, token, email = 'admin@example.com') {
 }
 
 /**
- * Navigate and wait for the email entry page, then enter email and submit
- * Handles the case where the page is already past the email step (on PIN page)
+ * Navigate and wait for the email entry page, then enter email and submit.
+ * Handles the case where the page is already past the email step (on PIN page).
  */
 export async function submitEmail(page, email) {
-  // Check if we're already on PIN page (email step already completed)
   const currentUrl = page.url();
-  if (currentUrl.includes('/pin')) {
-    // Already past email entry, nothing to do
+  if (/\/pin(\?|$)/.test(new URL(currentUrl).pathname)) {
     return;
   }
   
-  // Check if email input exists
   const emailInput = page.locator('input#email');
   const isEmailInputVisible = await emailInput.isVisible().catch(() => false);
   
   if (!isEmailInputVisible) {
-    // Check if we're on PIN page by looking for PIN input
     const pinInput = page.locator('input#pin')
       .or(page.locator('input[type="text"][maxlength="6"]'))
       .first();
     if (await pinInput.isVisible().catch(() => false)) {
-      // Already on PIN page, skip email entry
       return;
     }
   }
@@ -245,7 +225,6 @@ export async function enterPIN(page, pin) {
     throw new Error('enterPIN called while on email page - call submitEmail first');
   }
   
-  // Enter PIN using input field (supports both old InputOTP and new Input component)
   const pinInput = page.locator('input#pin')
     .or(page.locator('input[type="text"][maxlength="6"]'))
     .or(page.locator('[data-input-otp]'))
@@ -257,20 +236,17 @@ export async function enterPIN(page, pin) {
 }
 
 /**
- * Submit the PIN form
+ * Submit the PIN form.
+ * @returns {'navigated' | 'error'} outcome
  */
 export async function submitPIN(page) {
   const submitButton = page.getByRole('button', { name: /access event/i });
   
-  // Wait for button to be visible first
   await submitButton.waitFor({ state: 'visible', timeout: 5000 });
-  
-  // Wait for button to become enabled (PIN validation must pass)
   await expect(submitButton).toBeEnabled({ timeout: 5000 });
   
   await submitButton.click();
 
-  // Wait for either: navigation away from PIN page (success) or error message (failure)
   const outcome = await Promise.race([
     page.waitForURL(url => !new URL(url).pathname.endsWith('/pin'), { timeout: 10000 }).then(() => 'navigated'),
     page.locator('[role="alert"], .text-destructive, .text-red-500').first().waitFor({ state: 'visible', timeout: 10000 }).then(() => 'error'),
@@ -304,11 +280,7 @@ export async function getErrorMessage(page, { timeout = 5000 } = {}) {
 }
 
 /**
- * Check if submit button is disabled (used for validation checks)
- */
-/**
  * Get a root admin JWT token
- * Note: The email must be in the rootAdmins config array for actual root access
  * @param {string} email - Root admin email address
  * @returns {Promise<string>} JWT token
  */
@@ -329,8 +301,6 @@ export async function getRootAdminToken(email) {
 
 /**
  * Set up root admin authentication for a page
- * @param {Page} page - Playwright page
- * @param {string} email - Root admin email address
  */
 export async function setupRootAdmin(page, email) {
   const token = await getRootAdminToken(email);
@@ -343,7 +313,6 @@ export async function setupRootAdmin(page, email) {
 
 /**
  * Submit a rating for an item via API.
- * Returns raw response shape so callers can inspect ok/status for error scenarios.
  * @returns {{ ok: boolean, status: number, data: any }}
  */
 export async function submitRating(eventId, token, itemId, rating, note = '') {
@@ -361,7 +330,6 @@ export async function submitRating(eventId, token, itemId, rating, note = '') {
 
 /**
  * Transition an event to a new state via API.
- * Returns raw response shape so callers can inspect ok/status for race condition tests.
  * @returns {{ ok: boolean, status: number, data: any }}
  */
 export async function changeEventState(eventId, newState, currentState, token) {
@@ -389,17 +357,25 @@ export async function startEvent(eventId, adminToken) {
   return result;
 }
 
+/**
+ * Fetch event data via API.
+ * @returns {{ ok: boolean, status: number, data: any }}
+ */
+export async function getEvent(eventId, token) {
+  const response = await fetch(`${API_URL}/api/events/${eventId}`, {
+    headers: { 'Authorization': `Bearer ${token}` }
+  });
+  const data = response.ok ? await response.json() : await response.text();
+  return { ok: response.ok, status: response.status, data };
+}
+
 // ===================================
 // OTP Authentication Helper
 // ===================================
 
-const TEST_OTP = '123456';
-
 /**
  * Authenticate via OTP flow in the browser.
  * Navigates to /auth, enters email, fills OTP, and waits for redirect.
- * @param {import('@playwright/test').Page} page
- * @param {string} email
  */
 export async function authenticateViaOTP(page, email = 'creator@example.com') {
   await page.goto(`${BASE_URL}/auth`);
@@ -425,4 +401,3 @@ export async function authenticateViaOTP(page, email = 'creator@example.com') {
     page.locator('[data-testid="auth-success"]').waitFor({ state: 'visible', timeout: 15000 }),
   ]);
 }
-

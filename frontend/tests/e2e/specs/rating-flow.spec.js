@@ -7,14 +7,14 @@
 
 import { test, expect } from './fixtures.js';
 import {
+  BASE_URL,
+  API_URL,
   addAdminToEvent,
   clearAuth,
   submitEmail,
   enterAndSubmitPIN,
+  startEvent,
 } from './helpers.js';
-
-const BASE_URL = 'http://localhost:3000';
-const API_URL = 'http://localhost:3001';
 
 test.describe('Rating Flow', () => {
 
@@ -63,15 +63,7 @@ test.describe('Rating Flow', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
+    await startEvent(eventId, token);
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
     
@@ -96,15 +88,7 @@ test.describe('Rating Flow', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
+    await startEvent(eventId, token);
     
     // Access as regular user
     await clearAuth(page);
@@ -158,15 +142,7 @@ test.describe('Rating Flow', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     const userEmail = 'bookmarkuser@example.com';
     
-    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
+    await startEvent(eventId, token);
     
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
@@ -221,15 +197,7 @@ test.describe('Rating Flow', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
+    await startEvent(eventId, token);
     
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);

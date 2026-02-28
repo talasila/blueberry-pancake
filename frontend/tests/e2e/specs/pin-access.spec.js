@@ -17,10 +17,9 @@ import {
   submitPIN,
   enterAndSubmitPIN,
   getErrorMessage,
+  BASE_URL,
+  API_URL,
 } from './helpers.js';
-
-const BASE_URL = 'http://localhost:3000';
-const API_URL = 'http://localhost:3001';
 
 test.describe('PIN-based Event Access', () => {
 

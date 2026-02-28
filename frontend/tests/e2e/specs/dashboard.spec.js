@@ -13,10 +13,12 @@ import {
   submitEmail,
   enterAndSubmitPIN,
   getUserToken,
+  BASE_URL,
+  API_URL,
+  startEvent,
+  changeEventState,
+  submitRating,
 } from './helpers.js';
-
-const BASE_URL = 'http://localhost:3000';
-const API_URL = 'http://localhost:3001';
 
 test.describe('Dashboard Page', () => {
 
@@ -55,18 +57,7 @@ test.describe('Dashboard Page', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Start the event
-    const startResponse = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResponse.ok) {
-      throw new Error(`Failed to start event: ${await startResponse.text()}`);
-    }
+    await startEvent(eventId, token);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
@@ -84,18 +75,7 @@ test.describe('Dashboard Page', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Start the event but don't complete it
-    const startResponse = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResponse.ok) {
-      throw new Error(`Failed to start event: ${await startResponse.text()}`);
-    }
+    await startEvent(eventId, token);
     
     // Access as regular user
     await clearAuth(page);
@@ -119,28 +99,11 @@ test.describe('Dashboard Page', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Complete the event (transition: created -> started -> completed)
-    const startResponse = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResponse.ok) {
-      throw new Error(`Failed to start event: ${await startResponse.text()}`);
-    }
+    await startEvent(eventId, token);
     
-    const completeResponse = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'completed', currentState: 'started' })
-    });
-    if (!completeResponse.ok) {
-      throw new Error(`Failed to complete event: ${await completeResponse.text()}`);
+    const completeResult = await changeEventState(eventId, 'completed', 'started', token);
+    if (!completeResult.ok) {
+      throw new Error(`Failed to complete event: ${completeResult.data}`);
     }
     
     // Verify event is now in completed state
@@ -369,34 +332,16 @@ test.describe('Dashboard Page', () => {
       throw new Error(`Failed to configure items: ${await configResponse.text()}`);
     }
     
-    // Start the event (ratings can only be submitted when event is started)
-    const startResponse = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResponse.ok) {
-      throw new Error(`Failed to start event: ${await startResponse.text()}`);
-    }
+    await startEvent(eventId, token);
     
     // Get a user token via PIN verification
     const userToken = await getUserToken(eventId, 'rater@example.com', pin);
     
     // Submit ratings for some items
     for (let itemId = 1; itemId <= 3; itemId++) {
-      const ratingResponse = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${userToken}`
-        },
-        body: JSON.stringify({ itemId, rating: 4 })
-      });
-      if (!ratingResponse.ok) {
-        throw new Error(`Failed to submit rating: ${await ratingResponse.text()}`);
+      const result = await submitRating(eventId, userToken, itemId, 4);
+      if (!result.ok) {
+        throw new Error(`Failed to submit rating: ${result.data}`);
       }
     }
     
@@ -447,11 +392,11 @@ test.describe('Dashboard Page', () => {
     const emptyMessage = main.getByText(/no.*users/i);
     const table = main.locator('table');
     
-    const emptyVisible = await emptyMessage.isVisible();
-    const tableVisible = await table.isVisible();
-    
-    // Either empty message or table should be visible
-    expect(emptyVisible || tableVisible).toBe(true);
+    await expect(async () => {
+      const emptyVisible = await emptyMessage.isVisible();
+      const tableVisible = await table.isVisible();
+      expect(emptyVisible || tableVisible).toBe(true);
+    }).toPass({ timeout: 10000 });
   });
 
   test('users tab displays table with correct columns when users have ratings', async ({ page, testEvent }) => {
@@ -470,30 +415,15 @@ test.describe('Dashboard Page', () => {
     });
     if (!configResp.ok) throw new Error(`Failed to configure items: ${await configResp.text()}`);
     
-    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
+    await startEvent(eventId, token);
     
     // Create first user and submit ratings
     const user1Token = await getUserToken(eventId, 'user1@example.com', pin);
     
     // Submit ratings for user1
     for (let itemId = 1; itemId <= 3; itemId++) {
-      const ratingResp = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user1Token}`
-        },
-        body: JSON.stringify({ itemId, rating: 4 })
-      });
-      if (!ratingResp.ok) throw new Error(`Failed to submit rating: ${await ratingResp.text()}`);
+      const result = await submitRating(eventId, user1Token, itemId, 4);
+      if (!result.ok) throw new Error(`Failed to submit rating: ${result.data}`);
     }
     
     // View dashboard as admin
@@ -531,44 +461,22 @@ test.describe('Dashboard Page', () => {
     });
     if (!configResp.ok) throw new Error(`Failed to configure items: ${await configResp.text()}`);
     
-    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
+    await startEvent(eventId, token);
     
     // Create first user with 5 ratings
     const user1Token = await getUserToken(eventId, 'alice@example.com', pin);
     
     for (let itemId = 1; itemId <= 5; itemId++) {
-      const ratingResp = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user1Token}`
-        },
-        body: JSON.stringify({ itemId, rating: 4 })
-      });
-      if (!ratingResp.ok) throw new Error(`Failed to submit rating: ${await ratingResp.text()}`);
+      const result = await submitRating(eventId, user1Token, itemId, 4);
+      if (!result.ok) throw new Error(`Failed to submit rating: ${result.data}`);
     }
     
     // Create second user with 2 ratings
     const user2Token = await getUserToken(eventId, 'bob@example.com', pin);
     
     for (let itemId = 1; itemId <= 2; itemId++) {
-      const ratingResp = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${user2Token}`
-        },
-        body: JSON.stringify({ itemId, rating: 3 })
-      });
-      if (!ratingResp.ok) throw new Error(`Failed to submit rating: ${await ratingResp.text()}`);
+      const result = await submitRating(eventId, user2Token, itemId, 3);
+      if (!result.ok) throw new Error(`Failed to submit rating: ${result.data}`);
     }
     
     // View dashboard as admin
@@ -611,40 +519,18 @@ test.describe('Dashboard Page', () => {
     });
     if (!configResp.ok) throw new Error(`Failed to configure items: ${await configResp.text()}`);
     
-    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
+    await startEvent(eventId, token);
     
     // Create users with ratings
     const user1Token = await getUserToken(eventId, 'zack@example.com', pin);
     
-    const rating1Resp = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${user1Token}`
-      },
-      body: JSON.stringify({ itemId: 1, rating: 4 })
-    });
-    if (!rating1Resp.ok) throw new Error(`Failed to submit rating: ${await rating1Resp.text()}`);
+    const rating1Result = await submitRating(eventId, user1Token, 1, 4);
+    if (!rating1Result.ok) throw new Error(`Failed to submit rating: ${rating1Result.data}`);
     
     const user2Token = await getUserToken(eventId, 'anna@example.com', pin);
     
-    const rating2Resp = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${user2Token}`
-      },
-      body: JSON.stringify({ itemId: 1, rating: 3 })
-    });
-    if (!rating2Resp.ok) throw new Error(`Failed to submit rating: ${await rating2Resp.text()}`);
+    const rating2Result = await submitRating(eventId, user2Token, 1, 3);
+    if (!rating2Result.ok) throw new Error(`Failed to submit rating: ${rating2Result.data}`);
     
     // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
@@ -697,40 +583,18 @@ test.describe('Dashboard Page', () => {
     });
     if (!configResp.ok) throw new Error(`Failed to configure items: ${await configResp.text()}`);
     
-    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
+    await startEvent(eventId, token);
     
     // Create users in reverse alphabetical order
     const user1Token = await getUserToken(eventId, 'zack@example.com', pin);
     
-    const rating1Resp = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${user1Token}`
-      },
-      body: JSON.stringify({ itemId: 1, rating: 4 })
-    });
-    if (!rating1Resp.ok) throw new Error(`Failed to submit rating: ${await rating1Resp.text()}`);
+    const rating1Result = await submitRating(eventId, user1Token, 1, 4);
+    if (!rating1Result.ok) throw new Error(`Failed to submit rating: ${rating1Result.data}`);
     
     const user2Token = await getUserToken(eventId, 'anna@example.com', pin);
     
-    const rating2Resp = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${user2Token}`
-      },
-      body: JSON.stringify({ itemId: 1, rating: 3 })
-    });
-    if (!rating2Resp.ok) throw new Error(`Failed to submit rating: ${await rating2Resp.text()}`);
+    const rating2Result = await submitRating(eventId, user2Token, 1, 3);
+    if (!rating2Result.ok) throw new Error(`Failed to submit rating: ${rating2Result.data}`);
     
     // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
@@ -770,28 +634,13 @@ test.describe('Dashboard Page', () => {
     });
     if (!configResp.ok) throw new Error(`Failed to configure items: ${await configResp.text()}`);
     
-    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
+    await startEvent(eventId, token);
     
     // Create user with ratings
     const userToken = await getUserToken(eventId, 'testuser@example.com', pin);
     
-    const ratingResp = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${userToken}`
-      },
-      body: JSON.stringify({ itemId: 1, rating: 4 })
-    });
-    if (!ratingResp.ok) throw new Error(`Failed to submit rating: ${await ratingResp.text()}`);
+    const ratingResult = await submitRating(eventId, userToken, 1, 4);
+    if (!ratingResult.ok) throw new Error(`Failed to submit rating: ${ratingResult.data}`);
     
     // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
@@ -829,28 +678,13 @@ test.describe('Dashboard Page', () => {
     });
     if (!configResp.ok) throw new Error(`Failed to configure items: ${await configResp.text()}`);
     
-    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
+    await startEvent(eventId, token);
     
     // Create user (no name set, only email)
     const userToken = await getUserToken(eventId, 'john.doe@example.com', pin);
     
-    const ratingResp = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${userToken}`
-      },
-      body: JSON.stringify({ itemId: 1, rating: 4 })
-    });
-    if (!ratingResp.ok) throw new Error(`Failed to submit rating: ${await ratingResp.text()}`);
+    const ratingResult = await submitRating(eventId, userToken, 1, 4);
+    if (!ratingResult.ok) throw new Error(`Failed to submit rating: ${ratingResult.data}`);
     
     // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
@@ -945,18 +779,7 @@ test.describe('Dashboard Page', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Start but don't complete event
-    const startResponse = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResponse.ok) {
-      throw new Error(`Failed to start event: ${await startResponse.text()}`);
-    }
+    await startEvent(eventId, token);
     
     // Access as regular user
     await clearAuth(page);

@@ -14,9 +14,8 @@ import {
   getUserToken,
   submitRating,
   startEvent,
+  BASE_URL,
 } from './helpers.js';
-
-const BASE_URL = 'http://localhost:3000';
 
 test.describe('Similar Users Discovery', () => {
 
@@ -225,11 +224,13 @@ test.describe('Similar Users Discovery', () => {
 
     const drawer = page.locator('[role="dialog"]');
     const userEntries = drawer.locator('[data-testid="similar-user-entry"]').or(drawer.locator('button').filter({ hasText: /@example\.com/ }));
-    const allTexts = await userEntries.allTextContents();
-    const veryIdx = allTexts.findIndex(t => t.includes(verySimilarEmail));
-    const lessIdx = allTexts.findIndex(t => t.includes(lessSimilarEmail));
-    expect(lessIdx).not.toBe(-1); // Less-similar user must appear in the list
-    expect(veryIdx).toBeLessThan(lessIdx);
+    await expect(async () => {
+      const allTexts = await userEntries.allTextContents();
+      const veryIdx = allTexts.findIndex(t => t.includes(verySimilarEmail));
+      const lessIdx = allTexts.findIndex(t => t.includes(lessSimilarEmail));
+      expect(lessIdx).not.toBe(-1);
+      expect(veryIdx).toBeLessThan(lessIdx);
+    }).toPass({ timeout: 10000 });
   });
 
   test('shows user email in similar users list', async ({ page, testEvent }) => {
@@ -418,7 +419,7 @@ test.describe('Similar Users Discovery', () => {
     await expect(drawer).toBeVisible({ timeout: 5000 });
     
     // Click close button
-    const closeButton = page.getByRole('button', { name: /close/i });
+    const closeButton = drawer.getByRole('button', { name: /close/i });
     await closeButton.click();
     
     // Drawer should close - check aria-hidden attribute since element stays in DOM

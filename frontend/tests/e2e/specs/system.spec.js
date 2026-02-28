@@ -12,15 +12,13 @@
 
 import { test, expect } from '@playwright/test';
 import { 
+  BASE_URL,
+  API_URL,
   createTestEvent, 
   deleteTestEvent, 
   getRootAdminToken,
   setAuthToken,
-  clearAuth
 } from './helpers.js';
-
-const BASE_URL = 'http://localhost:3000';
-const API_URL = 'http://localhost:3001';
 
 // Root admin email - must match config/default.json rootAdmins array
 const ROOT_ADMIN_EMAIL = 'root@test.example.com';

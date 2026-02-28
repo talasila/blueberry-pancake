@@ -2,22 +2,22 @@
  * Global Setup for Playwright E2E Tests
  * 
  * Runs before all tests to:
- * 1. Reset the TEST#### counter on the backend
- * 2. Clear any leftover tracking files
+ * 1. Verify backend and frontend are reachable
+ * 2. Reset the TEST#### counter on the backend
+ * 3. Clear any leftover tracking files
  */
 
 import { existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
-
-const API_URL = process.env.API_URL || 'http://localhost:3001';
+import { BASE_URL, API_URL } from './e2e-config.js';
 
 export default async function globalSetup() {
   console.log('\n[E2E Setup] Initializing test environment...');
   
   const projectRoot = join(process.cwd(), '..');
   const trackingFile = join(projectRoot, '.e2e-tracked-events.json');
-  
-  // 1. Reset the TEST#### counter on the backend
+
+  // 1. Verify backend is reachable and reset counter
   try {
     const response = await fetch(`${API_URL}/api/test/reset-counter`, {
       method: 'POST',
@@ -32,8 +32,20 @@ export default async function globalSetup() {
     console.error('[E2E Setup] Backend is not running on', API_URL);
     throw new Error(`E2E Setup failed: backend unreachable at ${API_URL}. ${error.message}`);
   }
+
+  // 2. Verify frontend is reachable
+  try {
+    const frontendResp = await fetch(BASE_URL, { method: 'HEAD' });
+    if (!frontendResp.ok) {
+      throw new Error(`Frontend returned ${frontendResp.status}`);
+    }
+    console.log('[E2E Setup] Frontend is reachable at', BASE_URL);
+  } catch (error) {
+    console.error('[E2E Setup] Frontend is not running on', BASE_URL);
+    throw new Error(`E2E Setup failed: frontend unreachable at ${BASE_URL}. ${error.message}`);
+  }
   
-  // 2. Clear any leftover tracking file from previous runs
+  // 3. Clear any leftover tracking file from previous runs
   if (existsSync(trackingFile)) {
     try {
       unlinkSync(trackingFile);

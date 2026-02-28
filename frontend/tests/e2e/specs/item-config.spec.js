@@ -15,9 +15,8 @@ import {
   clearAuth,
   submitEmail,
   enterAndSubmitPIN,
+  BASE_URL,
 } from './helpers.js';
-
-const BASE_URL = 'http://localhost:3000';
 
 /**
  * Navigates to admin page and waits for all item-configuration API responses.
@@ -95,7 +94,7 @@ test.describe('Item Configuration', () => {
   // ===================================
 
   test('admin page shows Bottles button to access item configuration', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -108,7 +107,7 @@ test.describe('Item Configuration', () => {
   });
 
   test('can set number of bottles', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -131,7 +130,7 @@ test.describe('Item Configuration', () => {
   });
 
   test('default number of bottles is 20', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -147,7 +146,7 @@ test.describe('Item Configuration', () => {
   });
 
   test('validates maximum bottles limit (100)', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -229,7 +228,7 @@ test.describe('Item Configuration', () => {
   });
 
   test('validates excluded IDs are within range', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -248,7 +247,7 @@ test.describe('Item Configuration', () => {
   });
 
   test('prevents excluding all bottles', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -276,7 +275,7 @@ test.describe('Item Configuration', () => {
   // ===================================
 
   test('displays current bottle configuration in drawer', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -299,7 +298,7 @@ test.describe('Item Configuration', () => {
   // ===================================
 
   test('handles leading zeros in excluded IDs', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -322,7 +321,7 @@ test.describe('Item Configuration', () => {
   });
 
   test('handles duplicate excluded IDs', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -345,7 +344,7 @@ test.describe('Item Configuration', () => {
   });
 
   test('handles whitespace in excluded IDs', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     

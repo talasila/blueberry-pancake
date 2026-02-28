@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+
 /**
  * Playwright configuration for E2E testing
  * Supports mobile viewports and multiple browsers
@@ -9,26 +11,24 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests/e2e/specs',
-  fullyParallel: true, // Tests run in parallel - each test has isolated fixtures
+  fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 4 : 12, // CI: limit to 4; local: 12
+  workers: process.env.CI ? 4 : 12,
   reporter: 'html',
-  timeout: 60000, // 60 seconds per test
+  timeout: 60000,
   
-  // Global setup/teardown for test event cleanup
   globalSetup: './tests/e2e/global-setup.js',
   globalTeardown: './tests/e2e/global-teardown.js',
   
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: BASE_URL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
   },
 
   projects: [
-    // Mobile-first testing (default viewport)
     {
       name: 'mobile',
       use: {
@@ -36,6 +36,4 @@ export default defineConfig({
       },
     },
   ],
-
-  // Note: Start frontend (port 3000) and backend (port 3001) manually before running tests
 });

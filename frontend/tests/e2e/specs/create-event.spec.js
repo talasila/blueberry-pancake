@@ -8,10 +8,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { clearAuth, deleteTestEvent, trackEventForCleanup, authenticateViaOTP, addAdminToEvent } from './helpers.js';
-
-const BASE_URL = 'http://localhost:3000';
-const API_URL = 'http://localhost:3001';
+import { clearAuth, deleteTestEvent, trackEventForCleanup, authenticateViaOTP, addAdminToEvent, BASE_URL, API_URL } from './helpers.js';
 
 /**
  * Helper to navigate to create event page after authentication
@@ -388,8 +385,6 @@ test.describe('Create Event', () => {
     
     // Wait for single redirect to admin page with uppercase-only event ID
     await page.waitForURL(/\/event\/[0-9A-Z]{8}\/admin/, { timeout: 10000 });
-
-    await page.waitForLoadState('load');
 
     // Clean up
     await deleteTestEvent(createdEventId);

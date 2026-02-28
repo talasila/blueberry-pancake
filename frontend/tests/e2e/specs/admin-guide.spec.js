@@ -7,9 +7,7 @@
  */
 
 import { test, expect } from './fixtures.js';
-import { addAdminToEvent, setAuthToken, changeEventState } from './helpers.js';
-
-const BASE_URL = 'http://localhost:3000';
+import { addAdminToEvent, setAuthToken, changeEventState, BASE_URL } from './helpers.js';
 
 // ---------------------------------------------------------------------------
 // Helpers

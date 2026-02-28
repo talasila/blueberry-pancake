@@ -7,6 +7,7 @@
 
 import { test, expect } from './fixtures.js';
 import {
+  BASE_URL,
   createTestEvent,
   deleteTestEvent,
   addAdminToEvent,
@@ -15,8 +16,6 @@ import {
   submitEmail,
   enterAndSubmitPIN,
 } from './helpers.js';
-
-const BASE_URL = 'http://localhost:3000';
 
 test.describe('Event Page', () => {
 
