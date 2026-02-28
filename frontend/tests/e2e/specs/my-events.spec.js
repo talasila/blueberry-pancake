@@ -180,6 +180,65 @@ test.describe('My Events', () => {
     }
   });
 
+  test('header menu still shows My Events after creating an event via UI', async ({ page }) => {
+    // Authenticate via OTP and wait for redirect to complete
+    await page.goto(`${BASE_URL}/auth`);
+    await authenticateViaOTP(page, 'post-create@example.com');
+    await page.waitForURL(url => !url.pathname.includes('/auth'), { timeout: 10000 });
+
+    // Navigate to create event page
+    await page.goto(`${BASE_URL}/create-event`);
+    await page.waitForLoadState('networkidle');
+
+    // Fill in event name
+    const nameInput = page.locator('input#event-name').or(page.getByLabel(/event name/i));
+    await expect(nameInput).toBeVisible({ timeout: 5000 });
+    await nameInput.fill('My Events Persist Test');
+
+    // Capture the create-event API response
+    const responsePromise = page.waitForResponse(
+      resp => resp.url().includes('/api/events') &&
+              resp.request().method() === 'POST' &&
+              !resp.url().includes('verify-pin')
+    );
+
+    const createButton = page.getByRole('button', { name: /create event/i });
+    await createButton.click();
+
+    const response = await responsePromise;
+    let createdEventId = null;
+    try {
+      const data = await response.json();
+      createdEventId = data.eventId;
+    } catch { /* ignore */ }
+
+    // Wait for redirect to admin page
+    await page.waitForURL(/\/event\/[0-9A-Z]{8}\/admin/, { timeout: 10000 });
+
+    // Dismiss welcome bottom sheet if present
+    const sheet = page.locator('[data-testid="welcome-bottom-sheet"]');
+    if (await sheet.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const closeBtn = sheet.getByRole('button', { name: /close|dismiss|got it/i });
+      if (await closeBtn.isVisible().catch(() => false)) {
+        await closeBtn.click();
+      }
+    }
+
+    // Open hamburger menu
+    const menuButton = page.getByRole('button', { name: /open menu/i });
+    await expect(menuButton).toBeVisible({ timeout: 10000 });
+    await menuButton.click();
+
+    // "My Events" must still be visible after event creation
+    const myEventsItem = page.locator('button[role="menuitem"]', { hasText: 'My Events' });
+    await expect(myEventsItem).toBeVisible({ timeout: 5000 });
+
+    // Cleanup
+    if (createdEventId) {
+      await deleteTestEvent(createdEventId);
+    }
+  });
+
   test('unauthenticated user accessing /my-events is redirected to auth', async ({ page }) => {
     await page.goto(`${BASE_URL}/my-events`);
     

@@ -371,9 +371,9 @@ test.describe('System Administration Dashboard', () => {
         // Navigate and wait for events API
         await navigateToSystemPage(page);
         
-        // Verify both events are visible (extended timeout for data propagation)
-        await expect(page.getByText('Apple Tasting Event')).toBeVisible({ timeout: 15000 });
-        await expect(page.getByText('Banana Festival')).toBeVisible({ timeout: 10000 });
+        // Verify both events are visible (use .first() to tolerate leftover duplicates)
+        await expect(page.getByText('Apple Tasting Event').first()).toBeVisible({ timeout: 15000 });
+        await expect(page.getByText('Banana Festival').first()).toBeVisible({ timeout: 10000 });
         
         // Search for "Apple" and wait for filtered response
         const searchInput = page.getByPlaceholder(/search/i);
@@ -385,7 +385,7 @@ test.describe('System Administration Dashboard', () => {
         await filteredResponse;
         
         // Apple event should be visible, Banana should not
-        await expect(page.getByText('Apple Tasting Event')).toBeVisible({ timeout: 5000 });
+        await expect(page.getByText('Apple Tasting Event').first()).toBeVisible({ timeout: 5000 });
         await expect(page.getByText('Banana Festival')).not.toBeVisible({ timeout: 5000 });
         
         // Clear search and wait for unfiltered response
@@ -397,8 +397,8 @@ test.describe('System Administration Dashboard', () => {
         await unfilteredResponse;
         
         // Both should be visible again
-        await expect(page.getByText('Apple Tasting Event')).toBeVisible({ timeout: 5000 });
-        await expect(page.getByText('Banana Festival')).toBeVisible({ timeout: 5000 });
+        await expect(page.getByText('Apple Tasting Event').first()).toBeVisible({ timeout: 5000 });
+        await expect(page.getByText('Banana Festival').first()).toBeVisible({ timeout: 5000 });
       } finally {
         await deleteTestEvent(eventId1);
         await deleteTestEvent(eventId2);

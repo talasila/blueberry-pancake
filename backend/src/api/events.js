@@ -54,7 +54,7 @@ router.post('/', requireAuth, async (req, res) => {
 
     const token = req.cookies?.[JWT_COOKIE_NAME];
     const decoded = token ? jwt.decode(token) : null;
-    res.status(201).json({ ...event, user: { email: administratorEmail, exp: decoded?.exp } });
+    res.status(201).json({ ...event, user: { email: administratorEmail, exp: decoded?.exp, authMethod: decoded?.authMethod || 'otp' } });
   } catch (error) {
     return handleApiError(res, error, 'create event');
   }
