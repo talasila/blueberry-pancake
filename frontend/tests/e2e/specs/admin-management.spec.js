@@ -76,6 +76,7 @@ test.describe('Administrator Management', () => {
     await emailInput.fill('invalid-email');
     
     const addButton = page.getByRole('button', { name: /add/i });
+    await addButton.scrollIntoViewIfNeeded();
     await addButton.click({ force: true });
     
     // Should show validation error inside the dialog
@@ -164,6 +165,8 @@ test.describe('Administrator Management', () => {
     if (deleteButtonCount > 0) {
       await expect(deleteButton).toBeDisabled();
     }
+    // Either way, verify the admin is still in the list (deletion did not happen)
+    await expect(ownerRow).toBeVisible();
   });
 
   test('cannot delete last administrator', async ({ page, testEvent }) => {
@@ -187,6 +190,8 @@ test.describe('Administrator Management', () => {
     if (deleteButtonCount > 0) {
       await expect(deleteButton).toBeDisabled();
     }
+    // Either way, verify the admin is still in the list (deletion did not happen)
+    await expect(ownerRow).toBeVisible();
   });
 
   // ===================================

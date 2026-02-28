@@ -311,8 +311,7 @@ test.describe('Item Assignment', () => {
     await switchToAssignmentTab(page);
     
     // Find and click the item card to expand it (assignment dropdown only shows when expanded)
-    const itemCard = page.locator('.cursor-pointer', { hasText: 'Chateau Test 2019' });
-    await itemCard.click();
+    await page.getByText('Chateau Test 2019').click();
     
     // Find the assignment dropdown inside the expanded section
     // It's a select with "Select ID" or "Clear assignment" option, NOT the filter dropdown
@@ -350,8 +349,7 @@ test.describe('Item Assignment', () => {
     await switchToAssignmentTab(page);
     
     // Find and click the item card to expand it
-    const itemCard = page.locator('.cursor-pointer', { hasText: 'Clearable Wine' });
-    await itemCard.click();
+    await page.getByText('Clearable Wine').click();
     
     // Find the assignment dropdown (should show current value)
     const assignSelect = page.locator('select').filter({ hasText: /Clear assignment/ });
@@ -389,8 +387,7 @@ test.describe('Item Assignment', () => {
     await switchToAssignmentTab(page);
     
     // Find and click the item card to expand it
-    const itemCard = page.locator('.cursor-pointer', { hasText: 'Reassignable Wine' });
-    await itemCard.click();
+    await page.getByText('Reassignable Wine').click();
     
     // Find the assignment dropdown (should have value 3)
     const assignSelect = page.locator('select').filter({ hasText: /Clear assignment/ });
@@ -430,8 +427,7 @@ test.describe('Item Assignment', () => {
     await switchToAssignmentTab(page);
     
     // Find and click Wine Two card to expand it
-    const wineTwoCard = page.locator('.cursor-pointer', { hasText: 'Wine Two' });
-    await wineTwoCard.click();
+    await page.getByText('Wine Two').click();
     
     // Find the assignment dropdown for Wine Two
     const assignSelect = page.locator('select').filter({ hasText: /Select ID/ });

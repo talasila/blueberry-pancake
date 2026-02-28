@@ -221,12 +221,9 @@ test.describe('Data Export', () => {
       await enterAndSubmitPIN(page, pin);
       // Try to navigate to admin page
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      // Should be redirected or show access denied - not on admin page with Export Data visible
+      // Regular user should not see admin export functionality
       const exportButton = page.getByRole('button', { name: /export data/i });
-      const exportVisible = await exportButton.isVisible({ timeout: 3000 }).catch(() => false);
-      if (exportVisible) {
-        await expect(page).not.toHaveURL(/\/admin/);
-      }
+      await expect(exportButton).not.toBeVisible({ timeout: 5000 });
     });
   });
 
@@ -851,7 +848,7 @@ test.describe('Data Export', () => {
       await expect(getExportButton(page, 'items')).toBeEnabled();
     });
 
-    test('other buttons disabled during ratings export', async ({ page, testEvent }) => {
+    test('export completes and buttons are enabled afterward', async ({ page, testEvent }) => {
       const { eventId, pin } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       await startEvent(eventId, adminToken);

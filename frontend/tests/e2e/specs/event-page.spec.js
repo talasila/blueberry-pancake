@@ -34,10 +34,11 @@ test.describe('Event Page', () => {
     
     // Should be on event page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
+    await expect(page.locator('main')).toBeVisible({ timeout: 10000 });
   });
 
   test('unauthenticated user is redirected to email entry', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
     
@@ -77,10 +78,8 @@ test.describe('Event Page', () => {
     await enterAndSubmitPIN(page, '123456');
     
     // Error should be displayed about event not found
-    const main = page.locator('main');
-    const errorMessage = main.locator('.text-destructive, [role="alert"]')
-      .or(main.getByText(/event not found|not found|invalid pin/i));
-    await expect(errorMessage.first()).toBeVisible({ timeout: 10000 });
+    const errorLocator = page.getByText(/event not found|not found|invalid/i).first();
+    await expect(errorLocator).toBeVisible({ timeout: 10000 });
   });
 
   // ===================================
@@ -97,6 +96,7 @@ test.describe('Event Page', () => {
     
     // Should be on admin page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/admin`));
+    await expect(page.locator('main')).toBeVisible({ timeout: 10000 });
   });
 
   test('non-administrator cannot access admin page', async ({ page, testEvent }) => {
@@ -206,7 +206,7 @@ test.describe('Event Page', () => {
   test('event name is trimmed in header if too long', async ({ page }) => {
     // Create event with very long name
     const longName = 'This is a very long event name that should be trimmed in the header to fit properly';
-    const longNameEventId = await createTestEvent(null, longName, '123456');
+    const longNameEventId = await createTestEvent(longName, '123456');
     
     try {
       const adminEmail = 'admin@example.com';

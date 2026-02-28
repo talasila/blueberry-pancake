@@ -24,8 +24,8 @@ test.describe('Dashboard Page', () => {
   // User Story 1 - Admin Views Dashboard Anytime
   // ===================================
 
-  test('administrator can access dashboard in any event state', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+  test('administrator can access dashboard in created state', async ({ page, testEvent }) => {
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -51,7 +51,7 @@ test.describe('Dashboard Page', () => {
   });
 
   test('administrator sees dashboard in started state', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -72,6 +72,7 @@ test.describe('Dashboard Page', () => {
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/dashboard`));
+    await expect(page.locator('main')).toBeVisible({ timeout: 10000 });
   });
 
   // ===================================
@@ -179,8 +180,6 @@ test.describe('Dashboard Page', () => {
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     
     // Should see four statistics
-    const stats = page.locator('[class*="stat"]').or(page.locator('[class*="gadget"]')).or(page.locator('[class*="card"]'));
-    
     // Look for specific stat labels
     await expect(page.getByText(/total.*users/i)).toBeVisible({ timeout: 10000 });
     await expect(page.getByText(/total.*(bottles|items)/i)).toBeVisible();
@@ -206,7 +205,7 @@ test.describe('Dashboard Page', () => {
   // ===================================
 
   test('shows items tab with empty state when no items configured', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -218,18 +217,15 @@ test.describe('Dashboard Page', () => {
     await itemsTab.waitFor({ state: 'visible', timeout: 10000 });
     await itemsTab.click();
     
-    // Should show empty state message or table (depending on configuration)
-    // Scope to main content to avoid matching event name in header
-    const main = page.locator('main');
-    const table = main.locator('table');
-    const emptyMessage = main.getByText(/no.*items|no.*bottles|no.*ratings|no.*data/i).first();
-    
-    const contentIndicator = table.or(emptyMessage);
-    await expect(contentIndicator.first()).toBeVisible({ timeout: 10000 });
+    // Empty state = table present with bottle rows but all ratings show N/A
+    const tabPanel = page.locator('[role="tabpanel"][data-state="active"]');
+    await expect(tabPanel).toBeVisible({ timeout: 10000 });
+    await expect(tabPanel.locator('table')).toBeVisible({ timeout: 10000 });
+    await expect(tabPanel.getByText('N/A').first()).toBeVisible({ timeout: 5000 });
   });
 
   test('items tab displays table when items are configured', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -270,7 +266,7 @@ test.describe('Dashboard Page', () => {
   });
 
   test('table columns are sortable', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -319,7 +315,7 @@ test.describe('Dashboard Page', () => {
   });
 
   test('default sort is by item ID ascending', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -347,7 +343,8 @@ test.describe('Dashboard Page', () => {
     // First row should be item 1 (default ascending sort)
     const firstRow = page.locator('table tbody tr').first();
     await expect(firstRow).toBeVisible();
-    await expect(firstRow).toContainText('1');
+    const firstCell = firstRow.locator('td').first();
+    await expect(firstCell).toHaveText('1');
   });
 
   // ===================================
@@ -432,7 +429,7 @@ test.describe('Dashboard Page', () => {
   // ===================================
 
   test('users tab is accessible and shows appropriate content', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -592,9 +589,10 @@ test.describe('Dashboard Page', () => {
     
     // Table should have at least 2 user rows (admin may also be present)
     const rows = page.locator('table tbody tr');
-    await expect(rows).not.toHaveCount(0, { timeout: 10000 });
-    const rowCount = await rows.count();
-    expect(rowCount).toBeGreaterThanOrEqual(2);
+    await expect(async () => {
+      const rowCount = await rows.count();
+      expect(rowCount).toBeGreaterThanOrEqual(2);
+    }).toPass({ timeout: 10000 });
   });
 
   test('users table columns are sortable', async ({ page, testEvent }) => {
@@ -672,11 +670,8 @@ test.describe('Dashboard Page', () => {
     };
     
     // Wait for sort to reflect in table
-    let afterFirstSort;
-    await expect(async () => {
-      afterFirstSort = await getFirstCellTexts();
-      expect(afterFirstSort.length).toBeGreaterThan(0);
-    }).toPass({ timeout: 5000 });
+    await expect(page.locator('table tbody tr')).not.toHaveCount(0, { timeout: 5000 });
+    const afterFirstSort = await getFirstCellTexts();
 
     await userHeader.click();
 
@@ -920,7 +915,7 @@ test.describe('Dashboard Page', () => {
     
     // Click refresh and verify a new API call is made
     const responsePromise = page.waitForResponse(
-      (resp) => resp.url().includes(`/api/events/${eventId}`) && resp.status() === 200
+      (resp) => resp.url().includes(`/api/events/${eventId}`)
     );
     await refreshButton.click();
     const response = await responsePromise;

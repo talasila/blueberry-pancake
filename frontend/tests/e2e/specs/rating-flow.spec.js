@@ -8,7 +8,6 @@
 import { test, expect } from './fixtures.js';
 import {
   addAdminToEvent,
-  setAuthToken,
   clearAuth,
   submitEmail,
   enterAndSubmitPIN,

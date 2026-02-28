@@ -20,6 +20,19 @@ import {
 const BASE_URL = 'http://localhost:3000';
 
 /**
+ * Navigates to admin page and waits for the item-configuration API to resolve.
+ * This prevents async React state updates from overwriting input values during tests.
+ */
+async function navigateToAdminWithConfig(page, eventId, token, email) {
+  await setAuthToken(page, token, email);
+  const configLoaded = page.waitForResponse(
+    resp => resp.url().includes('/item-configuration')
+  );
+  await page.goto(`${BASE_URL}/event/${eventId}/admin`);
+  await configLoaded;
+}
+
+/**
  * Opens the Bottles (Items) drawer on the admin page
  * @param {import('@playwright/test').Page} page - Playwright page object
  */
@@ -123,22 +136,18 @@ test.describe('Item Configuration', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    // Open the Bottles drawer
+    await navigateToAdminWithConfig(page, eventId, token, adminEmail);
     await openBottlesDrawer(page);
     
-    // Try to set over the limit
     const bottlesInput = getNumberOfBottlesInput(page);
     await bottlesInput.fill('150');
+    await expect(bottlesInput).toHaveValue('150');
     
-    // Try to save
     await clickSaveButton(page);
     
-    // Should show error or validation message - scope to drawer
+    // Backend responds with "Number of items must be an integer between 1 and 100"
     const drawer = page.locator('[role="dialog"]');
-    await expect(drawer.getByText(/must be.*between 1 and 100/i)).toBeVisible({ timeout: 5000 });
+    await expect(drawer.getByText(/must be.*between 1 and 100/i)).toBeVisible({ timeout: 10000 });
   });
 
   // ===================================
@@ -209,22 +218,18 @@ test.describe('Item Configuration', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    // Open the Bottles drawer
+    await navigateToAdminWithConfig(page, eventId, token, adminEmail);
     await openBottlesDrawer(page);
     
-    // Try to exclude ID outside range (default is 20)
     const excludedInput = getExcludedBottleIdsInput(page);
     await excludedInput.fill('25');
+    await expect(excludedInput).toHaveValue('25');
     
-    // Try to save
     await clickSaveButton(page);
     
-    // Should show error - scope to drawer
+    // Backend responds with "Invalid item IDs: 25. Must be between 1 and 20"
     const drawer = page.locator('[role="dialog"]');
-    await expect(drawer.getByText(/error|invalid|range|outside/i)).toBeVisible({ timeout: 5000 });
+    await expect(drawer.getByText(/invalid.*item|must be between/i)).toBeVisible({ timeout: 10000 });
   });
 
   test('prevents excluding all bottles', async ({ page, testEvent }) => {
@@ -232,27 +237,16 @@ test.describe('Item Configuration', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    // Open the Bottles drawer
+    await navigateToAdminWithConfig(page, eventId, token, adminEmail);
     await openBottlesDrawer(page);
     
-    // Set number of bottles to a small number and verify the value persists.
-    // React Strict Mode can fire a duplicate API fetch whose response overwrites
-    // the filled value; toPass retries until the value stabilizes.
     const bottlesInput = getNumberOfBottlesInput(page);
-    await expect(async () => {
-      await bottlesInput.fill('3');
-      await expect(bottlesInput).toHaveValue('3');
-    }).toPass({ timeout: 5000 });
+    await bottlesInput.fill('3');
+    await expect(bottlesInput).toHaveValue('3');
     
-    // Try to exclude all bottles (with retry to handle React Strict Mode re-renders)
     const excludedInput = getExcludedBottleIdsInput(page);
-    await expect(async () => {
-      await excludedInput.fill('1,2,3');
-      await expect(excludedInput).toHaveValue('1,2,3');
-    }).toPass({ timeout: 5000 });
+    await excludedInput.fill('1,2,3');
+    await expect(excludedInput).toHaveValue('1,2,3');
     
     // Try to save
     await clickSaveButton(page);

@@ -121,7 +121,7 @@ test.describe('Landing Page - Authenticated User', () => {
   let token;
 
   test.beforeEach(async ({ page }) => {
-    eventId = await createTestEvent(null, 'Landing Auth Test', '654321');
+    eventId = await createTestEvent('Landing Auth Test', '654321');
     token = await addAdminToEvent(eventId, adminEmail);
     await setAuthToken(page, token, adminEmail);
   });

@@ -12,10 +12,10 @@ import {
   clearAuth,
   submitEmail,
   enterAndSubmitPIN,
+  changeEventState,
 } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
-const API_URL = 'http://localhost:3001';
 
 test.describe('Event State Management', () => {
 
@@ -65,7 +65,8 @@ test.describe('Event State Management', () => {
     // may leave the button below the fold momentarily
     const startButton = page.getByRole('button', { name: /start/i });
     await startButton.waitFor({ state: 'visible', timeout: 5000 });
-    await startButton.evaluate(el => el.click());
+    await startButton.scrollIntoViewIfNeeded();
+    await startButton.click({ timeout: 5000 });
     
     // Event should now be started
     const stateIndicator = page.getByRole('button', { name: /state.*started/i });
@@ -98,15 +99,8 @@ test.describe('Event State Management', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    const resp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!resp.ok) throw new Error(`Failed to start event: ${await resp.text()}`);
+    const { ok, data } = await changeEventState(eventId, 'started', 'created', token);
+    if (!ok) throw new Error(`Failed to start event: ${data}`);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -133,15 +127,8 @@ test.describe('Event State Management', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    const resp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!resp.ok) throw new Error(`Failed to start event: ${await resp.text()}`);
+    const { ok, data } = await changeEventState(eventId, 'started', 'created', token);
+    if (!ok) throw new Error(`Failed to start event: ${data}`);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -153,7 +140,8 @@ test.describe('Event State Management', () => {
     
     const pauseButton = page.getByRole('button', { name: /pause/i });
     await pauseButton.waitFor({ state: 'visible', timeout: 5000 });
-    await pauseButton.evaluate(el => el.click());
+    await pauseButton.scrollIntoViewIfNeeded();
+    await pauseButton.click({ timeout: 5000 });
     
     // Event should now be paused
     const stateIndicator = page.getByRole('button', { name: /state.*paused/i });
@@ -186,25 +174,11 @@ test.describe('Event State Management', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
+    const startResult = await changeEventState(eventId, 'started', 'created', token);
+    if (!startResult.ok) throw new Error(`Failed to start event: ${startResult.data}`);
     
-    const pauseResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'paused', currentState: 'started' })
-    });
-    if (!pauseResp.ok) throw new Error(`Failed to pause event: ${await pauseResp.text()}`);
+    const pauseResult = await changeEventState(eventId, 'paused', 'started', token);
+    if (!pauseResult.ok) throw new Error(`Failed to pause event: ${pauseResult.data}`);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -215,7 +189,8 @@ test.describe('Event State Management', () => {
     
     const startButton = page.getByRole('button', { name: /start|resume/i });
     await startButton.waitFor({ state: 'visible', timeout: 5000 });
-    await startButton.evaluate(el => el.click());
+    await startButton.scrollIntoViewIfNeeded();
+    await startButton.click({ timeout: 5000 });
     
     // Event should now be started again
     const stateIndicator = page.getByRole('button', { name: /state.*started/i });
@@ -252,15 +227,8 @@ test.describe('Event State Management', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    const resp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!resp.ok) throw new Error(`Failed to start event: ${await resp.text()}`);
+    const { ok, data } = await changeEventState(eventId, 'started', 'created', token);
+    if (!ok) throw new Error(`Failed to start event: ${data}`);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -271,7 +239,8 @@ test.describe('Event State Management', () => {
     
     const completeButton = page.getByRole('button', { name: /complete|finish/i });
     await completeButton.waitFor({ state: 'visible', timeout: 5000 });
-    await completeButton.evaluate(el => el.click());
+    await completeButton.scrollIntoViewIfNeeded();
+    await completeButton.click({ timeout: 5000 });
     
     // Event should now be completed
     const stateIndicator = page.getByRole('button', { name: /state.*(completed|finished)/i });
@@ -308,25 +277,11 @@ test.describe('Event State Management', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
+    const startResult = await changeEventState(eventId, 'started', 'created', token);
+    if (!startResult.ok) throw new Error(`Failed to start event: ${startResult.data}`);
     
-    const pauseResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'paused', currentState: 'started' })
-    });
-    if (!pauseResp.ok) throw new Error(`Failed to pause event: ${await pauseResp.text()}`);
+    const pauseResult = await changeEventState(eventId, 'paused', 'started', token);
+    if (!pauseResult.ok) throw new Error(`Failed to pause event: ${pauseResult.data}`);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -337,7 +292,8 @@ test.describe('Event State Management', () => {
     
     const completeButton = page.getByRole('button', { name: /complete|finish/i });
     await completeButton.waitFor({ state: 'visible', timeout: 5000 });
-    await completeButton.evaluate(el => el.click());
+    await completeButton.scrollIntoViewIfNeeded();
+    await completeButton.click({ timeout: 5000 });
     
     // Event should now be completed
     const stateIndicator = page.getByRole('button', { name: /state.*(completed|finished)/i });
@@ -378,25 +334,11 @@ test.describe('Event State Management', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
+    const startResult = await changeEventState(eventId, 'started', 'created', token);
+    if (!startResult.ok) throw new Error(`Failed to start event: ${startResult.data}`);
     
-    const completeResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'completed', currentState: 'started' })
-    });
-    if (!completeResp.ok) throw new Error(`Failed to complete event: ${await completeResp.text()}`);
+    const completeResult = await changeEventState(eventId, 'completed', 'started', token);
+    if (!completeResult.ok) throw new Error(`Failed to complete event: ${completeResult.data}`);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -408,7 +350,8 @@ test.describe('Event State Management', () => {
     
     const startButton = page.getByRole('button', { name: /start|reopen/i });
     await startButton.waitFor({ state: 'visible', timeout: 5000 });
-    await startButton.evaluate(el => el.click());
+    await startButton.scrollIntoViewIfNeeded();
+    await startButton.click({ timeout: 5000 });
     
     // Event should now be started again
     const stateIndicator = page.getByRole('button', { name: /state.*started/i });
@@ -480,15 +423,7 @@ test.describe('Event State Management', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    const stateResponse = await fetch(`${API_URL}/api/events/${eventId}/state`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
-    });
-    expect(stateResponse.ok).toBe(true);
+    await changeEventState(eventId, 'started', 'created', token);
     
     // Navigate to admin page where state is displayed explicitly
     await setAuthToken(page, token, adminEmail);

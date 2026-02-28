@@ -57,7 +57,7 @@ async function navigateToSystemPage(page) {
   const eventsCheck = page.waitForResponse(
     resp => resp.url().includes('/api/system/events'),
     { timeout: 15000 }
-  ).catch(() => null); // Might not happen if auth fails
+  ).catch(() => { console.warn('Events API response not received'); return null; });
   
   // Navigate
   await page.goto(`${BASE_URL}/system`);
@@ -120,7 +120,7 @@ test.describe('System Administration Dashboard', () => {
     
     test('should display event list for root admin', async ({ page }) => {
       // Create a test event first
-      const eventId = await createTestEvent(null, 'System Test Event', '123456');
+      const eventId = await createTestEvent('System Test Event', '123456');
       
       try {
         // Set up as root admin
@@ -142,7 +142,7 @@ test.describe('System Administration Dashboard', () => {
     
     test('should show event summary info in list', async ({ page }) => {
       // Create test event
-      const eventId = await createTestEvent(null, 'Summary Test Event', '123456');
+      const eventId = await createTestEvent('Summary Test Event', '123456');
       
       try {
         await setupRootAuth(page);
@@ -162,7 +162,7 @@ test.describe('System Administration Dashboard', () => {
       }
     });
     
-    test('should show empty state when no events exist', async ({ page }) => {
+    test('should show event list or empty state for root admin', async ({ page }) => {
       await setupRootAuth(page);
       
       // Navigate and wait for events API
@@ -170,6 +170,10 @@ test.describe('System Administration Dashboard', () => {
       
       // The page should load without errors (h1, h2, h3, or h4)
       await expect(page.locator('h1, h2, h3, h4').filter({ hasText: /system administration/i })).toBeVisible();
+
+      // Should display either event list or empty state message
+      const content = page.locator('[data-testid="event-row"]').or(page.getByText(/no events found/i));
+      await expect(content.first()).toBeVisible({ timeout: 10000 });
     });
     
   });
@@ -182,7 +186,7 @@ test.describe('System Administration Dashboard', () => {
     
     test('should open drawer when clicking event', async ({ page }) => {
       // Create test event
-      const eventId = await createTestEvent(null, 'Drawer Test Event', '123456');
+      const eventId = await createTestEvent('Drawer Test Event', '123456');
       
       try {
         await setupRootAuth(page);
@@ -203,7 +207,7 @@ test.describe('System Administration Dashboard', () => {
     
     test('should display all event details in drawer', async ({ page }) => {
       // Create test event
-      const eventId = await createTestEvent(null, 'Details Test Event', '123456');
+      const eventId = await createTestEvent('Details Test Event', '123456');
       
       try {
         await setupRootAuth(page);
@@ -238,7 +242,7 @@ test.describe('System Administration Dashboard', () => {
     
     test('should show delete confirmation dialog', async ({ page }) => {
       // Create test event
-      const eventId = await createTestEvent(null, 'Delete Confirm Test', '123456');
+      const eventId = await createTestEvent('Delete Confirm Test', '123456');
       
       try {
         await setupRootAuth(page);
@@ -264,7 +268,7 @@ test.describe('System Administration Dashboard', () => {
     
     test('should delete event and remove from list', async ({ page }) => {
       const uniqueName = `Delete Test ${Date.now()}`;
-      const eventId = await createTestEvent(null, uniqueName, '123456');
+      const eventId = await createTestEvent(uniqueName, '123456');
       
       try {
         await setupRootAuth(page);
@@ -305,7 +309,7 @@ test.describe('System Administration Dashboard', () => {
   test.describe('US4: Search Events', () => {
     
     test('should filter events by event ID search', async ({ page }) => {
-      const eventId = await createTestEvent(null, 'ID Search Test Event', '123456');
+      const eventId = await createTestEvent('ID Search Test Event', '123456');
       
       try {
         await setupRootAuth(page);
@@ -331,7 +335,7 @@ test.describe('System Administration Dashboard', () => {
     });
     
     test('should treat whitespace-only search as empty', async ({ page }) => {
-      const eventId = await createTestEvent(null, 'Whitespace Search Test', '123456');
+      const eventId = await createTestEvent('Whitespace Search Test', '123456');
       
       try {
         await setupRootAuth(page);
@@ -351,8 +355,8 @@ test.describe('System Administration Dashboard', () => {
     
     test('should filter events by name search', async ({ page }) => {
       // Create two test events with different names
-      const eventId1 = await createTestEvent(null, 'Apple Tasting Event', '123456');
-      const eventId2 = await createTestEvent(null, 'Banana Festival', '123456');
+      const eventId1 = await createTestEvent('Apple Tasting Event', '123456');
+      const eventId2 = await createTestEvent('Banana Festival', '123456');
       
       try {
         await setupRootAuth(page);
@@ -403,7 +407,7 @@ test.describe('System Administration Dashboard', () => {
   test.describe('Event Card & Drawer Details', () => {
     
     test('should show event ID and PIN on event card', async ({ page }) => {
-      const eventId = await createTestEvent(null, 'Card PIN Test Event', '654321');
+      const eventId = await createTestEvent('Card PIN Test Event', '654321');
       
       try {
         await setupRootAuth(page);
@@ -422,7 +426,7 @@ test.describe('System Administration Dashboard', () => {
     });
     
     test('should display PIN in event details drawer', async ({ page }) => {
-      const eventId = await createTestEvent(null, 'Drawer PIN Test', '987654');
+      const eventId = await createTestEvent('Drawer PIN Test', '987654');
       
       try {
         await setupRootAuth(page);

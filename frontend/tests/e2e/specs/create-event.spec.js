@@ -8,7 +8,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { clearAuth, deleteTestEvent, trackEventForCleanup, authenticateViaOTP } from './helpers.js';
+import { clearAuth, deleteTestEvent, trackEventForCleanup, authenticateViaOTP, addAdminToEvent } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';
@@ -50,7 +50,7 @@ test.describe('Create Event', () => {
     
     // Should be on create event page (not redirected)
     // Check for create event form elements
-    const nameInput = page.locator('input').first();
+    const nameInput = page.locator('input[name="name"]').or(page.locator('input#event-name')).or(page.getByLabel(/event name/i));
     await expect(nameInput).toBeVisible({ timeout: 5000 });
   });
 
@@ -142,11 +142,13 @@ test.describe('Create Event', () => {
     await expect(page.locator('[data-testid="welcome-bottom-sheet"]')).toBeVisible({ timeout: 5000 });
 
     // Verify the event state via API
-    const stateResponse = await fetch(`${API_URL}/api/events/${createdEventId}`);
-    if (stateResponse.ok) {
-      const eventData = await stateResponse.json();
-      expect(eventData.state).toBe('created');
-    }
+    const token = await addAdminToEvent(createdEventId, 'creator@example.com');
+    const stateResponse = await fetch(`${API_URL}/api/events/${createdEventId}`, {
+      headers: { 'Authorization': `Bearer ${token}` },
+    });
+    expect(stateResponse.ok).toBe(true);
+    const eventData = await stateResponse.json();
+    expect(eventData.state).toBe('created');
 
     // Verify back button skips the create form (FR-004)
     await page.goBack();
@@ -259,6 +261,11 @@ test.describe('Create Event', () => {
     // Verify no validation error about invalid characters — the ID format is valid (8 alphanumeric)
     // Instead, expect a standard "not found" or redirect to email entry flow
     await expect(page.locator('body')).not.toContainText(/invalid.*character/i);
+
+    // Should show event not found or prompt for email
+    await expect(
+      page.getByText(/not found/i).or(page.getByText(/enter.*email/i)).or(page.locator('input[type="email"]')).first()
+    ).toBeVisible({ timeout: 10000 });
   });
 
   // ===================================
@@ -354,17 +361,26 @@ test.describe('Create Event', () => {
               !resp.url().includes('verify-pin')
     );
     
+    let postCount = 0;
+    page.on('request', req => {
+      if (req.method() === 'POST' && req.url().includes('/api/events') && !req.url().includes('/state')) {
+        postCount++;
+      }
+    });
+
     const createButton = page.getByRole('button', { name: /create event/i });
     
     // Fire multiple clicks rapidly using force to bypass actionability checks
     // The component's isSubmitting state should prevent duplicate API calls
     await createButton.click();
+    // Intentional: button may detach during navigation
     await createButton.click({ force: true }).catch(() => {});
     await createButton.click({ force: true }).catch(() => {});
     
     // Wait for the API response (only one should be made due to isSubmitting guard)
     const response = await responsePromise;
-    
+    expect(postCount).toBe(1);
+
     const data = await response.json();
     const createdEventId = data.eventId;
     expect(createdEventId).toBeTruthy();

@@ -23,7 +23,10 @@ const TRACKING_FILE = join(process.cwd(), '..', '.e2e-tracked-events.json');
  */
 export async function resetTestEventCounter() {
   try {
-    await fetch(`${API_URL}/api/test/reset-counter`, { method: 'POST' });
+    const response = await fetch(`${API_URL}/api/test/reset-counter`, { method: 'POST' });
+    if (!response.ok) {
+      console.warn('Failed to reset test counter:', response.status);
+    }
   } catch (error) {
     console.warn('Failed to reset test counter:', error.message);
   }
@@ -66,12 +69,11 @@ export function clearTrackedEvents() {
 /**
  * Create a test event via API
  * Backend auto-generates TEST#### IDs
- * @param {string} _eventId - DEPRECATED, ignored (kept for backwards compatibility)
  * @param {string} name - Event name
  * @param {string} pin - 6-digit PIN
  * @returns {string} The created event ID (TEST####)
  */
-export async function createTestEvent(_eventId, name, pin) {
+export async function createTestEvent(name, pin) {
   const body = { name, pin };
   
   const response = await fetch(`${API_URL}/api/test/events`, {
@@ -97,7 +99,7 @@ export async function deleteTestEvent(eventId) {
   });
   
   if (!response.ok) {
-    console.warn(`Failed to delete test event ${eventId}`);
+    console.warn(`Failed to delete test event ${eventId}: ${response.status} ${response.statusText}`);
   }
 }
 
@@ -154,18 +156,6 @@ export async function getUserToken(eventId, email, pin) {
  * Clear authentication (localStorage, sessionStorage, and httpOnly cookies)
  */
 export async function clearAuth(page) {
-  // First, call logout endpoint to clear httpOnly cookies (JWT, refresh token, CSRF)
-  // This is necessary because httpOnly cookies cannot be cleared from JavaScript
-  try {
-    await fetch(`${API_URL}/api/auth/logout`, {
-      method: 'POST',
-      credentials: 'include',
-    });
-  } catch {
-    // Ignore errors - server might not be running yet
-  }
-  
-  // Clear browser cookies directly via Playwright
   await page.context().clearCookies();
   
   // Navigate and clear client-side storage
@@ -250,11 +240,9 @@ export async function submitEmail(page, email) {
  * Enter a PIN in the PIN input field
  */
 export async function enterPIN(page, pin) {
-  // Check if we're on email page first
   const currentUrl = page.url();
   if (currentUrl.includes('/email')) {
-    await submitEmail(page, 'testuser@example.com');
-    await page.waitForURL(/\/pin$/, { timeout: 5000 });
+    throw new Error('enterPIN called while on email page - call submitEmail first');
   }
   
   // Enter PIN using input field (supports both old InputOTP and new Input component)
@@ -283,10 +271,11 @@ export async function submitPIN(page) {
   await submitButton.click();
 
   // Wait for either: navigation away from PIN page (success) or error message (failure)
-  await Promise.race([
-    page.waitForURL(url => !new URL(url).pathname.endsWith('/pin'), { timeout: 10000 }),
-    page.locator('[role="alert"], .text-destructive, .text-red-500').first().waitFor({ state: 'visible', timeout: 10000 }),
+  const outcome = await Promise.race([
+    page.waitForURL(url => !new URL(url).pathname.endsWith('/pin'), { timeout: 10000 }).then(() => 'navigated'),
+    page.locator('[role="alert"], .text-destructive, .text-red-500').first().waitFor({ state: 'visible', timeout: 10000 }).then(() => 'error'),
   ]);
+  return outcome;
 }
 
 /**
@@ -294,7 +283,7 @@ export async function submitPIN(page) {
  */
 export async function enterAndSubmitPIN(page, pin) {
   await enterPIN(page, pin);
-  await submitPIN(page);
+  return await submitPIN(page);
 }
 
 /**
@@ -303,13 +292,12 @@ export async function enterAndSubmitPIN(page, pin) {
 export async function getErrorMessage(page, { timeout = 5000 } = {}) {
   const errorLocator = page.locator('.text-destructive')
     .or(page.locator('.text-red-500'))
-    .or(page.locator('[role="alert"]'))
-    .or(page.getByText(/error/i))
-    .or(page.getByText(/invalid/i));
+    .or(page.locator('[role="alert"]'));
 
   try {
-    await errorLocator.first().waitFor({ state: 'visible', timeout });
-    return await errorLocator.first().textContent();
+    const el = errorLocator.first();
+    await el.waitFor({ state: 'visible', timeout });
+    return await el.textContent();
   } catch {
     return null;
   }
@@ -318,11 +306,6 @@ export async function getErrorMessage(page, { timeout = 5000 } = {}) {
 /**
  * Check if submit button is disabled (used for validation checks)
  */
-export async function isSubmitButtonDisabled(page) {
-  const submitButton = page.getByRole('button', { name: /access event/i });
-  return await submitButton.isDisabled();
-}
-
 /**
  * Get a root admin JWT token
  * Note: The email must be in the rootAdmins config array for actual root access
@@ -439,7 +422,7 @@ export async function authenticateViaOTP(page, email = 'creator@example.com') {
 
   await Promise.race([
     page.waitForURL(url => !url.href.includes('/auth'), { timeout: 15000 }),
-    page.waitForSelector('[data-testid="auth-success"]', { timeout: 15000 }),
+    page.locator('[data-testid="auth-success"]').waitFor({ state: 'visible', timeout: 15000 }),
   ]);
 }
 

@@ -228,9 +228,8 @@ test.describe('Similar Users Discovery', () => {
     const allTexts = await userEntries.allTextContents();
     const veryIdx = allTexts.findIndex(t => t.includes(verySimilarEmail));
     const lessIdx = allTexts.findIndex(t => t.includes(lessSimilarEmail));
-    if (lessIdx !== -1) {
-      expect(veryIdx).toBeLessThan(lessIdx);
-    }
+    expect(lessIdx).not.toBe(-1); // Less-similar user must appear in the list
+    expect(veryIdx).toBeLessThan(lessIdx);
   });
 
   test('shows user email in similar users list', async ({ page, testEvent }) => {

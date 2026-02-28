@@ -161,7 +161,7 @@ test.describe('Multi-Tenant Isolation', () => {
 
   test('parallel event creation generates unique IDs', async () => {
     const createPromises = Array.from({ length: 5 }, (_, i) =>
-      createTestEvent(null, `Parallel Event ${i + 1}`, testEventPin)
+      createTestEvent(`Parallel Event ${i + 1}`, testEventPin)
     );
     
     const createdIds = await Promise.all(createPromises);
@@ -179,8 +179,8 @@ test.describe('Multi-Tenant Isolation', () => {
 
   test('ratings in one event do not affect another event', async () => {
     // Create two separate events
-    const event1Id = await createTestEvent(null, 'Isolation Event 1', testEventPin);
-    const event2Id = await createTestEvent(null, 'Isolation Event 2', testEventPin);
+    const event1Id = await createTestEvent('Isolation Event 1', testEventPin);
+    const event2Id = await createTestEvent('Isolation Event 2', testEventPin);
     eventIds.push(event1Id, event2Id);
     
     // Setup both events
@@ -212,8 +212,8 @@ test.describe('Multi-Tenant Isolation', () => {
 
   test('parallel operations across events do not interfere', async () => {
     // Create two events
-    const event1Id = await createTestEvent(null, 'Parallel Ops Event 1', testEventPin);
-    const event2Id = await createTestEvent(null, 'Parallel Ops Event 2', testEventPin);
+    const event1Id = await createTestEvent('Parallel Ops Event 1', testEventPin);
+    const event2Id = await createTestEvent('Parallel Ops Event 2', testEventPin);
     eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
@@ -260,8 +260,8 @@ test.describe('Multi-Tenant Isolation', () => {
 
   test('user token from Event 1 cannot access Event 2 ratings endpoint', async () => {
     // Create two events
-    const event1Id = await createTestEvent(null, 'Token Isolation Event 1', testEventPin);
-    const event2Id = await createTestEvent(null, 'Token Isolation Event 2', testEventPin);
+    const event1Id = await createTestEvent('Token Isolation Event 1', testEventPin);
+    const event2Id = await createTestEvent('Token Isolation Event 2', testEventPin);
     eventIds.push(event1Id, event2Id);
     
     // Setup both events
@@ -284,8 +284,8 @@ test.describe('Multi-Tenant Isolation', () => {
   });
 
   test('user token from Event 1 cannot access Event 2 bookmarks endpoint', async () => {
-    const event1Id = await createTestEvent(null, 'Bookmark Auth Event 1', testEventPin);
-    const event2Id = await createTestEvent(null, 'Bookmark Auth Event 2', testEventPin);
+    const event1Id = await createTestEvent('Bookmark Auth Event 1', testEventPin);
+    const event2Id = await createTestEvent('Bookmark Auth Event 2', testEventPin);
     eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
@@ -314,8 +314,8 @@ test.describe('Multi-Tenant Isolation', () => {
   });
 
   test('user token from Event 1 cannot access Event 2 similar-users endpoint', async () => {
-    const event1Id = await createTestEvent(null, 'Similar Users Auth Event 1', testEventPin);
-    const event2Id = await createTestEvent(null, 'Similar Users Auth Event 2', testEventPin);
+    const event1Id = await createTestEvent('Similar Users Auth Event 1', testEventPin);
+    const event2Id = await createTestEvent('Similar Users Auth Event 2', testEventPin);
     eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
@@ -335,8 +335,8 @@ test.describe('Multi-Tenant Isolation', () => {
   });
 
   test('user token from Event 1 cannot submit rating to Event 2', async () => {
-    const event1Id = await createTestEvent(null, 'Rating Submit Auth Event 1', testEventPin);
-    const event2Id = await createTestEvent(null, 'Rating Submit Auth Event 2', testEventPin);
+    const event1Id = await createTestEvent('Rating Submit Auth Event 1', testEventPin);
+    const event2Id = await createTestEvent('Rating Submit Auth Event 2', testEventPin);
     eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
@@ -361,8 +361,8 @@ test.describe('Multi-Tenant Isolation', () => {
   });
 
   test('admin token from Event 1 cannot access Event 2 dashboard', async () => {
-    const event1Id = await createTestEvent(null, 'Dashboard Auth Event 1', testEventPin);
-    const event2Id = await createTestEvent(null, 'Dashboard Auth Event 2', testEventPin);
+    const event1Id = await createTestEvent('Dashboard Auth Event 1', testEventPin);
+    const event2Id = await createTestEvent('Dashboard Auth Event 2', testEventPin);
     eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
@@ -379,8 +379,8 @@ test.describe('Multi-Tenant Isolation', () => {
   });
 
   test('admin token from Event 1 cannot modify Event 2 state', async () => {
-    const event1Id = await createTestEvent(null, 'State Auth Event 1', testEventPin);
-    const event2Id = await createTestEvent(null, 'State Auth Event 2', testEventPin);
+    const event1Id = await createTestEvent('State Auth Event 1', testEventPin);
+    const event2Id = await createTestEvent('State Auth Event 2', testEventPin);
     eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
@@ -402,8 +402,8 @@ test.describe('Multi-Tenant Isolation', () => {
   });
 
   test('admin token from Event 1 cannot modify Event 2 item configuration', async () => {
-    const event1Id = await createTestEvent(null, 'Config Auth Event 1', testEventPin);
-    const event2Id = await createTestEvent(null, 'Config Auth Event 2', testEventPin);
+    const event1Id = await createTestEvent('Config Auth Event 1', testEventPin);
+    const event2Id = await createTestEvent('Config Auth Event 2', testEventPin);
     eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
@@ -430,8 +430,8 @@ test.describe('Multi-Tenant Isolation', () => {
 
   test('same email requires separate authentication per event', async () => {
     // Create two events
-    const event1Id = await createTestEvent(null, 'Same Email Event 1', testEventPin);
-    const event2Id = await createTestEvent(null, 'Same Email Event 2', testEventPin);
+    const event1Id = await createTestEvent('Same Email Event 1', testEventPin);
+    const event2Id = await createTestEvent('Same Email Event 2', testEventPin);
     eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin@example.com');
@@ -469,8 +469,8 @@ test.describe('Multi-Tenant Isolation', () => {
   // ===================================
 
   test('bookmarks in Event 1 do not appear in Event 2 (negative test)', async () => {
-    const event1Id = await createTestEvent(null, 'Bookmark Isolation Event 1', testEventPin);
-    const event2Id = await createTestEvent(null, 'Bookmark Isolation Event 2', testEventPin);
+    const event1Id = await createTestEvent('Bookmark Isolation Event 1', testEventPin);
+    const event2Id = await createTestEvent('Bookmark Isolation Event 2', testEventPin);
     eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
@@ -495,8 +495,8 @@ test.describe('Multi-Tenant Isolation', () => {
   });
 
   test('dashboard data is isolated between events', async () => {
-    const event1Id = await createTestEvent(null, 'Dashboard Isolation Event 1', testEventPin);
-    const event2Id = await createTestEvent(null, 'Dashboard Isolation Event 2', testEventPin);
+    const event1Id = await createTestEvent('Dashboard Isolation Event 1', testEventPin);
+    const event2Id = await createTestEvent('Dashboard Isolation Event 2', testEventPin);
     eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
@@ -528,8 +528,8 @@ test.describe('Multi-Tenant Isolation', () => {
   });
 
   test('similar users are isolated between events', async () => {
-    const event1Id = await createTestEvent(null, 'Similar Isolation Event 1', testEventPin);
-    const event2Id = await createTestEvent(null, 'Similar Isolation Event 2', testEventPin);
+    const event1Id = await createTestEvent('Similar Isolation Event 1', testEventPin);
+    const event2Id = await createTestEvent('Similar Isolation Event 2', testEventPin);
     eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
@@ -577,8 +577,8 @@ test.describe('Multi-Tenant Isolation', () => {
   });
 
   test('user profiles are isolated between events', async () => {
-    const event1Id = await createTestEvent(null, 'Profile Isolation Event 1', testEventPin);
-    const event2Id = await createTestEvent(null, 'Profile Isolation Event 2', testEventPin);
+    const event1Id = await createTestEvent('Profile Isolation Event 1', testEventPin);
+    const event2Id = await createTestEvent('Profile Isolation Event 2', testEventPin);
     eventIds.push(event1Id, event2Id);
     
     const admin1Token = await addAdminToEvent(event1Id, 'admin1@example.com');
@@ -777,7 +777,7 @@ test.describe('Race Conditions', () => {
   });
 
   test('optimistic locking prevents concurrent state transitions', async () => {
-    const testEventId = await createTestEvent(null, 'Race Condition Event', testEventPin);
+    const testEventId = await createTestEvent('Race Condition Event', testEventPin);
     eventIds.push(testEventId);
     
     // Add two admins
@@ -801,8 +801,8 @@ test.describe('Race Conditions', () => {
     expect(failures[0].data).toMatch(/state has changed|current state|refresh/i);
   });
 
-  test('user updates same rating rapidly - latest wins', async () => {
-    const testEventId = await createTestEvent(null, 'Rapid Rating Event', testEventPin);
+  test('concurrent duplicate ratings resolve to single rating', async () => {
+    const testEventId = await createTestEvent('Rapid Rating Event', testEventPin);
     eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
@@ -828,7 +828,7 @@ test.describe('Race Conditions', () => {
   });
 
   test('item config update during rating does not corrupt data', async () => {
-    const testEventId = await createTestEvent(null, 'Config During Rating Event', testEventPin);
+    const testEventId = await createTestEvent('Config During Rating Event', testEventPin);
     eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
@@ -860,7 +860,7 @@ test.describe('Race Conditions', () => {
   });
 
   test('concurrent state transitions from started state', async () => {
-    const testEventId = await createTestEvent(null, 'State Race Event', testEventPin);
+    const testEventId = await createTestEvent('State Race Event', testEventPin);
     eventIds.push(testEventId);
     
     const admin1Token = await addAdminToEvent(testEventId, 'admin1@example.com');
@@ -896,7 +896,7 @@ test.describe('Admin Concurrent Actions', () => {
   });
 
   test('two admins adding same administrator simultaneously', async () => {
-    const testEventId = await createTestEvent(null, 'Admin Add Race Event', testEventPin);
+    const testEventId = await createTestEvent('Admin Add Race Event', testEventPin);
     eventIds.push(testEventId);
     
     const admin1Token = await addAdminToEvent(testEventId, 'admin1@example.com');
@@ -918,7 +918,7 @@ test.describe('Admin Concurrent Actions', () => {
   });
 
   test('parallel PIN regeneration by multiple admins', async () => {
-    const testEventId = await createTestEvent(null, 'PIN Regen Race Event', testEventPin);
+    const testEventId = await createTestEvent('PIN Regen Race Event', testEventPin);
     eventIds.push(testEventId);
     
     const admin1Token = await addAdminToEvent(testEventId, 'admin1@example.com');
@@ -940,7 +940,7 @@ test.describe('Admin Concurrent Actions', () => {
   });
 
   test('concurrent item configuration updates', async () => {
-    const testEventId = await createTestEvent(null, 'Config Race Event', testEventPin);
+    const testEventId = await createTestEvent('Config Race Event', testEventPin);
     eventIds.push(testEventId);
     
     const admin1Token = await addAdminToEvent(testEventId, 'admin1@example.com');
@@ -977,7 +977,7 @@ test.describe('Cache Consistency', () => {
     // This test verifies that multiple concurrent write operations all complete
     // and their results are eventually visible when read.
     
-    const testEventId = await createTestEvent(null, 'Cache Read Event', testEventPin);
+    const testEventId = await createTestEvent('Cache Read Event', testEventPin);
     eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
@@ -1021,7 +1021,7 @@ test.describe('Cache Consistency', () => {
     // 3. Count is within valid range (0 to N)
     // 4. After writes complete, all data is visible (eventual consistency)
     
-    const testEventId = await createTestEvent(null, 'Reads During Writes Event', testEventPin);
+    const testEventId = await createTestEvent('Reads During Writes Event', testEventPin);
     eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
@@ -1070,7 +1070,7 @@ test.describe('Cache Consistency', () => {
   });
 
   test('dashboard data consistency during concurrent ratings', async () => {
-    const testEventId = await createTestEvent(null, 'Dashboard Cache Event', testEventPin);
+    const testEventId = await createTestEvent('Dashboard Cache Event', testEventPin);
     eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
@@ -1121,7 +1121,7 @@ test.describe('Event Lifecycle Concurrency', () => {
   });
 
   test('rating during state transition to paused', async () => {
-    const testEventId = await createTestEvent(null, 'Lifecycle Race Event', testEventPin);
+    const testEventId = await createTestEvent('Lifecycle Race Event', testEventPin);
     eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
@@ -1146,7 +1146,7 @@ test.describe('Event Lifecycle Concurrency', () => {
   });
 
   test('bookmark during event completion', async () => {
-    const testEventId = await createTestEvent(null, 'Complete During Bookmark Event', testEventPin);
+    const testEventId = await createTestEvent('Complete During Bookmark Event', testEventPin);
     eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
@@ -1168,7 +1168,7 @@ test.describe('Event Lifecycle Concurrency', () => {
   });
 
   test('similar users request during event state change', async () => {
-    const testEventId = await createTestEvent(null, 'Similar Users Lifecycle Event', testEventPin);
+    const testEventId = await createTestEvent('Similar Users Lifecycle Event', testEventPin);
     eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
@@ -1215,7 +1215,7 @@ test.describe('Rate Limiting', () => {
   });
 
   test('burst rating submissions from same user', async () => {
-    const testEventId = await createTestEvent(null, 'Rate Limit Event', testEventPin);
+    const testEventId = await createTestEvent('Rate Limit Event', testEventPin);
     eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
@@ -1243,7 +1243,7 @@ test.describe('Rate Limiting', () => {
   });
 
   test('multiple users within rate limit windows', async () => {
-    const testEventId = await createTestEvent(null, 'Multi User Rate Limit Event', testEventPin);
+    const testEventId = await createTestEvent('Multi User Rate Limit Event', testEventPin);
     eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
@@ -1271,7 +1271,7 @@ test.describe('Rate Limiting', () => {
   });
 
   test('sustained low-rate submissions stay within limits', async () => {
-    const testEventId = await createTestEvent(null, 'Sustained Rate Event', testEventPin);
+    const testEventId = await createTestEvent('Sustained Rate Event', testEventPin);
     eventIds.push(testEventId);
     
     const adminToken = await addAdminToEvent(testEventId, 'admin@example.com');
@@ -1309,7 +1309,7 @@ test.describe('Full Concurrent Workflow', () => {
 
   test('complete event lifecycle with concurrent operations', async () => {
     // Create event
-    const testEventId = await createTestEvent(null, 'Full Workflow Event', testEventPin);
+    const testEventId = await createTestEvent('Full Workflow Event', testEventPin);
     eventIds.push(testEventId);
     
     // Setup admins

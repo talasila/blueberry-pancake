@@ -32,14 +32,10 @@ async function createEventViaUI(page, eventName = 'Welcome Sheet Test') {
   await createButton.click();
 
   const response = await responsePromise;
-  let eventId = null;
-  try {
-    const data = await response.json();
-    eventId = data.eventId;
-    if (eventId) trackEventForCleanup(eventId);
-  } catch {
-    /* ignore */
-  }
+  const data = await response.json();
+  const eventId = data.eventId;
+  if (!eventId) throw new Error('No eventId returned from create-event API');
+  trackEventForCleanup(eventId);
 
   await page.waitForURL(/\/event\/[0-9A-Z]{8}\/admin/, { timeout: 10000 });
   return eventId;

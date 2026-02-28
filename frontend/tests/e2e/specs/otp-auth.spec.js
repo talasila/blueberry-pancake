@@ -59,7 +59,7 @@ test.describe('OTP Authentication', () => {
     await verifyButton.click();
     
     // Wait for success message and redirect
-    await expect(page.locator('text=/authentication successful/i')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/authentication successful/i)).toBeVisible({ timeout: 5000 });
     
     // Should be redirected to event page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`), { timeout: 5000 });
@@ -69,11 +69,6 @@ test.describe('OTP Authentication', () => {
     expect(session).toBeTruthy();
     const parsed = JSON.parse(session);
     expect(parsed.email).toBeTruthy();
-    
-    await expect(page).toHaveURL(new RegExp(`/event/${eventId}`));
-    await expect(page).not.toHaveURL(/\/email/);
-    await expect(page).not.toHaveURL(/\/pin/);
-    await expect(page).not.toHaveURL(/\/otp/);
     
     // Verify admin can access the admin page
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -100,6 +95,7 @@ test.describe('OTP Authentication', () => {
     
     // Should show error message (matches all backend error variants)
     await expect(page.locator('.text-destructive')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.text-destructive')).toContainText(/invalid|incorrect|expired|error|failed|suspended/i, { timeout: 10000 });
   });
 
   // ===================================
@@ -107,7 +103,7 @@ test.describe('OTP Authentication', () => {
   // ===================================
 
   test('shows error for invalid OTP when admin tries to login', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'invalidotpadmin@example.com';
     const INVALID_OTP = '999999';
     

@@ -12,7 +12,7 @@ export default defineConfig({
   fullyParallel: true, // Tests run in parallel - each test has isolated fixtures
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: 12, // Auto-detect CPU cores
+  workers: process.env.CI ? 4 : undefined, // CI: limit to 4; local: auto-detect
   reporter: 'html',
   timeout: 60000, // 60 seconds per test
   
@@ -33,7 +33,6 @@ export default defineConfig({
       name: 'mobile',
       use: {
         ...devices['iPhone 12'],
-        viewport: { width: 375, height: 667 },
       },
     },
   ],

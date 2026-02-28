@@ -26,11 +26,11 @@ export default async function globalSetup() {
     if (response.ok) {
       console.log('[E2E Setup] Test event counter reset');
     } else {
-      console.warn('[E2E Setup] Failed to reset counter:', response.status);
+      throw new Error(`[E2E Setup] Failed to reset counter: ${response.status}`);
     }
   } catch (error) {
-    console.warn('[E2E Setup] Could not connect to backend to reset counter:', error.message);
-    console.warn('[E2E Setup] Make sure the backend is running on', API_URL);
+    console.error('[E2E Setup] Backend is not running on', API_URL);
+    throw new Error(`E2E Setup failed: backend unreachable at ${API_URL}. ${error.message}`);
   }
   
   // 2. Clear any leftover tracking file from previous runs

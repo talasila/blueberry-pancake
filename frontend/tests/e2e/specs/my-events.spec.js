@@ -65,7 +65,7 @@ test.describe('My Events', () => {
 
   test('shows events list with event details for admin with events', async ({ page }) => {
     // Create a test event and add an admin
-    const eventId = await createTestEvent(null, 'My Events Test', '654321');
+    const eventId = await createTestEvent('My Events Test', '654321');
     const token = await addAdminToEvent(eventId, 'list-test@example.com');
 
     try {
@@ -81,7 +81,7 @@ test.describe('My Events', () => {
   });
 
   test('clicking event in list navigates to admin page', async ({ page }) => {
-    const eventId = await createTestEvent(null, 'Click Nav Test', '654321');
+    const eventId = await createTestEvent('Click Nav Test', '654321');
     const token = await addAdminToEvent(eventId, 'clicknav@example.com');
 
     try {
@@ -100,7 +100,7 @@ test.describe('My Events', () => {
   });
 
   test('header menu shows My Events for OTP-authenticated admin and navigates on click', async ({ page }) => {
-    const eventId = await createTestEvent(null, 'Header Menu Test', '654321');
+    const eventId = await createTestEvent('Header Menu Test', '654321');
     const token = await addAdminToEvent(eventId, 'headermenu@example.com');
 
     try {
@@ -123,7 +123,7 @@ test.describe('My Events', () => {
   });
 
   test('header menu does not show My Events for PIN-authenticated user', async ({ page }) => {
-    const eventId = await createTestEvent(null, 'PIN Menu Test', '654321');
+    const eventId = await createTestEvent('PIN Menu Test', '654321');
 
     try {
       const token = await getUserToken(eventId, 'pin-user@example.com', '654321');
@@ -170,35 +170,32 @@ test.describe('My Events', () => {
     await createButton.click();
 
     const response = await responsePromise;
-    let createdEventId = null;
+    const data = await response.json();
+    const createdEventId = data.eventId;
+    if (!createdEventId) throw new Error('No eventId returned from create event');
+
     try {
-      const data = await response.json();
-      createdEventId = data.eventId;
-    } catch { /* ignore */ }
+      // Wait for redirect to admin page
+      await page.waitForURL(/\/event\/[0-9A-Z]{8}\/admin/, { timeout: 10000 });
 
-    // Wait for redirect to admin page
-    await page.waitForURL(/\/event\/[0-9A-Z]{8}\/admin/, { timeout: 10000 });
-
-    // Dismiss welcome bottom sheet if present
-    const sheet = page.locator('[data-testid="welcome-bottom-sheet"]');
-    if (await sheet.isVisible({ timeout: 3000 }).catch(() => false)) {
-      const closeBtn = sheet.getByRole('button', { name: /close|dismiss|got it/i });
-      if (await closeBtn.isVisible().catch(() => false)) {
-        await closeBtn.click();
+      // Dismiss welcome bottom sheet if present
+      const sheet = page.locator('[data-testid="welcome-bottom-sheet"]');
+      if (await sheet.isVisible({ timeout: 3000 }).catch(() => false)) {
+        const closeBtn = sheet.getByRole('button', { name: /close|dismiss|got it/i });
+        if (await closeBtn.isVisible().catch(() => false)) {
+          await closeBtn.click();
+        }
       }
-    }
 
-    // Open hamburger menu
-    const menuButton = page.getByRole('button', { name: /open menu/i });
-    await expect(menuButton).toBeVisible({ timeout: 10000 });
-    await menuButton.click();
+      // Open hamburger menu
+      const menuButton = page.getByRole('button', { name: /open menu/i });
+      await expect(menuButton).toBeVisible({ timeout: 10000 });
+      await menuButton.click();
 
-    // "My Events" must still be visible after event creation
-    const myEventsItem = page.locator('button[role="menuitem"]', { hasText: 'My Events' });
-    await expect(myEventsItem).toBeVisible({ timeout: 5000 });
-
-    // Cleanup
-    if (createdEventId) {
+      // "My Events" must still be visible after event creation
+      const myEventsItem = page.locator('button[role="menuitem"]', { hasText: 'My Events' });
+      await expect(myEventsItem).toBeVisible({ timeout: 5000 });
+    } finally {
       await deleteTestEvent(createdEventId);
     }
   });
@@ -217,7 +214,7 @@ test.describe('Standalone Page Logout Icon', () => {
   });
 
   test('my-events page shows logout icon instead of hamburger menu', async ({ page }) => {
-    const eventId = await createTestEvent(null, 'Logout Icon Test', '654321');
+    const eventId = await createTestEvent('Logout Icon Test', '654321');
     const token = await addAdminToEvent(eventId, 'logout-icon@example.com');
 
     try {
@@ -237,7 +234,7 @@ test.describe('Standalone Page Logout Icon', () => {
   });
 
   test('create-event page shows logout icon instead of hamburger menu', async ({ page }) => {
-    const eventId = await createTestEvent(null, 'Create Page Test', '654321');
+    const eventId = await createTestEvent('Create Page Test', '654321');
     const token = await addAdminToEvent(eventId, 'create-icon@example.com');
 
     try {
@@ -257,7 +254,7 @@ test.describe('Standalone Page Logout Icon', () => {
   });
 
   test('event page still shows hamburger menu with standard items', async ({ page }) => {
-    const eventId = await createTestEvent(null, 'Menu Regression Test', '654321');
+    const eventId = await createTestEvent('Menu Regression Test', '654321');
     const token = await addAdminToEvent(eventId, 'menu-reg@example.com');
 
     try {

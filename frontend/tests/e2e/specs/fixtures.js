@@ -47,7 +47,7 @@ export const test = base.extend({
     const pin = DEFAULT_TEST_PIN;
     
     // Create the event
-    const eventId = await createTestEvent(null, eventName, pin);
+    const eventId = await createTestEvent(eventName, pin);
     
     // Provide the event to the test
     await use({ eventId, pin });
