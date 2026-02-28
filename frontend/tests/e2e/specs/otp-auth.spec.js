@@ -16,7 +16,7 @@ test.describe('OTP Authentication', () => {
   });
 
 
-  test('verifies test OTP (123456) successfully in dev environment', async ({ page, testEvent }) => {
+  test('verifies test OTP successfully in dev environment', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'otpadmin@example.com';
     
@@ -91,9 +91,9 @@ test.describe('OTP Authentication', () => {
     await expect(verifyButton).toBeVisible({ timeout: 5000 });
     await verifyButton.click();
     
-    // Should show error message (matches all backend error variants)
+    // Should show OTP-specific error message
     await expect(page.locator('.text-destructive')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('.text-destructive')).toContainText(/invalid|incorrect|expired|error|failed|suspended/i, { timeout: 10000 });
+    await expect(page.locator('.text-destructive')).toContainText(/invalid.*otp|incorrect.*code|otp.*expired|verification.*failed|too many failed attempts/i, { timeout: 10000 });
   });
 
   // ===================================
@@ -153,6 +153,8 @@ test.describe('OTP Authentication', () => {
   // Edge Cases
   // ===================================
 
+  // Tests form validation UI only — verifies the submit button is disabled when
+  // no email is entered. Does not test actual form submission behavior.
   test('handles empty email submission', async ({ page }) => {
     await page.goto(`${BASE_URL}/auth`);
     
@@ -173,8 +175,8 @@ test.describe('OTP Authentication', () => {
     // Navigate to /auth with a target redirect
     await page.goto(`${BASE_URL}/auth`);
 
-    // Should redirect to landing page (the default 'from' is '/')
-    // and NOT show the sign-in form
+    // Should redirect away from /auth. The destination depends on the 'from' query param
+    // (defaults to '/'), so we use a negative assertion rather than a specific URL.
     await expect(page).not.toHaveURL(/\/auth/, { timeout: 5000 });
   });
 });

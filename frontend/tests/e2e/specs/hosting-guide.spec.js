@@ -63,6 +63,8 @@ test.describe('US1: Guide access from any page', () => {
   test('guide closes on backdrop click', async ({ page }) => {
     await page.goto(BASE_URL);
     await openGuide(page);
+    // Fragile: hardcoded y=80 assumes the backdrop is visible at this coordinate.
+    // Could break with layout/header height changes.
     const viewport = page.viewportSize();
     await page.mouse.click(viewport.width / 2, 80);
     await expect(page.locator('[role="dialog"][aria-label="Hosting guide"]')).toBeHidden({ timeout: 3000 });

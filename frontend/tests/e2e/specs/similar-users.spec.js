@@ -37,9 +37,12 @@ test.describe('Similar Users Discovery', () => {
     await submitEmail(page, 'user@example.com');
     await enterAndSubmitPIN(page, pin);
     
+    // Gate: wait for the main event page content to render before negative assertion
+    await expect(page.getByText(/event has not started yet|tap a number/i)).toBeVisible({ timeout: 10000 });
+
     // Similar users button should NOT be visible (no ratings yet)
     const similarButton = page.getByRole('button', { name: /similar.*taste|find.*similar/i });
-    await expect(similarButton).not.toBeVisible();
+    await expect(similarButton).not.toBeVisible({ timeout: 5000 });
   });
 
   test('Find Similar Tastes button appears after 3+ ratings', async ({ page, testEvent }) => {
@@ -228,6 +231,7 @@ test.describe('Similar Users Discovery', () => {
       const allTexts = await userEntries.allTextContents();
       const veryIdx = allTexts.findIndex(t => t.includes(verySimilarEmail));
       const lessIdx = allTexts.findIndex(t => t.includes(lessSimilarEmail));
+      expect(veryIdx).not.toBe(-1);
       expect(lessIdx).not.toBe(-1);
       expect(veryIdx).toBeLessThan(lessIdx);
     }).toPass({ timeout: 10000 });
@@ -312,9 +316,12 @@ test.describe('Similar Users Discovery', () => {
     await submitEmail(page, 'user@example.com');
     await enterAndSubmitPIN(page, pin);
     
+    // Gate: wait for the main event page content to render before negative assertion
+    await expect(page.getByText(/event has not started yet/i)).toBeVisible({ timeout: 10000 });
+
     // Similar users button should NOT be visible (event not started)
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
-    await expect(similarButton).not.toBeVisible();
+    await expect(similarButton).not.toBeVisible({ timeout: 5000 });
   });
 
   test('drawer shows loading state structure', async ({ page, testEvent }) => {
@@ -346,7 +353,11 @@ test.describe('Similar Users Discovery', () => {
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer).toBeVisible({ timeout: 5000 });
     
-    // Should eventually show either loading, results, or no matches message - scope to drawer
+    // The regex below matches both the loading text ("Running compatibility scanner")
+    // and the final empty-state ("No similar users found").  Because the API call
+    // typically resolves before our assertion runs, this effectively verifies the
+    // final state rather than a true loading-spinner check.  A reliable loading-state
+    // test would require network throttling or request interception.
     const content = drawer.getByText(/running compatibility scanner|no similar users found/i);
     await expect(content.first()).toBeVisible({ timeout: 10000 });
   });
@@ -422,6 +433,9 @@ test.describe('Similar Users Discovery', () => {
     const closeButton = drawer.getByRole('button', { name: /close/i });
     await closeButton.click();
     
+    // Implementation-coupled: the drawer uses CSS transform to hide, so Playwright's
+    // not.toBeVisible() doesn't work reliably. Checking aria-hidden is the
+    // most reliable signal that the drawer has closed.
     await expect(drawer).toHaveAttribute('aria-hidden', 'true', { timeout: 5000 });
   });
 

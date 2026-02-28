@@ -34,16 +34,20 @@ async function navigateToAdminWithConfig(page, eventId, token, email) {
       if (responseCount >= 2) {
         page.off('response', handler);
         resolve();
-      } else {
-        // First response arrived — give the second 1s to arrive
-        setTimeout(() => { page.off('response', handler); resolve(); }, 1000);
       }
     };
     page.on('response', handler);
   });
 
   await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-  await allConfigSettled;
+
+  await page.waitForLoadState('networkidle');
+  if (responseCount < 2) {
+    await allConfigSettled.catch(() => {});
+  }
+  page.removeAllListeners('response');
+  // Allow React to process the final API response and update component state
+  await page.waitForTimeout(500);
 }
 
 /**
@@ -124,7 +128,7 @@ test.describe('Item Configuration', () => {
     
     // Verify success (toast or no error) - scope to drawer to avoid matching event name
     const drawer = page.locator('[role="dialog"]');
-    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 });
+    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 5000 });
 
     // Verify persistence: reload and check value
     await page.reload();
@@ -137,8 +141,7 @@ test.describe('Item Configuration', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
+    await navigateToAdminWithConfig(page, eventId, token, adminEmail);
     
     // Open the Bottles drawer
     await openBottlesDrawer(page);
@@ -192,7 +195,7 @@ test.describe('Item Configuration', () => {
     
     // Verify success (no error visible) - scope to drawer
     const drawer = page.locator('[role="dialog"]');
-    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 });
+    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 5000 });
     
     // Step 2: Admin logs out
     await clearAuth(page);
@@ -317,7 +320,7 @@ test.describe('Item Configuration', () => {
     
     // Should normalize to 5,10 (no error) - scope to drawer
     const drawer = page.locator('[role="dialog"]');
-    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 });
+    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 5000 });
 
     await page.reload();
     await openBottlesDrawer(page);
@@ -343,7 +346,7 @@ test.describe('Item Configuration', () => {
     
     // Should handle duplicates (treat as single exclusion, no error) - scope to drawer
     const drawer = page.locator('[role="dialog"]');
-    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 });
+    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 5000 });
 
     await page.reload();
     await openBottlesDrawer(page);
@@ -369,7 +372,7 @@ test.describe('Item Configuration', () => {
     
     // Should trim whitespace and process correctly (no error) - scope to drawer
     const drawer = page.locator('[role="dialog"]');
-    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 });
+    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 5000 });
 
     await page.reload();
     await openBottlesDrawer(page);

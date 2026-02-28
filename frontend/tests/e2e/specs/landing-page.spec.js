@@ -81,6 +81,8 @@ test.describe('Landing Page', () => {
   // Edge Cases
   // ===================================
 
+  // Verifies the input field accepts long text without crashing or truncating.
+  // Does not test app behavior (e.g. validation or error) for oversized event IDs.
   test('handles long event ID input', async ({ page }) => {
     const eventIdInput = page.locator('input#event-id');
     const longText = 'A'.repeat(100);
@@ -104,8 +106,6 @@ test.describe('Landing Page', () => {
   });
 
   test('page loads and renders key elements', async ({ page }) => {
-    await page.goto(BASE_URL);
-
     // Verify all key elements render without errors
     await expect(page.locator('input#event-id')).toBeVisible();
     await expect(page.getByRole('button', { name: /join/i })).toBeVisible();
@@ -138,7 +138,6 @@ test.describe('Landing Page - Authenticated User', () => {
     await createButton.click();
 
     await expect(page).toHaveURL(/\/create-event/, { timeout: 5000 });
-    await expect(page).not.toHaveURL(/\/auth/);
 
     const nameInput = page.locator('input#event-name').or(page.getByLabel(/event name/i));
     await expect(nameInput).toBeVisible({ timeout: 5000 });
@@ -151,7 +150,6 @@ test.describe('Landing Page - Authenticated User', () => {
     await myEventsButton.click();
 
     await expect(page).toHaveURL(/\/my-events/, { timeout: 5000 });
-    await expect(page).not.toHaveURL(/\/auth/);
 
     await expect(page.getByText('My Events')).toBeVisible({ timeout: 5000 });
   });

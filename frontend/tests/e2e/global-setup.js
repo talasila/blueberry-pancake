@@ -21,6 +21,7 @@ export default async function globalSetup() {
   try {
     const response = await fetch(`${API_URL}/api/test/reset-counter`, {
       method: 'POST',
+      signal: AbortSignal.timeout(10000),
     });
     
     if (response.ok) {
@@ -29,6 +30,8 @@ export default async function globalSetup() {
       throw new Error(`[E2E Setup] Failed to reset counter: ${response.status}`);
     }
   } catch (error) {
+    // String-matching is fragile (e.g. message wording changes break this),
+    // but acceptable here since we control the thrown message above.
     if (error.message?.includes('Failed to reset counter')) {
       throw error;
     }
@@ -38,7 +41,7 @@ export default async function globalSetup() {
 
   // 2. Verify frontend is reachable
   try {
-    const frontendResp = await fetch(BASE_URL, { method: 'HEAD' });
+    const frontendResp = await fetch(BASE_URL, { method: 'HEAD', signal: AbortSignal.timeout(10000) });
     if (!frontendResp.ok) {
       throw new Error(`Frontend returned ${frontendResp.status}`);
     }

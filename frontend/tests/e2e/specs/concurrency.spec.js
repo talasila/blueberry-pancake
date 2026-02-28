@@ -36,9 +36,12 @@ async function getRatings(eventId, token) {
   return parseCSV(csvText);
 }
 
+// Naive CSV parser — splits on commas without handling quoted fields,
+// escaped commas, or multi-line values.  Sufficient for the simple CSV
+// format returned by the ratings export API.
 function parseCSV(csvText) {
   const lines = csvText.trim().split('\n');
-  if (lines.length === 0) return [];
+  if (lines.length <= 1) return []; // only header or empty after trim
   
   const headers = lines[0].split(',');
   const ratings = [];
@@ -222,7 +225,9 @@ test.describe('Multi-Tenant Isolation', () => {
     ]);
     
     // All operations should succeed
-    operations.forEach(result => expect(result.ok).toBe(true));
+    for (const [i, result] of operations.entries()) {
+      expect(result.ok, `cross-event operation[${i}] failed (status ${result.status})`).toBe(true);
+    }
     
     // Verify Event 1 config was updated
     const event1 = await getEvent(event1Id, admin1Token);
@@ -662,7 +667,9 @@ test.describe('Concurrent User Actions', () => {
     const results = await Promise.all(ratingPromises);
     
     // All API calls should succeed
-    results.forEach(result => expect(result.ok).toBe(true));
+    for (const [i, result] of results.entries()) {
+      expect(result.ok, `simultaneous rating[${i}] failed (status ${result.status})`).toBe(true);
+    }
     
     // Verify ALL 5 ratings are preserved (this would fail without the mutex fix)
     const ratings = await getRatings(testEventId, users[0]);
@@ -697,7 +704,9 @@ test.describe('Concurrent User Actions', () => {
     ];
     
     const results = await Promise.all(bookmarkPromises);
-    results.forEach(result => expect(result.ok).toBe(true));
+    for (const [i, result] of results.entries()) {
+      expect(result.ok, `bookmark save[${i}] failed (status ${result.status})`).toBe(true);
+    }
     
     // Verify each user has their own bookmarks
     const bookmarks0 = await getBookmarks(testEventId, users[0]);
@@ -721,10 +730,10 @@ test.describe('Concurrent User Actions', () => {
     const tokens = await Promise.all(joinPromises);
     
     // All users should get valid tokens
-    tokens.forEach(token => {
-      expect(token).toBeTruthy();
-      expect(token.length).toBeGreaterThan(0);
-    });
+    for (const [i, token] of tokens.entries()) {
+      expect(token, `user[${i}] token is falsy`).toBeTruthy();
+      expect(token.length, `user[${i}] token is empty`).toBeGreaterThan(0);
+    }
   });
 
   test('rating and bookmark same item concurrently', async ({ testEvent }) => {
@@ -807,7 +816,9 @@ test.describe('Race Conditions', () => {
     ]);
     
     // All should succeed (replace semantics)
-    results.forEach(result => expect(result.ok).toBe(true));
+    for (const [i, result] of results.entries()) {
+      expect(result.ok, `duplicate rating[${i}] failed (status ${result.status})`).toBe(true);
+    }
     
     // Only one rating should exist for this item (latest)
     const ratings = await getRatings(testEventId, userToken);
@@ -1126,8 +1137,11 @@ test.describe('Event Lifecycle Concurrency', () => {
     // State transition should succeed
     expect(pauseResult.ok).toBe(true);
     
-    // Rating might succeed or fail depending on timing
-    // If it fails, should be because event is paused
+    // Rating might succeed or fail depending on timing.
+    // This branch only executes when the pause wins the race, so the assertion
+    // is inherently conditional.  We always validate the response is well-formed:
+    // success (200) or a clear rejection — never a 500.
+    expect(ratingResult.status).toBeLessThan(500);
     if (!ratingResult.ok) {
       expect(ratingResult.data).toMatch(/not in started state|paused/i);
     }
@@ -1202,7 +1216,11 @@ test.describe('Rate Limiting', () => {
     await cleanupEvents(eventIds);
   });
 
-  test('burst rating submissions from same user', async () => {
+  test('burst submissions all get valid responses (200 or 429)', async () => {
+    // Validates the server handles rapid bursts gracefully (no 500s or
+    // unexpected errors).  Every response must be either a success (200) or a
+    // rate-limit rejection (429).  This does NOT assert that rate limiting is
+    // active — only that the server never returns a server error under burst load.
     const testEventId = await createTestEvent('Rate Limit Event', DEFAULT_TEST_PIN);
     eventIds.push(testEventId);
     
@@ -1222,11 +1240,10 @@ test.describe('Rate Limiting', () => {
     const successes = results.filter(r => r.ok);
     const rateLimited = results.filter(r => r.status === 429);
     
-    // Either all succeed (no rate limiting) or some are rate limited
+    // Every response must be either 200 or 429 — no 500s
     expect(successes.length + rateLimited.length).toBe(20);
     
-    // If rate limiting is enabled, some should be limited
-    // If not, all should succeed
+    // At least some requests must succeed
     expect(successes.length).toBeGreaterThan(0);
   });
 
@@ -1253,9 +1270,9 @@ test.describe('Rate Limiting', () => {
     
     const results = await Promise.all(allPromises);
     
-    // Most should succeed (rate limits are per-user, not global)
+    // Most should succeed (rate limits are per-user, so cross-user requests rarely conflict)
     const successes = results.filter(r => r.ok);
-    expect(successes.length).toBeGreaterThanOrEqual(20); // At least 20 of 30
+    expect(successes.length).toBeGreaterThanOrEqual(25); // At least 25 of 30 (83%)
   });
 
   test('sustained low-rate submissions stay within limits', async () => {
@@ -1276,7 +1293,9 @@ test.describe('Rate Limiting', () => {
     }
     
     // All should succeed with paced requests
-    results.forEach(result => expect(result.ok).toBe(true));
+    for (const [i, result] of results.entries()) {
+      expect(result.ok, `paced rating[${i}] failed (status ${result.status})`).toBe(true);
+    }
     
     // Verify all ratings exist
     const ratings = await getRatings(testEventId, userToken);
@@ -1337,7 +1356,9 @@ test.describe('Full Concurrent Workflow', () => {
       regeneratePIN(testEventId, admin2Token),
     ]);
     
-    phase2Ops.forEach(result => expect(result.ok).toBe(true));
+    for (const [i, result] of phase2Ops.entries()) {
+      expect(result.ok, `phase2 operation[${i}] failed (status ${result.status})`).toBe(true);
+    }
     
     // Phase 3: Complete event and verify final state
     const completeResult = await changeEventState(testEventId, 'completed', 'started', ownerToken);

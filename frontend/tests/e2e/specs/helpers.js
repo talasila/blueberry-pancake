@@ -90,6 +90,9 @@ export async function addAdminToEvent(eventId, email) {
  * The backend sets the JWT as an httpOnly cookie on auth responses.
  */
 function extractJWTFromCookie(response) {
+  // Note: headers.get('set-cookie') may concatenate multiple Set-Cookie headers
+  // with commas, which could break parsing if cookie values contain commas.
+  // Acceptable here since we only need to match the jwt_token cookie.
   const setCookie = response.headers.get('set-cookie');
   if (!setCookie) return null;
   const match = setCookie.match(/jwt_token=([^;]+)/);
@@ -173,18 +176,16 @@ export async function submitEmail(page, email) {
   }
   
   const emailInput = page.locator('input#email');
-  const isEmailInputVisible = await emailInput.isVisible().catch(() => false);
-  
-  if (!isEmailInputVisible) {
-    const pinInput = page.locator('input#pin')
-      .or(page.locator('input[type="text"][maxlength="6"]'))
-      .first();
-    if (await pinInput.isVisible().catch(() => false)) {
-      return;
-    }
+  const pinInput = page.locator('input#pin')
+    .or(page.locator('input[type="text"][maxlength="6"]'))
+    .first();
+
+  const visibleLocator = emailInput.or(pinInput);
+  await visibleLocator.first().waitFor({ state: 'visible', timeout: 5000 });
+
+  if (await pinInput.isVisible().catch(() => false)) {
+    return;
   }
-  
-  await emailInput.waitFor({ state: 'visible', timeout: 5000 });
   await emailInput.fill(email);
   
   const continueButton = page.getByRole('button', { name: /continue/i });
@@ -196,11 +197,13 @@ export async function submitEmail(page, email) {
  * Enter a PIN in the PIN input field
  */
 export async function enterPIN(page, pin) {
-  const currentUrl = page.url();
-  if (currentUrl.includes('/email')) {
-    throw new Error('enterPIN called while on email page - call submitEmail first');
-  }
+  await page.waitForURL(url => !new URL(url).pathname.endsWith('/email'), { timeout: 5000 })
+    .catch(() => {
+      throw new Error('enterPIN called while on email page - call submitEmail first');
+    });
   
+  // maxlength="6" is not OTP-specific — it matches any 6-char text input.
+  // Acceptable here because we combine it with #pin and [data-input-otp] via .or().
   const pinInput = page.locator('input#pin')
     .or(page.locator('input[type="text"][maxlength="6"]'))
     .or(page.locator('[data-input-otp]'))
@@ -391,8 +394,10 @@ export async function authenticateViaOTP(page, email = 'creator@example.com') {
   await expect(verifyButton).toBeVisible({ timeout: 5000 });
   await verifyButton.click();
 
+  // The losing branch of Promise.race continues running in the background;
+  // this is expected — both waiters are harmless once the page has settled.
   await Promise.race([
-    page.waitForURL(url => !url.href.includes('/auth'), { timeout: 15000 }),
+    page.waitForURL(url => !/\/auth\b/.test(url.pathname), { timeout: 15000 }),
     page.locator('[data-testid="auth-success"]').waitFor({ state: 'visible', timeout: 15000 }),
   ]);
 }

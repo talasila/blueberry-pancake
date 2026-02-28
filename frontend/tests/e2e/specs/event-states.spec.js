@@ -38,7 +38,9 @@ test.describe('Event State Management', () => {
     await expect(notStartedMessage).toBeVisible();
     
     // Click on one of the 20 bottle items to try rating
-    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
+    // Scope to the item grid to avoid matching pagination or tab buttons
+    const itemGrid = page.locator('.grid.grid-cols-3');
+    const bottleItem = itemGrid.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     // Drawer should open with message that rating is not available
@@ -85,7 +87,8 @@ test.describe('Event State Management', () => {
     await expect(rateMessage).toBeVisible();
     
     // Click on a bottle item to open rating drawer
-    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
+    const itemGrid = page.locator('.grid.grid-cols-3');
+    const bottleItem = itemGrid.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     // Drawer should open with rating selector
@@ -159,8 +162,9 @@ test.describe('Event State Management', () => {
     const pausedMessage = page.getByText('Event is paused');
     await expect(pausedMessage).toBeVisible();
     
-    // Click on a bottle item to try rating
-    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
+    // Click on a bottle item to try rating (scoped to item grid)
+    const itemGrid = page.locator('.grid.grid-cols-3');
+    const bottleItem = itemGrid.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     // Drawer should open with message that rating is not available
@@ -208,8 +212,9 @@ test.describe('Event State Management', () => {
     const rateMessage = page.getByText('Tap a number to rate');
     await expect(rateMessage).toBeVisible();
     
-    // Click on a bottle item to open rating drawer
-    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
+    // Click on a bottle item to open rating drawer (scoped to item grid)
+    const itemGrid = page.locator('.grid.grid-cols-3');
+    const bottleItem = itemGrid.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     // Drawer should open with rating selector
@@ -258,8 +263,9 @@ test.describe('Event State Management', () => {
     const viewDetailsMessage = page.getByText('Tap a number to view details');
     await expect(viewDetailsMessage).toBeVisible();
     
-    // Click on a bottle item to view details
-    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
+    // Click on a bottle item to view details (scoped to item grid)
+    const itemGrid = page.locator('.grid.grid-cols-3');
+    const bottleItem = itemGrid.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     // Drawer should open with header containing number and "Details"
@@ -311,8 +317,9 @@ test.describe('Event State Management', () => {
     const viewDetailsMessage = page.getByText('Tap a number to view details');
     await expect(viewDetailsMessage).toBeVisible();
     
-    // Click on a bottle item to view details
-    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
+    // Click on a bottle item to view details (scoped to item grid)
+    const itemGrid = page.locator('.grid.grid-cols-3');
+    const bottleItem = itemGrid.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     // Drawer should open with header containing number and "Details"
@@ -369,8 +376,9 @@ test.describe('Event State Management', () => {
     const rateMessage = page.getByText('Tap a number to rate');
     await expect(rateMessage).toBeVisible();
     
-    // Click on a bottle item to open rating drawer
-    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
+    // Click on a bottle item to open rating drawer (scoped to item grid)
+    const itemGrid = page.locator('.grid.grid-cols-3');
+    const bottleItem = itemGrid.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     // Drawer should open with rating selector
@@ -411,9 +419,9 @@ test.describe('Event State Management', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     
-    // Newly created events should specifically show "created" state
-    const createdStateText = page.getByText(/created/i);
-    await expect(createdStateText.first()).toBeVisible({ timeout: 5000 });
+    // Newly created events should specifically show "created" state in the state button
+    const stateButton = page.getByRole('button', { name: /state.*created/i });
+    await expect(stateButton).toBeVisible({ timeout: 5000 });
   });
 
   test('state change is reflected in event page', async ({ page, testEvent }) => {

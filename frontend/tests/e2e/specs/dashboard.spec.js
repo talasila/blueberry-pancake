@@ -37,6 +37,10 @@ test.describe('Dashboard Page', () => {
     
     // Should be on dashboard page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/dashboard`));
+
+    // Verify actual dashboard content is rendered, not just URL
+    await expect(page.locator('main')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /dashboard/i })).toBeVisible({ timeout: 10000 });
   });
 
   test('administrator sees dashboard in created state', async ({ page, testEvent }) => {
@@ -113,6 +117,9 @@ test.describe('Dashboard Page', () => {
         'Authorization': `Bearer ${token}`
       }
     });
+    if (!verifyResponse.ok) {
+      throw new Error(`Failed to verify event state: ${verifyResponse.status} ${verifyResponse.statusText}`);
+    }
     const eventData = await verifyResponse.json();
     if (eventData.state !== 'completed') {
       throw new Error(`Event state is '${eventData.state}', expected 'completed'`);
@@ -247,6 +254,7 @@ test.describe('Dashboard Page', () => {
       return cells.allTextContents();
     };
     const initialOrder = await getFirstCellTexts();
+    expect(initialOrder.length).toBeGreaterThan(0);
     
     // Click on ID column header to sort
     const idHeader = page.getByRole('columnheader', { name: /id/i });
@@ -537,7 +545,8 @@ test.describe('Dashboard Page', () => {
     await expect(table).toBeVisible({ timeout: 10000 });
     await expect(page.locator('table tbody tr')).not.toHaveCount(0, { timeout: 10000 });
     
-    // First row should be admin (alphabetically first by email: admin@example.com < anna@example.com)
+    // Admin appears in the users table because addAdminToEvent creates a user
+    // record. Alphabetically, admin@example.com sorts before anna@example.com.
     const firstRow = page.locator('table tbody tr').first();
     await expect(firstRow).toContainText(/admin/i, { timeout: 10000 });
     
@@ -579,8 +588,9 @@ test.describe('Dashboard Page', () => {
     const drawer = page.locator('[role="dialog"]').or(page.locator('[data-state="open"]'));
     await expect(drawer.first()).toBeVisible({ timeout: 5000 });
     
-    // Drawer should contain user info (use .first() since name/email both show same text)
-    await expect(page.getByText(/testuser/i).first()).toBeVisible();
+    // Drawer content may render in a portal outside [role="dialog"], so check page-level.
+    // The drawer being open is already verified above.
+    await expect(page.getByText(/testuser/i).first()).toBeVisible({ timeout: 10000 });
   });
 
   test('users table shows derived name from email when name not set', async ({ page, testEvent }) => {
@@ -630,8 +640,8 @@ test.describe('Dashboard Page', () => {
     const main = page.locator('main');
     await expect(main).toBeVisible();
     
-    // Total users should show 1 (the admin) or appropriate stats - scope to main content
-    await expect(main.getByText(/^N\/A$|^0$|^1$|no.*ratings/i).first()).toBeVisible();
+    // With only an admin and no ratings, stats should show 0 or N/A for rating-related fields
+    await expect(main.getByText(/^0$|^N\/A$/).first()).toBeVisible();
   });
 
   test('dashboard renders data after loading', async ({ page, testEvent }) => {
@@ -661,6 +671,9 @@ test.describe('Dashboard Page', () => {
     const refreshButton = page.getByRole('button', { name: /refresh/i });
     await expect(refreshButton).toBeVisible({ timeout: 5000 });
     
+    // Capture a stat value before refresh to verify DOM updates
+    const statsBefore = await page.getByText(/total users/i).locator('..').textContent();
+
     // Click refresh and verify a new API call is made
     const responsePromise = page.waitForResponse(
       (resp) => resp.url().includes(`/api/events/${eventId}`)
@@ -668,6 +681,11 @@ test.describe('Dashboard Page', () => {
     await refreshButton.click();
     const response = await responsePromise;
     expect(response.status()).toBe(200);
+
+    // Verify the dashboard content is still rendered after refresh (DOM updated)
+    await expect(page.getByText(/total users/i)).toBeVisible({ timeout: 5000 });
+    const statsAfter = await page.getByText(/total users/i).locator('..').textContent();
+    expect(statsAfter).toBeTruthy();
   });
 
   test('dashboard link visible to admin in dropdown menu', async ({ page, testEvent }) => {

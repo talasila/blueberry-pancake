@@ -9,7 +9,6 @@ import {
   addAdminToEvent,
   setAuthToken,
   BASE_URL,
-  API_URL,
 } from './helpers.js';
 
 test.describe('Administrator Management', () => {
@@ -146,7 +145,9 @@ test.describe('Administrator Management', () => {
   test('cannot delete owner administrator', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'owner@example.com';
+    const secondAdmin = 'second@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
+    await addAdminToEvent(eventId, secondAdmin);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -156,16 +157,16 @@ test.describe('Administrator Management', () => {
     await adminsButton.waitFor({ state: 'visible', timeout: 10000 });
     await adminsButton.click();
     
-    const ownerRow = page.getByText('owner@example.com').locator('..');
-    await expect(ownerRow).toBeVisible({ timeout: 10000 });
-    const deleteButton = ownerRow.getByRole('button', { name: /delete|remove/i });
+    const drawer = page.locator('[role="dialog"]');
+    await expect(drawer.getByText(adminEmail)).toBeVisible({ timeout: 10000 });
+    const deleteButton = page.getByRole('button', { name: /delete.*owner@example\.com/i });
     const count = await deleteButton.count();
     if (count > 0) {
-      await expect(deleteButton.first()).toBeDisabled();
-    } else {
-      await expect(deleteButton).toHaveCount(0);
+      page.once('dialog', (dialog) => dialog.accept());
+      await deleteButton.first().click();
+      // Owner should still be present after attempted deletion
+      await expect(drawer.getByText(adminEmail)).toBeVisible({ timeout: 5000 });
     }
-    await expect(ownerRow).toBeVisible();
   });
 
   test('cannot delete last administrator', async ({ page, testEvent }) => {
@@ -181,16 +182,16 @@ test.describe('Administrator Management', () => {
     await adminsButton.waitFor({ state: 'visible', timeout: 10000 });
     await adminsButton.click();
     
-    const ownerRow = page.getByText('owner@example.com').locator('..');
-    await expect(ownerRow).toBeVisible({ timeout: 10000 });
-    const deleteButton = ownerRow.getByRole('button', { name: /delete|remove/i });
+    const drawer = page.locator('[role="dialog"]');
+    await expect(drawer.getByText(adminEmail)).toBeVisible({ timeout: 10000 });
+    const deleteButton = page.getByRole('button', { name: /delete.*owner@example\.com/i });
     const count = await deleteButton.count();
     if (count > 0) {
-      await expect(deleteButton.first()).toBeDisabled();
-    } else {
-      await expect(deleteButton).toHaveCount(0);
+      page.once('dialog', (dialog) => dialog.accept());
+      await deleteButton.first().click();
+      // Last admin should still be present after attempted deletion
+      await expect(drawer.getByText(adminEmail)).toBeVisible({ timeout: 5000 });
     }
-    await expect(ownerRow).toBeVisible();
   });
 
   // ===================================

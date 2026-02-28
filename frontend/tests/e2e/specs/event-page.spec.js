@@ -116,9 +116,6 @@ test.describe('Event Page', () => {
     
     // AdminRoute should redirect non-admins back to main event page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-    
-    // Should NOT be on the admin page
-    await expect(page).not.toHaveURL(/\/admin/);
   });
 
   // ===================================
@@ -191,15 +188,17 @@ test.describe('Event Page', () => {
       'abcd12345678',   // Too long
     ];
     
-    for (const invalidId of invalidEventIds) {
+    for (let i = 0; i < invalidEventIds.length; i++) {
+      const invalidId = invalidEventIds[i];
       await clearAuth(page);
       await page.goto(`${BASE_URL}/event/${invalidId}`);
       
       // App handles invalid IDs gracefully — either email entry or error page
+      // Broad getByText(/error/i) is intentional: the exact error varies by format violation
       const main = page.locator('main');
       const gracefulElement = main.getByText('Access Event')
         .or(main.getByText(/error/i));
-      await expect(gracefulElement.first()).toBeVisible({ timeout: 10000 });
+      await expect(gracefulElement.first(), `iteration ${i}: event ID "${invalidId}" should show graceful state`).toBeVisible({ timeout: 10000 });
     }
   });
 

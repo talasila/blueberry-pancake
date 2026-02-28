@@ -16,9 +16,11 @@ import { API_URL } from './e2e-config.js';
 
 async function deleteEventViaAPI(eventId) {
   try {
-    await fetch(`${API_URL}/api/test/events/${eventId}`, { method: 'DELETE' });
-  } catch {
-    // Ignore — best-effort cleanup
+    const response = await fetch(`${API_URL}/api/test/events/${eventId}`, { method: 'DELETE' });
+    return response.ok;
+  } catch (error) {
+    console.warn(`[E2E Cleanup] Failed to delete event ${eventId}: ${error.message}`);
+    return false;
   }
 }
 
@@ -38,8 +40,8 @@ export default async function globalTeardown() {
         .map(line => line.trim())
         .filter(Boolean);
       
-      await Promise.all(tracked.map(eventId => deleteEventViaAPI(eventId)));
-      trackedEventsDeleted = tracked.length;
+      const results = await Promise.all(tracked.map(eventId => deleteEventViaAPI(eventId)));
+      trackedEventsDeleted = results.filter(Boolean).length;
       
       if (trackedEventsDeleted > 0) {
         console.log(`[E2E Cleanup] Deleted ${trackedEventsDeleted} tracked events via API`);
@@ -59,8 +61,8 @@ export default async function globalTeardown() {
       const data = await response.json();
       console.log(`[E2E Cleanup] Bulk API cleanup: ${data.deleted ?? 0} TEST* events`);
     }
-  } catch {
-    // Endpoint may not exist — that's fine, tracked cleanup above handles it
+  } catch (error) {
+    console.warn(`[E2E Cleanup] Bulk cleanup endpoint failed: ${error.message}`);
   }
   
   if (trackedEventsDeleted === 0) {

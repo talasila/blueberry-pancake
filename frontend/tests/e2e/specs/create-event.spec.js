@@ -8,7 +8,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { clearAuth, deleteTestEvent, trackEventForCleanup, authenticateViaOTP, addAdminToEvent, BASE_URL, API_URL } from './helpers.js';
+import { clearAuth, deleteTestEvent, trackEventForCleanup, authenticateViaOTP, addAdminToEvent, getEvent, BASE_URL } from './helpers.js';
 
 /**
  * Helper to navigate to create event page after authentication
@@ -102,6 +102,9 @@ test.describe('Create Event', () => {
   // User Story 3 - Event Lifecycle
   // ===================================
 
+  // Intentionally verifies multiple behaviors (event state, welcome sheet, event ID format,
+  // back-button skip, cleanup) in one test — creating events is expensive and each assertion
+  // depends on the same created event.
   test('newly created event has "created" state', async ({ page }) => {
     // Authenticate via OTP
     await authenticateViaOTP(page);
@@ -140,11 +143,8 @@ test.describe('Create Event', () => {
 
     // Verify the event state via API
     const token = await addAdminToEvent(createdEventId, 'creator@example.com');
-    const stateResponse = await fetch(`${API_URL}/api/events/${createdEventId}`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
-    expect(stateResponse.ok).toBe(true);
-    const eventData = await stateResponse.json();
+    const { ok, data: eventData } = await getEvent(createdEventId, token);
+    expect(ok).toBe(true);
     expect(eventData.state).toBe('created');
 
     // Verify back button skips the create form (FR-004)
@@ -240,7 +240,7 @@ test.describe('Create Event', () => {
     await deleteTestEvent(createdEventId);
   });
 
-  test('excluded characters (I, L, O, U) pass through and show event not found', async ({ page }) => {
+  test('excluded characters (I, L, O) pass through and show event not found', async ({ page }) => {
     // Navigate to landing page
     await page.goto(BASE_URL);
 
@@ -259,10 +259,9 @@ test.describe('Create Event', () => {
     // Instead, expect a standard "not found" or redirect to email entry flow
     await expect(page.locator('body')).not.toContainText(/invalid.*character/i);
 
-    // Should show event not found or prompt for email
-    await expect(
-      page.getByText(/not found/i).or(page.getByText(/enter.*email/i)).or(page.locator('input[type="email"]')).first()
-    ).toBeVisible({ timeout: 10000 });
+    // Excluded Crockford characters are valid alphanumeric, so the app navigates to the
+    // event email-entry page (the event won't exist, but the ID format is accepted).
+    await expect(page).toHaveURL(/\/event\/.*\/email/, { timeout: 10000 });
   });
 
   // ===================================

@@ -41,12 +41,12 @@ async function getRatingsCount(eventId, token) {
     headers: { 'Authorization': `Bearer ${token}` }
   });
   
-  if (!response.ok) return 0;
+  if (!response.ok) {
+    throw new Error(`getRatingsCount failed: ${response.status} ${await response.text()}`);
+  }
   
-  // API returns CSV, count non-header lines
   const csvText = await response.text();
   const lines = csvText.trim().split('\n');
-  // First line is header, so count is lines.length - 1 (but at least 0)
   return Math.max(0, lines.length - 1);
 }
 
@@ -74,7 +74,9 @@ async function getUsersCount(eventId, token) {
     headers: { 'Authorization': `Bearer ${token}` }
   });
   
-  if (!response.ok) return 0;
+  if (!response.ok) {
+    throw new Error(`getUsersCount failed: ${response.status} ${await response.text()}`);
+  }
   
   const event = await response.json();
   return Object.keys(event.users || {}).length;
@@ -100,13 +102,9 @@ async function waitForUsersCount(eventId, token, expected, { maxWaitMs = 5000, i
  * Helper: Check if event exists via API
  */
 async function eventExists(eventId, token) {
-  try {
-    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-    const response = await fetch(`${API_URL}/api/events/${eventId}`, { headers });
-    return response.ok;
-  } catch {
-    return false;
-  }
+  const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+  const response = await fetch(`${API_URL}/api/events/${eventId}`, { headers });
+  return response.ok;
 }
 
 /**
@@ -135,15 +133,9 @@ async function confirmDeletion(page, confirmationText) {
   const confirmButton = page.getByTestId('confirm-delete-button');
   await expect(confirmButton).toBeEnabled({ timeout: 3000 });
 
-  // Use page.evaluate to click directly via JavaScript
-  // This bypasses Playwright's pointer event interception checks
+  // Use dispatchEvent to bypass Playwright's pointer event interception checks
   // which fail due to z-index layering between drawer and modal
-  await page.evaluate(() => {
-    const button = document.querySelector('[data-testid="confirm-delete-button"]');
-    if (button) {
-      button.click();
-    }
-  });
+  await page.getByTestId('confirm-delete-button').dispatchEvent('click');
 }
 
 // =============================================
@@ -157,9 +149,6 @@ test.describe('Danger Zone - Delete Individual User', () => {
     const adminEmail = 'admin@example.com';
     const userEmail = 'regularuser@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
-    // Add a regular user
-    await addRegularUser(eventId, userEmail, pin);
     
     // Start event and have user submit a rating
     await changeEventState(eventId, 'started', 'created', token);
@@ -579,11 +568,8 @@ test.describe('Danger Zone - Dialog Cancel', () => {
     const confirmDialog = page.getByRole('dialog', { name: 'Delete All Ratings' });
     await expect(confirmDialog).toBeVisible();
     
-    // Click Cancel button via JavaScript to bypass z-index layering issues
-    await page.evaluate(() => {
-      const cancelBtn = Array.from(document.querySelectorAll('button')).find(b => b.textContent === 'Cancel');
-      if (cancelBtn) cancelBtn.click();
-    });
+    // Click Cancel button via dispatchEvent to bypass z-index layering issues
+    await page.getByRole('button', { name: /cancel/i }).dispatchEvent('click');
     
     // Confirmation dialog should close (drawer stays open)
     await expect(confirmDialog).not.toBeVisible();

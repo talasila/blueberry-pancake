@@ -474,7 +474,7 @@ test.describe('Item Details Integration', () => {
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
     
     // Click on item 1 to open details drawer
-    const itemButton = page.locator('button').filter({ hasText: '1' }).first();
+    const itemButton = page.locator('button').filter({ hasText: /^1$/ }).first();
     await itemButton.click();
     
     // Should show the registered item name
@@ -509,7 +509,7 @@ test.describe('Item Details Integration', () => {
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
     
     // Click on item 1 to open details drawer
-    const itemButton = page.locator('button').filter({ hasText: '1' }).first();
+    const itemButton = page.locator('button').filter({ hasText: /^1$/ }).first();
     await itemButton.click();
     
     // Should show "No item registered" message - scope to the drawer to avoid matching event name
@@ -543,7 +543,7 @@ test.describe('Item Details Integration', () => {
     await bottlesTab.click();
     
     // Find and click on item ID 2 in the table
-    const itemCell = page.getByRole('cell', { name: '2' }).or(
+    const itemCell = page.getByRole('cell', { name: '2', exact: true }).or(
       page.locator('td', { hasText: /^2$/ })
     ).first();
     await itemCell.click();
@@ -587,7 +587,7 @@ test.describe('Item Details Integration', () => {
     await bottlesTab.click();
     
     // Find and click on item ID 3 in the ratings table
-    const itemCell = page.getByRole('cell', { name: '3' }).or(
+    const itemCell = page.getByRole('cell', { name: '3', exact: true }).or(
       page.locator('td', { hasText: /^3$/ })
     ).first();
     await itemCell.click();

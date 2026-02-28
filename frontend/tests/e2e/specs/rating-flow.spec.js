@@ -32,7 +32,7 @@ test.describe('Rating Flow', () => {
     
     // Should see item buttons
     // Look for item buttons (numbered 1, 2, 3, etc.)
-    const itemButton = page.getByRole('button', { name: /^1$/ }).or(page.locator('button').filter({ hasText: '1' }));
+    const itemButton = page.locator('button').filter({ hasText: /^1$/ });
     await expect(itemButton.first()).toBeVisible({ timeout: 10000 });
   });
 
@@ -45,7 +45,7 @@ test.describe('Rating Flow', () => {
     await enterAndSubmitPIN(page, pin);
     
     // Click on item 1
-    const itemButton = page.getByRole('button', { name: /^1$/ }).or(page.locator('button').filter({ hasText: '1' })).first();
+    const itemButton = page.locator('button').filter({ hasText: /^1$/ }).first();
     await itemButton.click();
     
     // Drawer should open - look for drawer content
@@ -71,7 +71,7 @@ test.describe('Rating Flow', () => {
     await enterAndSubmitPIN(page, pin);
     
     // Click item button
-    const itemButton = page.locator('button').filter({ hasText: '1' }).first();
+    const itemButton = page.locator('button').filter({ hasText: /^1$/ }).first();
     await itemButton.click();
     
     const drawer = page.locator('[role="dialog"]');
@@ -98,7 +98,7 @@ test.describe('Rating Flow', () => {
     await enterAndSubmitPIN(page, pin);
     
     // Click item 1 to open rating drawer
-    const itemButton = page.locator('button').filter({ hasText: '1' }).first();
+    const itemButton = page.locator('button').filter({ hasText: /^1$/ }).first();
     await itemButton.click();
     
     // Wait for drawer to open and rating selector to appear
@@ -119,16 +119,17 @@ test.describe('Rating Flow', () => {
     // Verify success message appears
     await expect(page.getByText(/rating submitted successfully/i)).toBeVisible({ timeout: 5000 });
     
-    // Drawer should close after success — the component hides via CSS transform and sets aria-hidden
+    // The drawer hides via CSS transform (translateY) rather than display:none, so
+    // Playwright's not.toBeVisible() still considers it visible. We check aria-hidden instead.
     await expect(page.locator('[role="dialog"]')).toHaveAttribute('aria-hidden', 'true', { timeout: 10000 });
     
     // Verify the item button now shows rating color (green #34C759 for rating 3 "Not bad...")
-    const ratedItemButton = page.locator('button').filter({ hasText: '1' }).first();
+    const ratedItemButton = page.locator('button').filter({ hasText: /^1$/ }).first();
     await expect(ratedItemButton).toBeVisible();
     
-    // Check the button has the correct background color for rating 3
+    // Fragile: depends on the exact theme color for rating 3. Will break if
+    // the rating color palette is changed in the app configuration.
     // Default config: Rating 3 = "Not bad..." = #34C759 (green)
-    // CSS computed values convert hex to rgb format
     await expect(ratedItemButton).toHaveCSS('background-color', 'rgb(52, 199, 89)');
   });
 
@@ -151,7 +152,7 @@ test.describe('Rating Flow', () => {
     await enterAndSubmitPIN(page, pin);
     
     // Click item 1 to open rating drawer
-    const itemButton = page.locator('button').filter({ hasText: '1' }).first();
+    const itemButton = page.locator('button').filter({ hasText: /^1$/ }).first();
     await itemButton.click();
     
     // Click the bookmark button in the drawer (aria-label contains "bookmark")
@@ -206,7 +207,7 @@ test.describe('Rating Flow', () => {
     await enterAndSubmitPIN(page, pin);
     
     // Click item 1 to open rating drawer
-    const itemButton = page.locator('button').filter({ hasText: '1' }).first();
+    const itemButton = page.locator('button').filter({ hasText: /^1$/ }).first();
     await itemButton.click();
     
     // Wait for drawer to open and rating selector to appear

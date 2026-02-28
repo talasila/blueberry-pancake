@@ -36,7 +36,10 @@ async function registerItem(eventId, token, name, price = null, description = ''
     },
     body: JSON.stringify({ name, price, description })
   });
-  const data = await response.json().catch(() => ({}));
+  const data = await response.json().catch((err) => {
+    console.error(`registerItem JSON parse failed for ${eventId}/${name}: ${err.message}`);
+    return {};
+  });
   return { ok: response.ok, status: response.status, item: data };
 }
 

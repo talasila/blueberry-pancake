@@ -53,6 +53,7 @@ test.describe('PIN-based Event Access', () => {
     
     // Should see error message and stay on PIN page
     const errorMsg = await getErrorMessage(page);
+    expect(errorMsg).not.toBeNull();
     expect(errorMsg).toContain('Invalid PIN');
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/pin`));
   });
@@ -206,6 +207,7 @@ test.describe('PIN-based Event Access', () => {
     await pinButton.click();
     
     // Should see the PIN displayed in the drawer
+    // TODO: Replace with data-testid when available
     const pinDisplay = page.locator('.font-mono.text-lg.font-semibold');
     await expect(pinDisplay).toBeVisible();
     await expect(pinDisplay).toHaveText(pin);
@@ -229,13 +231,17 @@ test.describe('PIN-based Event Access', () => {
     await regenerateButton.click();
 
     // Wait for the UI to update with the new PIN
+    // TODO: Replace with data-testid when available
     const pinDisplay = page.locator('.font-mono.text-lg.font-semibold');
     await expect(pinDisplay).not.toHaveText(pin, { timeout: 10000 });
 
     await expect(pinDisplay).not.toHaveText('', { timeout: 5000 });
-    const newPin = await pinDisplay.textContent();
-    expect(newPin).toHaveLength(6);
-    expect(newPin).not.toBe(pin);
+    let newPin;
+    await expect(async () => {
+      newPin = await pinDisplay.textContent();
+      expect(newPin).toHaveLength(6);
+      expect(newPin).not.toBe(pin);
+    }).toPass({ timeout: 5000 });
   });
 
   // ===================================
@@ -251,6 +257,7 @@ test.describe('PIN-based Event Access', () => {
     
     // Should see error message
     const errorMsg = await getErrorMessage(page);
+    expect(errorMsg).not.toBeNull();
     expect(errorMsg).toContain('not found');
   });
 });
