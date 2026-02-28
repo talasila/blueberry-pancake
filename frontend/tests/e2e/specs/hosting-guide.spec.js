@@ -65,7 +65,7 @@ test.describe('US1: Guide access from any page', () => {
     await openGuide(page);
     const viewport = page.viewportSize();
     await page.mouse.click(viewport.width / 2, 80);
-    await expect(page.locator('[data-testid="guide-icon"]')).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('[role="dialog"][aria-label="Hosting guide"]')).toBeHidden({ timeout: 3000 });
   });
 
   test('guide reopens at role selection after close', async ({ page }) => {

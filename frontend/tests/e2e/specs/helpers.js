@@ -8,7 +8,7 @@
  */
 
 import { expect } from '@playwright/test';
-import { appendFileSync, readFileSync, existsSync, unlinkSync } from 'fs';
+import { appendFileSync } from 'fs';
 import { join } from 'path';
 import { BASE_URL, API_URL, TEST_OTP } from '../e2e-config.js';
 
@@ -24,30 +24,6 @@ const TRACKING_FILE = join(process.cwd(), '..', '.e2e-tracked-events.json');
 export function trackEventForCleanup(eventId) {
   if (!eventId) return;
   appendFileSync(TRACKING_FILE, eventId + '\n');
-}
-
-/**
- * Get all tracked UI-created event IDs
- */
-export function getTrackedEvents() {
-  if (!existsSync(TRACKING_FILE)) return [];
-  try {
-    return readFileSync(TRACKING_FILE, 'utf-8')
-      .split('\n')
-      .map(line => line.trim())
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
-}
-
-/**
- * Clear the tracking file
- */
-export function clearTrackedEvents() {
-  if (existsSync(TRACKING_FILE)) {
-    unlinkSync(TRACKING_FILE);
-  }
 }
 
 /**
@@ -230,7 +206,7 @@ export async function enterPIN(page, pin) {
     .or(page.locator('[data-input-otp]'))
     .first();
   
-  await pinInput.waitFor({ state: 'attached', timeout: 5000 });
+  await pinInput.waitFor({ state: 'visible', timeout: 5000 });
   await pinInput.click();
   await pinInput.fill(pin);
 }
@@ -249,7 +225,7 @@ export async function submitPIN(page) {
 
   const outcome = await Promise.race([
     page.waitForURL(url => !new URL(url).pathname.endsWith('/pin'), { timeout: 10000 }).then(() => 'navigated'),
-    page.locator('[role="alert"], .text-destructive, .text-red-500').first().waitFor({ state: 'visible', timeout: 10000 }).then(() => 'error'),
+    page.locator('[role="alert"]').or(page.locator('.text-destructive')).or(page.locator('.text-red-500')).first().waitFor({ state: 'visible', timeout: 10000 }).then(() => 'error'),
   ]);
   return outcome;
 }
@@ -364,6 +340,25 @@ export async function startEvent(eventId, adminToken) {
 export async function getEvent(eventId, token) {
   const response = await fetch(`${API_URL}/api/events/${eventId}`, {
     headers: { 'Authorization': `Bearer ${token}` }
+  });
+  const data = response.ok ? await response.json() : await response.text();
+  return { ok: response.ok, status: response.status, data };
+}
+
+/**
+ * Configure items for an event via API.
+ * @returns {{ ok: boolean, status: number, data: any }}
+ */
+export async function configureItems(eventId, token, numberOfItems, excludedItemIds = []) {
+  const body = { numberOfItems };
+  if (excludedItemIds.length > 0) body.excludedItemIds = excludedItemIds;
+  const response = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify(body)
   });
   const data = response.ok ? await response.json() : await response.text();
   return { ok: response.ok, status: response.status, data };

@@ -26,7 +26,8 @@ async function navigateToAdmin(page, eventId) {
 async function transitionEventViaAPI(eventId, targetState, currentState) {
   const adminEmail = 'admin@example.com';
   const token = await addAdminToEvent(eventId, adminEmail);
-  await changeEventState(eventId, targetState, currentState, token);
+  const result = await changeEventState(eventId, targetState, currentState, token);
+  if (!result.ok) throw new Error(`State transition ${currentState} → ${targetState} failed: ${result.data}`);
 }
 
 async function transitionTo(eventId, targetState) {
@@ -145,7 +146,7 @@ test.describe('US1: State-aware admin guide access', () => {
     await navigateToAdmin(page, eventId);
     await openAdminGuide(page);
     await page.locator('[data-testid="admin-guide-backdrop"]').click({ force: true });
-    await expect(page.locator('[data-testid="guide-icon"]')).toBeVisible({
+    await expect(page.locator('[role="dialog"][aria-label="Admin guide"]')).toBeHidden({
       timeout: 5000,
     });
   });
@@ -431,7 +432,9 @@ test.describe('US6: Overview / quick-reference', () => {
     await navigateToAdmin(page, eventId);
     await openAdminGuide(page);
     await page.locator('button[aria-label="Show overview"]').click();
-    await page.locator('button[aria-label="Back to step"]').click();
+    const backButton = page.locator('button[aria-label="Back to step"]');
+    await backButton.waitFor({ state: 'visible', timeout: 10000 });
+    await backButton.click();
     await expect(page.getByRole('heading', { name: 'Name Your Event' })).toBeVisible();
   });
 });

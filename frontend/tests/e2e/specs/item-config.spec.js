@@ -98,8 +98,7 @@ test.describe('Item Configuration', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
+    await navigateToAdminWithConfig(page, eventId, token, adminEmail);
     
     // Look for Bottles button on admin page
     const bottlesButton = page.getByRole('button', { name: /bottles/i });
@@ -111,8 +110,7 @@ test.describe('Item Configuration', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
+    await navigateToAdminWithConfig(page, eventId, token, adminEmail);
     
     // Open the Bottles drawer
     await openBottlesDrawer(page);
@@ -127,6 +125,11 @@ test.describe('Item Configuration', () => {
     // Verify success (toast or no error) - scope to drawer to avoid matching event name
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 });
+
+    // Verify persistence: reload and check value
+    await page.reload();
+    await openBottlesDrawer(page);
+    await expect(getNumberOfBottlesInput(page)).toHaveValue('25');
   });
 
   test('default number of bottles is 20', async ({ page, testEvent }) => {
@@ -175,8 +178,7 @@ test.describe('Item Configuration', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Step 1: Admin logs in and sets excluded bottle IDs
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
+    await navigateToAdminWithConfig(page, eventId, token, adminEmail);
     
     // Open the Bottles drawer
     await openBottlesDrawer(page);
@@ -279,8 +281,7 @@ test.describe('Item Configuration', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
+    await navigateToAdminWithConfig(page, eventId, token, adminEmail);
     
     // Open the Bottles drawer
     await openBottlesDrawer(page);
@@ -302,8 +303,7 @@ test.describe('Item Configuration', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
+    await navigateToAdminWithConfig(page, eventId, token, adminEmail);
     
     // Open the Bottles drawer
     await openBottlesDrawer(page);
@@ -318,6 +318,10 @@ test.describe('Item Configuration', () => {
     // Should normalize to 5,10 (no error) - scope to drawer
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 });
+
+    await page.reload();
+    await openBottlesDrawer(page);
+    await expect(getExcludedBottleIdsInput(page)).toHaveValue('5, 10');
   });
 
   test('handles duplicate excluded IDs', async ({ page, testEvent }) => {
@@ -325,8 +329,7 @@ test.describe('Item Configuration', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
+    await navigateToAdminWithConfig(page, eventId, token, adminEmail);
     
     // Open the Bottles drawer
     await openBottlesDrawer(page);
@@ -341,6 +344,10 @@ test.describe('Item Configuration', () => {
     // Should handle duplicates (treat as single exclusion, no error) - scope to drawer
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 });
+
+    await page.reload();
+    await openBottlesDrawer(page);
+    await expect(getExcludedBottleIdsInput(page)).toHaveValue('5, 10');
   });
 
   test('handles whitespace in excluded IDs', async ({ page, testEvent }) => {
@@ -348,8 +355,7 @@ test.describe('Item Configuration', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
+    await navigateToAdminWithConfig(page, eventId, token, adminEmail);
     
     // Open the Bottles drawer
     await openBottlesDrawer(page);
@@ -364,5 +370,9 @@ test.describe('Item Configuration', () => {
     // Should trim whitespace and process correctly (no error) - scope to drawer
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 });
+
+    await page.reload();
+    await openBottlesDrawer(page);
+    await expect(getExcludedBottleIdsInput(page)).toHaveValue('5, 10, 15');
   });
 });

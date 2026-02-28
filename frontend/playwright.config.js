@@ -1,6 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
+import { BASE_URL } from './tests/e2e/e2e-config.js';
 
 /**
  * Playwright configuration for E2E testing
@@ -14,7 +13,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 4 : 12,
+  workers: process.env.CI ? 4 : 6,
   reporter: 'html',
   timeout: 60000,
   

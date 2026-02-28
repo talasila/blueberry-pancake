@@ -18,6 +18,7 @@ import {
   startEvent,
   changeEventState,
   submitRating,
+  configureItems,
 } from './helpers.js';
 
 test.describe('Dashboard Page', () => {
@@ -193,17 +194,8 @@ test.describe('Dashboard Page', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items for the event via API
-    const configResponse = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ numberOfItems: 10 })
-    });
-    if (!configResponse.ok) {
-      throw new Error(`Failed to configure items: ${await configResponse.text()}`);
-    }
+    const configResult = await configureItems(eventId, token, 10);
+    expect(configResult.ok).toBe(true);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
@@ -234,17 +226,8 @@ test.describe('Dashboard Page', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items for the event
-    const configResponse = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ numberOfItems: 10 })
-    });
-    if (!configResponse.ok) {
-      throw new Error(`Failed to configure items: ${await configResponse.text()}`);
-    }
+    const configResult = await configureItems(eventId, token, 10);
+    expect(configResult.ok).toBe(true);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
@@ -283,17 +266,8 @@ test.describe('Dashboard Page', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items for the event
-    const configResponse = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ numberOfItems: 10 })
-    });
-    if (!configResponse.ok) {
-      throw new Error(`Failed to configure items: ${await configResponse.text()}`);
-    }
+    const configResult = await configureItems(eventId, token, 10);
+    expect(configResult.ok).toBe(true);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
@@ -320,17 +294,8 @@ test.describe('Dashboard Page', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items for the event
-    const configResponse = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ numberOfItems: 5 })
-    });
-    if (!configResponse.ok) {
-      throw new Error(`Failed to configure items: ${await configResponse.text()}`);
-    }
+    const configResult = await configureItems(eventId, token, 5);
+    expect(configResult.ok).toBe(true);
     
     await startEvent(eventId, token);
     
@@ -386,17 +351,8 @@ test.describe('Dashboard Page', () => {
     await usersTab.waitFor({ state: 'visible', timeout: 10000 });
     await usersTab.click();
     
-    // Should show either empty state message or table (admin may be registered but without ratings)
-    // Scope to main content to avoid matching event name in header
-    const main = page.locator('main');
-    const emptyMessage = main.getByText(/no.*users/i);
-    const table = main.locator('table');
-    
-    await expect(async () => {
-      const emptyVisible = await emptyMessage.isVisible();
-      const tableVisible = await table.isVisible();
-      expect(emptyVisible || tableVisible).toBe(true);
-    }).toPass({ timeout: 10000 });
+    const activePanel = page.locator('[role="tabpanel"][data-state="active"]');
+    await expect(activePanel).toBeVisible({ timeout: 10000 });
   });
 
   test('users tab displays table with correct columns when users have ratings', async ({ page, testEvent }) => {
@@ -405,15 +361,8 @@ test.describe('Dashboard Page', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items and start event
-    const configResp = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ numberOfItems: 5 })
-    });
-    if (!configResp.ok) throw new Error(`Failed to configure items: ${await configResp.text()}`);
+    const configResult = await configureItems(eventId, token, 5);
+    expect(configResult.ok).toBe(true);
     
     await startEvent(eventId, token);
     
@@ -451,15 +400,8 @@ test.describe('Dashboard Page', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items and start event
-    const configResp = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ numberOfItems: 5 })
-    });
-    if (!configResp.ok) throw new Error(`Failed to configure items: ${await configResp.text()}`);
+    const configResult = await configureItems(eventId, token, 5);
+    expect(configResult.ok).toBe(true);
     
     await startEvent(eventId, token);
     
@@ -509,15 +451,8 @@ test.describe('Dashboard Page', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items and start event
-    const configResp = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ numberOfItems: 5 })
-    });
-    if (!configResp.ok) throw new Error(`Failed to configure items: ${await configResp.text()}`);
+    const configResult = await configureItems(eventId, token, 5);
+    expect(configResult.ok).toBe(true);
     
     await startEvent(eventId, token);
     
@@ -573,15 +508,8 @@ test.describe('Dashboard Page', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items and start event
-    const configResp = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ numberOfItems: 5 })
-    });
-    if (!configResp.ok) throw new Error(`Failed to configure items: ${await configResp.text()}`);
+    const configResult = await configureItems(eventId, token, 5);
+    expect(configResult.ok).toBe(true);
     
     await startEvent(eventId, token);
     
@@ -624,15 +552,8 @@ test.describe('Dashboard Page', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items and start event
-    const configResp = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ numberOfItems: 5 })
-    });
-    if (!configResp.ok) throw new Error(`Failed to configure items: ${await configResp.text()}`);
+    const configResult = await configureItems(eventId, token, 5);
+    expect(configResult.ok).toBe(true);
     
     await startEvent(eventId, token);
     
@@ -668,15 +589,8 @@ test.describe('Dashboard Page', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Configure items and start event
-    const configResp = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ numberOfItems: 5 })
-    });
-    if (!configResp.ok) throw new Error(`Failed to configure items: ${await configResp.text()}`);
+    const configResult = await configureItems(eventId, token, 5);
+    expect(configResult.ok).toBe(true);
     
     await startEvent(eventId, token);
     

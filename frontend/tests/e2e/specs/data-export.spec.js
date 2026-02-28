@@ -193,7 +193,7 @@ test.describe('Data Export', () => {
   test.describe('Data Export Access', () => {
 
     test('admin can access Export Data drawer', async ({ page, testEvent }) => {
-      const { eventId, pin } = testEvent;
+      const { eventId } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       await setAuthToken(page, adminToken, 'admin@example.com');
@@ -233,7 +233,7 @@ test.describe('Data Export', () => {
   test.describe('Export Ratings Data', () => {
 
     test('shows error when no ratings exist', async ({ page, testEvent }) => {
-      const { eventId, pin } = testEvent;
+      const { eventId } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       await setAuthToken(page, adminToken, 'admin@example.com');
@@ -374,7 +374,7 @@ test.describe('Data Export', () => {
   test.describe('Export Ratings Matrix', () => {
 
     test('shows error when no ratings exist', async ({ page, testEvent }) => {
-      const { eventId, pin } = testEvent;
+      const { eventId } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       await setAuthToken(page, adminToken, 'admin@example.com');
@@ -435,7 +435,7 @@ test.describe('Data Export', () => {
       const csv = await parseDownloadedCSV(download);
       const item1Row = csv.rows.find(r => r.itemId === '1');
       expect(item1Row['Average Rating']).toBe('3.00'); // (4+2)/2
-      expect(item1Row['Weighted Rating']).toBeTruthy();
+      expect(Number(item1Row['Weighted Rating'])).not.toBeNaN();
     });
 
     test('user columns use username (email) format when name exists', async ({ page, testEvent }) => {
@@ -512,7 +512,7 @@ test.describe('Data Export', () => {
   test.describe('Export User Data', () => {
 
     test('exports admin as user when only admin exists', async ({ page, testEvent }) => {
-      const { eventId, pin } = testEvent;
+      const { eventId } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       // Admin is automatically added as a user, so export should succeed with 1 user
@@ -552,7 +552,7 @@ test.describe('Data Export', () => {
     });
 
     test('exports admin with Owner status', async ({ page, testEvent }) => {
-      const { eventId, pin } = testEvent;
+      const { eventId } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'owner@example.com');
       
       await setAuthToken(page, adminToken, 'owner@example.com');
@@ -656,7 +656,7 @@ test.describe('Data Export', () => {
   test.describe('Export Item Details', () => {
 
     test('exports all items from 1 to numberOfItems', async ({ page, testEvent }) => {
-      const { eventId, pin } = testEvent;
+      const { eventId } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       // Set 10 items
@@ -674,7 +674,7 @@ test.describe('Data Export', () => {
     });
 
     test('excludes items in excludedItemIds list', async ({ page, testEvent }) => {
-      const { eventId, pin } = testEvent;
+      const { eventId } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       // Set 10 items, exclude 3, 5, 7
@@ -698,7 +698,7 @@ test.describe('Data Export', () => {
     });
 
     test('unassigned bottle slots have empty detail fields', async ({ page, testEvent }) => {
-      const { eventId, pin } = testEvent;
+      const { eventId } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       // Set 5 bottle slots
@@ -747,7 +747,7 @@ test.describe('Data Export', () => {
       
       expect(item1?.numberOfRaters).toBe('3');
       expect(item1?.averageRating).toBe('3.00'); // (4+3+2)/3
-      expect(item1?.weightedAverage).toBeTruthy();
+      expect(Number(item1?.weightedAverage)).not.toBeNaN();
     });
 
     test('includes rating distribution', async ({ page, testEvent }) => {
@@ -812,7 +812,7 @@ test.describe('Data Export', () => {
     });
 
     test('filename uses event terminology (bottles for wine)', async ({ page, testEvent }) => {
-      const { eventId, pin } = testEvent;
+      const { eventId } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       await updateItemConfig(eventId, adminToken, { numberOfItems: 5 });
       
@@ -834,7 +834,7 @@ test.describe('Data Export', () => {
   test.describe('Button States', () => {
 
     test('all export buttons enabled when idle', async ({ page, testEvent }) => {
-      const { eventId, pin } = testEvent;
+      const { eventId } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       await setAuthToken(page, adminToken, 'admin@example.com');

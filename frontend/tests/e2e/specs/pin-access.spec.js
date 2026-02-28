@@ -14,12 +14,12 @@ import {
   setAuthToken,
   submitEmail,
   enterPIN,
-  submitPIN,
   enterAndSubmitPIN,
   getErrorMessage,
   BASE_URL,
   API_URL,
 } from './helpers.js';
+import { DEFAULT_TEST_PIN } from '../e2e-config.js';
 
 test.describe('PIN-based Event Access', () => {
 
@@ -91,7 +91,7 @@ test.describe('PIN-based Event Access', () => {
   
   test('PIN verification required for different events', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
-    const secondEventId = await createTestEvent('Second Event', '654321');
+    const secondEventId = await createTestEvent('Second Event', DEFAULT_TEST_PIN);
     
     try {
       await clearAuth(page);

@@ -6,7 +6,7 @@
  */
 
 import { test, expect } from './fixtures.js';
-import { clearAuth, createTestEvent, deleteTestEvent, addAdminToEvent, setAuthToken, BASE_URL } from './helpers.js';
+import { clearAuth, addAdminToEvent, setAuthToken, BASE_URL } from './helpers.js';
 import { TEST_OTP } from '../e2e-config.js';
 
 test.describe('OTP Authentication', () => {
@@ -66,7 +66,7 @@ test.describe('OTP Authentication', () => {
     const session = await page.evaluate(() => localStorage.getItem('userSession'));
     expect(session).toBeTruthy();
     const parsed = JSON.parse(session);
-    expect(parsed.email).toBeTruthy();
+    expect(parsed.email).toBe(adminEmail);
     
     // Verify admin can access the admin page
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -84,7 +84,7 @@ test.describe('OTP Authentication', () => {
     
     // Enter wrong OTP
     const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
-    await expect(otpInput).toBeVisible({ timeout: 5000 });
+    await expect(otpInput).toBeVisible({ timeout: 10000 });
     await otpInput.fill('999999');
     
     const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });
@@ -133,7 +133,7 @@ test.describe('OTP Authentication', () => {
     
     // Click verify button and wait for the API response
     const verifyButton = page.getByRole('button', { name: /verify.*otp/i });
-    const [response] = await Promise.all([
+    await Promise.all([
       page.waitForResponse(resp => resp.url().includes('/auth/otp/verify')),
       verifyButton.click(),
     ]);

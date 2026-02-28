@@ -16,6 +16,7 @@ import {
   submitEmail,
   enterAndSubmitPIN,
 } from './helpers.js';
+import { DEFAULT_TEST_PIN } from '../e2e-config.js';
 
 test.describe('Event Page', () => {
 
@@ -205,7 +206,7 @@ test.describe('Event Page', () => {
   test('event name is trimmed in header if too long', async ({ page }) => {
     // Create event with very long name
     const longName = 'This is a very long event name that should be trimmed in the header to fit properly';
-    const longNameEventId = await createTestEvent(longName, '123456');
+    const longNameEventId = await createTestEvent(longName, DEFAULT_TEST_PIN);
     
     try {
       const adminEmail = 'admin@example.com';

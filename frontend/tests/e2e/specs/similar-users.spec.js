@@ -100,7 +100,7 @@ test.describe('Similar Users Discovery', () => {
     await expect(drawer).toBeVisible({ timeout: 5000 });
     
     // Should show loading state or results - scope to drawer
-    const loadingOrContent = drawer.getByText(/running compatibility scanner|no similar users|similar/i);
+    const loadingOrContent = drawer.getByText(/running compatibility scanner|no similar users found/i);
     await expect(loadingOrContent.first()).toBeVisible({ timeout: 10000 });
   });
 
@@ -347,7 +347,7 @@ test.describe('Similar Users Discovery', () => {
     await expect(drawer).toBeVisible({ timeout: 5000 });
     
     // Should eventually show either loading, results, or no matches message - scope to drawer
-    const content = drawer.getByText(/running compatibility scanner|no similar users|common/i);
+    const content = drawer.getByText(/running compatibility scanner|no similar users found/i);
     await expect(content.first()).toBeVisible({ timeout: 10000 });
   });
 
@@ -422,7 +422,6 @@ test.describe('Similar Users Discovery', () => {
     const closeButton = drawer.getByRole('button', { name: /close/i });
     await closeButton.click();
     
-    // Drawer should close - check aria-hidden attribute since element stays in DOM
     await expect(drawer).toHaveAttribute('aria-hidden', 'true', { timeout: 5000 });
   });
 

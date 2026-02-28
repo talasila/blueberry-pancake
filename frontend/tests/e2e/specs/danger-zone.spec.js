@@ -99,9 +99,10 @@ async function waitForUsersCount(eventId, token, expected, { maxWaitMs = 5000, i
 /**
  * Helper: Check if event exists via API
  */
-async function eventExists(eventId) {
+async function eventExists(eventId, token) {
   try {
-    const response = await fetch(`${API_URL}/api/events/${eventId}`);
+    const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+    const response = await fetch(`${API_URL}/api/events/${eventId}`, { headers });
     return response.ok;
   } catch {
     return false;
@@ -205,11 +206,12 @@ test.describe('Danger Zone - Delete Individual User', () => {
     const ownerToken = await addAdminToEvent(eventId, ownerEmail);
     
     // Add another admin
-    await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
+    const addAdminResp = await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: adminEmail, addToUsers: true })
     });
+    expect(addAdminResp.ok).toBe(true);
     
     // Navigate as owner
     await setAuthToken(page, ownerToken, ownerEmail);
@@ -327,11 +329,12 @@ test.describe('Danger Zone - Delete All Users', () => {
     const ownerToken = await addAdminToEvent(eventId, ownerEmail);
     
     // Add another admin
-    await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
+    const addAdminResp = await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: adminEmail, addToUsers: true })
     });
+    expect(addAdminResp.ok).toBe(true);
     
     // Add regular users with small delays
     await addRegularUser(eventId, 'user1@example.com', pin);
@@ -504,7 +507,7 @@ test.describe('Danger Zone - Delete Event', () => {
     await page.waitForURL(`${BASE_URL}/`, { timeout: 10000 });
     
     // Verify event no longer exists
-    const exists = await eventExists(eventId);
+    const exists = await eventExists(eventId, ownerToken);
     expect(exists).toBe(false);
   });
 
@@ -522,6 +525,7 @@ test.describe('Danger Zone - Delete Event', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: adminEmail, addToUsers: true })
     });
+    expect(adminResponse.ok).toBe(true);
     const adminData = await adminResponse.json();
     const adminToken = adminData.token;
     

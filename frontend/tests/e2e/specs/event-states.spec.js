@@ -382,7 +382,7 @@ test.describe('Event State Management', () => {
   // Edge Cases
   // ===================================
 
-  test('only valid state transitions are shown', async ({ page, testEvent }) => {
+  test('created state shows only Start button', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);

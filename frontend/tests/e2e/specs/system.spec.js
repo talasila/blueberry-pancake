@@ -19,6 +19,7 @@ import {
   getRootAdminToken,
   setAuthToken,
 } from './helpers.js';
+import { DEFAULT_TEST_PIN } from '../e2e-config.js';
 
 // Root admin email - must match config/default.json rootAdmins array
 const ROOT_ADMIN_EMAIL = 'root@test.example.com';
@@ -118,7 +119,7 @@ test.describe('System Administration Dashboard', () => {
     
     test('should display event list for root admin', async ({ page }) => {
       // Create a test event first
-      const eventId = await createTestEvent('System Test Event', '123456');
+      const eventId = await createTestEvent('System Test Event', DEFAULT_TEST_PIN);
       
       try {
         // Set up as root admin
@@ -140,7 +141,7 @@ test.describe('System Administration Dashboard', () => {
     
     test('should show event summary info in list', async ({ page }) => {
       // Create test event
-      const eventId = await createTestEvent('Summary Test Event', '123456');
+      const eventId = await createTestEvent('Summary Test Event', DEFAULT_TEST_PIN);
       
       try {
         await setupRootAuth(page);
@@ -184,7 +185,7 @@ test.describe('System Administration Dashboard', () => {
     
     test('should open drawer when clicking event', async ({ page }) => {
       // Create test event
-      const eventId = await createTestEvent('Drawer Test Event', '123456');
+      const eventId = await createTestEvent('Drawer Test Event', DEFAULT_TEST_PIN);
       
       try {
         await setupRootAuth(page);
@@ -205,7 +206,7 @@ test.describe('System Administration Dashboard', () => {
     
     test('should display all event details in drawer', async ({ page }) => {
       // Create test event
-      const eventId = await createTestEvent('Details Test Event', '123456');
+      const eventId = await createTestEvent('Details Test Event', DEFAULT_TEST_PIN);
       
       try {
         await setupRootAuth(page);
@@ -240,7 +241,7 @@ test.describe('System Administration Dashboard', () => {
     
     test('should show delete confirmation dialog', async ({ page }) => {
       // Create test event
-      const eventId = await createTestEvent('Delete Confirm Test', '123456');
+      const eventId = await createTestEvent('Delete Confirm Test', DEFAULT_TEST_PIN);
       
       try {
         await setupRootAuth(page);
@@ -266,7 +267,7 @@ test.describe('System Administration Dashboard', () => {
     
     test('should delete event and remove from list', async ({ page }) => {
       const uniqueName = `Delete Test ${Date.now()}`;
-      const eventId = await createTestEvent(uniqueName, '123456');
+      const eventId = await createTestEvent(uniqueName, DEFAULT_TEST_PIN);
       
       try {
         await setupRootAuth(page);
@@ -307,7 +308,7 @@ test.describe('System Administration Dashboard', () => {
   test.describe('US4: Search Events', () => {
     
     test('should filter events by event ID search', async ({ page }) => {
-      const eventId = await createTestEvent('ID Search Test Event', '123456');
+      const eventId = await createTestEvent('ID Search Test Event', DEFAULT_TEST_PIN);
       
       try {
         await setupRootAuth(page);
@@ -333,7 +334,7 @@ test.describe('System Administration Dashboard', () => {
     });
     
     test('should treat whitespace-only search as empty', async ({ page }) => {
-      const eventId = await createTestEvent('Whitespace Search Test', '123456');
+      const eventId = await createTestEvent('Whitespace Search Test', DEFAULT_TEST_PIN);
       
       try {
         await setupRootAuth(page);
@@ -353,8 +354,8 @@ test.describe('System Administration Dashboard', () => {
     
     test('should filter events by name search', async ({ page }) => {
       // Create two test events with different names
-      const eventId1 = await createTestEvent('Apple Tasting Event', '123456');
-      const eventId2 = await createTestEvent('Banana Festival', '123456');
+      const eventId1 = await createTestEvent('Apple Tasting Event', DEFAULT_TEST_PIN);
+      const eventId2 = await createTestEvent('Banana Festival', DEFAULT_TEST_PIN);
       
       try {
         await setupRootAuth(page);
@@ -405,7 +406,7 @@ test.describe('System Administration Dashboard', () => {
   test.describe('Event Card & Drawer Details', () => {
     
     test('should show event ID and PIN on event card', async ({ page }) => {
-      const eventId = await createTestEvent('Card PIN Test Event', '654321');
+      const eventId = await createTestEvent('Card PIN Test Event', DEFAULT_TEST_PIN);
       
       try {
         await setupRootAuth(page);
@@ -417,7 +418,7 @@ test.describe('System Administration Dashboard', () => {
         
         // Event card should display the event ID and PIN
         await expect(eventRow.first()).toContainText(eventId);
-        await expect(eventRow.first()).toContainText('654321');
+        await expect(eventRow.first()).toContainText(DEFAULT_TEST_PIN);
       } finally {
         await deleteTestEvent(eventId);
       }

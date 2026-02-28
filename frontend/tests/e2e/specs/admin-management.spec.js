@@ -156,16 +156,15 @@ test.describe('Administrator Management', () => {
     await adminsButton.waitFor({ state: 'visible', timeout: 10000 });
     await adminsButton.click();
     
-    // Owner should be marked and not deletable
-    const ownerRow = page.locator('text=owner@example.com').locator('..');
+    const ownerRow = page.getByText('owner@example.com').locator('..');
+    await expect(ownerRow).toBeVisible({ timeout: 10000 });
     const deleteButton = ownerRow.getByRole('button', { name: /delete|remove/i });
-    
-    await expect(async () => {
-      const count = await deleteButton.count();
-      if (count > 0) {
-        expect(await deleteButton.first().isDisabled()).toBe(true);
-      }
-    }).toPass({ timeout: 5000 });
+    const count = await deleteButton.count();
+    if (count > 0) {
+      await expect(deleteButton.first()).toBeDisabled();
+    } else {
+      await expect(deleteButton).toHaveCount(0);
+    }
     await expect(ownerRow).toBeVisible();
   });
 
@@ -182,16 +181,15 @@ test.describe('Administrator Management', () => {
     await adminsButton.waitFor({ state: 'visible', timeout: 10000 });
     await adminsButton.click();
     
-    // With only one admin (owner), the delete button should be disabled or absent
-    const ownerRow = page.locator('text=owner@example.com').locator('..');
+    const ownerRow = page.getByText('owner@example.com').locator('..');
+    await expect(ownerRow).toBeVisible({ timeout: 10000 });
     const deleteButton = ownerRow.getByRole('button', { name: /delete|remove/i });
-    
-    await expect(async () => {
-      const count = await deleteButton.count();
-      if (count > 0) {
-        expect(await deleteButton.first().isDisabled()).toBe(true);
-      }
-    }).toPass({ timeout: 5000 });
+    const count = await deleteButton.count();
+    if (count > 0) {
+      await expect(deleteButton.first()).toBeDisabled();
+    } else {
+      await expect(deleteButton).toHaveCount(0);
+    }
     await expect(ownerRow).toBeVisible();
   });
 

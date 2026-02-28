@@ -7,6 +7,7 @@
 
 import { test, expect } from '@playwright/test';
 import { BASE_URL, createTestEvent, deleteTestEvent, addAdminToEvent, setAuthToken } from './helpers.js';
+import { DEFAULT_TEST_PIN } from '../e2e-config.js';
 
 test.describe('Landing Page', () => {
 
@@ -118,7 +119,7 @@ test.describe('Landing Page - Authenticated User', () => {
   let token;
 
   test.beforeEach(async ({ page }) => {
-    eventId = await createTestEvent('Landing Auth Test', '654321');
+    eventId = await createTestEvent('Landing Auth Test', DEFAULT_TEST_PIN);
     token = await addAdminToEvent(eventId, adminEmail);
     await setAuthToken(page, token, adminEmail);
   });

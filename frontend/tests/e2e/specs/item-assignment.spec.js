@@ -17,6 +17,8 @@ import {
   BASE_URL,
   API_URL,
   addAdminToEvent,
+  getUserToken,
+  submitRating,
   setAuthToken,
   clearAuth,
   submitEmail,
@@ -234,7 +236,7 @@ test.describe('Item Assignment', () => {
   // ===================================
 
   test('assignment controls not available when event is "created"', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -259,7 +261,7 @@ test.describe('Item Assignment', () => {
   });
 
   test('assignment controls not available when event is "started"', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -285,12 +287,12 @@ test.describe('Item Assignment', () => {
   });
 
   test('can assign item ID when event is "paused"', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Register an item first
-    const registeredItem = await registerItemViaAPI(eventId, { 
+    await registerItemViaAPI(eventId, { 
       name: 'Chateau Test 2019',
       price: '50',
       description: 'A fine test wine'
@@ -326,7 +328,7 @@ test.describe('Item Assignment', () => {
   });
 
   test('can clear item ID assignment', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -364,7 +366,7 @@ test.describe('Item Assignment', () => {
   });
 
   test('can reassign to different item ID', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -405,7 +407,7 @@ test.describe('Item Assignment', () => {
   });
 
   test('available IDs exclude already-assigned IDs', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -517,7 +519,7 @@ test.describe('Item Details Integration', () => {
   });
 
   test('admin can view item details in drawer before event is completed', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -567,15 +569,9 @@ test.describe('Item Details Integration', () => {
     await changeEventState(eventId, 'started', 'created', token);
     
     // Add a rating via API to have data in dashboard
-    const userToken = await addAdminToEvent(eventId, userEmail);
-    await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${userToken}`
-      },
-      body: JSON.stringify({ itemId: 3, rating: 4, note: 'Great wine!' })
-    });
+    const userToken = await getUserToken(eventId, userEmail, pin);
+    const ratingResult = await submitRating(eventId, userToken, 3, 4, 'Great wine!');
+    expect(ratingResult.ok).toBe(true);
     
     // Pause, assign, and complete
     await changeEventState(eventId, 'paused', 'started', token);

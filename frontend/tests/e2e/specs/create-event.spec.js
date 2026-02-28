@@ -371,8 +371,12 @@ test.describe('Create Event', () => {
     // The component's isSubmitting state should prevent duplicate API calls
     await createButton.click();
     // Intentional: button may detach during navigation
-    await createButton.click({ force: true }).catch(() => {});
-    await createButton.click({ force: true }).catch(() => {});
+    await createButton.click({ force: true }).catch(e => {
+      if (!e.message.includes('Target closed') && !e.message.includes('detached')) throw e;
+    });
+    await createButton.click({ force: true }).catch(e => {
+      if (!e.message.includes('Target closed') && !e.message.includes('detached')) throw e;
+    });
     
     // Wait for the API response (only one should be made due to isSubmitting guard)
     const response = await responsePromise;

@@ -12,6 +12,7 @@
 
 import { test, expect } from '@playwright/test';
 import { BASE_URL, clearAuth, createTestEvent, deleteTestEvent, addAdminToEvent, setAuthToken, setupRootAdmin, getUserToken, authenticateViaOTP } from './helpers.js';
+import { DEFAULT_TEST_PIN } from '../e2e-config.js';
 
 test.describe('My Events', () => {
   test.beforeEach(async ({ page }) => {
@@ -62,7 +63,7 @@ test.describe('My Events', () => {
 
   test('shows events list with event details for admin with events', async ({ page }) => {
     // Create a test event and add an admin
-    const eventId = await createTestEvent('My Events Test', '654321');
+    const eventId = await createTestEvent('My Events Test', DEFAULT_TEST_PIN);
     const token = await addAdminToEvent(eventId, 'list-test@example.com');
 
     try {
@@ -78,7 +79,7 @@ test.describe('My Events', () => {
   });
 
   test('clicking event in list navigates to admin page', async ({ page }) => {
-    const eventId = await createTestEvent('Click Nav Test', '654321');
+    const eventId = await createTestEvent('Click Nav Test', DEFAULT_TEST_PIN);
     const token = await addAdminToEvent(eventId, 'clicknav@example.com');
 
     try {
@@ -97,7 +98,7 @@ test.describe('My Events', () => {
   });
 
   test('header menu shows My Events for OTP-authenticated admin and navigates on click', async ({ page }) => {
-    const eventId = await createTestEvent('Header Menu Test', '654321');
+    const eventId = await createTestEvent('Header Menu Test', DEFAULT_TEST_PIN);
     const token = await addAdminToEvent(eventId, 'headermenu@example.com');
 
     try {
@@ -120,10 +121,10 @@ test.describe('My Events', () => {
   });
 
   test('header menu does not show My Events for PIN-authenticated user', async ({ page }) => {
-    const eventId = await createTestEvent('PIN Menu Test', '654321');
+    const eventId = await createTestEvent('PIN Menu Test', DEFAULT_TEST_PIN);
 
     try {
-      const token = await getUserToken(eventId, 'pin-user@example.com', '654321');
+      const token = await getUserToken(eventId, 'pin-user@example.com', DEFAULT_TEST_PIN);
       await setAuthToken(page, token, 'pin-user@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}`);
       const menuButton = page.getByRole('button', { name: /open menu/i });
@@ -211,7 +212,7 @@ test.describe('Standalone Page Logout Icon', () => {
   });
 
   test('my-events page shows logout icon instead of hamburger menu', async ({ page }) => {
-    const eventId = await createTestEvent('Logout Icon Test', '654321');
+    const eventId = await createTestEvent('Logout Icon Test', DEFAULT_TEST_PIN);
     const token = await addAdminToEvent(eventId, 'logout-icon@example.com');
 
     try {
@@ -231,7 +232,7 @@ test.describe('Standalone Page Logout Icon', () => {
   });
 
   test('create-event page shows logout icon instead of hamburger menu', async ({ page }) => {
-    const eventId = await createTestEvent('Create Page Test', '654321');
+    const eventId = await createTestEvent('Create Page Test', DEFAULT_TEST_PIN);
     const token = await addAdminToEvent(eventId, 'create-icon@example.com');
 
     try {
@@ -251,7 +252,7 @@ test.describe('Standalone Page Logout Icon', () => {
   });
 
   test('event page still shows hamburger menu with standard items', async ({ page }) => {
-    const eventId = await createTestEvent('Menu Regression Test', '654321');
+    const eventId = await createTestEvent('Menu Regression Test', DEFAULT_TEST_PIN);
     const token = await addAdminToEvent(eventId, 'menu-reg@example.com');
 
     try {

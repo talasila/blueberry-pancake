@@ -38,10 +38,8 @@ export default async function globalTeardown() {
         .map(line => line.trim())
         .filter(Boolean);
       
-      for (const eventId of tracked) {
-        await deleteEventViaAPI(eventId);
-        trackedEventsDeleted++;
-      }
+      await Promise.all(tracked.map(eventId => deleteEventViaAPI(eventId)));
+      trackedEventsDeleted = tracked.length;
       
       if (trackedEventsDeleted > 0) {
         console.log(`[E2E Cleanup] Deleted ${trackedEventsDeleted} tracked events via API`);
