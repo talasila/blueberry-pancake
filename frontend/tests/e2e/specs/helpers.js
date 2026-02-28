@@ -8,7 +8,7 @@
  */
 
 import { expect } from '@playwright/test';
-import { writeFileSync, readFileSync, existsSync, unlinkSync } from 'fs';
+import { appendFileSync, readFileSync, existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
 
 const BASE_URL = 'http://localhost:3000';
@@ -30,25 +30,13 @@ export async function resetTestEventCounter() {
 }
 
 /**
- * Track a UI-created event ID for cleanup
- * Used for events created through the UI (not via test helper API)
+ * Track a UI-created event ID for cleanup.
+ * Uses append-per-line to avoid read-modify-write race conditions
+ * when parallel workers call this concurrently.
  */
 export function trackEventForCleanup(eventId) {
   if (!eventId) return;
-  
-  let tracked = [];
-  if (existsSync(TRACKING_FILE)) {
-    try {
-      tracked = JSON.parse(readFileSync(TRACKING_FILE, 'utf-8'));
-    } catch {
-      tracked = [];
-    }
-  }
-  
-  if (!tracked.includes(eventId)) {
-    tracked.push(eventId);
-    writeFileSync(TRACKING_FILE, JSON.stringify(tracked, null, 2));
-  }
+  appendFileSync(TRACKING_FILE, eventId + '\n');
 }
 
 /**
@@ -57,7 +45,10 @@ export function trackEventForCleanup(eventId) {
 export function getTrackedEvents() {
   if (!existsSync(TRACKING_FILE)) return [];
   try {
-    return JSON.parse(readFileSync(TRACKING_FILE, 'utf-8'));
+    return readFileSync(TRACKING_FILE, 'utf-8')
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean);
   } catch {
     return [];
   }
@@ -290,9 +281,12 @@ export async function submitPIN(page) {
   await expect(submitButton).toBeEnabled({ timeout: 5000 });
   
   await submitButton.click();
-  
-  // Wait for navigation or content change after submission
-  await page.waitForURL((url) => !url.pathname.endsWith('/pin'), { timeout: 10000 }).catch(() => {});
+
+  // Wait for either: navigation away from PIN page (success) or error message (failure)
+  await Promise.race([
+    page.waitForURL(url => !new URL(url).pathname.endsWith('/pin'), { timeout: 10000 }),
+    page.locator('[role="alert"], .text-destructive, .text-red-500').first().waitFor({ state: 'visible', timeout: 10000 }),
+  ]);
 }
 
 /**
@@ -306,23 +300,19 @@ export async function enterAndSubmitPIN(page, pin) {
 /**
  * Get error message from page (if visible)
  */
-export async function getErrorMessage(page) {
-  const errorSelectors = [
-    '.text-destructive',
-    '.text-red-500',
-    '[role="alert"]',
-    'text=/error/i',
-    'text=/invalid/i',
-  ];
-  
-  for (const selector of errorSelectors) {
-    const element = page.locator(selector).first();
-    if (await element.isVisible().catch(() => false)) {
-      return await element.textContent();
-    }
+export async function getErrorMessage(page, { timeout = 5000 } = {}) {
+  const errorLocator = page.locator('.text-destructive')
+    .or(page.locator('.text-red-500'))
+    .or(page.locator('[role="alert"]'))
+    .or(page.getByText(/error/i))
+    .or(page.getByText(/invalid/i));
+
+  try {
+    await errorLocator.first().waitFor({ state: 'visible', timeout });
+    return await errorLocator.first().textContent();
+  } catch {
+    return null;
   }
-  
-  return null;
 }
 
 /**
@@ -331,14 +321,6 @@ export async function getErrorMessage(page) {
 export async function isSubmitButtonDisabled(page) {
   const submitButton = page.getByRole('button', { name: /access event/i });
   return await submitButton.isDisabled();
-}
-
-/**
- * Generate a unique event ID for testing
- */
-export function generateUniqueEventId(baseId) {
-  const timestamp = Date.now();
-  return `${baseId.slice(0, 4)}${timestamp.toString().slice(-4)}`;
 }
 
 /**
@@ -456,8 +438,8 @@ export async function authenticateViaOTP(page, email = 'creator@example.com') {
   await verifyButton.click();
 
   await Promise.race([
-    page.waitForURL(/\/(create-event|dashboard|home|events)/, { timeout: 10000 }),
-    page.waitForSelector('[data-testid="auth-success"]', { timeout: 10000 }),
-  ]).catch(() => {});
+    page.waitForURL(url => !url.href.includes('/auth'), { timeout: 15000 }),
+    page.waitForSelector('[data-testid="auth-success"]', { timeout: 15000 }),
+  ]);
 }
 

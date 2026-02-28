@@ -58,77 +58,79 @@ test.describe('Welcome Bottom Sheet', () => {
   test('appears after event creation with correct read-only content', async ({ page }) => {
     const eventId = await createEventViaUI(page, 'Bottom Sheet Test');
 
-    const sheet = page.locator('[data-testid="welcome-bottom-sheet"]');
-    await expect(sheet).toBeVisible({ timeout: 5000 });
+    try {
+      const sheet = page.locator('[data-testid="welcome-bottom-sheet"]');
+      await expect(sheet).toBeVisible({ timeout: 5000 });
 
-    // Title
-    await expect(page.getByText('Your event is ready!')).toBeVisible();
+      await expect(page.getByText('Your event is ready!')).toBeVisible();
 
-    // Sharing section with PIN
-    const sharing = page.locator('[data-testid="welcome-sharing"]');
-    await expect(sharing).toBeVisible();
-    await expect(page.locator('[data-testid="welcome-pin"]')).not.toBeEmpty();
+      const sharing = page.locator('[data-testid="welcome-sharing"]');
+      await expect(sharing).toBeVisible();
+      await expect(page.locator('[data-testid="welcome-pin"]')).not.toBeEmpty();
 
-    // Defaults section
-    const defaults = page.locator('[data-testid="welcome-defaults"]');
-    await expect(defaults).toBeVisible();
-    await expect(defaults).toContainText('wines');
-    await expect(defaults).toContainText('scale');
+      const defaults = page.locator('[data-testid="welcome-defaults"]');
+      await expect(defaults).toBeVisible();
+      await expect(defaults).toContainText('wines');
+      await expect(defaults).toContainText('scale');
 
-    // Start info
-    await expect(page.locator('[data-testid="welcome-start-info"]')).toContainText('State');
+      await expect(page.locator('[data-testid="welcome-start-info"]')).toContainText('State');
 
-    // Guide link
-    await expect(page.locator('[data-testid="welcome-open-guide"]')).toContainText('setup guide');
+      await expect(page.locator('[data-testid="welcome-open-guide"]')).toContainText('setup guide');
 
-    // No toast should be visible
-    await expect(page.getByText(/event created.*share the pin/i)).not.toBeVisible();
-
-    if (eventId) await deleteTestEvent(eventId);
+      await expect(page.getByText(/event created.*share the pin/i)).not.toBeVisible();
+    } finally {
+      if (eventId) await deleteTestEvent(eventId);
+    }
   });
 
   test('dismisses on "Got it" and admin page is interactive', async ({ page }) => {
     const eventId = await createEventViaUI(page, 'Dismiss Test');
 
-    const sheet = page.locator('[data-testid="welcome-bottom-sheet"]');
-    await expect(sheet).toBeVisible({ timeout: 5000 });
+    try {
+      const sheet = page.locator('[data-testid="welcome-bottom-sheet"]');
+      await expect(sheet).toBeVisible({ timeout: 5000 });
 
-    await page.locator('[data-testid="welcome-got-it"]').click();
-    await expect(sheet).not.toBeVisible({ timeout: 3000 });
+      await page.locator('[data-testid="welcome-got-it"]').click();
+      await expect(sheet).not.toBeVisible({ timeout: 3000 });
 
-    await expect(page.getByText('Settings')).toBeVisible({ timeout: 5000 });
-
-    if (eventId) await deleteTestEvent(eventId);
+      await expect(page.getByText('Settings')).toBeVisible({ timeout: 5000 });
+    } finally {
+      if (eventId) await deleteTestEvent(eventId);
+    }
   });
 
   test('does NOT reappear after page refresh', async ({ page }) => {
     const eventId = await createEventViaUI(page, 'Refresh Test');
 
-    const sheet = page.locator('[data-testid="welcome-bottom-sheet"]');
-    await expect(sheet).toBeVisible({ timeout: 5000 });
+    try {
+      const sheet = page.locator('[data-testid="welcome-bottom-sheet"]');
+      await expect(sheet).toBeVisible({ timeout: 5000 });
 
-    await page.locator('[data-testid="welcome-got-it"]').click();
-    await expect(sheet).not.toBeVisible({ timeout: 3000 });
+      await page.locator('[data-testid="welcome-got-it"]').click();
+      await expect(sheet).not.toBeVisible({ timeout: 3000 });
 
-    await page.reload();
-    await expect(sheet).not.toBeVisible({ timeout: 3000 });
-
-    if (eventId) await deleteTestEvent(eventId);
+      await page.reload();
+      await expect(sheet).not.toBeVisible({ timeout: 3000 });
+    } finally {
+      if (eventId) await deleteTestEvent(eventId);
+    }
   });
 
   test('"Show me the setup guide" opens admin guide', async ({ page }) => {
     const eventId = await createEventViaUI(page, 'Guide Link Test');
 
-    const sheet = page.locator('[data-testid="welcome-bottom-sheet"]');
-    await expect(sheet).toBeVisible({ timeout: 5000 });
+    try {
+      const sheet = page.locator('[data-testid="welcome-bottom-sheet"]');
+      await expect(sheet).toBeVisible({ timeout: 5000 });
 
-    await page.locator('[data-testid="welcome-open-guide"]').click();
-    await expect(sheet).not.toBeVisible({ timeout: 3000 });
+      await page.locator('[data-testid="welcome-open-guide"]').click();
+      await expect(sheet).not.toBeVisible({ timeout: 3000 });
 
-    await expect(page.locator('[role="dialog"][aria-label="Admin guide"]')).toBeVisible({
-      timeout: 5000,
-    });
-
-    if (eventId) await deleteTestEvent(eventId);
+      await expect(page.locator('[role="dialog"][aria-label="Admin guide"]')).toBeVisible({
+        timeout: 5000,
+      });
+    } finally {
+      if (eventId) await deleteTestEvent(eventId);
+    }
   });
 });

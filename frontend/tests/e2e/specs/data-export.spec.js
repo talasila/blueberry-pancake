@@ -223,10 +223,10 @@ test.describe('Data Export', () => {
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       // Should be redirected or show access denied - not on admin page with Export Data visible
       const exportButton = page.getByRole('button', { name: /export data/i });
-      await expect(exportButton).not.toBeVisible({ timeout: 3000 }).catch(() => {
-        // If visible, the URL should have changed (redirected)
-        expect(page.url()).not.toContain('/admin');
-      });
+      const exportVisible = await exportButton.isVisible({ timeout: 3000 }).catch(() => false);
+      if (exportVisible) {
+        await expect(page).not.toHaveURL(/\/admin/);
+      }
     });
   });
 

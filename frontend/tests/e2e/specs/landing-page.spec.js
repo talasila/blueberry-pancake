@@ -6,7 +6,7 @@
  */
 
 import { test, expect } from '@playwright/test';
-import { clearAuth, createTestEvent, deleteTestEvent, addAdminToEvent, setAuthToken } from './helpers.js';
+import { createTestEvent, deleteTestEvent, addAdminToEvent, setAuthToken } from './helpers.js';
 
 const BASE_URL = 'http://localhost:3000';
 const API_URL = 'http://localhost:3001';

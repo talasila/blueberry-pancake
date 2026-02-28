@@ -67,7 +67,7 @@ async function navigateToSystemPage(page) {
   
   // If auth failed (403), page shows Access Denied
   if (authResponse.status() === 403) {
-    await page.waitForSelector('text=Access Denied', { timeout: 5000 });
+    await page.getByText('Access Denied').waitFor({ state: 'visible', timeout: 5000 });
     return;
   }
   
@@ -78,13 +78,11 @@ async function navigateToSystemPage(page) {
     console.warn('Events API did not return 200');
   }
   
-  // Wait for loading spinner to disappear / content to appear
-  // Look for either event rows, empty state, or the All Events heading
-  await page.waitForSelector('h2:has-text("All Events"), [data-testid="event-row"], text="No events found"', { 
-    timeout: 10000 
-  }).catch(() => {
-    // Ignore - page might still be loading
-  });
+  await page.locator('h2').filter({ hasText: 'All Events' })
+    .or(page.locator('[data-testid="event-row"]'))
+    .or(page.getByText('No events found'))
+    .first()
+    .waitFor({ state: 'visible', timeout: 10000 });
   
 }
 
@@ -96,12 +94,11 @@ async function navigateToSystemPageWithStats(page) {
   await navigateToSystemPage(page);
   
   // Wait for stats section to render (stats are loaded during auth check)
-  await page.waitForSelector('text=/total events/i', { timeout: 15000 });
+  await page.getByText(/total events/i).waitFor({ state: 'visible', timeout: 15000 });
 }
 
 test.describe('System Administration Dashboard', () => {
   // Run system tests serially to avoid race conditions with shared test events
-  //test.describe.configure({ mode: 'serial' });
   
   // ============================================================
   // US1: View All Events

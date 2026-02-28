@@ -18,15 +18,7 @@ const API_URL = 'http://localhost:3001';
  */
 async function navigateToCreateEvent(page) {
   await page.goto(`${BASE_URL}/create-event`);
-  // Wait for the create event form to be visible
-  const formVisible = await page.locator('input').first().isVisible().catch(() => false);
-  if (!formVisible) {
-    // If redirected to auth, we're not authenticated - throw error
-    const currentUrl = page.url();
-    if (currentUrl.includes('/auth')) {
-      throw new Error('Not authenticated - redirected to auth page');
-    }
-  }
+  await expect(page).not.toHaveURL(/\/auth/, { timeout: 5000 });
 }
 
 test.describe('Create Event', () => {
@@ -138,16 +130,10 @@ test.describe('Create Event', () => {
     
     // Wait for API response and extract event ID
     const response = await responsePromise;
-    let createdEventId = null;
-    try {
-      const data = await response.json();
-      createdEventId = data.eventId;
-      if (createdEventId) {
-        trackEventForCleanup(createdEventId);
-      }
-    } catch {
-      // Ignore parsing errors
-    }
+    const data = await response.json();
+    const createdEventId = data.eventId;
+    expect(createdEventId).toBeTruthy();
+    trackEventForCleanup(createdEventId);
     
     // Verify redirect to admin page with uppercase-only event ID
     await page.waitForURL(/\/event\/[0-9A-Z]{8}\/admin/, { timeout: 10000 });
@@ -156,12 +142,10 @@ test.describe('Create Event', () => {
     await expect(page.locator('[data-testid="welcome-bottom-sheet"]')).toBeVisible({ timeout: 5000 });
 
     // Verify the event state via API
-    if (createdEventId) {
-      const stateResponse = await fetch(`${API_URL}/api/events/${createdEventId}`);
-      if (stateResponse.ok) {
-        const eventData = await stateResponse.json();
-        expect(eventData.state).toBe('created');
-      }
+    const stateResponse = await fetch(`${API_URL}/api/events/${createdEventId}`);
+    if (stateResponse.ok) {
+      const eventData = await stateResponse.json();
+      expect(eventData.state).toBe('created');
     }
 
     // Verify back button skips the create form (FR-004)
@@ -169,9 +153,7 @@ test.describe('Create Event', () => {
     await expect(page).not.toHaveURL(/\/create-event/);
 
     // Cleanup
-    if (createdEventId) {
-      await deleteTestEvent(createdEventId);
-    }
+    await deleteTestEvent(createdEventId);
   });
 
   // ===================================
@@ -238,18 +220,11 @@ test.describe('Create Event', () => {
     await createButton.click();
 
     const response = await responsePromise;
-    let createdEventId = null;
-    try {
-      const data = await response.json();
-      createdEventId = data.eventId;
-      if (createdEventId) {
-        trackEventForCleanup(createdEventId);
-      }
-    } catch {
-      // Ignore parsing errors
-    }
-
+    const data = await response.json();
+    const createdEventId = data.eventId;
     expect(createdEventId).toBeTruthy();
+    trackEventForCleanup(createdEventId);
+
     expect(createdEventId).toMatch(/^[0-9A-HJ-NP-TV-Z]{8}$/);
 
     // Navigate to the event using a lowercase version of the ID
@@ -263,9 +238,7 @@ test.describe('Create Event', () => {
     expect(page.url()).toContain(`/event/${createdEventId}`);
 
     // Cleanup
-    if (createdEventId) {
-      await deleteTestEvent(createdEventId);
-    }
+    await deleteTestEvent(createdEventId);
   });
 
   test('excluded characters (I, L, O, U) pass through and show event not found', async ({ page }) => {
@@ -285,8 +258,7 @@ test.describe('Create Event', () => {
     // and show a "not found" message since no event matches this ID
     // Verify no validation error about invalid characters — the ID format is valid (8 alphanumeric)
     // Instead, expect a standard "not found" or redirect to email entry flow
-    const pageContent = await page.textContent('body');
-    expect(pageContent).not.toMatch(/invalid.*character/i);
+    await expect(page.locator('body')).not.toContainText(/invalid.*character/i);
   });
 
   // ===================================
@@ -313,12 +285,10 @@ test.describe('Create Event', () => {
     await createButton.click();
 
     const firstResponse = await firstResponsePromise;
-    let firstEventId = null;
-    try {
-      const data = await firstResponse.json();
-      firstEventId = data.eventId;
-      if (firstEventId) trackEventForCleanup(firstEventId);
-    } catch { /* ignore */ }
+    const data1 = await firstResponse.json();
+    const firstEventId = data1.eventId;
+    expect(firstEventId).toBeTruthy();
+    trackEventForCleanup(firstEventId);
 
     await page.waitForURL(/\/event\/[0-9A-Z]{8}\/admin/, { timeout: 10000 });
 
@@ -346,23 +316,19 @@ test.describe('Create Event', () => {
     await createButton2.click();
 
     const secondResponse = await secondResponsePromise;
-    let secondEventId = null;
-    try {
-      const data = await secondResponse.json();
-      secondEventId = data.eventId;
-      if (secondEventId) trackEventForCleanup(secondEventId);
-    } catch { /* ignore */ }
+    const data2 = await secondResponse.json();
+    const secondEventId = data2.eventId;
+    expect(secondEventId).toBeTruthy();
+    trackEventForCleanup(secondEventId);
 
     await page.waitForURL(/\/event\/[0-9A-Z]{8}\/admin/, { timeout: 10000 });
 
     // Both events should have been created with distinct IDs
-    expect(firstEventId).toBeTruthy();
-    expect(secondEventId).toBeTruthy();
     expect(firstEventId).not.toBe(secondEventId);
 
     // Cleanup
-    if (firstEventId) await deleteTestEvent(firstEventId);
-    if (secondEventId) await deleteTestEvent(secondEventId);
+    await deleteTestEvent(firstEventId);
+    await deleteTestEvent(secondEventId);
   });
 
   // ===================================
@@ -399,29 +365,17 @@ test.describe('Create Event', () => {
     // Wait for the API response (only one should be made due to isSubmitting guard)
     const response = await responsePromise;
     
-    // Extract the created event ID
-    let createdEventId = null;
-    try {
-      const data = await response.json();
-      createdEventId = data.eventId;
-      if (createdEventId) {
-        trackEventForCleanup(createdEventId);
-      }
-    } catch {
-      // Ignore parsing errors
-    }
+    const data = await response.json();
+    const createdEventId = data.eventId;
+    expect(createdEventId).toBeTruthy();
+    trackEventForCleanup(createdEventId);
     
     // Wait for single redirect to admin page with uppercase-only event ID
     await page.waitForURL(/\/event\/[0-9A-Z]{8}\/admin/, { timeout: 10000 });
 
-    // Verify exactly one event was created
-    expect(createdEventId).toBeTruthy();
-
     await page.waitForLoadState('load');
 
     // Clean up
-    if (createdEventId) {
-      await deleteTestEvent(createdEventId);
-    }
+    await deleteTestEvent(createdEventId);
   });
 });

@@ -64,8 +64,7 @@ test.describe('Rating Flow', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Use API to start the event
-    await fetch(`${API_URL}/api/events/${eventId}/state`, {
+    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -73,8 +72,7 @@ test.describe('Rating Flow', () => {
       },
       body: JSON.stringify({ state: 'started', currentState: 'created' })
     });
-    
-    // Now access as regular user
+    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
     
@@ -85,21 +83,21 @@ test.describe('Rating Flow', () => {
     const itemButton = page.locator('button').filter({ hasText: '1' }).first();
     await itemButton.click();
     
-    // Should see rating controls in drawer
-    const ratingControl = page.locator('[role="slider"]')
-      .or(page.locator('input[type="range"]'))
-      .or(page.locator('button').filter({ hasText: /[1-5]|★/ }));
+    const drawer = page.locator('[role="dialog"]');
+    await expect(drawer).toBeVisible({ timeout: 5000 });
+    const ratingControl = drawer.locator('[role="slider"]')
+      .or(drawer.locator('input[type="range"]'))
+      .or(drawer.getByText(/select a rating/i));
     
     await expect(ratingControl.first()).toBeVisible({ timeout: 5000 });
   });
 
   test('can submit rating for an item', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
-    // Start the event first
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    await fetch(`${API_URL}/api/events/${eventId}/state`, {
+    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -107,6 +105,7 @@ test.describe('Rating Flow', () => {
       },
       body: JSON.stringify({ state: 'started', currentState: 'created' })
     });
+    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
     
     // Access as regular user
     await clearAuth(page);
@@ -160,8 +159,7 @@ test.describe('Rating Flow', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     const userEmail = 'bookmarkuser@example.com';
     
-    // Start the event
-    await fetch(`${API_URL}/api/events/${eventId}/state`, {
+    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -169,6 +167,7 @@ test.describe('Rating Flow', () => {
       },
       body: JSON.stringify({ state: 'started', currentState: 'created' })
     });
+    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
     
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
@@ -223,8 +222,7 @@ test.describe('Rating Flow', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Start the event
-    await fetch(`${API_URL}/api/events/${eventId}/state`, {
+    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -232,6 +230,7 @@ test.describe('Rating Flow', () => {
       },
       body: JSON.stringify({ state: 'started', currentState: 'created' })
     });
+    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
     
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);

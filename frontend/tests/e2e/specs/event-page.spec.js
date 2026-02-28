@@ -25,7 +25,7 @@ test.describe('Event Page', () => {
   // ===================================
 
   test('authenticated user can access event main page', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -46,16 +46,15 @@ test.describe('Event Page', () => {
   });
 
   test('displays event name in header', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}`);
     
-    // Event name should appear in header (fixture creates event with test title)
     const header = page.locator('header');
-    await expect(header).toBeVisible();
+    await expect(header).toContainText(/test/i, { timeout: 10000 });
   });
 
   test('shows error for non-existent event', async ({ page }) => {
@@ -89,7 +88,7 @@ test.describe('Event Page', () => {
   // ===================================
 
   test('administrator can access admin page', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -127,7 +126,7 @@ test.describe('Event Page', () => {
   // ===================================
 
   test('administrator sees navigation to admin page', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -143,7 +142,7 @@ test.describe('Event Page', () => {
   });
 
   test('administrator can navigate from main page to admin page', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -162,7 +161,7 @@ test.describe('Event Page', () => {
   });
 
   test('administrator can navigate from admin page to main page', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     

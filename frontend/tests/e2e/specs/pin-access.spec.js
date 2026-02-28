@@ -181,10 +181,9 @@ test.describe('PIN-based Event Access', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     
     // Should be on event page (not PIN or email page)
-    const currentUrl = page.url();
-    expect(currentUrl).toContain(`/event/${eventId}`);
-    expect(currentUrl).not.toContain('/pin');
-    expect(currentUrl).not.toContain('/email');
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}`));
+    await expect(page).not.toHaveURL(/\/pin/);
+    await expect(page).not.toHaveURL(/\/email/);
     
     // Access admin page
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);

@@ -94,12 +94,11 @@ test.describe('Event State Management', () => {
   });
 
   test('started event shows pause and complete options', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Start event via API
-    await fetch(`${API_URL}/api/events/${eventId}/state`, {
+    const resp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -107,6 +106,7 @@ test.describe('Event State Management', () => {
       },
       body: JSON.stringify({ state: 'started', currentState: 'created' })
     });
+    if (!resp.ok) throw new Error(`Failed to start event: ${await resp.text()}`);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -133,8 +133,7 @@ test.describe('Event State Management', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Start event via API
-    await fetch(`${API_URL}/api/events/${eventId}/state`, {
+    const resp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -142,6 +141,7 @@ test.describe('Event State Management', () => {
       },
       body: JSON.stringify({ state: 'started', currentState: 'created' })
     });
+    if (!resp.ok) throw new Error(`Failed to start event: ${await resp.text()}`);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -186,8 +186,7 @@ test.describe('Event State Management', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Start then pause event via API
-    await fetch(`${API_URL}/api/events/${eventId}/state`, {
+    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -195,8 +194,9 @@ test.describe('Event State Management', () => {
       },
       body: JSON.stringify({ state: 'started', currentState: 'created' })
     });
+    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
     
-    await fetch(`${API_URL}/api/events/${eventId}/state`, {
+    const pauseResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -204,11 +204,11 @@ test.describe('Event State Management', () => {
       },
       body: JSON.stringify({ state: 'paused', currentState: 'started' })
     });
+    if (!pauseResp.ok) throw new Error(`Failed to pause event: ${await pauseResp.text()}`);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     
-    // Click the State button to expand options
     const stateButton = page.getByRole('button', { name: /state.*paused/i });
     await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
@@ -252,8 +252,7 @@ test.describe('Event State Management', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Start event via API
-    await fetch(`${API_URL}/api/events/${eventId}/state`, {
+    const resp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -261,11 +260,11 @@ test.describe('Event State Management', () => {
       },
       body: JSON.stringify({ state: 'started', currentState: 'created' })
     });
+    if (!resp.ok) throw new Error(`Failed to start event: ${await resp.text()}`);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     
-    // Click the State button to expand options
     const stateButton = page.getByRole('button', { name: /state.*started/i });
     await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
@@ -309,8 +308,7 @@ test.describe('Event State Management', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Start then pause event via API
-    await fetch(`${API_URL}/api/events/${eventId}/state`, {
+    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -318,8 +316,9 @@ test.describe('Event State Management', () => {
       },
       body: JSON.stringify({ state: 'started', currentState: 'created' })
     });
+    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
     
-    await fetch(`${API_URL}/api/events/${eventId}/state`, {
+    const pauseResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -327,11 +326,11 @@ test.describe('Event State Management', () => {
       },
       body: JSON.stringify({ state: 'paused', currentState: 'started' })
     });
+    if (!pauseResp.ok) throw new Error(`Failed to pause event: ${await pauseResp.text()}`);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     
-    // Click the State button to expand options
     const stateButton = page.getByRole('button', { name: /state.*paused/i });
     await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
@@ -379,8 +378,7 @@ test.describe('Event State Management', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Complete event via API
-    await fetch(`${API_URL}/api/events/${eventId}/state`, {
+    const startResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -388,8 +386,9 @@ test.describe('Event State Management', () => {
       },
       body: JSON.stringify({ state: 'started', currentState: 'created' })
     });
+    if (!startResp.ok) throw new Error(`Failed to start event: ${await startResp.text()}`);
     
-    await fetch(`${API_URL}/api/events/${eventId}/state`, {
+    const completeResp = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -397,6 +396,7 @@ test.describe('Event State Management', () => {
       },
       body: JSON.stringify({ state: 'completed', currentState: 'started' })
     });
+    if (!completeResp.ok) throw new Error(`Failed to complete event: ${await completeResp.text()}`);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -441,20 +441,28 @@ test.describe('Event State Management', () => {
   // ===================================
 
   test('only valid state transitions are shown', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     
-    // In created state, should only see Start button (not Pause)
+    const stateButton = page.getByRole('button', { name: /state.*created/i });
+    await stateButton.scrollIntoViewIfNeeded();
+    await stateButton.click();
+    
+    const startButton = page.getByRole('button', { name: /start/i });
+    await expect(startButton).toBeVisible({ timeout: 5000 });
+    
     const pauseButton = page.getByRole('button', { name: /^pause$/i });
+    const completeButton = page.getByRole('button', { name: /complete|finish/i });
     await expect(pauseButton).not.toBeVisible();
+    await expect(completeButton).not.toBeVisible();
   });
 
   test('state indicator shows current state clearly', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -467,7 +475,7 @@ test.describe('Event State Management', () => {
   });
 
   test('state change is reflected in event page', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     

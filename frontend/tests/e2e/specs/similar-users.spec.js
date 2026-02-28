@@ -222,6 +222,15 @@ test.describe('Similar Users Discovery', () => {
     // Very similar user should appear (may be first due to higher similarity)
     const verySimilarEntry = page.getByText(verySimilarEmail);
     await expect(verySimilarEntry).toBeVisible({ timeout: 10000 });
+
+    const drawer = page.locator('[role="dialog"]');
+    const userEntries = drawer.locator('[data-testid="similar-user-entry"]').or(drawer.locator('button').filter({ hasText: /@example\.com/ }));
+    const allTexts = await userEntries.allTextContents();
+    const veryIdx = allTexts.findIndex(t => t.includes(verySimilarEmail));
+    const lessIdx = allTexts.findIndex(t => t.includes(lessSimilarEmail));
+    if (lessIdx !== -1) {
+      expect(veryIdx).toBeLessThan(lessIdx);
+    }
   });
 
   test('shows user email in similar users list', async ({ page, testEvent }) => {

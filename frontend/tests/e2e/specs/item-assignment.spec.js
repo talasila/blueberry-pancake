@@ -112,9 +112,9 @@ test.describe('Item Registration', () => {
     // Navigate to profile page
     await navigateToProfilePage(page, eventId);
     
-    // Look for "Add Bottle" button
+    // Look for "Add Bottle" button (event context must load first)
     const addButton = page.getByRole('button', { name: /add bottle/i });
-    await expect(addButton).toBeVisible();
+    await expect(addButton).toBeVisible({ timeout: 10000 });
     await addButton.click();
     
     // Fill in item form
@@ -155,7 +155,7 @@ test.describe('Item Registration', () => {
     
     // Look for "Add Bottle" button - should be visible in started state
     const addButton = page.getByRole('button', { name: /add bottle/i });
-    await expect(addButton).toBeVisible();
+    await expect(addButton).toBeVisible({ timeout: 10000 });
     await addButton.click();
     
     // Fill in item form
@@ -189,14 +189,14 @@ test.describe('Item Registration', () => {
     // Navigate to profile page
     await navigateToProfilePage(page, eventId);
     
+    // Should see a warning message about registration not available (wait for event context to load)
+    const main = page.locator('main');
+    const warningMessage = main.getByText(/registration.*only available|not available/i);
+    await expect(warningMessage).toBeVisible({ timeout: 10000 });
+
     // "Add Bottle" button should NOT be visible in paused state
     const addButton = page.getByRole('button', { name: /add bottle/i });
     await expect(addButton).not.toBeVisible();
-    
-    // Should see a warning message about registration not available - scope to main content
-    const main = page.locator('main');
-    const warningMessage = main.getByText(/registration.*only available|not available/i);
-    await expect(warningMessage).toBeVisible();
   });
 
   test('cannot register item when event is in "completed" state', async ({ page, testEvent }) => {
@@ -217,14 +217,14 @@ test.describe('Item Registration', () => {
     // Navigate to profile page
     await navigateToProfilePage(page, eventId);
     
+    // Should see a warning message about registration not available (wait for event context to load)
+    const main = page.locator('main');
+    const warningMessage = main.getByText(/registration.*only available|not available/i);
+    await expect(warningMessage).toBeVisible({ timeout: 10000 });
+
     // "Add Bottle" button should NOT be visible in completed state
     const addButton = page.getByRole('button', { name: /add bottle/i });
     await expect(addButton).not.toBeVisible();
-    
-    // Should see a warning message about registration not available - scope to main content
-    const main = page.locator('main');
-    const warningMessage = main.getByText(/registration.*only available|not available/i);
-    await expect(warningMessage).toBeVisible();
   });
 });
 

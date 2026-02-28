@@ -19,7 +19,7 @@ test.describe('OTP Authentication', () => {
 
 
   test('verifies test OTP (123456) successfully in dev environment', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'otpadmin@example.com';
     
     // Add admin to the event (so they're recognized as admin)
@@ -70,12 +70,10 @@ test.describe('OTP Authentication', () => {
     const parsed = JSON.parse(session);
     expect(parsed.email).toBeTruthy();
     
-    // Verify admin can access the event page (not redirected)
-    const currentUrl = page.url();
-    expect(currentUrl).toContain(`/event/${eventId}`);
-    expect(currentUrl).not.toContain('/email');
-    expect(currentUrl).not.toContain('/pin');
-    expect(currentUrl).not.toContain('/otp');
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}`));
+    await expect(page).not.toHaveURL(/\/email/);
+    await expect(page).not.toHaveURL(/\/pin/);
+    await expect(page).not.toHaveURL(/\/otp/);
     
     // Verify admin can access the admin page
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -167,15 +165,7 @@ test.describe('OTP Authentication', () => {
     const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
     await expect(requestButton).toBeVisible({ timeout: 5000 });
     
-    // Button should be disabled with empty email, or show validation error on click
-    const isDisabled = await requestButton.isDisabled();
-    if (isDisabled) {
-      await expect(requestButton).toBeDisabled();
-    } else {
-      await requestButton.click();
-      const validationError = page.getByText(/required|valid.*email|enter.*email|invalid/i);
-      await expect(validationError).toBeVisible({ timeout: 5000 });
-    }
+    await expect(requestButton).toBeDisabled({ timeout: 5000 });
   });
 
   test('redirects away from auth page if already authenticated', async ({ page, testEvent }) => {

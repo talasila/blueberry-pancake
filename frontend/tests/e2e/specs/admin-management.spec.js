@@ -20,7 +20,7 @@ test.describe('Administrator Management', () => {
   // ===================================
 
   test('admin page shows administrators management section', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'owner@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -33,7 +33,7 @@ test.describe('Administrator Management', () => {
   });
 
   test('can add new administrator with valid email', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'owner@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -59,7 +59,7 @@ test.describe('Administrator Management', () => {
   });
 
   test('shows error for invalid email format', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'owner@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -85,7 +85,7 @@ test.describe('Administrator Management', () => {
   });
 
   test('shows error when adding duplicate administrator', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'owner@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -115,7 +115,7 @@ test.describe('Administrator Management', () => {
   // ===================================
 
   test('can delete non-owner administrator', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'owner@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -144,7 +144,7 @@ test.describe('Administrator Management', () => {
   });
 
   test('cannot delete owner administrator', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'owner@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -160,17 +160,14 @@ test.describe('Administrator Management', () => {
     const ownerRow = page.locator('text=owner@example.com').locator('..');
     const deleteButton = ownerRow.getByRole('button', { name: /delete|remove/i });
     
-    // Delete button should be disabled or not present for owner
     const deleteButtonCount = await deleteButton.count();
     if (deleteButtonCount > 0) {
       await expect(deleteButton).toBeDisabled();
-    } else {
-      expect(deleteButtonCount).toBe(0);
     }
   });
 
   test('cannot delete last administrator', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'owner@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -189,9 +186,6 @@ test.describe('Administrator Management', () => {
     const deleteButtonCount = await deleteButton.count();
     if (deleteButtonCount > 0) {
       await expect(deleteButton).toBeDisabled();
-    } else {
-      // Delete button is not rendered at all — that's the expected behavior
-      expect(deleteButtonCount).toBe(0);
     }
   });
 
@@ -200,7 +194,7 @@ test.describe('Administrator Management', () => {
   // ===================================
 
   test('displays list of all administrators', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'owner@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -223,7 +217,7 @@ test.describe('Administrator Management', () => {
   });
 
   test('owner administrator is clearly marked', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'owner@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -245,7 +239,7 @@ test.describe('Administrator Management', () => {
   // ===================================
 
   test('handles email with extra whitespace', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'owner@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -269,7 +263,7 @@ test.describe('Administrator Management', () => {
   });
 
   test('email comparison is case-insensitive', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'owner@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     

@@ -51,7 +51,10 @@ export default async function globalTeardown() {
   // 2. Delete tracked UI-created events
   if (existsSync(trackingFile)) {
     try {
-      const tracked = JSON.parse(readFileSync(trackingFile, 'utf-8'));
+      const tracked = readFileSync(trackingFile, 'utf-8')
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean);
       
       for (const eventId of tracked) {
         // Skip TEST* events (already handled above)

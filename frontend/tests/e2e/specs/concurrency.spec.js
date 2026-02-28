@@ -160,20 +160,17 @@ test.describe('Multi-Tenant Isolation', () => {
   });
 
   test('parallel event creation generates unique IDs', async () => {
-    // Create 5 events in parallel
     const createPromises = Array.from({ length: 5 }, (_, i) =>
       createTestEvent(null, `Parallel Event ${i + 1}`, testEventPin)
     );
     
-    const eventIds = await Promise.all(createPromises);
-    eventIds.push(...eventIds);
+    const createdIds = await Promise.all(createPromises);
+    eventIds.push(...createdIds);
     
-    // All event IDs should be unique
-    const uniqueIds = new Set(eventIds);
+    const uniqueIds = new Set(createdIds);
     expect(uniqueIds.size).toBe(5);
     
-    // All events should exist and be accessible
-    for (const eventId of eventIds) {
+    for (const eventId of createdIds) {
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       const result = await getEvent(eventId, adminToken);
       expect(result.ok).toBe(true);

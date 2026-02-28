@@ -135,12 +135,12 @@ test.describe('My Events', () => {
 
       // "My Events" should NOT be visible for PIN-authenticated participants
       await expect(page.locator('[role="menu"]')).toBeVisible({ timeout: 3000 });
-      const myEventsItem = page.locator('[role="menu"] >> text=My Events');
+      const myEventsItem = page.locator('[role="menu"]').getByText('My Events');
       await expect(myEventsItem).not.toBeVisible();
 
       // Other menu items should still be present
-      await expect(page.locator('[role="menu"] >> text=Profile')).toBeVisible();
-      await expect(page.locator('[role="menu"] >> text=Logout')).toBeVisible();
+      await expect(page.locator('[role="menu"]').getByText('Profile')).toBeVisible();
+      await expect(page.locator('[role="menu"]').getByText('Logout')).toBeVisible();
     } finally {
       await deleteTestEvent(eventId);
     }
