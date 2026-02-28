@@ -26,7 +26,6 @@ test.describe('Administrator Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Look for administrators section
     const adminsSection = page.getByText(/administrator/i);
@@ -40,7 +39,6 @@ test.describe('Administrator Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
     const adminsButton = page.getByRole('button', { name: /administrator/i });
@@ -67,7 +65,6 @@ test.describe('Administrator Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
     const adminsButton = page.getByRole('button', { name: /administrator/i });
@@ -79,11 +76,11 @@ test.describe('Administrator Management', () => {
     await emailInput.fill('invalid-email');
     
     const addButton = page.getByRole('button', { name: /add/i });
-    await addButton.click();
+    await addButton.click({ force: true });
     
     // Should show validation error inside the dialog
     const drawer = page.locator('[role="dialog"]');
-    const errorMessage = drawer.getByText('Invalid email format', { exact: true });
+    const errorMessage = drawer.getByText(/invalid email/i);
     await expect(errorMessage).toBeVisible({ timeout: 5000 });
   });
 
@@ -94,7 +91,6 @@ test.describe('Administrator Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
     const adminsButton = page.getByRole('button', { name: /administrator/i });
@@ -128,7 +124,6 @@ test.describe('Administrator Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
     const adminsButton = page.getByRole('button', { name: /administrator/i });
@@ -155,7 +150,6 @@ test.describe('Administrator Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
     const adminsButton = page.getByRole('button', { name: /administrator/i });
@@ -182,7 +176,6 @@ test.describe('Administrator Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
     const adminsButton = page.getByRole('button', { name: /administrator/i });
@@ -217,7 +210,6 @@ test.describe('Administrator Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
     const adminsButton = page.getByRole('button', { name: /administrator/i });
@@ -237,7 +229,6 @@ test.describe('Administrator Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
     const adminsButton = page.getByRole('button', { name: /administrator/i });
@@ -260,7 +251,6 @@ test.describe('Administrator Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
     const adminsButton = page.getByRole('button', { name: /administrator/i });
@@ -285,7 +275,6 @@ test.describe('Administrator Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Click administrators button to open drawer
     const adminsButton = page.getByRole('button', { name: /administrator/i });

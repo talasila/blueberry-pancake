@@ -17,8 +17,6 @@ const BASE_URL = 'http://localhost:3000';
 
 async function createEventViaUI(page, eventName = 'Welcome Sheet Test') {
   await page.goto(`${BASE_URL}/create-event`);
-  await page.waitForLoadState('networkidle');
-
   const nameInput = page.locator('input#event-name').or(page.getByLabel(/event name/i));
   await expect(nameInput).toBeVisible({ timeout: 5000 });
   await nameInput.fill(eventName);
@@ -113,8 +111,6 @@ test.describe('Welcome Bottom Sheet', () => {
     await expect(sheet).not.toBeVisible({ timeout: 3000 });
 
     await page.reload();
-    await page.waitForLoadState('networkidle');
-
     await expect(sheet).not.toBeVisible({ timeout: 3000 });
 
     if (eventId) await deleteTestEvent(eventId);

@@ -199,8 +199,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       // Click Export Data button
       await openExportDrawer(page);
       
@@ -221,12 +219,8 @@ test.describe('Data Export', () => {
       await page.goto(`${BASE_URL}/event/${eventId}`);
       await submitEmail(page, 'regularuser@example.com');
       await enterAndSubmitPIN(page, pin);
-      await page.waitForLoadState('networkidle');
-      
       // Try to navigate to admin page
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       // Should be redirected or show access denied - not on admin page with Export Data visible
       const exportButton = page.getByRole('button', { name: /export data/i });
       await expect(exportButton).not.toBeVisible({ timeout: 3000 }).catch(() => {
@@ -248,8 +242,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       await clickExportButton(page, 'ratings');
       
@@ -270,8 +262,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'ratings');
       
@@ -299,8 +289,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'ratings');
       
@@ -319,8 +307,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'ratings');
       
@@ -340,8 +326,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'ratings');
       
@@ -361,8 +345,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       await clickExportAndWaitForDownload(page, 'ratings');
       
@@ -381,8 +363,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'ratings');
       
@@ -403,8 +383,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       await clickExportButton(page, 'matrix');
       
@@ -429,8 +407,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'matrix');
       
@@ -457,8 +433,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'matrix');
       
@@ -479,8 +453,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'matrix');
       
@@ -500,8 +472,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'matrix');
       
@@ -523,8 +493,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'matrix');
       
@@ -554,8 +522,6 @@ test.describe('Data Export', () => {
       // Admin is automatically added as a user, so export should succeed with 1 user
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'users');
       
@@ -578,8 +544,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'users');
       
@@ -597,8 +561,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'owner@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'users');
       
@@ -618,8 +580,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'users');
       
@@ -644,8 +604,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'users');
       
@@ -668,8 +626,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'users');
       
@@ -689,8 +645,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'users');
       
@@ -714,8 +668,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'items');
       
@@ -737,8 +689,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'items');
       
@@ -760,8 +710,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'items');
       
@@ -795,8 +743,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'items');
       
@@ -830,8 +776,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'items');
       
@@ -861,8 +805,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'items');
       
@@ -880,8 +822,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'items');
       
@@ -903,8 +843,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       
       await expect(getExportButton(page, 'ratings')).toBeEnabled();
@@ -928,8 +866,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       
       // Click export and immediately check other buttons
@@ -955,8 +891,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       
       // Do first export
@@ -999,8 +933,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'ratings');
       
@@ -1021,8 +953,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'ratings');
       
@@ -1051,8 +981,6 @@ test.describe('Data Export', () => {
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-      
       await openExportDrawer(page);
       const download = await clickExportAndWaitForDownload(page, 'matrix');
       

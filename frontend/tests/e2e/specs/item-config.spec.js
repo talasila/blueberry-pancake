@@ -30,11 +30,6 @@ async function openBottlesDrawer(page) {
   
   // Wait for drawer to open - look for the number input (spinbutton)
   await page.getByRole('spinbutton').waitFor({ state: 'visible', timeout: 5000 });
-
-  // Wait for pending API responses to settle before interacting with form inputs.
-  // React Strict Mode double-fires useEffects, so a duplicate item-configuration
-  // fetch can arrive late and overwrite values the test has filled.
-  await page.waitForLoadState('networkidle');
 }
 
 /**
@@ -78,7 +73,6 @@ test.describe('Item Configuration', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Look for Bottles button on admin page
     const bottlesButton = page.getByRole('button', { name: /bottles/i });
@@ -92,7 +86,6 @@ test.describe('Item Configuration', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
     await openBottlesDrawer(page);
@@ -116,7 +109,6 @@ test.describe('Item Configuration', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
     await openBottlesDrawer(page);
@@ -133,7 +125,6 @@ test.describe('Item Configuration', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
     await openBottlesDrawer(page);
@@ -163,7 +154,6 @@ test.describe('Item Configuration', () => {
     // Step 1: Admin logs in and sets excluded bottle IDs
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
     await openBottlesDrawer(page);
@@ -184,7 +174,6 @@ test.describe('Item Configuration', () => {
     
     // Step 3: Regular user logs in via PIN entry flow
     await page.goto(`${BASE_URL}/event/${eventId}`);
-    await page.waitForLoadState('networkidle');
     
     // Should be redirected to email entry
     await submitEmail(page, regularUserEmail);
@@ -222,7 +211,6 @@ test.describe('Item Configuration', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
     await openBottlesDrawer(page);
@@ -246,7 +234,6 @@ test.describe('Item Configuration', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
     await openBottlesDrawer(page);
@@ -286,7 +273,6 @@ test.describe('Item Configuration', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
     await openBottlesDrawer(page);
@@ -310,7 +296,6 @@ test.describe('Item Configuration', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
     await openBottlesDrawer(page);
@@ -334,7 +319,6 @@ test.describe('Item Configuration', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
     await openBottlesDrawer(page);
@@ -358,7 +342,6 @@ test.describe('Item Configuration', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Open the Bottles drawer
     await openBottlesDrawer(page);

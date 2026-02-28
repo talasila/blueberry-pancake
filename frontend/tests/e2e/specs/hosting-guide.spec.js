@@ -19,8 +19,6 @@ async function openGuide(page) {
   await expect(icon).toBeVisible({ timeout: 5000 });
   await icon.click();
   await expect(page.locator('[role="dialog"][aria-label="Hosting guide"]')).toBeVisible({ timeout: 3000 });
-  // Wait for slide-up animation to finish (300ms transition + 10ms mount delay)
-  await page.waitForTimeout(400);
 }
 
 async function closeGuideViaButton(page) {
@@ -31,8 +29,6 @@ async function closeGuideViaButton(page) {
 async function selectRole(page, role) {
   const label = role === 'host' ? /I'm Hosting/i : /I'm a Guest/i;
   await page.getByRole('button', { name: label }).click();
-  // Wait for React state update and re-render after role selection
-  await page.waitForTimeout(300);
 }
 
 // ---------------------------------------------------------------------------

@@ -70,9 +70,6 @@ async function assignItemIdViaAPI(eventId, itemId, itemIdToAssign, token) {
  */
 async function navigateToProfilePage(page, eventId) {
   await page.goto(`${BASE_URL}/event/${eventId}/profile`);
-  await page.waitForLoadState('networkidle');
-  
-  // Wait for profile form to load
   await page.getByRole('heading', { name: /profile/i }).waitFor({ state: 'visible', timeout: 10000 });
 }
 
@@ -83,7 +80,6 @@ async function openBottlesDrawer(page) {
   const bottlesButton = page.getByRole('button', { name: /bottles/i });
   await bottlesButton.waitFor({ state: 'visible', timeout: 10000 });
   await bottlesButton.click();
-  await page.waitForTimeout(500);
 }
 
 /**
@@ -93,7 +89,6 @@ async function switchToAssignmentTab(page) {
   const assignmentTab = page.getByRole('tab', { name: /assignment/i });
   await assignmentTab.waitFor({ state: 'visible', timeout: 5000 });
   await assignmentTab.click();
-  await page.waitForTimeout(500);
 }
 
 // =============================================
@@ -137,12 +132,8 @@ test.describe('Item Registration', () => {
     const registerButton = page.getByRole('button', { name: /register bottle/i });
     await registerButton.click();
     
-    // Wait for success - item should appear in list
-    await page.waitForTimeout(2000);
-    
     // Verify item appears in the list
-    const itemName = page.getByText('Test Wine 2020');
-    await expect(itemName).toBeVisible();
+    await expect(page.getByText('Test Wine 2020')).toBeVisible({ timeout: 10000 });
   });
 
   test('can register item when event is in "started" state', async ({ page, testEvent }) => {
@@ -176,12 +167,8 @@ test.describe('Item Registration', () => {
     const registerButton = page.getByRole('button', { name: /register bottle/i });
     await registerButton.click();
     
-    // Wait for success
-    await page.waitForTimeout(2000);
-    
     // Verify item appears in the list
-    const itemName = page.getByText('Started State Wine');
-    await expect(itemName).toBeVisible();
+    await expect(page.getByText('Started State Wine')).toBeVisible({ timeout: 10000 });
   });
 
   test('cannot register item when event is in "paused" state', async ({ page, testEvent }) => {
@@ -257,7 +244,6 @@ test.describe('Item Assignment', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Open Bottles drawer
     await openBottlesDrawer(page);
@@ -286,7 +272,6 @@ test.describe('Item Assignment', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Open Bottles drawer
     await openBottlesDrawer(page);
@@ -318,7 +303,6 @@ test.describe('Item Assignment', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Open Bottles drawer
     await openBottlesDrawer(page);
@@ -326,13 +310,9 @@ test.describe('Item Assignment', () => {
     // Switch to Assignment tab
     await switchToAssignmentTab(page);
     
-    // Wait for items to load
-    await page.waitForTimeout(1000);
-    
     // Find and click the item card to expand it (assignment dropdown only shows when expanded)
     const itemCard = page.locator('.cursor-pointer', { hasText: 'Chateau Test 2019' });
     await itemCard.click();
-    await page.waitForTimeout(500);
     
     // Find the assignment dropdown inside the expanded section
     // It's a select with "Select ID" or "Clear assignment" option, NOT the filter dropdown
@@ -342,12 +322,9 @@ test.describe('Item Assignment', () => {
     // Select item ID 1
     await assignSelect.selectOption('1');
     
-    // Wait for assignment to complete
-    await page.waitForTimeout(2000);
-    
     // Verify assignment was successful - check for success toast or visual indicator
     const successToast = page.getByText(/assigned successfully|assignment.*success/i);
-    await expect(successToast).toBeVisible({ timeout: 5000 });
+    await expect(successToast).toBeVisible({ timeout: 10000 });
   });
 
   test('can clear item ID assignment', async ({ page, testEvent }) => {
@@ -367,18 +344,14 @@ test.describe('Item Assignment', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Open Bottles drawer and go to Assignment tab
     await openBottlesDrawer(page);
     await switchToAssignmentTab(page);
     
-    await page.waitForTimeout(1000);
-    
     // Find and click the item card to expand it
     const itemCard = page.locator('.cursor-pointer', { hasText: 'Clearable Wine' });
     await itemCard.click();
-    await page.waitForTimeout(500);
     
     // Find the assignment dropdown (should show current value)
     const assignSelect = page.locator('select').filter({ hasText: /Clear assignment/ });
@@ -388,12 +361,9 @@ test.describe('Item Assignment', () => {
     // Clear assignment by selecting empty option
     await assignSelect.selectOption('');
     
-    // Wait for clear to complete
-    await page.waitForTimeout(2000);
-    
     // Verify clear was successful
     const clearToast = page.getByText(/cleared|assignment.*removed/i);
-    await expect(clearToast).toBeVisible({ timeout: 5000 });
+    await expect(clearToast).toBeVisible({ timeout: 10000 });
   });
 
   test('can reassign to different item ID', async ({ page, testEvent }) => {
@@ -413,18 +383,14 @@ test.describe('Item Assignment', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Open Bottles drawer and go to Assignment tab
     await openBottlesDrawer(page);
     await switchToAssignmentTab(page);
     
-    await page.waitForTimeout(1000);
-    
     // Find and click the item card to expand it
     const itemCard = page.locator('.cursor-pointer', { hasText: 'Reassignable Wine' });
     await itemCard.click();
-    await page.waitForTimeout(500);
     
     // Find the assignment dropdown (should have value 3)
     const assignSelect = page.locator('select').filter({ hasText: /Clear assignment/ });
@@ -434,12 +400,9 @@ test.describe('Item Assignment', () => {
     // Reassign to ID 7
     await assignSelect.selectOption('7');
     
-    // Wait for reassignment
-    await page.waitForTimeout(2000);
-    
     // Verify success
     const successToast = page.getByText(/assigned successfully|ID 7/i);
-    await expect(successToast).toBeVisible({ timeout: 5000 });
+    await expect(successToast).toBeVisible({ timeout: 10000 });
     
     // Dropdown should now show 7
     await expect(assignSelect).toHaveValue('7');
@@ -461,18 +424,14 @@ test.describe('Item Assignment', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Open Bottles drawer and go to Assignment tab
     await openBottlesDrawer(page);
     await switchToAssignmentTab(page);
     
-    await page.waitForTimeout(1000);
-    
     // Find and click Wine Two card to expand it
     const wineTwoCard = page.locator('.cursor-pointer', { hasText: 'Wine Two' });
     await wineTwoCard.click();
-    await page.waitForTimeout(500);
     
     // Find the assignment dropdown for Wine Two
     const assignSelect = page.locator('select').filter({ hasText: /Select ID/ });
@@ -516,18 +475,14 @@ test.describe('Item Details Integration', () => {
     
     // Should be on event page in completed state
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-    await page.waitForLoadState('networkidle');
     
     // Click on item 1 to open details drawer
     const itemButton = page.locator('button').filter({ hasText: '1' }).first();
     await itemButton.click();
     
-    // Drawer should open
-    await page.waitForTimeout(1000);
-    
     // Should show the registered item name
     const itemName = page.getByText('Grand Reserve 2018');
-    await expect(itemName).toBeVisible();
+    await expect(itemName).toBeVisible({ timeout: 10000 });
     
     // Should show the price
     const itemPrice = page.getByText(/125\.50|\$125/);
@@ -555,19 +510,15 @@ test.describe('Item Details Integration', () => {
     
     // Should be on event page in completed state
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-    await page.waitForLoadState('networkidle');
     
     // Click on item 1 to open details drawer
     const itemButton = page.locator('button').filter({ hasText: '1' }).first();
     await itemButton.click();
     
-    // Drawer should open
-    await page.waitForTimeout(1000);
-    
     // Should show "No item registered" message - scope to the drawer to avoid matching event name
     const drawer = page.locator('[role="dialog"]');
     const noItemMessage = drawer.getByText('No item registered for this ID');
-    await expect(noItemMessage).toBeVisible();
+    await expect(noItemMessage).toBeVisible({ timeout: 10000 });
   });
 
   test('admin can view item details in drawer before event is completed', async ({ page, testEvent }) => {
@@ -589,12 +540,10 @@ test.describe('Item Details Integration', () => {
     // Admin accesses dashboard page (where admin can view item details when paused)
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Click on the Bottles/Items tab
     const bottlesTab = page.getByRole('tab', { name: /bottles|items/i });
     await bottlesTab.click();
-    await page.waitForTimeout(500);
     
     // Find and click on item ID 2 in the table
     const itemCell = page.getByRole('cell', { name: '2' }).or(
@@ -602,12 +551,9 @@ test.describe('Item Details Integration', () => {
     ).first();
     await itemCell.click();
     
-    // Drawer should open and show item details for admin
-    await page.waitForTimeout(1000);
-    
     // Should show the registered item name
     const itemName = page.getByText('Admin Preview Wine');
-    await expect(itemName).toBeVisible();
+    await expect(itemName).toBeVisible({ timeout: 10000 });
   });
 
   test('shows item details accessed from dashboard ratings table', async ({ page, testEvent }) => {
@@ -644,12 +590,10 @@ test.describe('Item Details Integration', () => {
     // Access the dashboard page
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Click on the Bottles/Items tab to see the ratings table
     const bottlesTab = page.getByRole('tab', { name: /bottles|items/i });
     await bottlesTab.click();
-    await page.waitForTimeout(500);
     
     // Find and click on item ID 3 in the ratings table
     const itemCell = page.getByRole('cell', { name: '3' }).or(
@@ -657,11 +601,8 @@ test.describe('Item Details Integration', () => {
     ).first();
     await itemCell.click();
     
-    // Drawer should open
-    await page.waitForTimeout(1000);
-    
     // Should show the registered item name
     const itemName = page.getByText('Dashboard Access Wine');
-    await expect(itemName).toBeVisible();
+    await expect(itemName).toBeVisible({ timeout: 10000 });
   });
 });

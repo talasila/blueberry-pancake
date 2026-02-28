@@ -86,8 +86,6 @@ async function navigateToSystemPage(page) {
     // Ignore - page might still be loading
   });
   
-  // Extra time for React to finish rendering
-  await page.waitForTimeout(1000);
 }
 
 /**
@@ -344,14 +342,10 @@ test.describe('System Administration Dashboard', () => {
         
         await expect(page.getByText('Whitespace Search Test')).toBeVisible({ timeout: 15000 });
         
-        // Type only spaces — should not trigger a search= API call
         const searchInput = page.getByPlaceholder(/search/i);
         await searchInput.fill('   ');
         
-        // Wait for debounce to settle
-        await page.waitForTimeout(500);
-        
-        // Events should still be visible (default view, not filtered)
+        // Events should still be visible (default view, not filtered) after debounce
         await expect(page.getByText('Whitespace Search Test')).toBeVisible({ timeout: 15000 });
       } finally {
         await deleteTestEvent(eventId);
@@ -458,22 +452,30 @@ test.describe('System Administration Dashboard', () => {
   
   test.describe('Default View', () => {
     
-    test('should show most recent events label when total exceeds 25', async ({ page }) => {
+    test('should show most recent events label only when total exceeds 25', async ({ page }) => {
       await setupRootAuth(page);
+
+      // Query the real total from the stats API to make a deterministic assertion
+      const token = await getRootAdminToken(ROOT_ADMIN_EMAIL);
+      const statsResponse = await fetch(`${API_URL}/api/system/stats`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const stats = await statsResponse.json();
+      const totalEvents = stats.totalEvents ?? stats.total_events ?? 0;
+
       await navigateToSystemPage(page);
-      
-      // If there are more than 25 total events, the label should be visible
-      // If fewer, the label should not appear
+
       const label = page.getByText('Showing 25 most recent events');
-      
-      // Check if we have enough events for the label to show
       const eventRows = page.locator('[data-testid="event-row"]');
-      const count = await eventRows.count();
-      
-      if (count >= 25) {
+
+      if (totalEvents > 25) {
         await expect(label).toBeVisible();
+        // Page should cap at 25 rows
+        await expect(eventRows).toHaveCount(25);
       } else {
         await expect(label).not.toBeVisible();
+        // Displayed rows should match the total
+        await expect(eventRows).toHaveCount(totalEvents, { timeout: 10000 });
       }
     });
     

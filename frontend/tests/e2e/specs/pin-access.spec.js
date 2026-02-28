@@ -148,9 +148,7 @@ test.describe('PIN-based Event Access', () => {
     await page.goto(`${BASE_URL}/event/${eventId}/pin`);
     
     // Should be redirected away from PIN page
-    await page.waitForTimeout(1000);
-    const currentUrl = page.url();
-    expect(currentUrl).not.toContain('/pin');
+    await expect(page).not.toHaveURL(/\/pin/, { timeout: 10000 });
   });
   
   test('administrator receives error if trying to use PIN via API', async ({ page, testEvent }) => {
@@ -181,7 +179,6 @@ test.describe('PIN-based Event Access', () => {
     
     // Access event page
     await page.goto(`${BASE_URL}/event/${eventId}`);
-    await page.waitForLoadState('networkidle');
     
     // Should be on event page (not PIN or email page)
     const currentUrl = page.url();
@@ -191,7 +188,6 @@ test.describe('PIN-based Event Access', () => {
     
     // Access admin page
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/admin`));
   });
 
@@ -206,7 +202,6 @@ test.describe('PIN-based Event Access', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Verify we're on the admin page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/admin`));
@@ -215,7 +210,6 @@ test.describe('PIN-based Event Access', () => {
     const pinButton = page.getByRole('button', { name: /pin/i });
     await pinButton.waitFor({ state: 'visible', timeout: 10000 });
     await pinButton.click();
-    await page.waitForTimeout(1000); // Give drawer time to open
     
     // Should see the PIN displayed in the drawer
     const pinDisplay = page.locator('.font-mono.text-lg.font-semibold');
@@ -230,24 +224,21 @@ test.describe('PIN-based Event Access', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Open PIN drawer
     const pinButton = page.getByRole('button', { name: /pin/i });
     await pinButton.waitFor({ state: 'visible', timeout: 10000 });
     await pinButton.click();
-    await page.waitForTimeout(1000);
     
-    // Click regenerate button
     const regenerateButton = page.getByRole('button', { name: /regenerate pin/i });
     await regenerateButton.waitFor({ state: 'visible', timeout: 5000 });
     await regenerateButton.click();
-    await page.waitForTimeout(2000);
-    
-    // Should see new PIN
+
+    // Wait for the UI to update with the new PIN
     const pinDisplay = page.locator('.font-mono.text-lg.font-semibold');
+    await expect(pinDisplay).not.toHaveText(pin, { timeout: 10000 });
+
     const newPin = await pinDisplay.textContent();
-    
     expect(newPin).toHaveLength(6);
     expect(newPin).not.toBe(pin);
   });

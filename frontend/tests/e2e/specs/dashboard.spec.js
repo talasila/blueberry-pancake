@@ -31,7 +31,6 @@ test.describe('Dashboard Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Should be on dashboard page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/dashboard`));
@@ -44,7 +43,6 @@ test.describe('Dashboard Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Dashboard should load with stats (may show zeros/N/A)
     const dashboard = page.locator('main');
@@ -71,7 +69,6 @@ test.describe('Dashboard Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/dashboard`));
   });
@@ -106,11 +103,9 @@ test.describe('Dashboard Page', () => {
     
     // Wait for event page to fully load after PIN entry
     await page.waitForURL(new RegExp(`/event/${eventId}$`), { timeout: 10000 });
-    await page.waitForLoadState('networkidle');
     
     // Try to access dashboard
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Should be redirected to event main page
     await expect(page).not.toHaveURL(/\/dashboard/);
@@ -165,7 +160,6 @@ test.describe('Dashboard Page', () => {
     
     // Navigate directly to dashboard
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Should be able to view dashboard (not redirected away)
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/dashboard`));
@@ -182,7 +176,6 @@ test.describe('Dashboard Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Should see four statistics
     const stats = page.locator('[class*="stat"]').or(page.locator('[class*="gadget"]')).or(page.locator('[class*="card"]'));
@@ -201,7 +194,6 @@ test.describe('Dashboard Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Stats should show 0 or N/A for new event
     const zeroOrNA = page.getByText(/^0$|N\/A/);
@@ -219,13 +211,11 @@ test.describe('Dashboard Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Click on Items/Bottles tab
     const itemsTab = page.getByRole('tab', { name: /items|bottles/i });
     await itemsTab.waitFor({ state: 'visible', timeout: 10000 });
     await itemsTab.click();
-    await page.waitForTimeout(500);
     
     // Should show empty state message or table (depending on configuration)
     // Scope to main content to avoid matching event name in header
@@ -260,13 +250,11 @@ test.describe('Dashboard Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Click on Items/Bottles tab
     const itemsTab = page.getByRole('tab', { name: /items|bottles/i });
     await itemsTab.waitFor({ state: 'visible', timeout: 10000 });
     await itemsTab.click();
-    await page.waitForTimeout(500);
     
     // Table should be visible with configured items
     const table = page.locator('table');
@@ -303,13 +291,11 @@ test.describe('Dashboard Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Click on Items/Bottles tab
     const itemsTab = page.getByRole('tab', { name: /items|bottles/i });
     await itemsTab.waitFor({ state: 'visible', timeout: 10000 });
     await itemsTab.click();
-    await page.waitForTimeout(500);
     
     // Table should be visible
     const table = page.locator('table');
@@ -354,13 +340,11 @@ test.describe('Dashboard Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Click on Items/Bottles tab
     const itemsTab = page.getByRole('tab', { name: /items|bottles/i });
     await itemsTab.waitFor({ state: 'visible', timeout: 10000 });
     await itemsTab.click();
-    await page.waitForTimeout(500);
     
     // First row should be item 1 (default ascending sort)
     const firstRow = page.locator('table tbody tr').first();
@@ -424,13 +408,11 @@ test.describe('Dashboard Page', () => {
     // Now view dashboard as admin
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Click on Items/Bottles tab
     const itemsTab = page.getByRole('tab', { name: /items|bottles/i });
     await itemsTab.waitFor({ state: 'visible', timeout: 10000 });
     await itemsTab.click();
-    await page.waitForTimeout(500);
     
     // Table should show weighted average column with values
     const table = page.locator('table');
@@ -458,13 +440,11 @@ test.describe('Dashboard Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Click on Users tab
     const usersTab = page.getByRole('tab', { name: /users/i });
     await usersTab.waitFor({ state: 'visible', timeout: 10000 });
     await usersTab.click();
-    await page.waitForTimeout(500);
     
     // Should show either empty state message or table (admin may be registered but without ratings)
     // Scope to main content to avoid matching event name in header
@@ -521,13 +501,11 @@ test.describe('Dashboard Page', () => {
     // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Click on Users tab
     const usersTab = page.getByRole('tab', { name: /users/i });
     await usersTab.waitFor({ state: 'visible', timeout: 10000 });
     await usersTab.click();
-    await page.waitForTimeout(500);
     
     // Table should be visible
     const table = page.locator('table');
@@ -594,12 +572,10 @@ test.describe('Dashboard Page', () => {
     // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Click on Users tab
     const usersTab = page.getByRole('tab', { name: /users/i });
     await usersTab.click();
-    await page.waitForTimeout(500);
     
     // Table should show both users
     const table = page.locator('table');
@@ -665,29 +641,24 @@ test.describe('Dashboard Page', () => {
     // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Click on Users tab
     const usersTab = page.getByRole('tab', { name: /users/i });
     await usersTab.click();
-    await page.waitForTimeout(500);
     
     // Click on User column header to sort
     const userHeader = page.getByRole('columnheader', { name: /user/i });
     await expect(userHeader).toBeVisible();
     await userHeader.click();
-    await page.waitForTimeout(500);
     
     // Click again to reverse sort
     await userHeader.click();
-    await page.waitForTimeout(500);
     
     // Click on Avg. Rating column to sort by average
     const avgHeader = page.getByRole('columnheader', { name: /avg/i });
     if (await avgHeader.isVisible()) {
       await avgHeader.click();
-      await page.waitForTimeout(500);
-    }
+      }
   });
 
   test('users table default sort is by email ascending', async ({ page, testEvent }) => {
@@ -740,12 +711,10 @@ test.describe('Dashboard Page', () => {
     // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Click on Users tab
     const usersTab = page.getByRole('tab', { name: /users/i });
     await usersTab.click();
-    await page.waitForTimeout(500);
     
     // First row should be admin (alphabetically first by email: admin@example.com < anna@example.com)
     // Admin is automatically added as a user
@@ -797,17 +766,14 @@ test.describe('Dashboard Page', () => {
     // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Click on Users tab
     const usersTab = page.getByRole('tab', { name: /users/i });
     await usersTab.click();
-    await page.waitForTimeout(500);
     
     // Click on user row
     const userRow = page.locator('table tbody tr').first();
     await userRow.click();
-    await page.waitForTimeout(500);
     
     // User details drawer should open
     const drawer = page.locator('[role="dialog"]').or(page.locator('[data-state="open"]'));
@@ -856,12 +822,10 @@ test.describe('Dashboard Page', () => {
     // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Click on Users tab
     const usersTab = page.getByRole('tab', { name: /users/i });
     await usersTab.click();
-    await page.waitForTimeout(500);
     
     // Table should show derived name from email (john.doe)
     // Use .first() since name and email both display the derived name
@@ -879,7 +843,6 @@ test.describe('Dashboard Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Admin is now counted as a user, so should show 1 user or appropriate value
     // The dashboard should display without errors
@@ -897,7 +860,6 @@ test.describe('Dashboard Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     // Dashboard heading should be visible after loading
     await expect(page.getByRole('heading', { name: /dashboard/i })).toBeVisible({ timeout: 10000 });
@@ -914,7 +876,6 @@ test.describe('Dashboard Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
     
     const refreshButton = page.getByRole('button', { name: /refresh/i });
     await expect(refreshButton).toBeVisible({ timeout: 5000 });
@@ -935,13 +896,11 @@ test.describe('Dashboard Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}`);
-    await page.waitForLoadState('networkidle');
     
     // Open the dropdown menu
     const menuButton = page.getByRole('button', { name: 'Open menu' });
     await menuButton.waitFor({ state: 'visible', timeout: 10000 });
     await menuButton.click();
-    await page.waitForTimeout(500);
     
     // Dashboard link should be visible in menu for admin
     const dashboardLink = page.getByRole('menuitem', { name: /dashboard/i }).or(page.getByText(/dashboard/i));
@@ -974,13 +933,11 @@ test.describe('Dashboard Page', () => {
     
     // Wait for event page to load
     await page.waitForURL(new RegExp(`/event/${eventId}$`), { timeout: 10000 });
-    await page.waitForLoadState('networkidle');
     
     // Open the dropdown menu
     const menuButton = page.getByRole('button', { name: 'Open menu' });
     await menuButton.waitFor({ state: 'visible', timeout: 10000 });
     await menuButton.click();
-    await page.waitForTimeout(500);
     
     // Dashboard link should NOT be visible in menu for regular user when event not completed
     const dashboardLink = page.getByRole('menuitem', { name: /dashboard/i });

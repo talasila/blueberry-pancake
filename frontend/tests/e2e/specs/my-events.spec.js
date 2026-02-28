@@ -23,16 +23,12 @@ test.describe('My Events', () => {
 
   test('landing page shows My Events card', async ({ page }) => {
     await page.goto(BASE_URL);
-    await page.waitForLoadState('networkidle');
-
     const myEventsCard = page.getByRole('button', { name: /my events/i });
     await expect(myEventsCard).toBeVisible();
   });
 
   test('My Events card navigates to auth then to my-events page', async ({ page }) => {
     await page.goto(BASE_URL);
-    await page.waitForLoadState('networkidle');
-
     const myEventsButton = page.getByRole('button', { name: /my events|view my events/i });
     await myEventsButton.click();
 
@@ -76,8 +72,6 @@ test.describe('My Events', () => {
       // Set auth and navigate to my-events
       await setAuthToken(page, token, 'list-test@example.com');
       await page.goto(`${BASE_URL}/my-events`);
-      await page.waitForLoadState('networkidle');
-
       // Verify event appears in the list
       await expect(page.getByText('My Events Test')).toBeVisible({ timeout: 10000 });
       await expect(page.getByText(eventId)).toBeVisible();
@@ -93,8 +87,6 @@ test.describe('My Events', () => {
     try {
       await setAuthToken(page, token, 'clicknav@example.com');
       await page.goto(`${BASE_URL}/my-events`);
-      await page.waitForLoadState('networkidle');
-
       // Wait for event to appear then click it
       const eventLink = page.getByText('Click Nav Test');
       await expect(eventLink).toBeVisible({ timeout: 10000 });
@@ -114,8 +106,6 @@ test.describe('My Events', () => {
     try {
       await setAuthToken(page, token, 'headermenu@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-
       const menuButton = page.getByRole('button', { name: /open menu/i });
       await expect(menuButton).toBeVisible({ timeout: 10000 });
       await menuButton.click();
@@ -139,8 +129,6 @@ test.describe('My Events', () => {
       const token = await getUserToken(eventId, 'pin-user@example.com', '654321');
       await setAuthToken(page, token, 'pin-user@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}`);
-      await page.waitForLoadState('networkidle');
-
       const menuButton = page.getByRole('button', { name: /open menu/i });
       await expect(menuButton).toBeVisible({ timeout: 10000 });
       await menuButton.click();
@@ -166,8 +154,6 @@ test.describe('My Events', () => {
 
     // Navigate to create event page
     await page.goto(`${BASE_URL}/create-event`);
-    await page.waitForLoadState('networkidle');
-
     // Fill in event name
     const nameInput = page.locator('input#event-name').or(page.getByLabel(/event name/i));
     await expect(nameInput).toBeVisible({ timeout: 5000 });
@@ -237,8 +223,6 @@ test.describe('Standalone Page Logout Icon', () => {
     try {
       await setAuthToken(page, token, 'logout-icon@example.com');
       await page.goto(`${BASE_URL}/my-events`);
-      await page.waitForLoadState('networkidle');
-
       const logoutIcon = page.getByRole('button', { name: /logout/i });
       await expect(logoutIcon).toBeVisible({ timeout: 5000 });
 
@@ -259,8 +243,6 @@ test.describe('Standalone Page Logout Icon', () => {
     try {
       await setAuthToken(page, token, 'create-icon@example.com');
       await page.goto(`${BASE_URL}/create-event`);
-      await page.waitForLoadState('networkidle');
-
       const logoutIcon = page.getByRole('button', { name: /logout/i });
       await expect(logoutIcon).toBeVisible({ timeout: 5000 });
 
@@ -281,8 +263,6 @@ test.describe('Standalone Page Logout Icon', () => {
     try {
       await setAuthToken(page, token, 'menu-reg@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await page.waitForLoadState('networkidle');
-
       const hamburgerMenu = page.getByRole('button', { name: /open menu/i });
       await expect(hamburgerMenu).toBeVisible({ timeout: 10000 });
 
@@ -300,8 +280,6 @@ test.describe('Standalone Page Logout Icon', () => {
   test('system route shows logout icon that redirects to /system/login', async ({ page }) => {
     await setupRootAdmin(page, 'root@example.com');
     await page.goto(`${BASE_URL}/system/events`);
-    await page.waitForLoadState('networkidle');
-
     const logoutIcon = page.getByRole('button', { name: /logout/i });
     await expect(logoutIcon).toBeVisible({ timeout: 5000 });
 

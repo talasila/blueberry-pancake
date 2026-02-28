@@ -31,7 +31,6 @@ test.describe('Event Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}`);
-    await page.waitForLoadState('networkidle');
     
     // Should be on event page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
@@ -41,7 +40,6 @@ test.describe('Event Page', () => {
     const { eventId, pin } = testEvent;
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
-    await page.waitForLoadState('networkidle');
     
     // Should be redirected to email entry
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/email`));
@@ -54,7 +52,6 @@ test.describe('Event Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}`);
-    await page.waitForLoadState('networkidle');
     
     // Event name should appear in header (fixture creates event with test title)
     const header = page.locator('header');
@@ -67,7 +64,6 @@ test.describe('Event Page', () => {
     
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${nonExistentEventId}`);
-    await page.waitForLoadState('networkidle');
     
     // Should be redirected to email entry page first
     await expect(page).toHaveURL(new RegExp(`/event/${nonExistentEventId}/email`));
@@ -81,11 +77,7 @@ test.describe('Event Page', () => {
     // Enter a PIN to trigger the "event not found" error
     await enterAndSubmitPIN(page, '123456');
     
-    // Wait for the error to appear after PIN verification fails
-    await page.waitForTimeout(2000);
-    
-    // Error should be displayed about event not found - scope to main content
-    // The error appears in a div with class "text-destructive"
+    // Error should be displayed about event not found
     const main = page.locator('main');
     const errorMessage = main.locator('.text-destructive, [role="alert"]')
       .or(main.getByText(/event not found|not found|invalid pin/i));
@@ -103,7 +95,6 @@ test.describe('Event Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Should be on admin page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/admin`));
@@ -123,7 +114,6 @@ test.describe('Event Page', () => {
     
     // Now try to access admin page directly
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // AdminRoute should redirect non-admins back to main event page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
@@ -143,7 +133,6 @@ test.describe('Event Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}`);
-    await page.waitForLoadState('networkidle');
     
     const menuButton = page.locator('[aria-label="Open menu"]');
     await expect(menuButton).toBeVisible({ timeout: 5000 });
@@ -160,7 +149,6 @@ test.describe('Event Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}`);
-    await page.waitForLoadState('networkidle');
     
     const menuButton = page.locator('[aria-label="Open menu"]');
     await expect(menuButton).toBeVisible({ timeout: 5000 });
@@ -169,7 +157,6 @@ test.describe('Event Page', () => {
     const settingsOption = page.getByRole('menuitem', { name: /settings/i });
     await expect(settingsOption).toBeVisible({ timeout: 5000 });
     await settingsOption.click();
-    await page.waitForLoadState('networkidle');
     
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/admin`));
   });
@@ -181,7 +168,6 @@ test.describe('Event Page', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     const menuButton = page.locator('[aria-label="Open menu"]');
     await expect(menuButton).toBeVisible({ timeout: 5000 });
@@ -190,7 +176,6 @@ test.describe('Event Page', () => {
     const backOption = page.getByText(/back.*event/i);
     await expect(backOption).toBeVisible({ timeout: 5000 });
     await backOption.click();
-    await page.waitForLoadState('networkidle');
     
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
   });
@@ -210,23 +195,12 @@ test.describe('Event Page', () => {
     for (const invalidId of invalidEventIds) {
       await clearAuth(page);
       await page.goto(`${BASE_URL}/event/${invalidId}`);
-      await page.waitForLoadState('networkidle');
       
-      // App handles invalid IDs gracefully by showing email entry page
-      // (doesn't crash or show raw errors to unauthenticated users)
-      // Scope to main content to avoid matching event name in header
+      // App handles invalid IDs gracefully — either email entry or error page
       const main = page.locator('main');
-      const emailEntry = main.getByText('Access Event');
-      const errorText = main.getByText(/error/i);
-      
-      const hasEmailEntry = await emailEntry.isVisible().catch(() => false);
-      const hasError = await errorText.first().isVisible().catch(() => false);
-      
-      // Either email entry page OR error page is graceful handling
-      expect(
-        hasEmailEntry || hasError,
-        `Expected graceful handling for invalid event ID: "${invalidId}"`
-      ).toBe(true);
+      const gracefulElement = main.getByText('Access Event')
+        .or(main.getByText(/error/i));
+      await expect(gracefulElement.first()).toBeVisible({ timeout: 10000 });
     }
   });
 
@@ -241,15 +215,10 @@ test.describe('Event Page', () => {
       
       await setAuthToken(page, token, adminEmail);
       await page.goto(`${BASE_URL}/event/${longNameEventId}`);
-      await page.waitForLoadState('networkidle');
       
       // Header should contain (a portion of) the event name
       const header = page.locator('header');
-      await expect(header).toBeVisible();
-      
-      // Verify the header shows the beginning of the long name (truncated or not)
-      const headerText = await header.textContent();
-      expect(headerText).toContain(longName.substring(0, 20));
+      await expect(header).toContainText(longName.substring(0, 20), { timeout: 10000 });
     } finally {
       await deleteTestEvent(longNameEventId);
     }

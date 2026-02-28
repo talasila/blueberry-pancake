@@ -18,8 +18,6 @@ const API_URL = 'http://localhost:3001';
  */
 async function navigateToCreateEvent(page) {
   await page.goto(`${BASE_URL}/create-event`);
-  await page.waitForLoadState('networkidle');
-  
   // Wait for the create event form to be visible
   const formVisible = await page.locator('input').first().isVisible().catch(() => false);
   if (!formVisible) {
@@ -194,7 +192,6 @@ test.describe('Create Event', () => {
     
     // Trigger blur to show validation error
     await nameInput.blur();
-    await page.waitForTimeout(500);
     
     // Check for validation error message
     const errorMessage = page.locator('#name-error').or(page.getByText(/can only contain letters, numbers, spaces, hyphens, and underscores/i));
@@ -203,7 +200,6 @@ test.describe('Create Event', () => {
     // Verify submit also shows error
     const createButton = page.getByRole('button', { name: /create event/i });
     await createButton.click();
-    await page.waitForTimeout(1000);
     
     // Error should still be visible, no redirect occurred
     await expect(page).toHaveURL(/\/create-event/);
@@ -212,7 +208,6 @@ test.describe('Create Event', () => {
     await nameInput.clear();
     await nameInput.fill('Event-Name_With-Allowed_Chars');
     await nameInput.blur();
-    await page.waitForTimeout(500);
     
     // Error message should not be visible for valid characters
     await expect(errorMessage).not.toBeVisible();
@@ -288,8 +283,6 @@ test.describe('Create Event', () => {
 
     // The system should navigate to the event page (uppercase normalized)
     // and show a "not found" message since no event matches this ID
-    await page.waitForLoadState('networkidle');
-
     // Verify no validation error about invalid characters — the ID format is valid (8 alphanumeric)
     // Instead, expect a standard "not found" or redirect to email entry flow
     const pageContent = await page.textContent('body');
@@ -331,8 +324,6 @@ test.describe('Create Event', () => {
 
     // --- Navigate back to landing page ---
     await page.goto(BASE_URL);
-    await page.waitForLoadState('networkidle');
-
     // --- Click Create again — should NOT go to /auth ---
     const landingCreateButton = page.getByRole('button', { name: /create/i });
     await landingCreateButton.click();
@@ -426,8 +417,7 @@ test.describe('Create Event', () => {
     // Verify exactly one event was created
     expect(createdEventId).toBeTruthy();
 
-    // Wait a moment for any potential duplicate requests to complete
-    await page.waitForTimeout(1000);
+    await page.waitForLoadState('load');
 
     // Clean up
     if (createdEventId) {

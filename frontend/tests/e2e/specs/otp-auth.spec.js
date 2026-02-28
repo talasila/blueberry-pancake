@@ -27,7 +27,6 @@ test.describe('OTP Authentication', () => {
     
     // Navigate to event - should redirect to email entry
     await page.goto(`${BASE_URL}/event/${eventId}`);
-    await page.waitForLoadState('networkidle');
     
     // Should be on email entry page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/email`));
@@ -80,7 +79,6 @@ test.describe('OTP Authentication', () => {
     
     // Verify admin can access the admin page
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/admin`));
   });
 
@@ -120,7 +118,6 @@ test.describe('OTP Authentication', () => {
     
     // Navigate to event - should redirect to email entry
     await page.goto(`${BASE_URL}/event/${eventId}`);
-    await page.waitForLoadState('networkidle');
     
     // Should be on email entry page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/email`));
@@ -191,7 +188,6 @@ test.describe('OTP Authentication', () => {
 
     // Navigate to /auth with a target redirect
     await page.goto(`${BASE_URL}/auth`);
-    await page.waitForLoadState('networkidle');
 
     // Should redirect to landing page (the default 'from' is '/')
     // and NOT show the sign-in form

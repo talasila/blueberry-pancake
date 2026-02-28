@@ -23,7 +23,6 @@ async function setupAdmin(page, eventId) {
 
 async function navigateToAdmin(page, eventId) {
   await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-  await page.waitForLoadState('networkidle');
 }
 
 async function transitionEventViaAPI(eventId, targetState, currentState) {

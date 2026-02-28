@@ -37,7 +37,6 @@ test.describe('Similar Users Discovery', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Similar users button should NOT be visible (no ratings yet)
     const similarButton = page.getByRole('button', { name: /similar.*taste|find.*similar/i });
@@ -66,7 +65,6 @@ test.describe('Similar Users Discovery', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, userEmail);
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Find Similar Tastes button should now be visible
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -93,7 +91,6 @@ test.describe('Similar Users Discovery', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, userEmail);
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Click Find Similar Tastes button
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -128,7 +125,6 @@ test.describe('Similar Users Discovery', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, userEmail);
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Click Find Similar Tastes button
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -171,7 +167,6 @@ test.describe('Similar Users Discovery', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, currentUserEmail);
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Click Find Similar Tastes button
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -219,14 +214,10 @@ test.describe('Similar Users Discovery', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, currentUserEmail);
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Click Find Similar Tastes button
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
     await similarButton.click();
-    
-    // Wait for drawer to load
-    await page.waitForTimeout(2000);
     
     // Very similar user should appear (may be first due to higher similarity)
     const verySimilarEntry = page.getByText(verySimilarEmail);
@@ -260,7 +251,6 @@ test.describe('Similar Users Discovery', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, currentUserEmail);
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Click Find Similar Tastes
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -295,7 +285,6 @@ test.describe('Similar Users Discovery', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, userEmail);
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Find Similar Tastes button should be visible with exactly 3 ratings
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -313,7 +302,6 @@ test.describe('Similar Users Discovery', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Similar users button should NOT be visible (event not started)
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -340,7 +328,6 @@ test.describe('Similar Users Discovery', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, userEmail);
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Click Find Similar Tastes button
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -382,7 +369,6 @@ test.describe('Similar Users Discovery', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, currentUserEmail);
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Click Find Similar Tastes
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -414,7 +400,6 @@ test.describe('Similar Users Discovery', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, userEmail);
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Click Find Similar Tastes button to open drawer
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -461,7 +446,6 @@ test.describe('Similar Users Discovery', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, currentUserEmail);
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Click Similar Tastes button to open the list
     const similarButton = page.getByRole('button', { name: /similar tastes/i });

@@ -32,8 +32,6 @@ test.describe('Rating Flow', () => {
     await enterAndSubmitPIN(page, pin);
     
     // Should see item buttons
-    await page.waitForLoadState('networkidle');
-    
     // Look for item buttons (numbered 1, 2, 3, etc.)
     const itemButton = page.getByRole('button', { name: /^1$/ }).or(page.locator('button').filter({ hasText: '1' }));
     await expect(itemButton.first()).toBeVisible({ timeout: 10000 });
@@ -46,12 +44,10 @@ test.describe('Rating Flow', () => {
     
     await submitEmail(page, 'user@example.com');
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Click on item 1
     const itemButton = page.getByRole('button', { name: /^1$/ }).or(page.locator('button').filter({ hasText: '1' })).first();
     await itemButton.click();
-    await page.waitForTimeout(1000);
     
     // Drawer should open - look for drawer content
     const drawer = page.locator('[role="dialog"]').or(page.locator('.drawer')).or(page.locator('[data-state="open"]'));
@@ -84,7 +80,6 @@ test.describe('Rating Flow', () => {
     
     await submitEmail(page, 'user@example.com');
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Click item button
     const itemButton = page.locator('button').filter({ hasText: '1' }).first();
@@ -119,7 +114,6 @@ test.describe('Rating Flow', () => {
     
     await submitEmail(page, 'rater@example.com');
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Click item 1 to open rating drawer
     const itemButton = page.locator('button').filter({ hasText: '1' }).first();
@@ -143,8 +137,8 @@ test.describe('Rating Flow', () => {
     // Verify success message appears
     await expect(page.getByText(/rating submitted successfully/i)).toBeVisible({ timeout: 5000 });
     
-    // Drawer should close after success (wait a moment for the close animation)
-    await page.waitForTimeout(1500);
+    // Drawer should close after success — the component hides via CSS transform and sets aria-hidden
+    await expect(page.locator('[role="dialog"]')).toHaveAttribute('aria-hidden', 'true', { timeout: 10000 });
     
     // Verify the item button now shows rating color (green #34C759 for rating 3 "Not bad...")
     const ratedItemButton = page.locator('button').filter({ hasText: '1' }).first();
@@ -181,29 +175,19 @@ test.describe('Rating Flow', () => {
     
     await submitEmail(page, userEmail);
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Click item 1 to open rating drawer
     const itemButton = page.locator('button').filter({ hasText: '1' }).first();
     await itemButton.click();
-    
-    // Wait for drawer to open
-    await page.waitForTimeout(1000);
     
     // Click the bookmark button in the drawer (aria-label contains "bookmark")
     const bookmarkButton = page.getByRole('button', { name: /bookmark/i });
     await expect(bookmarkButton).toBeVisible({ timeout: 5000 });
     await bookmarkButton.click();
     
-    // Wait for bookmark to be saved
-    await page.waitForTimeout(500);
-    
     // Close the drawer by clicking the close button
     const closeButton = page.getByRole('button', { name: /close/i });
     await closeButton.click();
-    
-    // Wait for drawer to close
-    await page.waitForTimeout(500);
     
     // Verify bookmark icon appears on the item button on the main page
     // ItemButton shows a bookmark icon with aria-label="Bookmarked" when bookmarked
@@ -254,7 +238,6 @@ test.describe('Rating Flow', () => {
     
     await submitEmail(page, 'noteuser@example.com');
     await enterAndSubmitPIN(page, pin);
-    await page.waitForLoadState('networkidle');
     
     // Click item 1 to open rating drawer
     const itemButton = page.locator('button').filter({ hasText: '1' }).first();

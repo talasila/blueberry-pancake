@@ -131,9 +131,6 @@ async function confirmDeletion(page, confirmationText) {
   await confirmInput.waitFor({ state: 'visible', timeout: 5000 });
   await confirmInput.fill(confirmationText);
 
-  // Wait for React to process the input and enable the button
-  await page.waitForTimeout(300);
-
   // Verify button is enabled before clicking
   const confirmButton = page.getByTestId('confirm-delete-button');
   await expect(confirmButton).toBeEnabled({ timeout: 3000 });
@@ -147,10 +144,6 @@ async function confirmDeletion(page, confirmationText) {
       button.click();
     }
   });
-
-  // Wait for the API call to complete
-  await page.waitForLoadState('networkidle');
-  await page.waitForTimeout(1000);
 }
 
 // =============================================
@@ -182,8 +175,6 @@ test.describe('Danger Zone - Delete Individual User', () => {
     // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
-    
     // Open Danger Zone drawer
     await openDangerZoneDrawer(page);
     
@@ -198,8 +189,6 @@ test.describe('Danger Zone - Delete Individual User', () => {
     await confirmDeletion(page, 'DELETE USER');
     
     // Wait for UI to update after deletion
-    await page.waitForLoadState('networkidle');
-    
     // Verify user's ratings are also deleted (poll for eventual consistency)
     const finalRatingsCount = await waitForRatingsCount(eventId, token, 0);
     expect(finalRatingsCount).toBe(0);
@@ -226,8 +215,6 @@ test.describe('Danger Zone - Delete Individual User', () => {
     // Navigate as owner
     await setAuthToken(page, ownerToken, ownerEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
-    
     // Open Danger Zone drawer
     await openDangerZoneDrawer(page);
     
@@ -263,8 +250,6 @@ test.describe('Danger Zone - Delete All Users', () => {
     // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
-    
     // Open Danger Zone drawer
     await openDangerZoneDrawer(page);
     
@@ -280,8 +265,6 @@ test.describe('Danger Zone - Delete All Users', () => {
     await confirmDeletion(page, 'DELETE ALL USERS');
     
     // Wait for UI to update after deletion
-    await page.waitForLoadState('networkidle');
-    
     // Verify only admins remain (poll for eventual consistency)
     // Event has 2 admins: test@example.com (owner from creation) + admin@example.com
     const finalUserCount = await waitForUsersCount(eventId, token, 2);
@@ -307,8 +290,6 @@ test.describe('Danger Zone - Delete All Users', () => {
     // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
-    
     // Open Danger Zone drawer
     await openDangerZoneDrawer(page);
     
@@ -327,8 +308,6 @@ test.describe('Danger Zone - Delete All Users', () => {
     // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
-    
     // Open Danger Zone drawer
     await openDangerZoneDrawer(page);
     
@@ -364,8 +343,6 @@ test.describe('Danger Zone - Delete All Users', () => {
     // Navigate as owner
     await setAuthToken(page, ownerToken, ownerEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
-    
     // Open Danger Zone drawer and delete all users
     await openDangerZoneDrawer(page);
     const deleteAllUsersButton = page.getByTestId('delete-all-users-button');
@@ -373,8 +350,6 @@ test.describe('Danger Zone - Delete All Users', () => {
     await confirmDeletion(page, 'DELETE ALL USERS');
     
     // Wait for UI to update
-    await page.waitForLoadState('networkidle');
-    
     // Verify all admins still exist (poll for eventual consistency)
     // Event has 3 admins: test@example.com (owner from creation) + owner@example.com + admin@example.com
     const finalUserCount = await waitForUsersCount(eventId, ownerToken, 3);
@@ -414,8 +389,6 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
-    
     // Open Danger Zone drawer
     await openDangerZoneDrawer(page);
     
@@ -427,8 +400,6 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     await confirmDeletion(page, 'DELETE RATINGS');
     
     // Wait for UI to update after deletion
-    await page.waitForLoadState('networkidle');
-    
     // Verify ratings are deleted (poll for eventual consistency)
     const finalRatingsCount = await waitForRatingsCount(eventId, token, 0);
     expect(finalRatingsCount).toBe(0);
@@ -458,16 +429,11 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
-    
     // Delete all ratings
     await openDangerZoneDrawer(page);
     const deleteRatingsButton = page.getByTestId('delete-all-ratings-button');
     await deleteRatingsButton.click();
     await confirmDeletion(page, 'DELETE RATINGS');
-    
-    // Wait for deletion
-    await page.waitForTimeout(2000);
     
     // Verify items still exist
     const itemsResponse = await fetch(`${API_URL}/api/events/${eventId}/items`, {
@@ -492,20 +458,14 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     // Navigate to admin page and delete ratings
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
-    
     await openDangerZoneDrawer(page);
     const deleteRatingsButton = page.getByTestId('delete-all-ratings-button');
     await deleteRatingsButton.click();
     await confirmDeletion(page, 'DELETE RATINGS');
     
     // Wait for UI to update after deletion
-    await page.waitForLoadState('networkidle');
-    
     // Navigate to dashboard and check for empty state
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    await page.waitForLoadState('networkidle');
-    
     // Dashboard should show no ratings or empty message - scope to main content
     const main = page.locator('main');
     const noRatingsMessage = main.getByText(/no ratings|no data|nothing to show/i);
@@ -528,8 +488,6 @@ test.describe('Danger Zone - Delete Event', () => {
     // Navigate to admin page
     await setAuthToken(page, ownerToken, ownerEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
-    
     // Open Danger Zone drawer
     await openDangerZoneDrawer(page);
     
@@ -571,8 +529,6 @@ test.describe('Danger Zone - Delete Event', () => {
     // Navigate to admin page as non-owner admin
     await setAuthToken(page, adminToken, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
-    
     // Open Danger Zone drawer
     await openDangerZoneDrawer(page);
     
@@ -609,8 +565,6 @@ test.describe('Danger Zone - Dialog Cancel', () => {
     // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
-    
     // Open Danger Zone drawer
     await openDangerZoneDrawer(page);
     
@@ -628,9 +582,6 @@ test.describe('Danger Zone - Dialog Cancel', () => {
       if (cancelBtn) cancelBtn.click();
     });
     
-    // Wait for dialog to close
-    await page.waitForTimeout(500);
-    
     // Confirmation dialog should close (drawer stays open)
     await expect(confirmDialog).not.toBeVisible();
     
@@ -647,8 +598,6 @@ test.describe('Danger Zone - Dialog Cancel', () => {
     // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
-    
     // Open Danger Zone drawer and click Delete All Ratings
     await openDangerZoneDrawer(page);
     const deleteRatingsButton = page.getByTestId('delete-all-ratings-button');

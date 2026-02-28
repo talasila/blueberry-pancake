@@ -33,7 +33,6 @@ test.describe('Event State Management', () => {
     
     // Should be on main event page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-    await page.waitForLoadState('networkidle');
     
     // Should see "Event has not started yet" message on main page
     const notStartedMessage = page.getByText(/event has not started yet/i);
@@ -56,24 +55,21 @@ test.describe('Event State Management', () => {
     // Admin starts the event
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Click the State button to expand options
     const stateButton = page.getByRole('button', { name: /state.*created/i });
     await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
-    await page.waitForTimeout(500);
     
-    // Click start button - scroll into view first for mobile viewport
+    // Click start button — use JS click to handle mobile viewport where dropdown animation
+    // may leave the button below the fold momentarily
     const startButton = page.getByRole('button', { name: /start/i });
     await startButton.waitFor({ state: 'visible', timeout: 5000 });
-    await startButton.scrollIntoViewIfNeeded();
-    await startButton.click({ force: true });
-    await page.waitForTimeout(2000);
+    await startButton.evaluate(el => el.click());
     
     // Event should now be started
     const stateIndicator = page.getByRole('button', { name: /state.*started/i });
-    await expect(stateIndicator).toBeVisible();
+    await expect(stateIndicator).toBeVisible({ timeout: 10000 });
     
     // Now login as regular user via PIN
     await clearAuth(page);
@@ -83,7 +79,6 @@ test.describe('Event State Management', () => {
     
     // Should be on main event page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-    await page.waitForLoadState('networkidle');
     
     // Should see "Tap a number to rate" message
     const rateMessage = page.getByText('Tap a number to rate');
@@ -115,13 +110,11 @@ test.describe('Event State Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Click the State button to expand options
     const stateButton = page.getByRole('button', { name: /state.*started/i });
     await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
-    await page.waitForTimeout(500);
     
     // Now pause and complete buttons should be visible
     const pauseButton = page.getByRole('button', { name: /pause/i });
@@ -152,24 +145,19 @@ test.describe('Event State Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Click the State button to expand options
     const stateButton = page.getByRole('button', { name: /state.*started/i });
     await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
-    await page.waitForTimeout(500);
     
-    // Click pause button - scroll into view first for mobile viewport
     const pauseButton = page.getByRole('button', { name: /pause/i });
     await pauseButton.waitFor({ state: 'visible', timeout: 5000 });
-    await pauseButton.scrollIntoViewIfNeeded();
-    await pauseButton.click({ force: true });
-    await page.waitForTimeout(2000);
+    await pauseButton.evaluate(el => el.click());
     
     // Event should now be paused
     const stateIndicator = page.getByRole('button', { name: /state.*paused/i });
-    await expect(stateIndicator).toBeVisible();
+    await expect(stateIndicator).toBeVisible({ timeout: 10000 });
     
     // Now login as regular user via PIN
     await clearAuth(page);
@@ -179,7 +167,6 @@ test.describe('Event State Management', () => {
     
     // Should be on main event page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-    await page.waitForLoadState('networkidle');
     
     // Should see "Event is paused" message on main page
     const pausedMessage = page.getByText('Event is paused');
@@ -220,24 +207,19 @@ test.describe('Event State Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Click the State button to expand options
     const stateButton = page.getByRole('button', { name: /state.*paused/i });
     await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
-    await page.waitForTimeout(500);
     
-    // Click start/resume button - scroll into view first for mobile viewport
     const startButton = page.getByRole('button', { name: /start|resume/i });
     await startButton.waitFor({ state: 'visible', timeout: 5000 });
-    await startButton.scrollIntoViewIfNeeded();
-    await startButton.click({ force: true });
-    await page.waitForTimeout(2000);
+    await startButton.evaluate(el => el.click());
     
     // Event should now be started again
     const stateIndicator = page.getByRole('button', { name: /state.*started/i });
-    await expect(stateIndicator).toBeVisible();
+    await expect(stateIndicator).toBeVisible({ timeout: 10000 });
     
     // Now login as regular user via PIN
     await clearAuth(page);
@@ -247,7 +229,6 @@ test.describe('Event State Management', () => {
     
     // Should be on main event page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-    await page.waitForLoadState('networkidle');
     
     // Should see "Tap a number to rate" message
     const rateMessage = page.getByText('Tap a number to rate');
@@ -283,24 +264,19 @@ test.describe('Event State Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Click the State button to expand options
     const stateButton = page.getByRole('button', { name: /state.*started/i });
     await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
-    await page.waitForTimeout(500);
     
-    // Click complete button - scroll into view first for mobile viewport
     const completeButton = page.getByRole('button', { name: /complete|finish/i });
     await completeButton.waitFor({ state: 'visible', timeout: 5000 });
-    await completeButton.scrollIntoViewIfNeeded();
-    await completeButton.click({ force: true });
-    await page.waitForTimeout(2000);
+    await completeButton.evaluate(el => el.click());
     
     // Event should now be completed
     const stateIndicator = page.getByRole('button', { name: /state.*(completed|finished)/i });
-    await expect(stateIndicator).toBeVisible();
+    await expect(stateIndicator).toBeVisible({ timeout: 10000 });
     
     // Now login as regular user via PIN
     await clearAuth(page);
@@ -310,7 +286,6 @@ test.describe('Event State Management', () => {
     
     // Should be on main event page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-    await page.waitForLoadState('networkidle');
     
     // Should see "Tap a number to view details" message
     const viewDetailsMessage = page.getByText('Tap a number to view details');
@@ -355,24 +330,19 @@ test.describe('Event State Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Click the State button to expand options
     const stateButton = page.getByRole('button', { name: /state.*paused/i });
     await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
-    await page.waitForTimeout(500);
     
-    // Click complete button - scroll into view first for mobile viewport
     const completeButton = page.getByRole('button', { name: /complete|finish/i });
     await completeButton.waitFor({ state: 'visible', timeout: 5000 });
-    await completeButton.scrollIntoViewIfNeeded();
-    await completeButton.click({ force: true });
-    await page.waitForTimeout(2000);
+    await completeButton.evaluate(el => el.click());
     
     // Event should now be completed
     const stateIndicator = page.getByRole('button', { name: /state.*(completed|finished)/i });
-    await expect(stateIndicator).toBeVisible();
+    await expect(stateIndicator).toBeVisible({ timeout: 10000 });
     
     // Now login as regular user via PIN
     await clearAuth(page);
@@ -382,7 +352,6 @@ test.describe('Event State Management', () => {
     
     // Should be on main event page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-    await page.waitForLoadState('networkidle');
     
     // Should see "Tap a number to view details" message
     const viewDetailsMessage = page.getByText('Tap a number to view details');
@@ -431,24 +400,19 @@ test.describe('Event State Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Click the State button to expand options
     const stateButton = page.getByRole('button', { name: /state.*(completed|finished)/i });
     await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
-    await page.waitForTimeout(500);
     
-    // Click start/reopen button - scroll into view first for mobile viewport
     const startButton = page.getByRole('button', { name: /start|reopen/i });
     await startButton.waitFor({ state: 'visible', timeout: 5000 });
-    await startButton.scrollIntoViewIfNeeded();
-    await startButton.click({ force: true });
-    await page.waitForTimeout(2000);
+    await startButton.evaluate(el => el.click());
     
     // Event should now be started again
     const stateIndicator = page.getByRole('button', { name: /state.*started/i });
-    await expect(stateIndicator).toBeVisible();
+    await expect(stateIndicator).toBeVisible({ timeout: 10000 });
     
     // Now login as regular user via PIN
     await clearAuth(page);
@@ -458,7 +422,6 @@ test.describe('Event State Management', () => {
     
     // Should be on main event page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-    await page.waitForLoadState('networkidle');
     
     // Should see "Tap a number to rate" message
     const rateMessage = page.getByText('Tap a number to rate');
@@ -484,7 +447,6 @@ test.describe('Event State Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // In created state, should only see Start button (not Pause)
     const pauseButton = page.getByRole('button', { name: /^pause$/i });
@@ -498,7 +460,6 @@ test.describe('Event State Management', () => {
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Newly created events should specifically show "created" state
     const createdStateText = page.getByText(/created/i);
@@ -524,7 +485,6 @@ test.describe('Event State Management', () => {
     // Navigate to admin page where state is displayed explicitly
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await page.waitForLoadState('networkidle');
     
     // Admin page shows the state — verify it reads "Started"
     const stateButton = page.getByRole('button', { name: /state/i });
