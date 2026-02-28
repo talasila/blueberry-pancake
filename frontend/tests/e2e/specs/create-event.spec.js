@@ -44,11 +44,9 @@ async function authenticateViaOTP(page, email = 'creator@example.com') {
   await verifyButton.click();
   
   // Wait for authentication to complete - either redirect or success indicator
-  // The page might redirect to dashboard/home, or stay on auth with success message
   await Promise.race([
     page.waitForURL(/\/(create-event|dashboard|home|events)/, { timeout: 10000 }),
     page.waitForSelector('[data-testid="auth-success"]', { timeout: 10000 }),
-    page.waitForTimeout(3000) // Fallback if no redirect/indicator
   ]).catch(() => {});
 }
 
@@ -120,7 +118,7 @@ test.describe('Create Event', () => {
     
     // Check for type of item dropdown (wine)
     const typeSelect = page.locator('select').or(page.getByRole('combobox'));
-    // Type selector should be present
+    await expect(typeSelect.first()).toBeVisible({ timeout: 5000 });
   });
 
   test('shows validation error when name is missing', async ({ page }) => {
@@ -133,11 +131,21 @@ test.describe('Create Event', () => {
     // Try to submit without filling name
     const createButton = page.getByRole('button', { name: /create/i });
     await expect(createButton).toBeVisible({ timeout: 5000 });
+    
+    const nameInput = page.getByRole('textbox', { name: /event name/i });
+    await expect(nameInput).toBeVisible();
+    
+    // Ensure field is empty
+    await nameInput.clear();
     await createButton.click();
     
-    // Should show validation error - wait for it
-    await page.waitForTimeout(500);
-    // Error message should appear for required field
+    // Form should not navigate away — we're still on the create page
+    // (native HTML5 validation prevents submission with empty required fields)
+    await expect(page).toHaveURL(/create-event/);
+    
+    // Verify the input is flagged as invalid via native validation
+    const isInvalid = await nameInput.evaluate((el) => !el.validity.valid);
+    expect(isInvalid).toBe(true);
   });
 
   // ===================================

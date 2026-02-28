@@ -145,16 +145,12 @@ test.describe('Event Page', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await page.waitForLoadState('networkidle');
     
-    // Admin should see settings/admin link in menu
     const menuButton = page.locator('[aria-label="Open menu"]');
-    if (await menuButton.isVisible()) {
-      await menuButton.click();
-      await page.waitForTimeout(500);
-      
-      // Settings option should be visible for admins - use role selector to avoid matching event name
-      const settingsOption = page.getByRole('menuitem', { name: /settings/i });
-      await expect(settingsOption).toBeVisible();
-    }
+    await expect(menuButton).toBeVisible({ timeout: 5000 });
+    await menuButton.click();
+    
+    const settingsOption = page.getByRole('menuitem', { name: /settings/i });
+    await expect(settingsOption).toBeVisible({ timeout: 5000 });
   });
 
   test('administrator can navigate from main page to admin page', async ({ page, testEvent }) => {
@@ -166,21 +162,16 @@ test.describe('Event Page', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await page.waitForLoadState('networkidle');
     
-    // Open menu and click admin/settings - use role selector to avoid matching event name
     const menuButton = page.locator('[aria-label="Open menu"]');
-    if (await menuButton.isVisible()) {
-      await menuButton.click();
-      await page.waitForTimeout(500);
-      
-      const settingsOption = page.getByRole('menuitem', { name: /settings/i });
-      if (await settingsOption.isVisible()) {
-        await settingsOption.click();
-        await page.waitForLoadState('networkidle');
-        
-        // Should be on admin page
-        await expect(page).toHaveURL(new RegExp(`/event/${eventId}/admin`));
-      }
-    }
+    await expect(menuButton).toBeVisible({ timeout: 5000 });
+    await menuButton.click();
+    
+    const settingsOption = page.getByRole('menuitem', { name: /settings/i });
+    await expect(settingsOption).toBeVisible({ timeout: 5000 });
+    await settingsOption.click();
+    await page.waitForLoadState('networkidle');
+    
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}/admin`));
   });
 
   test('administrator can navigate from admin page to main page', async ({ page, testEvent }) => {
@@ -192,21 +183,16 @@ test.describe('Event Page', () => {
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
-    // Open menu and click back to event
     const menuButton = page.locator('[aria-label="Open menu"]');
-    if (await menuButton.isVisible()) {
-      await menuButton.click();
-      await page.waitForTimeout(500);
-      
-      const backOption = page.getByText(/back.*event/i);
-      if (await backOption.isVisible()) {
-        await backOption.click();
-        await page.waitForLoadState('networkidle');
-        
-        // Should be on main event page
-        await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-      }
-    }
+    await expect(menuButton).toBeVisible({ timeout: 5000 });
+    await menuButton.click();
+    
+    const backOption = page.getByText(/back.*event/i);
+    await expect(backOption).toBeVisible({ timeout: 5000 });
+    await backOption.click();
+    await page.waitForLoadState('networkidle');
+    
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
   });
 
   // ===================================
@@ -257,10 +243,13 @@ test.describe('Event Page', () => {
       await page.goto(`${BASE_URL}/event/${longNameEventId}`);
       await page.waitForLoadState('networkidle');
       
-      // Header should contain the event name (possibly truncated)
+      // Header should contain (a portion of) the event name
       const header = page.locator('header');
       await expect(header).toBeVisible();
-      // Check that content is present but may be truncated
+      
+      // Verify the header shows the beginning of the long name (truncated or not)
+      const headerText = await header.textContent();
+      expect(headerText).toContain(longName.substring(0, 20));
     } finally {
       await deleteTestEvent(longNameEventId);
     }

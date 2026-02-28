@@ -7,6 +7,7 @@
  * - UI-created events: Random IDs, tracked in .e2e-tracked-events.json
  */
 
+import { expect } from '@playwright/test';
 import { writeFileSync, readFileSync, existsSync, unlinkSync } from 'fs';
 import { join } from 'path';
 
@@ -274,7 +275,6 @@ export async function enterPIN(page, pin) {
   await pinInput.waitFor({ state: 'attached', timeout: 5000 });
   await pinInput.click();
   await pinInput.fill(pin);
-  await page.waitForTimeout(500);
 }
 
 /**
@@ -287,19 +287,12 @@ export async function submitPIN(page) {
   await submitButton.waitFor({ state: 'visible', timeout: 5000 });
   
   // Wait for button to become enabled (PIN validation must pass)
-  // Poll until button is enabled or timeout
-  const startTime = Date.now();
-  const timeout = 5000;
-  while (Date.now() - startTime < timeout) {
-    const isDisabled = await submitButton.isDisabled();
-    if (!isDisabled) break;
-    await page.waitForTimeout(100);
-  }
+  await expect(submitButton).toBeEnabled({ timeout: 5000 });
   
   await submitButton.click();
   
-  // Wait for either navigation or error to appear
-  await page.waitForTimeout(2000);
+  // Wait for navigation or content change after submission
+  await page.waitForURL((url) => !url.pathname.endsWith('/pin'), { timeout: 10000 }).catch(() => {});
 }
 
 /**

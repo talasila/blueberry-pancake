@@ -500,18 +500,18 @@ test.describe('Event State Management', () => {
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
-    // Should see state indicator
-    const stateText = page.getByText(/created|started|paused|completed/i);
-    await expect(stateText.first()).toBeVisible();
+    // Newly created events should specifically show "created" state
+    const createdStateText = page.getByText(/created/i);
+    await expect(createdStateText.first()).toBeVisible({ timeout: 5000 });
   });
 
-  test('state change is reflected in event header', async ({ page, testEvent }) => {
+  test('state change is reflected in event page', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await fetch(`${API_URL}/api/events/${eventId}/state`, {
+    const stateResponse = await fetch(`${API_URL}/api/events/${eventId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
@@ -519,13 +519,16 @@ test.describe('Event State Management', () => {
       },
       body: JSON.stringify({ state: 'started', currentState: 'created' })
     });
+    expect(stateResponse.ok).toBe(true);
     
+    // Navigate to admin page where state is displayed explicitly
     await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}`);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     await page.waitForLoadState('networkidle');
     
-    // Header should show state icon or indicator
-    const header = page.locator('header');
-    await expect(header).toBeVisible();
+    // Admin page shows the state — verify it reads "Started"
+    const stateButton = page.getByRole('button', { name: /state/i });
+    await expect(stateButton).toBeVisible({ timeout: 5000 });
+    await expect(stateButton).toContainText(/started/i);
   });
 });

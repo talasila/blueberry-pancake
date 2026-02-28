@@ -89,14 +89,13 @@ test.describe('Rating Flow', () => {
     // Click item button
     const itemButton = page.locator('button').filter({ hasText: '1' }).first();
     await itemButton.click();
-    await page.waitForTimeout(1000);
     
     // Should see rating controls in drawer
     const ratingControl = page.locator('[role="slider"]')
       .or(page.locator('input[type="range"]'))
       .or(page.locator('button').filter({ hasText: /[1-5]|★/ }));
     
-    // Rating interface should be present when event is started
+    await expect(ratingControl.first()).toBeVisible({ timeout: 5000 });
   });
 
   test('can submit rating for an item', async ({ page, testEvent }) => {

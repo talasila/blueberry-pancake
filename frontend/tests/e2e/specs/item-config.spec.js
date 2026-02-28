@@ -62,7 +62,7 @@ function getExcludedBottleIdsInput(page) {
 async function clickSaveButton(page) {
   const saveButton = page.getByRole('button', { name: /save/i });
   await saveButton.click();
-  await page.waitForTimeout(1000); // Wait for save to complete
+  await expect(saveButton).not.toBeDisabled({ timeout: 5000 });
 }
 
 test.describe('Item Configuration', () => {
@@ -106,7 +106,7 @@ test.describe('Item Configuration', () => {
     
     // Verify success (toast or no error) - scope to drawer to avoid matching event name
     const drawer = page.locator('[role="dialog"]');
-    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 }).catch(() => {});
+    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 });
   });
 
   test('default number of bottles is 20', async ({ page, testEvent }) => {
@@ -177,7 +177,7 @@ test.describe('Item Configuration', () => {
     
     // Verify success (no error visible) - scope to drawer
     const drawer = page.locator('[role="dialog"]');
-    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 }).catch(() => {});
+    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 });
     
     // Step 2: Admin logs out
     await clearAuth(page);
@@ -324,7 +324,7 @@ test.describe('Item Configuration', () => {
     
     // Should normalize to 5,10 (no error) - scope to drawer
     const drawer = page.locator('[role="dialog"]');
-    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 }).catch(() => {});
+    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 });
   });
 
   test('handles duplicate excluded IDs', async ({ page, testEvent }) => {
@@ -348,7 +348,7 @@ test.describe('Item Configuration', () => {
     
     // Should handle duplicates (treat as single exclusion, no error) - scope to drawer
     const drawer = page.locator('[role="dialog"]');
-    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 }).catch(() => {});
+    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 });
   });
 
   test('handles whitespace in excluded IDs', async ({ page, testEvent }) => {
@@ -372,6 +372,6 @@ test.describe('Item Configuration', () => {
     
     // Should trim whitespace and process correctly (no error) - scope to drawer
     const drawer = page.locator('[role="dialog"]');
-    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 }).catch(() => {});
+    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 2000 });
   });
 });

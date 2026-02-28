@@ -315,15 +315,23 @@ test.describe('Dashboard Page', () => {
     const table = page.locator('table');
     await expect(table).toBeVisible({ timeout: 10000 });
     
+    // Capture initial row order
+    const getFirstCellTexts = async () => {
+      const cells = page.locator('table tbody tr td:first-child');
+      return cells.allTextContents();
+    };
+    const initialOrder = await getFirstCellTexts();
+    
     // Click on ID column header to sort
     const idHeader = page.getByRole('columnheader', { name: /id/i });
     await expect(idHeader).toBeVisible();
     await idHeader.click();
-    await page.waitForTimeout(500);
     
-    // Table should re-sort (clicking again should reverse order)
-    await idHeader.click();
-    await page.waitForTimeout(500);
+    // Wait for re-render then capture new order
+    await expect(async () => {
+      const newOrder = await getFirstCellTexts();
+      expect(newOrder).not.toEqual(initialOrder);
+    }).toPass({ timeout: 5000 });
   });
 
   test('default sort is by item ID ascending', async ({ page, testEvent }) => {
@@ -882,18 +890,21 @@ test.describe('Dashboard Page', () => {
     await expect(main.getByText(/N\/A|[0-1]|no.*ratings/i).first()).toBeVisible();
   });
 
-  test('shows loading indicator while fetching data', async ({ page, testEvent }) => {
+  test('dashboard renders data after loading', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
     await setAuthToken(page, token, adminEmail);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
+    await page.waitForLoadState('networkidle');
     
-    // Navigate and look for loading state
-    const navigationPromise = page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
+    // Dashboard heading should be visible after loading
+    await expect(page.getByRole('heading', { name: /dashboard/i })).toBeVisible({ timeout: 10000 });
     
-    // Loading indicator might appear briefly
-    await navigationPromise;
+    // Summary tab content should be populated with stats
+    await expect(page.getByText(/total users/i)).toBeVisible();
+    await expect(page.getByText(/total bottles/i)).toBeVisible();
   });
 
   test('refresh button updates dashboard data', async ({ page, testEvent }) => {
@@ -905,14 +916,16 @@ test.describe('Dashboard Page', () => {
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.waitForLoadState('networkidle');
     
-    // Look for refresh button
     const refreshButton = page.getByRole('button', { name: /refresh/i });
-    if (await refreshButton.isVisible()) {
-      await refreshButton.click();
-      await page.waitForTimeout(1000);
-      
-      // Data should refresh
-    }
+    await expect(refreshButton).toBeVisible({ timeout: 5000 });
+    
+    // Click refresh and verify a new API call is made
+    const responsePromise = page.waitForResponse(
+      (resp) => resp.url().includes(`/api/events/${eventId}`) && resp.status() === 200
+    );
+    await refreshButton.click();
+    const response = await responsePromise;
+    expect(response.status()).toBe(200);
   });
 
   test('dashboard link visible to admin in dropdown menu', async ({ page, testEvent }) => {

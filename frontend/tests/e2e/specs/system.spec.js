@@ -158,12 +158,10 @@ test.describe('System Administration Dashboard', () => {
         // Should see event name (with extended timeout for data to propagate)
         await expect(page.getByText('Summary Test Event')).toBeVisible({ timeout: 10000 });
         
-        // Should see event state (created by default)
+        // The event row should show the "created" state (the default for new events)
         const eventRow = page.locator('[data-testid="event-row"]').filter({ hasText: 'Summary Test Event' });
-        
-        if (await eventRow.count() > 0) {
-          await expect(eventRow.first()).toContainText(/created|started|paused|completed/i);
-        }
+        await expect(eventRow.first()).toBeVisible({ timeout: 5000 });
+        await expect(eventRow.first()).toContainText(/created/i);
       } finally {
         await deleteTestEvent(eventId);
       }

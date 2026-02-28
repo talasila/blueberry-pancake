@@ -92,21 +92,18 @@ test.describe('OTP Authentication', () => {
     
     const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
     await requestButton.click();
-    await page.waitForTimeout(1000);
     
     // Enter wrong OTP
     const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
-    if (await otpInput.isVisible()) {
-      await otpInput.fill('999999');
-      
-      const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });
-      if (await verifyButton.isVisible()) {
-        await verifyButton.click();
-        
-        // Should show error message (matches all backend error variants)
-        await expect(page.locator('.text-destructive')).toBeVisible({ timeout: 10000 });
-      }
-    }
+    await expect(otpInput).toBeVisible({ timeout: 5000 });
+    await otpInput.fill('999999');
+    
+    const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });
+    await expect(verifyButton).toBeVisible({ timeout: 5000 });
+    await verifyButton.click();
+    
+    // Should show error message (matches all backend error variants)
+    await expect(page.locator('.text-destructive')).toBeVisible({ timeout: 10000 });
   });
 
   // ===================================
@@ -171,12 +168,16 @@ test.describe('OTP Authentication', () => {
     await page.goto(`${BASE_URL}/auth`);
     
     const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
+    await expect(requestButton).toBeVisible({ timeout: 5000 });
     
-    // Button should be disabled or show error when clicked with empty email
-    if (await requestButton.isEnabled()) {
+    // Button should be disabled with empty email, or show validation error on click
+    const isDisabled = await requestButton.isDisabled();
+    if (isDisabled) {
+      await expect(requestButton).toBeDisabled();
+    } else {
       await requestButton.click();
-      // Should show validation error
-      await page.waitForTimeout(1000);
+      const validationError = page.getByText(/required|valid.*email|enter.*email|invalid/i);
+      await expect(validationError).toBeVisible({ timeout: 5000 });
     }
   });
 
