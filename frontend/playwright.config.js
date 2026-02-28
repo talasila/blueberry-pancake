@@ -12,7 +12,7 @@ export default defineConfig({
   fullyParallel: true, // Tests run in parallel - each test has isolated fixtures
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 4 : undefined, // CI: limit to 4; local: auto-detect
+  workers: process.env.CI ? 4 : 12, // CI: limit to 4; local: 12
   reporter: 'html',
   timeout: 60000, // 60 seconds per test
   

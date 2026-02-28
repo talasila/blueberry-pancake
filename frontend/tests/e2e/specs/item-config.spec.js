@@ -20,16 +20,31 @@ import {
 const BASE_URL = 'http://localhost:3000';
 
 /**
- * Navigates to admin page and waits for the item-configuration API to resolve.
- * This prevents async React state updates from overwriting input values during tests.
+ * Navigates to admin page and waits for all item-configuration API responses.
+ * React Strict Mode (dev) fires effects twice, producing two API calls.
+ * We must wait for both to prevent the second response from overwriting input values.
  */
 async function navigateToAdminWithConfig(page, eventId, token, email) {
   await setAuthToken(page, token, email);
-  const configLoaded = page.waitForResponse(
-    resp => resp.url().includes('/item-configuration')
-  );
+
+  let responseCount = 0;
+  const allConfigSettled = new Promise(resolve => {
+    const handler = resp => {
+      if (!resp.url().includes('/item-configuration')) return;
+      responseCount++;
+      if (responseCount >= 2) {
+        page.off('response', handler);
+        resolve();
+      } else {
+        // First response arrived — give the second 1s to arrive
+        setTimeout(() => { page.off('response', handler); resolve(); }, 1000);
+      }
+    };
+    page.on('response', handler);
+  });
+
   await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-  await configLoaded;
+  await allConfigSettled;
 }
 
 /**
