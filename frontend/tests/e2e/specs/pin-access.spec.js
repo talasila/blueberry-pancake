@@ -90,9 +90,8 @@ test.describe('PIN-based Event Access', () => {
     await expect(page).not.toHaveURL(new RegExp('/email$'));
   });
   
-  test.fixme('PIN verification required for different events', async ({ page, testEvent }) => {
+  test('PIN verification required for different events', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
-    // Create second event (backend generates its own ID)
     const secondEventId = await createTestEvent('Second Event', '654321');
     
     try {
@@ -104,10 +103,8 @@ test.describe('PIN-based Event Access', () => {
       await enterAndSubmitPIN(page, pin);
       await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
       
-      // Access second event - should require PIN again
+      // Access second event - should require fresh PIN verification
       await page.goto(`${BASE_URL}/event/${secondEventId}`);
-      
-      // This test will fail until app is fixed
       await expect(page).toHaveURL(new RegExp(`/event/${secondEventId}/email`));
     } finally {
       await deleteTestEvent(secondEventId);

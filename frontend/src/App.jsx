@@ -216,15 +216,15 @@ function AppLayout() {
 function EventContextProviderForRoute({ eventId, children }) {
   const [currentEvent, setCurrentEvent] = useState(null);
   
-  const hasAuth = apiClient.isAuthenticated();
+  const hasAuth = apiClient.hasEventAccess(eventId);
   const { event: polledEvent } = useEventPolling(hasAuth ? eventId : null);
   
   // Fetch initial event data
   useEffect(() => {
     if (!eventId) return;
     
-    if (!apiClient.isAuthenticated()) {
-      // Don't fetch if no authentication - let the page component handle redirect
+    if (!apiClient.hasEventAccess(eventId)) {
+      // Don't fetch if no event-specific authentication - let the page component handle redirect
       return;
     }
     

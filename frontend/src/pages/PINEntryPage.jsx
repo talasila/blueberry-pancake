@@ -92,6 +92,11 @@ function PINEntryPage() {
         apiClient.setUserSession(response.user);
       }
 
+      // Store PIN session ID so hasEventAccess() recognizes this event
+      if (response.sessionId && eventId) {
+        localStorage.setItem(`pin:session:${eventId}`, response.sessionId);
+      }
+
       // Clear email from sessionStorage
       sessionStorage.removeItem(`event:${eventId}:email`);
 

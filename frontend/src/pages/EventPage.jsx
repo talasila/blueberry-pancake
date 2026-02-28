@@ -36,7 +36,7 @@ function EventPage() {
   const { event: contextEvent, isAdmin } = useEventContext();
   const { pluralLower } = useItemTerminology(contextEvent);
   
-  const hasAuth = apiClient.isAuthenticated();
+  const hasAuth = apiClient.hasEventAccess(eventId);
   
   const [event, setEvent] = useState(contextEvent);
   const [isLoading, setIsLoading] = useState(!contextEvent);
@@ -63,7 +63,7 @@ function EventPage() {
     if (!eventId) return;
     if (redirectCheckedForEventRef.current === eventId) return;
     
-    if (!apiClient.isAuthenticated()) {
+    if (!apiClient.hasEventAccess(eventId)) {
       redirectCheckedForEventRef.current = eventId;
       navigate(`/event/${eventId}/email`, { replace: true });
       return;

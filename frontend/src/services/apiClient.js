@@ -114,6 +114,19 @@ class ApiClient {
   }
 
   /**
+   * Check if user has authenticated access to a specific event
+   * PIN users have per-event sessions; OTP users have broader admin access.
+   * @param {string} eventId - Event identifier
+   * @returns {boolean}
+   */
+  hasEventAccess(eventId) {
+    if (!this.isAuthenticated() || !eventId) return false;
+    if (this.getPINSessionId(eventId)) return true;
+    if (this.getAuthMethod() === 'otp') return true;
+    return false;
+  }
+
+  /**
    * Get user email from session
    * @returns {string|null}
    */
@@ -256,16 +269,16 @@ class ApiClient {
         
         // Check if this is an event access denial
         if (errorData.code === 'EVENT_ACCESS_DENIED') {
-          // Clear all authentication state
-          await this.clearAllAuthState();
+          const deniedEventId = this.getEventIdFromUrl(endpoint);
           
-          // Extract event ID from the endpoint
-          const eventId = this.getEventIdFromUrl(endpoint);
+          // Only clear the denied event's PIN session, not the entire auth state
+          if (deniedEventId) {
+            localStorage.removeItem(`pin:session:${deniedEventId}`);
+          }
           
           // Redirect to email entry page for this event
-          if (typeof window !== 'undefined' && eventId) {
-            window.location.href = `/event/${eventId}/email`;
-            // Return a rejected promise to stop further processing
+          if (typeof window !== 'undefined' && deniedEventId) {
+            window.location.href = `/event/${deniedEventId}/email`;
             return Promise.reject(new Error('Event access denied - redirecting'));
           }
         }
