@@ -130,6 +130,7 @@ test.describe('Create Event', () => {
     
     // Wait for API response and extract event ID
     const response = await responsePromise;
+    expect(response.ok()).toBe(true);
     const data = await response.json();
     const createdEventId = data.eventId;
     expect(createdEventId).toBeTruthy();
@@ -219,6 +220,7 @@ test.describe('Create Event', () => {
     await createButton.click();
 
     const response = await responsePromise;
+    expect(response.ok()).toBe(true);
     const data = await response.json();
     const createdEventId = data.eventId;
     expect(createdEventId).toBeTruthy();
@@ -255,15 +257,12 @@ test.describe('Create Event', () => {
     const joinButton = page.getByRole('button', { name: /join/i });
     await joinButton.click();
 
-    // The system should navigate to the event page (uppercase normalized)
-    // and show a "not found" message since no event matches this ID
-    // Verify no validation error about invalid characters — the ID format is valid (8 alphanumeric)
-    // Instead, expect a standard "not found" or redirect to email entry flow
-    await expect(page.locator('body')).not.toContainText(/invalid.*character/i, { timeout: 3000 });
-
     // Excluded Crockford characters are valid alphanumeric, so the app navigates to the
     // event email-entry page (the event won't exist, but the ID format is accepted).
     await expect(page).toHaveURL(/\/event\/.*\/email/, { timeout: 10000 });
+
+    // Positive gate passed — now verify no validation error about invalid characters
+    await expect(page.locator('body')).not.toContainText(/invalid.*character/i, { timeout: 3000 });
   });
 
   // ===================================
@@ -290,6 +289,7 @@ test.describe('Create Event', () => {
     await createButton.click();
 
     const firstResponse = await firstResponsePromise;
+    expect(firstResponse.ok()).toBe(true);
     const data1 = await firstResponse.json();
     const firstEventId = data1.eventId;
     expect(firstEventId).toBeTruthy();
@@ -320,6 +320,7 @@ test.describe('Create Event', () => {
     await createButton2.click();
 
     const secondResponse = await secondResponsePromise;
+    expect(secondResponse.ok()).toBe(true);
     const data2 = await secondResponse.json();
     const secondEventId = data2.eventId;
     expect(secondEventId).toBeTruthy();

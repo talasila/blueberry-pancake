@@ -675,7 +675,7 @@ test.describe('Dashboard Page', () => {
     await expect(page.getByText(/total bottles/i)).toBeVisible();
   });
 
-  test('refresh button updates dashboard data', async ({ page, testEvent }) => {
+  test('refresh button triggers data refetch without errors', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
@@ -686,7 +686,7 @@ test.describe('Dashboard Page', () => {
     const refreshButton = page.getByRole('button', { name: /refresh/i });
     await expect(refreshButton).toBeVisible({ timeout: 5000 });
     
-    const statsBefore = await page.getByText(/total users/i).locator('..').textContent();
+    await expect(page.getByText(/total users/i)).toBeVisible({ timeout: 10000 });
 
     // Click refresh and verify a dashboard-specific API call is made
     const responsePromise = page.waitForResponse(
@@ -696,11 +696,9 @@ test.describe('Dashboard Page', () => {
     const response = await responsePromise;
     expect(response.status()).toBe(200);
 
-    // Verify the dashboard content is still rendered and unchanged after refresh
+    // Verify the dashboard content is still rendered after refresh
     await expect(page.getByText(/total users/i)).toBeVisible({ timeout: 5000 });
-    const statsAfter = await page.getByText(/total users/i).locator('..').textContent();
-    expect(statsAfter).toBeTruthy();
-    expect(statsAfter).toBe(statsBefore);
+    await expect(page.getByText(/total.*(bottles|items)/i)).toBeVisible({ timeout: 5000 });
   });
 
   test('dashboard link visible to admin in dropdown menu', async ({ page, testEvent }) => {

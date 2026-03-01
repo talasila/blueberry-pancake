@@ -36,10 +36,12 @@ export default async function globalTeardown() {
   // 1. Clean up tracked UI-created events via API
   if (existsSync(trackingFile)) {
     try {
-      const tracked = readFileSync(trackingFile, 'utf-8')
-        .split('\n')
-        .map(line => line.trim())
-        .filter(Boolean);
+      const tracked = [...new Set(
+        readFileSync(trackingFile, 'utf-8')
+          .split('\n')
+          .map(line => line.trim())
+          .filter(Boolean)
+      )];
       
       const results = await Promise.all(tracked.map(eventId => deleteEventViaAPI(eventId)));
       trackedEventsDeleted = results.filter(Boolean).length;

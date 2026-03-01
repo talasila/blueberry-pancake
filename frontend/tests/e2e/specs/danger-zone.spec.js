@@ -206,12 +206,22 @@ test.describe('Danger Zone - Delete Individual User', () => {
     // Navigate as owner
     await setAuthToken(page, ownerToken, ownerEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    // Open Danger Zone drawer
     await openDangerZoneDrawer(page);
     
-    // The admin (non-owner) should be in the dropdown
+    // Select the non-owner admin to delete
     const userSelect = page.getByTestId('user-select');
     await expect(userSelect.locator('option', { hasText: adminEmail })).toHaveCount(1);
+    await userSelect.selectOption(adminEmail);
+    
+    // Click Delete User button
+    await page.getByTestId('delete-user-button').click();
+    
+    // Confirm deletion
+    await confirmDeletion(page, 'DELETE USER');
+    
+    // Verify admin was removed (poll for eventual consistency)
+    const finalUserCount = await waitForUsersCount(eventId, ownerToken, 2);
+    expect(finalUserCount).toBe(2);
   });
 });
 

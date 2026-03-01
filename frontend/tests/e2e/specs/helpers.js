@@ -159,6 +159,9 @@ export async function setAuthToken(page, token, email = 'admin@example.com') {
   try {
     const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64url').toString());
     exp = payload.exp;
+    if (typeof exp !== 'number') {
+      throw new Error(`JWT payload missing numeric 'exp' field (got ${typeof exp})`);
+    }
     authMethod = payload.authMethod || null;
   } catch (e) {
     throw new Error(`setAuthToken received a malformed JWT (test bug): ${e.message}`);
@@ -191,15 +194,18 @@ export async function submitEmail(page, email) {
   
   const emailInput = page.locator('input#email');
   const pinInput = page.locator('input#pin')
-    .or(page.locator('input[type="text"][maxlength="6"]'))
-    .or(page.locator('[data-input-otp]'))
-    .first();
+    .or(page.locator('input[type="text"][maxlength="6"]'));
 
-  const visibleLocator = emailInput.or(pinInput);
-  await visibleLocator.first().waitFor({ state: 'visible', timeout: 5000 });
-
-  if (await pinInput.isVisible({ timeout: 1000 }).catch(() => false)) {
-    return;
+  // Wait for the email input specifically; if the PIN input appears instead,
+  // the page has already advanced past the email step.
+  try {
+    await emailInput.waitFor({ state: 'visible', timeout: 3000 });
+  } catch {
+    // Email input didn't appear — check if we're on the PIN page already
+    if (await pinInput.first().isVisible().catch(() => false)) {
+      return;
+    }
+    throw new Error('submitEmail: neither email nor PIN input appeared within timeout');
   }
   await emailInput.fill(email);
   
@@ -212,16 +218,13 @@ export async function submitEmail(page, email) {
  * Enter a PIN in the PIN input field
  */
 export async function enterPIN(page, pin) {
-  await page.waitForURL(url => !new URL(url).pathname.endsWith('/email'), { timeout: 5000 })
+  await page.waitForURL(url => !url.pathname.endsWith('/email'), { timeout: 5000 })
     .catch(() => {
       throw new Error('enterPIN called while on email page - call submitEmail first');
     });
   
-  // maxlength="6" is not OTP-specific — it matches any 6-char text input.
-  // Acceptable here because we combine it with #pin and [data-input-otp] via .or().
   const pinInput = page.locator('input#pin')
     .or(page.locator('input[type="text"][maxlength="6"]'))
-    .or(page.locator('[data-input-otp]'))
     .first();
   
   await pinInput.waitFor({ state: 'visible', timeout: 5000 });
@@ -244,7 +247,7 @@ export async function submitPIN(page) {
   // The losing branch of Promise.race continues running in the background;
   // this is expected — both waiters are harmless once the page has settled.
   const outcome = await Promise.race([
-    page.waitForURL(url => !new URL(url).pathname.endsWith('/pin'), { timeout: 10000 }).then(() => 'navigated'),
+    page.waitForURL(url => !url.pathname.endsWith('/pin'), { timeout: 10000 }).then(() => 'navigated'),
     page.locator('[role="alert"]').or(page.locator('.text-destructive')).or(page.locator('.text-red-500')).first().waitFor({ state: 'visible', timeout: 10000 }).then(() => 'error'),
   ]);
   return outcome;
@@ -420,12 +423,7 @@ export async function authenticateViaOTP(page, email = 'creator@example.com') {
   await expect(verifyButton).toBeVisible({ timeout: 5000 });
   await verifyButton.click();
 
-  // The losing branch of Promise.race continues running in the background;
-  // this is expected — both waiters are harmless once the page has settled.
-  await Promise.race([
-    page.waitForURL(url => !/\/auth\b/.test(url.pathname), { timeout: 15000 }),
-    page.locator('[data-testid="auth-success"]').waitFor({ state: 'visible', timeout: 15000 }),
-  ]);
+  await page.waitForURL(url => !/\/auth\b/.test(url.pathname), { timeout: 15000 });
 
   const currentUrl = page.url();
   if (currentUrl.includes('/error') || currentUrl.includes('/500') || currentUrl.includes('/404')) {

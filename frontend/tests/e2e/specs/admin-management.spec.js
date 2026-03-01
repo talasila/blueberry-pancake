@@ -53,8 +53,9 @@ test.describe('Administrator Management', () => {
     const addButton = page.getByRole('button', { name: /add/i });
     await addButton.click();
     
-    // New admin should appear in list
-    await expect(page.getByText('newadmin@example.com')).toBeVisible({ timeout: 5000 });
+    // New admin should appear in list (scoped to drawer)
+    const drawer = page.locator('[role="dialog"]');
+    await expect(drawer.getByText('newadmin@example.com')).toBeVisible({ timeout: 5000 });
   });
 
   test('shows error for invalid email format', async ({ page, testEvent }) => {
@@ -237,9 +238,10 @@ test.describe('Administrator Management', () => {
     await adminsButton.click();
     
     // All admins should be visible in drawer
-    await expect(page.getByText('owner@example.com')).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText('admin2@example.com')).toBeVisible();
-    await expect(page.getByText('admin3@example.com')).toBeVisible();
+    const drawer = page.locator('[role="dialog"]');
+    await expect(drawer.getByText('owner@example.com')).toBeVisible({ timeout: 5000 });
+    await expect(drawer.getByText('admin2@example.com')).toBeVisible();
+    await expect(drawer.getByText('admin3@example.com')).toBeVisible();
   });
 
   test('owner administrator is clearly marked', async ({ page, testEvent }) => {
@@ -255,8 +257,9 @@ test.describe('Administrator Management', () => {
     await adminsButton.waitFor({ state: 'visible', timeout: 10000 });
     await adminsButton.click();
     
-    // Owner should have a special indicator badge
-    const ownerBadge = page.getByText('Owner', { exact: true });
+    // Owner should have a special indicator badge (scoped to drawer)
+    const drawer = page.locator('[role="dialog"]');
+    const ownerBadge = drawer.getByText('Owner', { exact: true });
     await expect(ownerBadge).toBeVisible({ timeout: 5000 });
   });
 
@@ -284,8 +287,9 @@ test.describe('Administrator Management', () => {
     const addButton = page.getByRole('button', { name: /add/i });
     await addButton.click();
     
-    // Should be trimmed and added correctly
-    await expect(page.getByText('newadmin@example.com')).toBeVisible({ timeout: 5000 });
+    // Should be trimmed and added correctly (scoped to drawer)
+    const drawer = page.locator('[role="dialog"]');
+    await expect(drawer.getByText('newadmin@example.com')).toBeVisible({ timeout: 5000 });
   });
 
   test('email comparison is case-insensitive', async ({ page, testEvent }) => {

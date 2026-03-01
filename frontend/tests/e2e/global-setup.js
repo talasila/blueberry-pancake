@@ -28,13 +28,11 @@ export default async function globalSetup() {
       throw new Error(`[E2E Setup] Failed to reset counter: ${response.status}`);
     }
   } catch (error) {
-    // String-matching is fragile (e.g. message wording changes break this),
-    // but acceptable here since we control the thrown message above.
-    if (error.message?.includes('Failed to reset counter')) {
-      throw error;
+    if (error instanceof TypeError || error.name === 'AbortError') {
+      console.error('[E2E Setup] Backend is not running on', API_URL);
+      throw new Error(`E2E Setup failed: backend unreachable at ${API_URL}. ${error.message}`);
     }
-    console.error('[E2E Setup] Backend is not running on', API_URL);
-    throw new Error(`E2E Setup failed: backend unreachable at ${API_URL}. ${error.message}`);
+    throw error;
   }
 
   // 2. Verify frontend is reachable

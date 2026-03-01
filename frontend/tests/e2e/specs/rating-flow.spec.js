@@ -180,7 +180,8 @@ test.describe('Rating Flow', () => {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${jwtCookie.value}`
-      }
+      },
+      signal: AbortSignal.timeout(10000),
     });
     
     expect(bookmarksResponse.ok).toBe(true);

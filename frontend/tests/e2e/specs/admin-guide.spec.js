@@ -219,9 +219,6 @@ test.describe('US2: Created state walkthrough', () => {
     await navigateToStep(page, 6);
     const drawer = page.locator('[role="dialog"][aria-label="Admin guide"]');
     await expect(drawer.getByRole('heading', { name: 'Ready to Go!' })).toBeVisible();
-    // CTA is rendered as informational text inside a muted callout box.
-    // .bg-muted is a Tailwind class — fragile if the design changes, but no
-    // semantic role or test-id exists on this element to target instead.
     await expect(drawer.locator('.bg-muted').getByText(/Start Event button/i)).toBeVisible();
   });
 
@@ -284,7 +281,6 @@ test.describe('US3: Started state walkthrough', () => {
     await openAdminGuide(page);
     await navigateToStep(page, 3);
     const drawer = page.locator('[role="dialog"][aria-label="Admin guide"]');
-    // .bg-muted targets the Tailwind callout box — fragile but no better selector available
     await expect(drawer.locator('.bg-muted').getByText(/Complete Event button/i)).toBeVisible();
   });
 });
@@ -384,7 +380,6 @@ test.describe('US5: Paused state walkthrough', () => {
     await openAdminGuide(page);
     await navigateToStep(page, 2);
     const drawer = page.locator('[role="dialog"][aria-label="Admin guide"]');
-    // .bg-muted targets the Tailwind callout box — fragile but no better selector available
     await expect(drawer.locator('.bg-muted').getByText(/Resume or Complete/i)).toBeVisible();
   });
 });

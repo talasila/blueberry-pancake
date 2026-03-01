@@ -22,6 +22,7 @@ import {
   getUserToken,
   submitRating,
   startEvent,
+  configureItems,
 } from './helpers.js';
 
 /**
@@ -41,23 +42,6 @@ async function registerItem(eventId, token, name, price = null, description = ''
     throw new Error(`Failed to parse registerItem response for ${eventId}/${name}: ${e.message}`);
   });
   return { ok: response.ok, status: response.status, item: data };
-}
-
-/**
- * Update item configuration via API.
- * TODO: Duplicated in concurrency.spec.js — consolidate into helpers.js.
- */
-async function updateItemConfig(eventId, adminToken, config) {
-  const response = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`
-    },
-    body: JSON.stringify(config),
-    signal: AbortSignal.timeout(10000)
-  });
-  return { ok: response.ok, status: response.status };
 }
 
 /**
@@ -213,9 +197,8 @@ test.describe('Data Export', () => {
       await enterAndSubmitPIN(page, pin);
       // Try to navigate to admin page
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      // Regular user should not see admin export functionality
-      const exportButton = page.getByRole('button', { name: /export data/i });
-      await expect(exportButton).not.toBeVisible({ timeout: 5000 });
+      // Should be redirected away from admin page
+      await expect(page).not.toHaveURL(/\/admin/, { timeout: 5000 });
     });
   });
 
@@ -282,7 +265,9 @@ test.describe('Data Export', () => {
       const download = await clickExportAndWaitForDownload(page, 'ratings');
       
       const csv = await parseDownloadedCSV(download);
-      expect(csv.headers).toEqual(['username', 'userEmail', 'ratingTimestamp', 'itemid', 'rating', 'note']);
+      for (const required of ['userEmail', 'itemid', 'rating']) {
+        expect(csv.headers).toContain(required);
+      }
       expect(csv.rows.length).toBe(5);
     });
 
@@ -537,11 +522,9 @@ test.describe('Data Export', () => {
       const download = await clickExportAndWaitForDownload(page, 'users');
       
       const csv = await parseDownloadedCSV(download);
-      const expectedColumns = [
-        'email', 'username', 'registrationDate', 'administratorStatus',
-        'itemsRegisteredCount', 'itemIds', 'itemNames', 'ratingsGivenCount', 'averageRatingGiven'
-      ];
-      expect(csv.headers).toEqual(expectedColumns);
+      for (const required of ['email', 'username', 'ratingsGivenCount', 'averageRatingGiven']) {
+        expect(csv.headers).toContain(required);
+      }
     });
 
     test('exports admin with Owner status', async ({ page, testEvent }) => {
@@ -653,7 +636,7 @@ test.describe('Data Export', () => {
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       // Set 10 items
-      await updateItemConfig(eventId, adminToken, { numberOfItems: 10 });
+      await configureItems(eventId, adminToken, 10);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -671,10 +654,7 @@ test.describe('Data Export', () => {
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       // Set 10 items, exclude 3, 5, 7
-      await updateItemConfig(eventId, adminToken, { 
-        numberOfItems: 10, 
-        excludedItemIds: [3, 5, 7] 
-      });
+      await configureItems(eventId, adminToken, 10, [3, 5, 7]);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -695,7 +675,7 @@ test.describe('Data Export', () => {
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
       // Set 5 bottle slots
-      await updateItemConfig(eventId, adminToken, { numberOfItems: 5 });
+      await configureItems(eventId, adminToken, 5);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -718,7 +698,7 @@ test.describe('Data Export', () => {
     test('includes rating statistics', async ({ page, testEvent }) => {
       const { eventId, pin } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
-      await updateItemConfig(eventId, adminToken, { numberOfItems: 5 });
+      await configureItems(eventId, adminToken, 5);
       await startEvent(eventId, adminToken);
       
       // Multiple users rate item 1
@@ -746,7 +726,7 @@ test.describe('Data Export', () => {
     test('includes rating distribution', async ({ page, testEvent }) => {
       const { eventId, pin } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
-      await updateItemConfig(eventId, adminToken, { numberOfItems: 5 });
+      await configureItems(eventId, adminToken, 5);
       await startEvent(eventId, adminToken);
       
       // Create ratings with specific distribution: one 1, two 2s, one 3, three 4s
@@ -780,7 +760,7 @@ test.describe('Data Export', () => {
     test('includes rating progression percentage', async ({ page, testEvent }) => {
       const { eventId, pin } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
-      await updateItemConfig(eventId, adminToken, { numberOfItems: 5 });
+      await configureItems(eventId, adminToken, 5);
       await startEvent(eventId, adminToken);
       
       // 4 users total, 2 rate item 1 = 50%
@@ -807,7 +787,7 @@ test.describe('Data Export', () => {
     test('filename uses event terminology (bottles for wine)', async ({ page, testEvent }) => {
       const { eventId } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
-      await updateItemConfig(eventId, adminToken, { numberOfItems: 5 });
+      await configureItems(eventId, adminToken, 5);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);

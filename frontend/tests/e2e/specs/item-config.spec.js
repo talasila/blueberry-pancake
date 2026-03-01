@@ -19,41 +19,21 @@ import {
 } from './helpers.js';
 
 /**
- * Navigates to admin page and waits for all item-configuration API responses.
- * React Strict Mode (dev) fires effects twice, producing two API calls.
- * We must wait for both to prevent the second response from overwriting input values.
+ * Navigates to admin page and waits for the item-configuration API response.
+ * Waits for the Bottles button to confirm the page rendered with data.
  */
 async function navigateToAdminWithConfig(page, eventId, token, email) {
   await setAuthToken(page, token, email);
 
-  let responseCount = 0;
-  let handler;
-  const allConfigSettled = new Promise((resolve) => {
-    const timeout = setTimeout(() => resolve(), 3000);
-    handler = resp => {
-      if (!resp.url().includes('/item-configuration')) return;
-      responseCount++;
-      if (responseCount >= 2) {
-        clearTimeout(timeout);
-        page.off('response', handler);
-        resolve();
-      }
-    };
-    page.on('response', handler);
-  });
+  const configResponse = page.waitForResponse(
+    resp => resp.url().includes('/item-configuration'),
+    { timeout: 10000 }
+  );
 
   await page.goto(`${BASE_URL}/event/${eventId}/admin`);
+  await configResponse;
 
-  // networkidle is unreliable for SPAs with long-polling or streaming, but
-  // combined with the 3s timeout fallback above it provides a reasonable gate.
-  await page.waitForLoadState('networkidle');
-  if (responseCount < 2) {
-    await allConfigSettled;
-  }
-  page.off('response', handler);
-  // React state-settling buffer: ensures the final API response is processed
-  // and component state is updated before tests interact with inputs.
-  await page.waitForTimeout(500);
+  await page.getByRole('button', { name: /bottles/i }).waitFor({ state: 'visible', timeout: 10000 });
 }
 
 /**
@@ -222,7 +202,16 @@ test.describe('Item Configuration', () => {
     // Should be redirected to event main page
     await page.waitForURL(new RegExp(`/event/${eventId}$`), { timeout: 5000 });
     
-    // Step 4: Verify excluded bottles (5, 10, 15) are NOT visible
+    // Step 4: Wait for bottles to render (positive gate before negative assertions)
+    const bottle1 = page.locator('button').filter({ hasText: /^1$/ });
+    const bottle2 = page.locator('button').filter({ hasText: /^2$/ });
+    const bottle3 = page.locator('button').filter({ hasText: /^3$/ });
+    
+    await expect(bottle1).toBeVisible({ timeout: 10000 });
+    await expect(bottle2).toBeVisible();
+    await expect(bottle3).toBeVisible();
+    
+    // Step 5: Now that the grid is confirmed loaded, verify excluded bottles are absent
     const bottle5 = page.locator('button').filter({ hasText: /^5$/ });
     const bottle10 = page.locator('button').filter({ hasText: /^10$/ });
     const bottle15 = page.locator('button').filter({ hasText: /^15$/ });
@@ -230,15 +219,6 @@ test.describe('Item Configuration', () => {
     await expect(bottle5).not.toBeVisible();
     await expect(bottle10).not.toBeVisible();
     await expect(bottle15).not.toBeVisible();
-    
-    // Step 5: Verify other bottles ARE visible (confirms page loaded correctly)
-    const bottle1 = page.locator('button').filter({ hasText: /^1$/ });
-    const bottle2 = page.locator('button').filter({ hasText: /^2$/ });
-    const bottle3 = page.locator('button').filter({ hasText: /^3$/ });
-    
-    await expect(bottle1).toBeVisible();
-    await expect(bottle2).toBeVisible();
-    await expect(bottle3).toBeVisible();
   });
 
   test('validates excluded IDs are within range', async ({ page, testEvent }) => {

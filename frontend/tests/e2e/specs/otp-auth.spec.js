@@ -82,14 +82,16 @@ test.describe('OTP Authentication', () => {
     await page.goto(`${BASE_URL}/auth`);
     
     const emailInput = page.locator('input[type="email"]');
+    await expect(emailInput).toBeVisible({ timeout: 10000 });
     await emailInput.fill('test@example.com');
     
     const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
+    await expect(requestButton).toBeEnabled({ timeout: 5000 });
     await requestButton.click();
     
-    // Enter wrong OTP — increased timeout to handle slow backend under parallel load
+    // Wait for the OTP input to appear (backend sends OTP, page transitions)
     const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
-    await expect(otpInput).toBeVisible({ timeout: 15000 });
+    await expect(otpInput).toBeVisible({ timeout: 20000 });
     await otpInput.fill('999999');
     
     const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });

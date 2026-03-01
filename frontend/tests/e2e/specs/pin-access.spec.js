@@ -208,10 +208,9 @@ test.describe('PIN-based Event Access', () => {
     await pinButton.click();
     
     // Should see the PIN displayed in the drawer
-    // TODO: Replace with data-testid when available
-    const pinDisplay = page.locator('.font-mono.text-lg.font-semibold');
+    const drawer = page.locator('[role="dialog"]');
+    const pinDisplay = drawer.getByText(pin);
     await expect(pinDisplay).toBeVisible();
-    await expect(pinDisplay).toHaveText(pin);
   });
   
   test('administrator regenerates PIN', async ({ page, testEvent }) => {
@@ -231,17 +230,14 @@ test.describe('PIN-based Event Access', () => {
     await regenerateButton.waitFor({ state: 'visible', timeout: 5000 });
     await regenerateButton.click();
 
-    // Wait for the UI to update with the new PIN
-    // TODO: Replace with data-testid when available
-    const pinDisplay = page.locator('.font-mono.text-lg.font-semibold');
-    await expect(pinDisplay).not.toHaveText(pin, { timeout: 10000 });
-
-    await expect(pinDisplay).not.toHaveText('', { timeout: 5000 });
+    // Wait for the drawer to show a new 6-digit PIN that differs from the original
+    const drawer = page.locator('[role="dialog"]');
     await expect(async () => {
-      const newPin = await pinDisplay.textContent();
+      const newPinElement = drawer.getByText(/^\d{6}$/);
+      const newPin = await newPinElement.textContent();
       expect(newPin).toHaveLength(6);
       expect(newPin).not.toBe(pin);
-    }).toPass({ timeout: 5000 });
+    }).toPass({ timeout: 10000 });
   });
 
   // ===================================

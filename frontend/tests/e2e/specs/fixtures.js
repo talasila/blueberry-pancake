@@ -43,10 +43,9 @@ export const test = base.extend({
     
     await use({ eventId, pin, eventName });
     
-    try {
-      await deleteTestEvent(eventId);
-    } catch (error) {
-      console.warn(`Cleanup warning for event ${eventId}: ${error.message}`);
+    const deleted = await deleteTestEvent(eventId);
+    if (!deleted) {
+      console.warn(`[Fixture] Failed to clean up event ${eventId} — may require manual deletion`);
     }
   },
 });

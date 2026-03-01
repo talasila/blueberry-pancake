@@ -17,6 +17,7 @@ import {
   startEvent,
   changeEventState,
   getEvent,
+  configureItems,
 } from './helpers.js';
 import { DEFAULT_TEST_PIN } from '../e2e-config.js';
 
@@ -78,22 +79,6 @@ async function addAdministrator(eventId, adminToken, newAdminEmail) {
   return { ok: response.ok, status: response.status, data: response.ok ? await response.json() : await response.text() };
 }
 
-/**
- * Helper to update item configuration.
- * TODO: Duplicated in data-export.spec.js — consolidate into helpers.js.
- */
-async function updateItemConfig(eventId, adminToken, config) {
-  const response = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${adminToken}`
-    },
-    body: JSON.stringify(config),
-    signal: AbortSignal.timeout(10000),
-  });
-  return { ok: response.ok, status: response.status, data: response.ok ? await response.json() : await response.text() };
-}
 
 /**
  * Helper to save bookmarks via API
@@ -226,7 +211,7 @@ test.describe('Multi-Tenant Isolation', () => {
     // Perform parallel operations ACROSS events (different events, different users)
     // Note: Same-user operations within an event are tested in Scenario 2
     const operations = await Promise.all([
-      updateItemConfig(event1Id, admin1Token, { numberOfItems: 25 }),
+      configureItems(event1Id, admin1Token, 25),
       submitRating(event1Id, user1Token, 1, 4), // Event 1 user
       submitRating(event2Id, user2Token, 1, 3), // Event 2 user
       saveBookmarks(event2Id, user2Token, [1, 2]),
@@ -865,7 +850,7 @@ test.describe('Race Conditions', () => {
     const operations = await Promise.all([
       submitRating(testEventId, userToken, 1, 4),
       submitRating(testEventId, userToken, 2, 3),
-      updateItemConfig(testEventId, adminToken, { numberOfItems: 30 }),
+      configureItems(testEventId, adminToken, 30),
       submitRating(testEventId, userToken, 3, 2),
     ]);
     
@@ -973,8 +958,8 @@ test.describe('Admin Concurrent Actions', () => {
     
     // Both admins update config simultaneously with different values
     const [result1, result2] = await Promise.all([
-      updateItemConfig(testEventId, admin1Token, { numberOfItems: 25 }),
-      updateItemConfig(testEventId, admin2Token, { numberOfItems: 30 }),
+      configureItems(testEventId, admin1Token, 25),
+      configureItems(testEventId, admin2Token, 30),
     ]);
     
     // Both should succeed (last write wins)
@@ -1378,7 +1363,7 @@ test.describe('Full Concurrent Workflow', () => {
     // Phase 2: Admin actions while users continue
     const phase2Ops = await Promise.all([
       // Admin updates config
-      updateItemConfig(testEventId, ownerToken, { numberOfItems: 25 }),
+      configureItems(testEventId, ownerToken, 25),
       // More user ratings
       submitRating(testEventId, users[0], 4, 4),
       submitRating(testEventId, users[1], 5, 3),
