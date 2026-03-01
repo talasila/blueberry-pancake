@@ -454,21 +454,15 @@ test.describe('System Administration Dashboard', () => {
       await navigateToSystemPage(page);
 
       const eventRows = page.locator('[data-testid="event-row"]');
-      await page.locator('[data-testid="event-row"]').or(page.getByText(/no events found/i)).first()
+      await eventRows.or(page.getByText(/no events found/i)).first()
         .waitFor({ state: 'visible', timeout: 10000 });
       const rowCount = await eventRows.count();
 
-      const content = eventRows.or(page.getByText(/no events found/i));
-      await expect(content.first()).toBeVisible({ timeout: 10000 });
-
-      // Assert both paths explicitly so failures are surfaced regardless of DB state
       const label = page.getByText('Showing 25 most recent events');
-      const isLabelVisible = await label.isVisible().catch(() => false);
       if (rowCount >= 25) {
-        expect(isLabelVisible).toBe(true);
+        await expect(label).toBeVisible({ timeout: 5000 });
       } else {
-        expect(isLabelVisible).toBe(false);
-        expect(rowCount).toBeLessThan(25);
+        await expect(label).not.toBeVisible({ timeout: 5000 });
       }
     });
     
@@ -500,10 +494,9 @@ test.describe('System Administration Dashboard', () => {
       // Navigate and wait for both events and stats APIs
       await navigateToSystemPageWithStats(page);
       
-      // Should see state breakdown — match the pattern "State: Count"
       const main = page.locator('main');
-      await expect(main.getByText(/created\s*[:]\s*\d+/i).or(main.getByText(/created/i).first())).toBeVisible();
-      await expect(main.getByText(/started\s*[:]\s*\d+/i).or(main.getByText(/started/i).first())).toBeVisible();
+      await expect(main.getByText('Created', { exact: true })).toBeVisible();
+      await expect(main.getByText('Started', { exact: true })).toBeVisible();
     });
     
   });

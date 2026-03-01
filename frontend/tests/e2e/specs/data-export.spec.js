@@ -792,7 +792,6 @@ test.describe('Data Export', () => {
       const csv = await parseDownloadedCSV(download);
       const item1 = csv.rows.find(r => r.itemId === '1');
       
-      // 2 raters out of total users (including admin = 5 users)
       expect(parseFloat(item1?.ratingProgression)).toBeGreaterThan(0);
     });
 

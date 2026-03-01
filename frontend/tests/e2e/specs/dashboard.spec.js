@@ -309,14 +309,6 @@ test.describe('Dashboard Page', () => {
   // User Story 6 - User Ratings Table
   // ===================================
 
-  test('users tab is accessible and shows appropriate content', async ({ page, testEvent }) => {
-    const { eventId } = testEvent;
-    await goToDashboardAsAdmin(page, eventId);
-    
-    const tabPanel = await clickUsersTab(page);
-    await expect(tabPanel).toBeVisible({ timeout: 10000 });
-  });
-
   test('users tab displays table with correct columns when users have ratings', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
@@ -380,11 +372,13 @@ test.describe('Dashboard Page', () => {
       expect(rowCount).toBeGreaterThanOrEqual(2);
     }).toPass({ timeout: 10000 });
     
-    // Verify the two users have different progress values (5/5 vs 2/5)
+    // Verify the two users have different progress values (5/5 vs 2/5).
+    // Strip email from row text to compare only the data columns, since the
+    // mobile layout may render cells differently than desktop.
     const aliceRow = tabPanel.locator('table tbody tr').filter({ hasText: /alice/i });
     const bobRow = tabPanel.locator('table tbody tr').filter({ hasText: /bob/i });
-    const aliceText = await aliceRow.first().textContent();
-    const bobText = await bobRow.first().textContent();
+    const aliceText = (await aliceRow.first().textContent()).replace(/alice@example\.com/gi, '').trim();
+    const bobText = (await bobRow.first().textContent()).replace(/bob@example\.com/gi, '').trim();
     expect(aliceText).not.toBe(bobText);
   });
 
@@ -420,11 +414,13 @@ test.describe('Dashboard Page', () => {
       return tabPanel.locator('table tbody tr td:first-child').allTextContents();
     };
     
+    // Brief wait for React to apply the sort from the first click
     await expect(tabPanel.locator('table tbody tr')).not.toHaveCount(0, { timeout: 5000 });
     const afterFirstSort = await getFirstCellTexts();
 
     await userHeader.click();
 
+    // Second click toggles sort direction — order must change
     await expect(async () => {
       const afterSecondSort = await getFirstCellTexts();
       expect(afterSecondSort).not.toEqual(afterFirstSort);

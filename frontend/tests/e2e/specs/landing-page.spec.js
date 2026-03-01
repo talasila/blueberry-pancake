@@ -105,12 +105,6 @@ test.describe('Landing Page', () => {
     await expect(createButton).toBeVisible();
   });
 
-  test('page loads and renders key elements', async ({ page }) => {
-    // Verify all key elements render without errors
-    await expect(page.locator('input#event-id')).toBeVisible();
-    await expect(page.getByRole('button', { name: /join/i })).toBeVisible();
-    await expect(page.getByRole('button', { name: /create/i })).toBeVisible();
-  });
 });
 
 // Tests in this describe share mutable `eventId`/`token` state via beforeEach/afterEach.

@@ -412,6 +412,35 @@ export async function openBottlesDrawer(page) {
   await page.locator('[role="dialog"]').waitFor({ state: 'visible', timeout: 5000 });
 }
 
+/**
+ * Log in as a user to an event via the browser UI.
+ * Clears auth, navigates to the event, enters email & PIN.
+ */
+export async function loginAsUserToEvent(page, eventId, email, pin) {
+  await clearAuth(page);
+  await page.goto(`${BASE_URL}/event/${eventId}`);
+  await submitEmail(page, email);
+  await enterAndSubmitPIN(page, pin);
+}
+
+/**
+ * Add an admin to an event with addToUsers: true (so they also appear in the users list).
+ * Returns the admin JWT token.
+ */
+export async function addAdminAsUser(eventId, email) {
+  const response = await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, addToUsers: true }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!response.ok) {
+    throw new Error(`addAdminAsUser failed: ${response.status} ${await response.text()}`);
+  }
+  const data = await response.json();
+  return data.token;
+}
+
 // ===================================
 // OTP Authentication Helper
 // ===================================
@@ -431,8 +460,7 @@ export async function authenticateViaOTP(page, email = 'creator@example.com') {
   await expect(requestButton).toBeEnabled({ timeout: 5000 });
   await requestButton.click();
 
-  // maxlength="6" is a broad selector — it matches any 6-char text input, not just OTP fields.
-  const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
+  const otpInput = page.locator('input#otp').or(page.locator('input[maxlength="6"]'));
   await expect(otpInput).toBeVisible({ timeout: 10000 });
   await otpInput.fill(TEST_OTP);
 

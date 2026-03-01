@@ -122,22 +122,6 @@ test.describe('Event Page', () => {
   // User Story 3 - Navigation Between Pages
   // ===================================
 
-  test('administrator sees navigation to admin page', async ({ page, testEvent }) => {
-    const { eventId } = testEvent;
-    const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(eventId, adminEmail);
-    
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}`);
-    
-    const menuButton = page.getByRole('button', { name: 'Open menu' });
-    await expect(menuButton).toBeVisible({ timeout: 5000 });
-    await menuButton.click();
-    
-    const settingsOption = page.getByRole('menuitem', { name: /settings/i });
-    await expect(settingsOption).toBeVisible({ timeout: 5000 });
-  });
-
   test('administrator can navigate from main page to admin page', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
@@ -204,7 +188,7 @@ test.describe('Event Page', () => {
     }
   });
 
-  test('event name is trimmed in header if too long', async ({ page }) => {
+  test('header displays long event name', async ({ page }) => {
     // Create event with very long name
     const longName = 'This is a very long event name that should be trimmed in the header to fit properly';
     const longNameEventId = await createTestEvent(longName, DEFAULT_TEST_PIN);

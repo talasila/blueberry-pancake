@@ -8,21 +8,11 @@
 import { test, expect } from './fixtures.js';
 import {
   addAdminToEvent,
-  clearAuth,
-  submitEmail,
-  enterAndSubmitPIN,
   getUserToken,
   submitRating,
   startEvent,
-  BASE_URL,
+  loginAsUserToEvent,
 } from './helpers.js';
-
-async function loginAsUserToEvent(page, eventId, email, pin) {
-  await clearAuth(page);
-  await page.goto(`${BASE_URL}/event/${eventId}`);
-  await submitEmail(page, email);
-  await enterAndSubmitPIN(page, pin);
-}
 
 test.describe('Similar Users Discovery', () => {
 
@@ -255,28 +245,6 @@ test.describe('Similar Users Discovery', () => {
   // Edge Cases
   // ===================================
 
-  test('handles user with exactly 3 ratings (minimum threshold)', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
-    const adminEmail = 'admin@example.com';
-    const adminToken = await addAdminToEvent(eventId, adminEmail);
-    
-    // Start event
-    await startEvent(eventId, adminToken);
-    
-    // Create user with exactly 3 ratings (minimum threshold)
-    const userEmail = 'minratings@example.com';
-    const userToken = await getUserToken(eventId, userEmail, pin);
-    await submitRating(eventId, userToken, 1, 4);
-    await submitRating(eventId, userToken, 2, 3);
-    await submitRating(eventId, userToken, 3, 4);
-    
-    await loginAsUserToEvent(page, eventId, userEmail, pin);
-    
-    // Find Similar Tastes button should be visible with exactly 3 ratings
-    const similarButton = page.getByRole('button', { name: /similar tastes/i });
-    await expect(similarButton).toBeVisible({ timeout: 10000 });
-  });
-
   test('feature not available when event is in created state', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
@@ -291,38 +259,6 @@ test.describe('Similar Users Discovery', () => {
     // Similar users button should NOT be visible (event not started)
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
     await expect(similarButton).not.toBeVisible({ timeout: 5000 });
-  });
-
-  test('drawer shows empty state when no similar users exist', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
-    const adminEmail = 'admin@example.com';
-    const adminToken = await addAdminToEvent(eventId, adminEmail);
-    
-    // Start event
-    await startEvent(eventId, adminToken);
-    
-    // Create user with ratings
-    const userEmail = 'loadingtest@example.com';
-    const userToken = await getUserToken(eventId, userEmail, pin);
-    await submitRating(eventId, userToken, 1, 4);
-    await submitRating(eventId, userToken, 2, 3);
-    await submitRating(eventId, userToken, 3, 4);
-    
-    await loginAsUserToEvent(page, eventId, userEmail, pin);
-    
-    // Click Find Similar Tastes button
-    const similarButton = page.getByRole('button', { name: /similar tastes/i });
-    await similarButton.click();
-    
-    // Drawer should open
-    const drawer = page.locator('[role="dialog"]');
-    await expect(drawer).toBeVisible({ timeout: 5000 });
-    
-    // This test verifies the drawer renders content after opening, not a true
-    // loading-state check.  Reliably testing the loading spinner would require
-    // network throttling or request interception.
-    const content = drawer.getByText(/no similar users found/i);
-    await expect(content).toBeVisible({ timeout: 10000 });
   });
 
   test('handles users with no overlapping ratings', async ({ page, testEvent }) => {

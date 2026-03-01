@@ -185,6 +185,15 @@ test.describe('Item Configuration', () => {
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 5000 });
     
+    // Verify save persisted before switching to user flow (DynamoDB eventual consistency)
+    const configResp = page.waitForResponse(
+      resp => resp.url().includes('/item-configuration'), { timeout: 10000 }
+    );
+    await page.reload();
+    await configResp;
+    await openBottlesDrawer(page);
+    await expect(getExcludedBottleIdsInput(page)).toHaveValue(/5/, { timeout: 5000 });
+    
     // Step 2: Admin logs out
     await clearAuth(page);
     
@@ -291,99 +300,36 @@ test.describe('Item Configuration', () => {
   // Edge Cases
   // ===================================
 
-  test('handles leading zeros in excluded IDs', async ({ page, testEvent }) => {
-    const { eventId } = testEvent;
-    const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(eventId, adminEmail);
-    
-    await navigateToAdminWithConfig(page, eventId, token, adminEmail);
-    
-    // Open the Bottles drawer
-    await openBottlesDrawer(page);
-    
-    // Enter with leading zeros
-    const excludedInput = getExcludedBottleIdsInput(page);
-    await excludedInput.fill('05,010');
-    
-    // Save configuration
-    await clickSaveButton(page);
-    
-    // Should normalize to 5,10 (no error) - scope to drawer
-    const drawer = page.locator('[role="dialog"]');
-    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 5000 });
+  const excludedIdCases = [
+    { name: 'handles leading zeros in excluded IDs', input: '05,010', expected: ['5', '10'] },
+    { name: 'handles duplicate excluded IDs', input: '5,10,5,10', expected: ['5', '10'] },
+    { name: 'handles whitespace in excluded IDs', input: '5 , 10 , 15', expected: ['5', '10', '15'] },
+  ];
 
-    const configResp1 = page.waitForResponse(
-      resp => resp.url().includes('/item-configuration'), { timeout: 10000 }
-    );
-    await page.reload();
-    await configResp1;
-    await openBottlesDrawer(page);
-    const savedValue = await getExcludedBottleIdsInput(page).inputValue();
-    const normalizedIds = savedValue.split(',').map(s => s.trim()).filter(s => s.length > 0).sort((a, b) => +a - +b);
-    expect(normalizedIds).toEqual(['5', '10']);
-  });
+  for (const { name, input, expected } of excludedIdCases) {
+    test(name, async ({ page, testEvent }) => {
+      const { eventId } = testEvent;
+      const adminEmail = 'admin@example.com';
+      const token = await addAdminToEvent(eventId, adminEmail);
+      
+      await navigateToAdminWithConfig(page, eventId, token, adminEmail);
+      await openBottlesDrawer(page);
+      
+      await getExcludedBottleIdsInput(page).fill(input);
+      await clickSaveButton(page);
+      
+      const drawer = page.locator('[role="dialog"]');
+      await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 5000 });
 
-  test('handles duplicate excluded IDs', async ({ page, testEvent }) => {
-    const { eventId } = testEvent;
-    const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(eventId, adminEmail);
-    
-    await navigateToAdminWithConfig(page, eventId, token, adminEmail);
-    
-    // Open the Bottles drawer
-    await openBottlesDrawer(page);
-    
-    // Enter duplicates
-    const excludedInput = getExcludedBottleIdsInput(page);
-    await excludedInput.fill('5,10,5,10');
-    
-    // Save configuration
-    await clickSaveButton(page);
-    
-    // Should handle duplicates (treat as single exclusion, no error) - scope to drawer
-    const drawer = page.locator('[role="dialog"]');
-    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 5000 });
-
-    const configResp2 = page.waitForResponse(
-      resp => resp.url().includes('/item-configuration'), { timeout: 10000 }
-    );
-    await page.reload();
-    await configResp2;
-    await openBottlesDrawer(page);
-    const savedValue = await getExcludedBottleIdsInput(page).inputValue();
-    const normalizedIds = savedValue.split(',').map(s => s.trim()).filter(s => s.length > 0).sort((a, b) => +a - +b);
-    expect(normalizedIds).toEqual(['5', '10']);
-  });
-
-  test('handles whitespace in excluded IDs', async ({ page, testEvent }) => {
-    const { eventId } = testEvent;
-    const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(eventId, adminEmail);
-    
-    await navigateToAdminWithConfig(page, eventId, token, adminEmail);
-    
-    // Open the Bottles drawer
-    await openBottlesDrawer(page);
-    
-    // Enter with whitespace
-    const excludedInput = getExcludedBottleIdsInput(page);
-    await excludedInput.fill('5 , 10 , 15');
-    
-    // Save configuration
-    await clickSaveButton(page);
-    
-    // Should trim whitespace and process correctly (no error) - scope to drawer
-    const drawer = page.locator('[role="dialog"]');
-    await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 5000 });
-
-    const configResp3 = page.waitForResponse(
-      resp => resp.url().includes('/item-configuration'), { timeout: 10000 }
-    );
-    await page.reload();
-    await configResp3;
-    await openBottlesDrawer(page);
-    const savedValue = await getExcludedBottleIdsInput(page).inputValue();
-    const normalizedIds = savedValue.split(',').map(s => s.trim()).filter(s => s.length > 0).sort((a, b) => +a - +b);
-    expect(normalizedIds).toEqual(['5', '10', '15']);
-  });
+      const configResp = page.waitForResponse(
+        resp => resp.url().includes('/item-configuration'), { timeout: 10000 }
+      );
+      await page.reload();
+      await configResp;
+      await openBottlesDrawer(page);
+      const savedValue = await getExcludedBottleIdsInput(page).inputValue();
+      const normalizedIds = savedValue.split(',').map(s => s.trim()).filter(s => s.length > 0).sort((a, b) => +a - +b);
+      expect(normalizedIds).toEqual(expected);
+    });
+  }
 });

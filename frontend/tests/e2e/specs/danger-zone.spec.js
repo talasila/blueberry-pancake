@@ -17,6 +17,7 @@
 import { test, expect } from './fixtures.js';
 import {
   addAdminToEvent,
+  addAdminAsUser,
   setAuthToken,
   getUserToken,
   changeEventState,
@@ -190,13 +191,7 @@ test.describe('Danger Zone - Delete Individual User', () => {
     const adminEmail = 'admin@example.com';
     const ownerToken = await addAdminToEvent(eventId, ownerEmail);
     
-    const addAdminResp = await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: adminEmail, addToUsers: true }),
-      signal: AbortSignal.timeout(10000),
-    });
-    expect(addAdminResp.ok).toBe(true);
+    await addAdminAsUser(eventId, adminEmail);
     
     // Navigate as owner
     await setAuthToken(page, ownerToken, ownerEmail);
@@ -320,13 +315,7 @@ test.describe('Danger Zone - Delete All Users', () => {
     const adminEmail = 'admin@example.com';
     const ownerToken = await addAdminToEvent(eventId, ownerEmail);
     
-    const addAdminResp = await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: adminEmail, addToUsers: true }),
-      signal: AbortSignal.timeout(10000),
-    });
-    expect(addAdminResp.ok).toBe(true);
+    await addAdminAsUser(eventId, adminEmail);
     
     await getUserToken(eventId, 'user1@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
@@ -431,6 +420,7 @@ test.describe('Danger Zone - Delete All Ratings', () => {
       headers: { 'Authorization': `Bearer ${token}` },
       signal: AbortSignal.timeout(10000),
     });
+    expect(itemsResponse.ok).toBe(true);
     const items = await itemsResponse.json();
     expect(items.length).toBe(1);
     expect(items[0].name).toBe('Test Wine');
@@ -455,8 +445,9 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     await deleteRatingsButton.click();
     await confirmDeletion(page, 'DELETE RATINGS');
     
-    // Wait for UI to update after deletion
-    // Navigate to dashboard and check for empty state
+    // Wait for deletion to propagate (DynamoDB eventual consistency)
+    await waitForRatingsCount(eventId, token, 0);
+    
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     // Dashboard should show empty state — scope to main content
     const main = page.locator('main');
@@ -510,15 +501,7 @@ test.describe('Danger Zone - Delete Event', () => {
     // Create event with owner
     await addAdminToEvent(eventId, ownerEmail);
     
-    const adminResponse = await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: adminEmail, addToUsers: true }),
-      signal: AbortSignal.timeout(10000),
-    });
-    expect(adminResponse.ok).toBe(true);
-    const adminData = await adminResponse.json();
-    const adminToken = adminData.token;
+    const adminToken = await addAdminAsUser(eventId, adminEmail);
     
     // Navigate to admin page as non-owner admin
     await setAuthToken(page, adminToken, adminEmail);

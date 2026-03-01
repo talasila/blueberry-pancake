@@ -21,7 +21,22 @@ async function openAdminsDrawer(page, eventId, email) {
   const adminsButton = page.getByRole('button', { name: /administrator/i });
   await adminsButton.waitFor({ state: 'visible', timeout: 10000 });
   await adminsButton.click();
-  return token;
+}
+
+/**
+ * Set up a confirm dialog handler that accepts, validates the message, and
+ * resolves/rejects the returned promise.
+ */
+function acceptConfirmDialog(page, messagePattern) {
+  return new Promise((resolve, reject) => {
+    page.once('dialog', async (dialog) => {
+      try {
+        expect(dialog.message()).toMatch(messagePattern);
+        await dialog.accept();
+        resolve();
+      } catch (e) { reject(e); }
+    });
+  });
 }
 
 test.describe('Administrator Management', () => {
@@ -46,14 +61,13 @@ test.describe('Administrator Management', () => {
     const { eventId } = testEvent;
     await openAdminsDrawer(page, eventId, 'owner@example.com');
     
-    const emailInput = page.locator('input[type="email"]').or(page.getByPlaceholder(/email/i));
+    const drawer = page.locator('[role="dialog"]');
+    const emailInput = drawer.locator('input[type="email"]').or(drawer.getByPlaceholder(/email/i));
     await expect(emailInput).toBeVisible({ timeout: 5000 });
     await emailInput.fill('newadmin@example.com');
     
-    const addButton = page.getByRole('button', { name: /add/i });
-    await addButton.click();
+    await drawer.getByRole('button', { name: /add/i }).click();
     
-    const drawer = page.locator('[role="dialog"]');
     await expect(drawer.getByText('newadmin@example.com')).toBeVisible({ timeout: 5000 });
   });
 
@@ -61,17 +75,16 @@ test.describe('Administrator Management', () => {
     const { eventId } = testEvent;
     await openAdminsDrawer(page, eventId, 'owner@example.com');
     
-    const emailInput = page.locator('input[type="email"]').or(page.getByPlaceholder(/email/i));
+    const drawer = page.locator('[role="dialog"]');
+    const emailInput = drawer.locator('input[type="email"]').or(drawer.getByPlaceholder(/email/i));
     await expect(emailInput).toBeVisible({ timeout: 5000 });
     await emailInput.fill('invalid-email');
     
-    const addButton = page.getByRole('button', { name: /add/i });
+    const addButton = drawer.getByRole('button', { name: /add/i });
     await addButton.scrollIntoViewIfNeeded();
     await addButton.click();
     
-    const drawer = page.locator('[role="dialog"]');
-    const errorMessage = drawer.getByText(/invalid email/i);
-    await expect(errorMessage).toBeVisible({ timeout: 5000 });
+    await expect(drawer.getByText(/invalid email/i)).toBeVisible({ timeout: 5000 });
   });
 
   test('shows error when adding duplicate administrator', async ({ page, testEvent }) => {
@@ -79,16 +92,14 @@ test.describe('Administrator Management', () => {
     const adminEmail = 'owner@example.com';
     await openAdminsDrawer(page, eventId, adminEmail);
     
-    const emailInput = page.locator('input[type="email"]').or(page.getByPlaceholder(/email/i));
+    const drawer = page.locator('[role="dialog"]');
+    const emailInput = drawer.locator('input[type="email"]').or(drawer.getByPlaceholder(/email/i));
     await expect(emailInput).toBeVisible({ timeout: 5000 });
     await emailInput.fill(adminEmail);
     
-    const addButton = page.getByRole('button', { name: /add/i });
-    await addButton.click();
+    await drawer.getByRole('button', { name: /add/i }).click();
     
-    const drawer = page.locator('[role="dialog"]');
-    const duplicateError = drawer.getByText(/already exists/i);
-    await expect(duplicateError).toBeVisible({ timeout: 5000 });
+    await expect(drawer.getByText(/already exists/i)).toBeVisible({ timeout: 5000 });
   });
 
   // ===================================
@@ -102,18 +113,10 @@ test.describe('Administrator Management', () => {
     await openAdminsDrawer(page, eventId, adminEmail);
     
     const drawer = page.locator('[role="dialog"]');
-    const deleteButton = drawer.getByRole('button', { name: /delete.*second@example\.com/i });
+    const deleteButton = drawer.getByRole('button', { name: /delete.*second@example\.com/i }).first();
     await expect(deleteButton).toBeVisible({ timeout: 5000 });
     
-    const dialogPromise = new Promise((resolve, reject) => {
-      page.once('dialog', async (dialog) => {
-        try {
-          expect(dialog.message()).toMatch(/delete|remove/i);
-          await dialog.accept();
-          resolve();
-        } catch (e) { reject(e); }
-      });
-    });
+    const dialogPromise = acceptConfirmDialog(page, /delete|remove/i);
     await deleteButton.click();
     await dialogPromise;
     
@@ -133,15 +136,7 @@ test.describe('Administrator Management', () => {
     const deleteButton = drawer.getByRole('button', { name: /delete.*owner@example\.com/i });
     await expect(deleteButton).toBeVisible({ timeout: 5000 });
 
-    const dialogPromise = new Promise((resolve, reject) => {
-      page.once('dialog', async (dialog) => {
-        try {
-          expect(dialog.message()).toMatch(/delete|remove/i);
-          await dialog.accept();
-          resolve();
-        } catch (e) { reject(e); }
-      });
-    });
+    const dialogPromise = acceptConfirmDialog(page, /delete|remove/i);
     await deleteButton.first().click();
     await dialogPromise;
 
@@ -159,15 +154,7 @@ test.describe('Administrator Management', () => {
     const deleteButton = drawer.getByRole('button', { name: /delete.*owner@example\.com/i });
     await expect(deleteButton).toBeVisible({ timeout: 5000 });
 
-    const dialogPromise = new Promise((resolve, reject) => {
-      page.once('dialog', async (dialog) => {
-        try {
-          expect(dialog.message()).toMatch(/delete|remove/i);
-          await dialog.accept();
-          resolve();
-        } catch (e) { reject(e); }
-      });
-    });
+    const dialogPromise = acceptConfirmDialog(page, /delete|remove/i);
     await deleteButton.first().click();
     await dialogPromise;
 
@@ -207,15 +194,13 @@ test.describe('Administrator Management', () => {
     const { eventId } = testEvent;
     await openAdminsDrawer(page, eventId, 'owner@example.com');
     
-    const emailInput = page.locator('input[type="email"]').or(page.getByPlaceholder(/email/i));
+    const drawer = page.locator('[role="dialog"]');
+    const emailInput = drawer.locator('input[type="email"]').or(drawer.getByPlaceholder(/email/i));
     await expect(emailInput).toBeVisible({ timeout: 5000 });
     await emailInput.fill('  newadmin@example.com  ');
     
-    const addButton = page.getByRole('button', { name: /add/i });
-    await addButton.click();
+    await drawer.getByRole('button', { name: /add/i }).click();
     
-    // Should be trimmed and added correctly (scoped to drawer)
-    const drawer = page.locator('[role="dialog"]');
     await expect(drawer.getByText('newadmin@example.com')).toBeVisible({ timeout: 5000 });
   });
 
@@ -223,16 +208,13 @@ test.describe('Administrator Management', () => {
     const { eventId } = testEvent;
     await openAdminsDrawer(page, eventId, 'owner@example.com');
     
-    const emailInput = page.locator('input[type="email"]').or(page.getByPlaceholder(/email/i));
+    const drawer = page.locator('[role="dialog"]');
+    const emailInput = drawer.locator('input[type="email"]').or(drawer.getByPlaceholder(/email/i));
     await expect(emailInput).toBeVisible({ timeout: 5000 });
     await emailInput.fill('OWNER@EXAMPLE.COM');
     
-    const addButton = page.getByRole('button', { name: /add/i });
-    await addButton.click();
+    await drawer.getByRole('button', { name: /add/i }).click();
     
-    // Should recognize as duplicate (case-insensitive match) — scope to dialog
-    const drawer = page.locator('[role="dialog"]');
-    const duplicateError = drawer.getByText(/already exists/i);
-    await expect(duplicateError).toBeVisible({ timeout: 5000 });
+    await expect(drawer.getByText(/already exists/i)).toBeVisible({ timeout: 5000 });
   });
 });
