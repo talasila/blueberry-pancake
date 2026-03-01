@@ -183,6 +183,22 @@ export async function setAuthToken(page, token, email = 'admin@example.com') {
 }
 
 /**
+ * Shared locator for the PIN input field.
+ * Matches either `input#pin` or a generic 6-char text input (maxlength="6").
+ */
+function pinInputLocator(page) {
+  return page.locator('input#pin')
+    .or(page.locator('input[type="text"][maxlength="6"]'));
+}
+
+/**
+ * Shared locator for error messages (alerts and destructive text).
+ */
+function errorLocator(page) {
+  return page.locator('[role="alert"]').or(page.locator('.text-destructive'));
+}
+
+/**
  * Navigate and wait for the email entry page, then enter email and submit.
  * Handles the case where the page is already past the email step (on PIN page).
  */
@@ -193,15 +209,11 @@ export async function submitEmail(page, email) {
   }
   
   const emailInput = page.locator('input#email');
-  const pinInput = page.locator('input#pin')
-    .or(page.locator('input[type="text"][maxlength="6"]'));
+  const pinInput = pinInputLocator(page);
 
-  // Wait for the email input specifically; if the PIN input appears instead,
-  // the page has already advanced past the email step.
   try {
     await emailInput.waitFor({ state: 'visible', timeout: 3000 });
   } catch {
-    // Email input didn't appear — check if we're on the PIN page already
     if (await pinInput.first().isVisible().catch(() => false)) {
       return;
     }
@@ -223,9 +235,7 @@ export async function enterPIN(page, pin) {
       throw new Error('enterPIN called while on email page - call submitEmail first');
     });
   
-  const pinInput = page.locator('input#pin')
-    .or(page.locator('input[type="text"][maxlength="6"]'))
-    .first();
+  const pinInput = pinInputLocator(page).first();
   
   await pinInput.waitFor({ state: 'visible', timeout: 5000 });
   await pinInput.click();
@@ -248,7 +258,7 @@ export async function submitPIN(page) {
   // this is expected — both waiters are harmless once the page has settled.
   const outcome = await Promise.race([
     page.waitForURL(url => !url.pathname.endsWith('/pin'), { timeout: 10000 }).then(() => 'navigated'),
-    page.locator('[role="alert"]').or(page.locator('.text-destructive')).first().waitFor({ state: 'visible', timeout: 10000 }).then(() => 'error'),
+    errorLocator(page).first().waitFor({ state: 'visible', timeout: 10000 }).then(() => 'error'),
   ]);
   return outcome;
 }
@@ -265,11 +275,8 @@ export async function enterAndSubmitPIN(page, pin) {
  * Get error message from page (if visible)
  */
 export async function getErrorMessage(page, { timeout = 5000 } = {}) {
-  const errorLocator = page.locator('.text-destructive')
-    .or(page.locator('[role="alert"]'));
-
   try {
-    const el = errorLocator.first();
+    const el = errorLocator(page).first();
     await el.waitFor({ state: 'visible', timeout });
     return await el.textContent();
   } catch {
@@ -392,6 +399,17 @@ export async function configureItems(eventId, token, numberOfItems, excludedItem
   });
   const data = response.ok ? await response.json() : await response.text();
   return { ok: response.ok, status: response.status, data };
+}
+
+/**
+ * Open the Bottles (Items) drawer on the admin page.
+ * Waits for the button to appear and the drawer to open.
+ */
+export async function openBottlesDrawer(page) {
+  const bottlesButton = page.getByRole('button', { name: /bottles/i });
+  await bottlesButton.waitFor({ state: 'visible', timeout: 10000 });
+  await bottlesButton.click();
+  await page.locator('[role="dialog"]').waitFor({ state: 'visible', timeout: 5000 });
 }
 
 // ===================================

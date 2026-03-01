@@ -21,6 +21,42 @@ import {
   configureItems,
 } from './helpers.js';
 
+/**
+ * Navigate to the dashboard as admin and wait for it to render.
+ */
+async function goToDashboardAsAdmin(page, eventId) {
+  const adminEmail = 'admin@example.com';
+  const token = await addAdminToEvent(eventId, adminEmail);
+  await setAuthToken(page, token, adminEmail);
+  await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
+  await expect(page.locator('main')).toBeVisible({ timeout: 10000 });
+  return token;
+}
+
+/**
+ * Click the Items/Bottles tab and return the active tab panel.
+ */
+async function clickItemsTab(page) {
+  const itemsTab = page.getByRole('tab', { name: /items|bottles/i });
+  await itemsTab.waitFor({ state: 'visible', timeout: 10000 });
+  await itemsTab.click();
+  const tabPanel = page.locator('[role="tabpanel"][data-state="active"]');
+  await expect(tabPanel).toBeVisible({ timeout: 10000 });
+  return tabPanel;
+}
+
+/**
+ * Click the Users tab and return the active tab panel.
+ */
+async function clickUsersTab(page) {
+  const usersTab = page.getByRole('tab', { name: /users/i });
+  await usersTab.waitFor({ state: 'visible', timeout: 10000 });
+  await usersTab.click();
+  const tabPanel = page.locator('[role="tabpanel"][data-state="active"]');
+  await expect(tabPanel).toBeVisible({ timeout: 10000 });
+  return tabPanel;
+}
+
 // Timeout convention: 10000ms for initial page loads/data fetching, 5000ms for subsequent UI interactions
 test.describe('Dashboard Page', () => {
 
@@ -28,46 +64,21 @@ test.describe('Dashboard Page', () => {
   // User Story 1 - Admin Views Dashboard Anytime
   // ===================================
 
-  test('administrator can access dashboard in created state', async ({ page, testEvent }) => {
+  test('administrator can access and see dashboard in created state', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
-    const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(eventId, adminEmail);
+    await goToDashboardAsAdmin(page, eventId);
     
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    
-    // Should be on dashboard page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/dashboard`));
-
-    // Verify actual dashboard content is rendered, not just URL
-    await expect(page.locator('main')).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('heading', { name: /dashboard/i })).toBeVisible({ timeout: 10000 });
-  });
-
-  test('administrator sees dashboard in created state', async ({ page, testEvent }) => {
-    const { eventId } = testEvent;
-    const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(eventId, adminEmail);
-    
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    
-    // Dashboard should load with stats (may show zeros/N/A)
-    const dashboard = page.locator('main');
-    await expect(dashboard).toBeVisible();
     await expect(page.getByText(/total.*users/i)).toBeVisible({ timeout: 10000 });
   });
 
   test('administrator sees dashboard in started state', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
-    const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(eventId, adminEmail);
-    
+    const token = await goToDashboardAsAdmin(page, eventId);
     await startEvent(eventId, token);
     
-    await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/dashboard`));
     await expect(page.locator('main')).toBeVisible({ timeout: 10000 });
   });
@@ -182,20 +193,9 @@ test.describe('Dashboard Page', () => {
 
   test('shows items tab with empty state when no items configured', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
-    const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(eventId, adminEmail);
+    await goToDashboardAsAdmin(page, eventId);
     
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    
-    // Click on Items/Bottles tab
-    const itemsTab = page.getByRole('tab', { name: /items|bottles/i });
-    await itemsTab.waitFor({ state: 'visible', timeout: 10000 });
-    await itemsTab.click();
-    
-    // Empty state = table present with bottle rows but all ratings show N/A
-    const tabPanel = page.locator('[role="tabpanel"][data-state="active"]');
-    await expect(tabPanel).toBeVisible({ timeout: 10000 });
+    const tabPanel = await clickItemsTab(page);
     await expect(tabPanel.locator('table')).toBeVisible({ timeout: 10000 });
     await expect(tabPanel.getByText('N/A').first()).toBeVisible({ timeout: 5000 });
   });
@@ -205,30 +205,21 @@ test.describe('Dashboard Page', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Configure items for the event via API
     const configResult = await configureItems(eventId, token, 10);
     expect(configResult.ok).toBe(true);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    
-    // Click on Items/Bottles tab
-    const itemsTab = page.getByRole('tab', { name: /items|bottles/i });
-    await itemsTab.waitFor({ state: 'visible', timeout: 10000 });
-    await itemsTab.click();
-    
-    // Table should be visible with configured items
-    const table = page.locator('table');
+    const tabPanel = await clickItemsTab(page);
+    const table = tabPanel.locator('table');
     await expect(table).toBeVisible({ timeout: 10000 });
     
-    // Verify table has the expected column headers
-    await expect(page.getByText(/^ID$/i).or(page.getByText(/item.*id/i)).first()).toBeVisible();
-    await expect(page.getByText(/progress/i).first()).toBeVisible();
-    await expect(page.getByText(/avg/i).first()).toBeVisible();
-    await expect(page.getByText(/wt.*avg/i).first()).toBeVisible();
+    await expect(tabPanel.getByText(/^ID$/i).or(tabPanel.getByText(/item.*id/i)).first()).toBeVisible();
+    await expect(tabPanel.getByText(/progress/i).first()).toBeVisible();
+    await expect(tabPanel.getByText(/avg/i).first()).toBeVisible();
+    await expect(tabPanel.getByText(/wt.*avg/i).first()).toBeVisible();
     
-    // Verify table has rows (10 items configured)
-    const rows = page.locator('table tbody tr');
+    const rows = tabPanel.locator('table tbody tr');
     await expect(rows).toHaveCount(10);
   });
 
@@ -237,36 +228,24 @@ test.describe('Dashboard Page', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Configure items for the event
     const configResult = await configureItems(eventId, token, 10);
     expect(configResult.ok).toBe(true);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
+    const tabPanel = await clickItemsTab(page);
+    await expect(tabPanel.locator('table')).toBeVisible({ timeout: 10000 });
     
-    // Click on Items/Bottles tab
-    const itemsTab = page.getByRole('tab', { name: /items|bottles/i });
-    await itemsTab.waitFor({ state: 'visible', timeout: 10000 });
-    await itemsTab.click();
-    
-    // Table should be visible
-    const table = page.locator('table');
-    await expect(table).toBeVisible({ timeout: 10000 });
-    
-    // Capture initial row order
     const getFirstCellTexts = async () => {
-      const cells = page.locator('table tbody tr td:first-child');
-      return cells.allTextContents();
+      return tabPanel.locator('table tbody tr td:first-child').allTextContents();
     };
     const initialOrder = await getFirstCellTexts();
     expect(initialOrder.length).toBeGreaterThan(0);
     
-    // Click on ID column header to sort
-    const idHeader = page.getByRole('columnheader', { name: /id/i });
+    const idHeader = tabPanel.getByRole('columnheader', { name: /id/i });
     await expect(idHeader).toBeVisible();
     await idHeader.click();
     
-    // Wait for re-render then capture new order
     await expect(async () => {
       const newOrder = await getFirstCellTexts();
       expect(newOrder).not.toEqual(initialOrder);
@@ -278,20 +257,14 @@ test.describe('Dashboard Page', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Configure items for the event
     const configResult = await configureItems(eventId, token, 10);
     expect(configResult.ok).toBe(true);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
+    const tabPanel = await clickItemsTab(page);
     
-    // Click on Items/Bottles tab
-    const itemsTab = page.getByRole('tab', { name: /items|bottles/i });
-    await itemsTab.waitFor({ state: 'visible', timeout: 10000 });
-    await itemsTab.click();
-    
-    // First row should be item 1 (default ascending sort)
-    const firstRow = page.locator('table tbody tr').first();
+    const firstRow = tabPanel.locator('table tbody tr').first();
     await expect(firstRow).toBeVisible();
     const firstCell = firstRow.locator('td').first();
     await expect(firstCell).toHaveText('1');
@@ -306,48 +279,29 @@ test.describe('Dashboard Page', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Configure items for the event
     const configResult = await configureItems(eventId, token, 5);
     expect(configResult.ok).toBe(true);
     
     await startEvent(eventId, token);
     
-    // Get a user token via PIN verification
     const userToken = await getUserToken(eventId, 'rater@example.com', pin);
-    
-    // Submit ratings for some items
     for (let itemId = 1; itemId <= 3; itemId++) {
       const result = await submitRating(eventId, userToken, itemId, 4);
-      if (!result.ok) {
-        throw new Error(`Failed to submit rating: ${result.data}`);
-      }
+      if (!result.ok) throw new Error(`Failed to submit rating: ${result.data}`);
     }
     
-    // Now view dashboard as admin
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    
-    // Click on Items/Bottles tab
-    const itemsTab = page.getByRole('tab', { name: /items|bottles/i });
-    await itemsTab.waitFor({ state: 'visible', timeout: 10000 });
-    await itemsTab.click();
-    
-    // Table should show weighted average column with values
-    const table = page.locator('table');
+    const tabPanel = await clickItemsTab(page);
+    const table = tabPanel.locator('table');
     await expect(table).toBeVisible({ timeout: 10000 });
     
-    // Items with ratings should have weighted average displayed (not N/A or -)
-    // First 3 items have ratings, check the first row has an average value
-    const firstRow = page.locator('table tbody tr').first();
+    const firstRow = tabPanel.locator('table tbody tr').first();
     await expect(firstRow).toBeVisible();
     
-    // Verify the Wt. Avg column specifically by finding the last numeric cell
-    // Weighted average for item with one rating of 4 should be close to 4.00
-    const wtAvgHeader = page.getByText(/wt.*avg/i).first();
+    const wtAvgHeader = tabPanel.getByText(/wt.*avg/i).first();
     await expect(wtAvgHeader).toBeVisible();
-    // The Wt.Avg is the last data column — verify the row contains a decimal number
-    const cells = firstRow.locator('td');
-    const lastCell = cells.last();
+    const lastCell = firstRow.locator('td').last();
     await expect(lastCell).toContainText(/\d+\.\d+/, { timeout: 5000 });
   });
 
@@ -357,19 +311,10 @@ test.describe('Dashboard Page', () => {
 
   test('users tab is accessible and shows appropriate content', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
-    const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(eventId, adminEmail);
+    await goToDashboardAsAdmin(page, eventId);
     
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    
-    // Click on Users tab
-    const usersTab = page.getByRole('tab', { name: /users/i });
-    await usersTab.waitFor({ state: 'visible', timeout: 10000 });
-    await usersTab.click();
-    
-    const activePanel = page.locator('[role="tabpanel"][data-state="active"]');
-    await expect(activePanel).toBeVisible({ timeout: 10000 });
+    const tabPanel = await clickUsersTab(page);
+    await expect(tabPanel).toBeVisible({ timeout: 10000 });
   });
 
   test('users tab displays table with correct columns when users have ratings', async ({ page, testEvent }) => {
@@ -377,38 +322,25 @@ test.describe('Dashboard Page', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Configure items and start event
     const configResult = await configureItems(eventId, token, 5);
     expect(configResult.ok).toBe(true);
-    
     await startEvent(eventId, token);
     
-    // Create first user and submit ratings
     const user1Token = await getUserToken(eventId, 'user1@example.com', pin);
-    
-    // Submit ratings for user1
     for (let itemId = 1; itemId <= 3; itemId++) {
       const result = await submitRating(eventId, user1Token, itemId, 4);
       if (!result.ok) throw new Error(`Failed to submit rating: ${result.data}`);
     }
     
-    // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    
-    // Click on Users tab
-    const usersTab = page.getByRole('tab', { name: /users/i });
-    await usersTab.waitFor({ state: 'visible', timeout: 10000 });
-    await usersTab.click();
-    
-    // Table should be visible
-    const table = page.locator('table');
+    const tabPanel = await clickUsersTab(page);
+    const table = tabPanel.locator('table');
     await expect(table).toBeVisible({ timeout: 10000 });
     
-    // Verify column headers
-    await expect(page.getByText(/^user$/i).first()).toBeVisible();
-    await expect(page.getByText(/progress/i).first()).toBeVisible();
-    await expect(page.getByText(/avg.*rating/i).first()).toBeVisible();
+    await expect(tabPanel.getByText(/^user$/i).first()).toBeVisible();
+    await expect(tabPanel.getByText(/progress/i).first()).toBeVisible();
+    await expect(tabPanel.getByText(/avg.*rating/i).first()).toBeVisible();
   });
 
   test('users table displays multiple users with different rating counts', async ({ page, testEvent }) => {
@@ -416,50 +348,44 @@ test.describe('Dashboard Page', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Configure items and start event
     const configResult = await configureItems(eventId, token, 5);
     expect(configResult.ok).toBe(true);
-    
     await startEvent(eventId, token);
     
-    // Create first user with 5 ratings
+    // Alice: 5 ratings, Bob: 2 ratings
     const user1Token = await getUserToken(eventId, 'alice@example.com', pin);
-    
     for (let itemId = 1; itemId <= 5; itemId++) {
       const result = await submitRating(eventId, user1Token, itemId, 4);
       if (!result.ok) throw new Error(`Failed to submit rating: ${result.data}`);
     }
     
-    // Create second user with 2 ratings
     const user2Token = await getUserToken(eventId, 'bob@example.com', pin);
-    
     for (let itemId = 1; itemId <= 2; itemId++) {
       const result = await submitRating(eventId, user2Token, itemId, 3);
       if (!result.ok) throw new Error(`Failed to submit rating: ${result.data}`);
     }
     
-    // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    
-    // Click on Users tab
-    const usersTab = page.getByRole('tab', { name: /users/i });
-    await usersTab.click();
-    
-    // Table should show both users (wait for data to load)
-    const table = page.locator('table');
+    const tabPanel = await clickUsersTab(page);
+    const table = tabPanel.locator('table');
     await expect(table).toBeVisible({ timeout: 10000 });
     
-    // Both users should be in the table (use .first() since name and email may both show)
-    await expect(page.getByText(/alice/i).first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText(/bob/i).first()).toBeVisible({ timeout: 10000 });
+    await expect(tabPanel.getByText(/alice/i).first()).toBeVisible({ timeout: 10000 });
+    await expect(tabPanel.getByText(/bob/i).first()).toBeVisible({ timeout: 10000 });
     
-    // Table should have at least 2 user rows (admin may also be present)
-    const rows = page.locator('table tbody tr');
+    const rows = tabPanel.locator('table tbody tr');
     await expect(async () => {
       const rowCount = await rows.count();
       expect(rowCount).toBeGreaterThanOrEqual(2);
     }).toPass({ timeout: 10000 });
+    
+    // Verify the two users have different progress values (5/5 vs 2/5)
+    const aliceRow = tabPanel.locator('table tbody tr').filter({ hasText: /alice/i });
+    const bobRow = tabPanel.locator('table tbody tr').filter({ hasText: /bob/i });
+    const aliceText = await aliceRow.first().textContent();
+    const bobText = await bobRow.first().textContent();
+    expect(aliceText).not.toBe(bobText);
   });
 
   test('users table columns are sortable', async ({ page, testEvent }) => {
@@ -467,48 +393,34 @@ test.describe('Dashboard Page', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Configure items and start event
     const configResult = await configureItems(eventId, token, 5);
     expect(configResult.ok).toBe(true);
-    
     await startEvent(eventId, token);
     
-    // Create users with ratings
     const user1Token = await getUserToken(eventId, 'zack@example.com', pin);
-    
     const rating1Result = await submitRating(eventId, user1Token, 1, 4);
     if (!rating1Result.ok) throw new Error(`Failed to submit rating: ${rating1Result.data}`);
     
     const user2Token = await getUserToken(eventId, 'anna@example.com', pin);
-    
     const rating2Result = await submitRating(eventId, user2Token, 1, 3);
     if (!rating2Result.ok) throw new Error(`Failed to submit rating: ${rating2Result.data}`);
     
-    // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    
-    // Click on Users tab
-    const usersTab = page.getByRole('tab', { name: /users/i });
-    await usersTab.click();
-    
-    // Wait for table data to load before sorting
-    const table = page.locator('table');
+    const tabPanel = await clickUsersTab(page);
+    const table = tabPanel.locator('table');
     await expect(table).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('table tbody tr')).not.toHaveCount(0, { timeout: 10000 });
+    await expect(tabPanel.locator('table tbody tr')).not.toHaveCount(0, { timeout: 10000 });
     
-    // Click on User column header to sort
-    const userHeader = page.getByRole('columnheader', { name: /user/i });
+    const userHeader = tabPanel.getByRole('columnheader', { name: /user/i });
     await expect(userHeader).toBeVisible();
     await userHeader.click();
     
     const getFirstCellTexts = async () => {
-      const cells = page.locator('table tbody tr td:first-child');
-      return cells.allTextContents();
+      return tabPanel.locator('table tbody tr td:first-child').allTextContents();
     };
     
-    // Wait for sort to complete before capturing state
-    await expect(page.locator('table tbody tr')).not.toHaveCount(0, { timeout: 5000 });
+    await expect(tabPanel.locator('table tbody tr')).not.toHaveCount(0, { timeout: 5000 });
     const afterFirstSort = await getFirstCellTexts();
 
     await userHeader.click();
@@ -524,43 +436,30 @@ test.describe('Dashboard Page', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Configure items and start event
     const configResult = await configureItems(eventId, token, 5);
     expect(configResult.ok).toBe(true);
-    
     await startEvent(eventId, token);
     
-    // Create users in reverse alphabetical order
     const user1Token = await getUserToken(eventId, 'zack@example.com', pin);
-    
     const rating1Result = await submitRating(eventId, user1Token, 1, 4);
     if (!rating1Result.ok) throw new Error(`Failed to submit rating: ${rating1Result.data}`);
     
     const user2Token = await getUserToken(eventId, 'anna@example.com', pin);
-    
     const rating2Result = await submitRating(eventId, user2Token, 1, 3);
     if (!rating2Result.ok) throw new Error(`Failed to submit rating: ${rating2Result.data}`);
     
-    // View dashboard as admin
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    
-    // Click on Users tab
-    const usersTab = page.getByRole('tab', { name: /users/i });
-    await usersTab.click();
-    
-    // Wait for table data to load
-    const table = page.locator('table');
+    const tabPanel = await clickUsersTab(page);
+    const table = tabPanel.locator('table');
     await expect(table).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('table tbody tr')).not.toHaveCount(0, { timeout: 10000 });
+    await expect(tabPanel.locator('table tbody tr')).not.toHaveCount(0, { timeout: 10000 });
     
-    // Admin appears in the users table because addAdminToEvent creates a user
-    // record. Alphabetically, admin@example.com sorts before anna@example.com.
-    const firstRow = page.locator('table tbody tr').first();
+    // admin@example.com sorts before anna@example.com
+    const firstRow = tabPanel.locator('table tbody tr').first();
     await expect(firstRow).toContainText(/admin/i, { timeout: 10000 });
     
-    // Second row should be anna
-    const secondRow = page.locator('table tbody tr').nth(1);
+    const secondRow = tabPanel.locator('table tbody tr').nth(1);
     await expect(secondRow).toContainText(/anna/i, { timeout: 10000 });
   });
 

@@ -164,7 +164,7 @@ test.describe('OTP Authentication', () => {
 
   // Tests form validation UI only — verifies the submit button is disabled when
   // no email is entered. Does not test actual form submission behavior.
-  test('handles empty email submission', async ({ page }) => {
+  test('submit button is disabled when email is empty', async ({ page }) => {
     await page.goto(`${BASE_URL}/auth`);
     
     const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });

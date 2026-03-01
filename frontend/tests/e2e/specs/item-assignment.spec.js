@@ -24,6 +24,7 @@ import {
   submitEmail,
   enterAndSubmitPIN,
   changeEventState,
+  openBottlesDrawer,
 } from './helpers.js';
 
 /**
@@ -74,16 +75,6 @@ async function assignItemIdViaAPI(eventId, itemId, itemIdToAssign, token) {
 async function navigateToProfilePage(page, eventId) {
   await page.goto(`${BASE_URL}/event/${eventId}/profile`);
   await page.getByRole('heading', { name: /profile/i }).waitFor({ state: 'visible', timeout: 10000 });
-}
-
-/**
- * Helper: Open the Bottles drawer on admin page
- */
-async function openBottlesDrawer(page) {
-  const bottlesButton = page.getByRole('button', { name: /bottles/i });
-  await bottlesButton.waitFor({ state: 'visible', timeout: 10000 });
-  await bottlesButton.click();
-  await page.locator('[role="dialog"]').waitFor({ state: 'visible', timeout: 5000 });
 }
 
 /**
@@ -317,12 +308,10 @@ test.describe('Item Assignment', () => {
     // Find and click the item card to expand it (assignment dropdown only shows when expanded)
     await page.getByText('Chateau Test 2019').click();
     
-    // Find the assignment dropdown inside the expanded section
-    // It's a select with "Select ID" or "Clear assignment" option, NOT the filter dropdown
-    const assignSelect = page.locator('select').filter({ hasText: /Select ID|Clear assignment/ });
+    const drawer = page.locator('[role="dialog"]');
+    const assignSelect = drawer.locator('select').filter({ hasText: /Select ID|Clear assignment/ });
     await assignSelect.waitFor({ state: 'visible', timeout: 5000 });
     
-    // Select item ID 1
     await assignSelect.selectOption('1');
     
     // Verify assignment was successful - check for success toast or visual indicator
@@ -355,12 +344,11 @@ test.describe('Item Assignment', () => {
     // Find and click the item card to expand it
     await page.getByText('Clearable Wine').click();
     
-    // Find the assignment dropdown (should show current value)
-    const assignSelect = page.locator('select').filter({ hasText: /Clear assignment/ });
+    const drawer = page.locator('[role="dialog"]');
+    const assignSelect = drawer.locator('select').filter({ hasText: /Clear assignment/ });
     await assignSelect.waitFor({ state: 'visible', timeout: 5000 });
     await expect(assignSelect).toHaveValue('5');
     
-    // Clear assignment by selecting empty option
     await assignSelect.selectOption('');
     
     // Verify clear was successful
@@ -393,8 +381,8 @@ test.describe('Item Assignment', () => {
     // Find and click the item card to expand it
     await page.getByText('Reassignable Wine').click();
     
-    // Find the assignment dropdown (should have value 3)
-    const assignSelect = page.locator('select').filter({ hasText: /Clear assignment/ });
+    const drawer = page.locator('[role="dialog"]');
+    const assignSelect = drawer.locator('select').filter({ hasText: /Clear assignment/ });
     await assignSelect.waitFor({ state: 'visible', timeout: 5000 });
     await expect(assignSelect).toHaveValue('3');
     
@@ -433,8 +421,8 @@ test.describe('Item Assignment', () => {
     // Find and click Wine Two card to expand it
     await page.getByText('Wine Two').click();
     
-    // Find the assignment dropdown for Wine Two
-    const assignSelect = page.locator('select').filter({ hasText: /Select ID/ });
+    const drawer = page.locator('[role="dialog"]');
+    const assignSelect = drawer.locator('select').filter({ hasText: /Select ID/ });
     await assignSelect.waitFor({ state: 'visible', timeout: 5000 });
     
     // Check that option 5 is NOT present (it's assigned to Wine One)

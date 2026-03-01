@@ -28,15 +28,13 @@ async function deleteEventViaAPI(eventId) {
 export default async function globalTeardown() {
   console.log('\n[E2E Cleanup] Starting post-test cleanup...');
   
-  const trackingFile = TRACKING_FILE;
-  
   let trackedEventsDeleted = 0;
 
   // Step 1: Clean up tracked UI-created events via API
-  if (existsSync(trackingFile)) {
+  if (existsSync(TRACKING_FILE)) {
     try {
       const tracked = [...new Set(
-        readFileSync(trackingFile, 'utf-8')
+        readFileSync(TRACKING_FILE, 'utf-8')
           .split('\n')
           .map(line => line.trim())
           .filter(Boolean)
@@ -52,11 +50,10 @@ export default async function globalTeardown() {
       if (failedCount > 0) {
         console.warn(`[E2E Cleanup] Failed to delete ${failedCount} tracked events`);
       }
-      
-      // Clear the tracking file
-      unlinkSync(trackingFile);
     } catch (error) {
       console.warn(`[E2E Cleanup] Error processing tracking file: ${error.message}`);
+    } finally {
+      try { unlinkSync(TRACKING_FILE); } catch { /* already gone */ }
     }
   }
 

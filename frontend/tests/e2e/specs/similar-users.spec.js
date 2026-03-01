@@ -17,6 +17,13 @@ import {
   BASE_URL,
 } from './helpers.js';
 
+async function loginAsUserToEvent(page, eventId, email, pin) {
+  await clearAuth(page);
+  await page.goto(`${BASE_URL}/event/${eventId}`);
+  await submitEmail(page, email);
+  await enterAndSubmitPIN(page, pin);
+}
+
 test.describe('Similar Users Discovery', () => {
 
   // ===================================
@@ -31,11 +38,7 @@ test.describe('Similar Users Discovery', () => {
     // Start event
     await startEvent(eventId, token);
     
-    // Access as regular user (no ratings yet)
-    await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${eventId}`);
-    await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, pin);
+    await loginAsUserToEvent(page, eventId, 'user@example.com', pin);
     
     // Gate: wait for the main event page content to render before negative assertion
     await expect(page.getByText(/event has not started yet|tap a number/i)).toBeVisible({ timeout: 10000 });
@@ -62,11 +65,7 @@ test.describe('Similar Users Discovery', () => {
     await submitRating(eventId, userToken, 2, 3);
     await submitRating(eventId, userToken, 3, 4);
     
-    // Access event page via UI
-    await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${eventId}`);
-    await submitEmail(page, userEmail);
-    await enterAndSubmitPIN(page, pin);
+    await loginAsUserToEvent(page, eventId, userEmail, pin);
     
     // Find Similar Tastes button should now be visible
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -88,11 +87,7 @@ test.describe('Similar Users Discovery', () => {
     await submitRating(eventId, userToken, 2, 3);
     await submitRating(eventId, userToken, 3, 4);
     
-    // Access event page
-    await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${eventId}`);
-    await submitEmail(page, userEmail);
-    await enterAndSubmitPIN(page, pin);
+    await loginAsUserToEvent(page, eventId, userEmail, pin);
     
     // Click Find Similar Tastes button
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -117,11 +112,7 @@ test.describe('Similar Users Discovery', () => {
     await submitRating(eventId, userToken, 2, 3);
     await submitRating(eventId, userToken, 3, 4);
     
-    // Access event page
-    await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${eventId}`);
-    await submitEmail(page, userEmail);
-    await enterAndSubmitPIN(page, pin);
+    await loginAsUserToEvent(page, eventId, userEmail, pin);
     
     // Click Find Similar Tastes button
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -159,18 +150,15 @@ test.describe('Similar Users Discovery', () => {
     await submitRating(eventId, similarUserToken, 2, 4);
     await submitRating(eventId, similarUserToken, 3, 4);
     
-    // Access event page as current user
-    await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${eventId}`);
-    await submitEmail(page, currentUserEmail);
-    await enterAndSubmitPIN(page, pin);
+    await loginAsUserToEvent(page, eventId, currentUserEmail, pin);
     
     // Click Find Similar Tastes button
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
     await similarButton.click();
     
-    // Should show similar user in the list
-    const similarUserEntry = page.getByText(similarUserEmail);
+    // Should show similar user in the list — scope to drawer
+    const drawer = page.locator('[role="dialog"]');
+    const similarUserEntry = drawer.getByText(similarUserEmail);
     await expect(similarUserEntry).toBeVisible({ timeout: 10000 });
   });
 
@@ -206,11 +194,7 @@ test.describe('Similar Users Discovery', () => {
     await submitRating(eventId, lessSimilarToken, 3, 1);
     await submitRating(eventId, lessSimilarToken, 4, 2);
     
-    // Access event page as current user
-    await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${eventId}`);
-    await submitEmail(page, currentUserEmail);
-    await enterAndSubmitPIN(page, pin);
+    await loginAsUserToEvent(page, eventId, currentUserEmail, pin);
     
     // Click Find Similar Tastes button
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -255,18 +239,15 @@ test.describe('Similar Users Discovery', () => {
     await submitRating(eventId, otherUserToken, 2, 4);
     await submitRating(eventId, otherUserToken, 3, 4);
     
-    // Access event page
-    await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${eventId}`);
-    await submitEmail(page, currentUserEmail);
-    await enterAndSubmitPIN(page, pin);
+    await loginAsUserToEvent(page, eventId, currentUserEmail, pin);
     
     // Click Find Similar Tastes
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
     await similarButton.click();
     
-    // Should display the other user's email
-    const userEmailDisplay = page.getByText(otherUserEmail);
+    // Should display the other user's email — scope to drawer
+    const drawer = page.locator('[role="dialog"]');
+    const userEmailDisplay = drawer.getByText(otherUserEmail);
     await expect(userEmailDisplay).toBeVisible({ timeout: 10000 });
   });
 
@@ -289,11 +270,7 @@ test.describe('Similar Users Discovery', () => {
     await submitRating(eventId, userToken, 2, 3);
     await submitRating(eventId, userToken, 3, 4);
     
-    // Access event page
-    await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${eventId}`);
-    await submitEmail(page, userEmail);
-    await enterAndSubmitPIN(page, pin);
+    await loginAsUserToEvent(page, eventId, userEmail, pin);
     
     // Find Similar Tastes button should be visible with exactly 3 ratings
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -306,11 +283,7 @@ test.describe('Similar Users Discovery', () => {
     await addAdminToEvent(eventId, adminEmail);
     
     // Event stays in created state (not started)
-    // Access as regular user
-    await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${eventId}`);
-    await submitEmail(page, 'user@example.com');
-    await enterAndSubmitPIN(page, pin);
+    await loginAsUserToEvent(page, eventId, 'user@example.com', pin);
     
     // Gate: wait for the main event page content to render before negative assertion
     await expect(page.getByText(/event has not started yet/i)).toBeVisible({ timeout: 10000 });
@@ -335,11 +308,7 @@ test.describe('Similar Users Discovery', () => {
     await submitRating(eventId, userToken, 2, 3);
     await submitRating(eventId, userToken, 3, 4);
     
-    // Access event page
-    await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${eventId}`);
-    await submitEmail(page, userEmail);
-    await enterAndSubmitPIN(page, pin);
+    await loginAsUserToEvent(page, eventId, userEmail, pin);
     
     // Click Find Similar Tastes button
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -378,11 +347,7 @@ test.describe('Similar Users Discovery', () => {
     await submitRating(eventId, otherUserToken, 5, 4);
     await submitRating(eventId, otherUserToken, 6, 4);
     
-    // Access event page as current user
-    await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${eventId}`);
-    await submitEmail(page, currentUserEmail);
-    await enterAndSubmitPIN(page, pin);
+    await loginAsUserToEvent(page, eventId, currentUserEmail, pin);
     
     // Click Find Similar Tastes
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -409,11 +374,7 @@ test.describe('Similar Users Discovery', () => {
     await submitRating(eventId, userToken, 2, 3);
     await submitRating(eventId, userToken, 3, 4);
     
-    // Access event page
-    await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${eventId}`);
-    await submitEmail(page, userEmail);
-    await enterAndSubmitPIN(page, pin);
+    await loginAsUserToEvent(page, eventId, userEmail, pin);
     
     // Click Find Similar Tastes button to open drawer
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
@@ -457,11 +418,7 @@ test.describe('Similar Users Discovery', () => {
     await submitRating(eventId, similarUserToken, 3, 4);
     await submitRating(eventId, similarUserToken, 4, 2);
     
-    // Access event page as current user
-    await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${eventId}`);
-    await submitEmail(page, currentUserEmail);
-    await enterAndSubmitPIN(page, pin);
+    await loginAsUserToEvent(page, eventId, currentUserEmail, pin);
     
     // Click Similar Tastes button to open the list
     const similarButton = page.getByRole('button', { name: /similar tastes/i });

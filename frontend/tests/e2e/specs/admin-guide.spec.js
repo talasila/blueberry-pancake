@@ -179,11 +179,10 @@ test.describe('US2: Created state walkthrough', () => {
     await setupAdmin(page, eventId);
     await navigateToAdmin(page, eventId);
     await openAdminGuide(page);
-    // Navigate through all to confirm 7 exist
     for (let i = 0; i < CREATED_HEADINGS.length; i++) {
       await expect(page.getByRole('heading', { name: CREATED_HEADINGS[i] })).toBeVisible();
       if (i < CREATED_HEADINGS.length - 1) {
-        await page.getByRole('button', { name: /next/i }).click();
+        await navigateToStep(page, 1);
       }
     }
   });
@@ -194,7 +193,7 @@ test.describe('US2: Created state walkthrough', () => {
     await navigateToAdmin(page, eventId);
     await openAdminGuide(page);
     await expect(page.getByText(/1\s*(of|\/)\s*7/i)).toBeVisible();
-    await page.getByRole('button', { name: /next/i }).click();
+    await navigateToStep(page, 1);
     await expect(page.getByText(/2\s*(of|\/)\s*7/i)).toBeVisible();
   });
 
@@ -227,7 +226,7 @@ test.describe('US2: Created state walkthrough', () => {
     await setupAdmin(page, eventId);
     await navigateToAdmin(page, eventId);
     await openAdminGuide(page);
-    await page.getByRole('button', { name: /next/i }).click();
+    await navigateToStep(page, 1);
     await expect(page.getByRole('heading', { name: 'Set Up Your Items' })).toBeVisible();
     await page.getByRole('button', { name: /back/i }).click();
     await expect(page.getByRole('heading', { name: 'Name Your Event' })).toBeVisible();
@@ -255,7 +254,7 @@ test.describe('US3: Started state walkthrough', () => {
     for (let i = 0; i < STARTED_HEADINGS.length; i++) {
       await expect(page.getByRole('heading', { name: STARTED_HEADINGS[i] })).toBeVisible();
       if (i < STARTED_HEADINGS.length - 1) {
-        await page.getByRole('button', { name: /next/i }).click();
+        await navigateToStep(page, 1);
       }
     }
   });
@@ -269,7 +268,7 @@ test.describe('US3: Started state walkthrough', () => {
     const drawer = page.locator('[role="dialog"][aria-label="Admin guide"]');
     await navigateToStep(page, 1);
     await expect(drawer.getByText(/number grid/i)).toBeVisible();
-    await page.getByRole('button', { name: /next/i }).click();
+    await navigateToStep(page, 1);
     await expect(drawer.getByText(/Pause the event/i)).toBeVisible();
   });
 
@@ -306,7 +305,7 @@ test.describe('US4: Completed state walkthrough', () => {
     for (let i = 0; i < COMPLETED_HEADINGS.length; i++) {
       await expect(page.getByRole('heading', { name: COMPLETED_HEADINGS[i] })).toBeVisible();
       if (i < COMPLETED_HEADINGS.length - 1) {
-        await page.getByRole('button', { name: /next/i }).click();
+        await navigateToStep(page, 1);
       }
     }
   });
@@ -320,9 +319,9 @@ test.describe('US4: Completed state walkthrough', () => {
     const drawer = page.locator('[role="dialog"][aria-label="Admin guide"]');
     await navigateToStep(page, 1);
     await expect(drawer.getByRole('heading', { name: 'View the Dashboard' })).toBeVisible();
-    await page.getByRole('button', { name: /next/i }).click();
+    await navigateToStep(page, 1);
     await expect(drawer.getByRole('heading', { name: 'Export Your Data' })).toBeVisible();
-    await page.getByRole('button', { name: /next/i }).click();
+    await navigateToStep(page, 1);
     await expect(drawer.getByRole('heading', { name: 'Want to Reopen?' })).toBeVisible();
   });
 
@@ -353,7 +352,7 @@ test.describe('US5: Paused state walkthrough', () => {
     for (let i = 0; i < PAUSED_HEADINGS.length; i++) {
       await expect(page.getByRole('heading', { name: PAUSED_HEADINGS[i] })).toBeVisible();
       if (i < PAUSED_HEADINGS.length - 1) {
-        await page.getByRole('button', { name: /next/i }).click();
+        await navigateToStep(page, 1);
       }
     }
   });
@@ -427,7 +426,7 @@ test.describe('US6: Overview / quick-reference', () => {
     await setupAdmin(page, eventId);
     await navigateToAdmin(page, eventId);
     await openAdminGuide(page);
-    await page.getByRole('button', { name: /next/i }).click();
+    await navigateToStep(page, 1);
     await page.locator('button[aria-label="Show overview"]').click();
     const secondItem = page.locator('button[aria-current="step"]');
     await expect(secondItem).toBeVisible();

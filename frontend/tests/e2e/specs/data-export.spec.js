@@ -648,8 +648,7 @@ test.describe('Data Export', () => {
       const { eventId } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
-      // Set 10 items
-      await configureItems(eventId, adminToken, 10);
+      expect((await configureItems(eventId, adminToken, 10)).ok).toBe(true);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -666,8 +665,7 @@ test.describe('Data Export', () => {
       const { eventId } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
-      // Set 10 items, exclude 3, 5, 7
-      await configureItems(eventId, adminToken, 10, [3, 5, 7]);
+      expect((await configureItems(eventId, adminToken, 10, [3, 5, 7])).ok).toBe(true);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -687,8 +685,7 @@ test.describe('Data Export', () => {
       const { eventId } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       
-      // Set 5 bottle slots
-      await configureItems(eventId, adminToken, 5);
+      expect((await configureItems(eventId, adminToken, 5)).ok).toBe(true);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -711,7 +708,7 @@ test.describe('Data Export', () => {
     test('includes rating statistics', async ({ page, testEvent }) => {
       const { eventId, pin } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
-      await configureItems(eventId, adminToken, 5);
+      expect((await configureItems(eventId, adminToken, 5)).ok).toBe(true);
       await startEvent(eventId, adminToken);
       
       // Multiple users rate item 1
@@ -741,7 +738,7 @@ test.describe('Data Export', () => {
     test('includes rating distribution', async ({ page, testEvent }) => {
       const { eventId, pin } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
-      await configureItems(eventId, adminToken, 5);
+      expect((await configureItems(eventId, adminToken, 5)).ok).toBe(true);
       await startEvent(eventId, adminToken);
       
       // Create ratings with specific distribution: one 1, two 2s, one 3, three 4s
@@ -775,7 +772,7 @@ test.describe('Data Export', () => {
     test('includes rating progression percentage', async ({ page, testEvent }) => {
       const { eventId, pin } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
-      await configureItems(eventId, adminToken, 5);
+      expect((await configureItems(eventId, adminToken, 5)).ok).toBe(true);
       await startEvent(eventId, adminToken);
       
       // 4 users total, 2 rate item 1 = 50%
@@ -802,7 +799,7 @@ test.describe('Data Export', () => {
     test('filename uses event terminology (bottles for wine)', async ({ page, testEvent }) => {
       const { eventId } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
-      await configureItems(eventId, adminToken, 5);
+      expect((await configureItems(eventId, adminToken, 5)).ok).toBe(true);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -810,7 +807,6 @@ test.describe('Data Export', () => {
       const download = await clickExportAndWaitForDownload(page, 'items');
       
       const filename = download.suggestedFilename();
-      // Default event type is "wine" which uses "bottles"
       expect(filename).toMatch(/^bottles-export-.*-\d{4}-\d{2}-\d{2}\.csv$/);
     });
   });
@@ -835,37 +831,7 @@ test.describe('Data Export', () => {
       await expect(getExportButton(page, 'items')).toBeEnabled();
     });
 
-    test('export completes and buttons are enabled afterward', async ({ page, testEvent }) => {
-      const { eventId, pin } = testEvent;
-      const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
-      await startEvent(eventId, adminToken);
-      
-      // Add many ratings to make export take longer
-      for (let i = 1; i <= 5; i++) {
-        const userToken = await getUserToken(eventId, `user${i}@example.com`, pin);
-        for (let j = 1; j <= 10; j++) {
-          await submitRatingChecked(eventId, userToken, j, (i % 4) + 1);
-        }
-      }
-      
-      await setAuthToken(page, adminToken, 'admin@example.com');
-      await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-      await openExportDrawer(page);
-      
-      // Click export and immediately check other buttons
-      const downloadPromise = page.waitForEvent('download');
-      await getExportButton(page, 'ratings').click();
-      
-      // At least verify export completes
-      await downloadPromise;
-      
-      // After export, all buttons should be enabled again
-      await expect(getExportButton(page, 'matrix')).toBeEnabled();
-      await expect(getExportButton(page, 'users')).toBeEnabled();
-      await expect(getExportButton(page, 'items')).toBeEnabled();
-    });
-
-    test('buttons re-enable after export completes', async ({ page, testEvent }) => {
+    test('buttons re-enable after export and allow consecutive exports', async ({ page, testEvent }) => {
       const { eventId, pin } = testEvent;
       const adminToken = await addAdminToEvent(eventId, 'admin@example.com');
       await startEvent(eventId, adminToken);
@@ -877,19 +843,15 @@ test.describe('Data Export', () => {
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
       await openExportDrawer(page);
       
-      // Do first export
       await clickExportAndWaitForDownload(page, 'ratings');
       
-      // All buttons should be enabled after export
       await expect(getExportButton(page, 'ratings')).toBeEnabled();
       await expect(getExportButton(page, 'matrix')).toBeEnabled();
       await expect(getExportButton(page, 'users')).toBeEnabled();
       await expect(getExportButton(page, 'items')).toBeEnabled();
       
-      // Can do another export
+      // Consecutive export works
       await clickExportAndWaitForDownload(page, 'matrix');
-      
-      // Still enabled
       await expect(getExportButton(page, 'ratings')).toBeEnabled();
     });
   });

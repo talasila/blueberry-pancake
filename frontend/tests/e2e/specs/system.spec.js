@@ -449,26 +449,26 @@ test.describe('System Administration Dashboard', () => {
   
   test.describe('Default View', () => {
     
-    test('should display events and show "most recent" label only when capped', async ({ page }) => {
+    test('should display events and "most recent" label tracks row count', async ({ page }) => {
       await setupRootAuth(page);
       await navigateToSystemPage(page);
 
       const eventRows = page.locator('[data-testid="event-row"]');
-      // Wait for either event rows or empty state to appear before counting
       await page.locator('[data-testid="event-row"]').or(page.getByText(/no events found/i)).first()
         .waitFor({ state: 'visible', timeout: 10000 });
       const rowCount = await eventRows.count();
 
-      // Events list or empty state should always render
       const content = eventRows.or(page.getByText(/no events found/i));
       await expect(content.first()).toBeVisible({ timeout: 10000 });
 
-      // The "most recent" label should be visible only when the page caps at 25 rows
+      // Assert both paths explicitly so failures are surfaced regardless of DB state
       const label = page.getByText('Showing 25 most recent events');
+      const isLabelVisible = await label.isVisible().catch(() => false);
       if (rowCount >= 25) {
-        await expect(label).toBeVisible();
+        expect(isLabelVisible).toBe(true);
       } else {
-        await expect(label).not.toBeVisible();
+        expect(isLabelVisible).toBe(false);
+        expect(rowCount).toBeLessThan(25);
       }
     });
     

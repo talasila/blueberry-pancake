@@ -235,14 +235,11 @@ test.describe('Create Event', () => {
     // The app should redirect to the canonical uppercase URL
     await page.waitForURL(new RegExp(`/event/${createdEventId}`), { timeout: 10000 });
 
-    // Verify the URL contains the uppercase event ID
-    expect(page.url()).toContain(`/event/${createdEventId}`);
-
     // Cleanup
     await deleteTestEvent(createdEventId);
   });
 
-  test('excluded characters (I, L, O) pass through and show event not found', async ({ page }) => {
+  test('excluded Crockford characters (I, L, O) pass format validation and navigate to email entry', async ({ page }) => {
     // Navigate to landing page
     await page.goto(BASE_URL);
 

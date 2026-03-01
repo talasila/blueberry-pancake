@@ -25,11 +25,6 @@ import {
   API_URL,
 } from './helpers.js';
 
-/** Readability wrapper around getUserToken for non-admin user registration */
-async function addRegularUser(eventId, email, pin) {
-  return getUserToken(eventId, email, pin);
-}
-
 /**
  * Helper: Get ratings count via API (ratings endpoint returns CSV)
  */
@@ -153,7 +148,7 @@ test.describe('Danger Zone - Delete Individual User', () => {
     
     // Start event and have user submit a rating
     expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
-    const userToken = await addRegularUser(eventId, userEmail, pin);
+    const userToken = await getUserToken(eventId, userEmail, pin);
     await submitRating(eventId, userToken, 1, 4, 'Great wine!');
     
     // Verify user exists and has rating
@@ -237,11 +232,11 @@ test.describe('Danger Zone - Delete All Users', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Add multiple regular users with small delays to avoid any rate limiting
-    await addRegularUser(eventId, 'user1@example.com', pin);
+    await getUserToken(eventId, 'user1@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
-    await addRegularUser(eventId, 'user2@example.com', pin);
+    await getUserToken(eventId, 'user2@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
-    await addRegularUser(eventId, 'user3@example.com', pin);
+    await getUserToken(eventId, 'user3@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
     
     // Verify users exist - this is critical, fail fast if users weren't added
@@ -282,19 +277,16 @@ test.describe('Danger Zone - Delete All Users', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Add 2 regular users with small delays
-    await addRegularUser(eventId, 'user1@example.com', pin);
+    await getUserToken(eventId, 'user1@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
-    await addRegularUser(eventId, 'user2@example.com', pin);
+    await getUserToken(eventId, 'user2@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
     
     // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    // Open Danger Zone drawer
     await openDangerZoneDrawer(page);
     
-    // Verify count is shown correctly
     const countText = page.getByText(/2 user\(s\) will be deleted/i);
     await expect(countText).toBeVisible();
   });
@@ -336,10 +328,9 @@ test.describe('Danger Zone - Delete All Users', () => {
     });
     expect(addAdminResp.ok).toBe(true);
     
-    // Add regular users with small delays
-    await addRegularUser(eventId, 'user1@example.com', pin);
+    await getUserToken(eventId, 'user1@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
-    await addRegularUser(eventId, 'user2@example.com', pin);
+    await getUserToken(eventId, 'user2@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
     
     // Navigate as owner
@@ -374,9 +365,9 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
     
     // Add ratings from multiple users (with delays between additions)
-    const user1Token = await addRegularUser(eventId, 'user1@example.com', pin);
+    const user1Token = await getUserToken(eventId, 'user1@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
-    const user2Token = await addRegularUser(eventId, 'user2@example.com', pin);
+    const user2Token = await getUserToken(eventId, 'user2@example.com', pin);
     await new Promise(r => setTimeout(r, 100));
     
     await submitRating(eventId, user1Token, 1, 4);
@@ -425,10 +416,9 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     
     // Start event and add ratings
     expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
-    const userToken = await addRegularUser(eventId, 'user@example.com', pin);
+    const userToken = await getUserToken(eventId, 'user@example.com', pin);
     await submitRating(eventId, userToken, 1, 4);
     
-    // Navigate to admin page
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     // Delete all ratings
@@ -453,7 +443,7 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     
     // Start event and add ratings
     expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
-    const userToken = await addRegularUser(eventId, 'user@example.com', pin);
+    const userToken = await getUserToken(eventId, 'user@example.com', pin);
     await submitRating(eventId, userToken, 1, 4);
     await submitRating(eventId, userToken, 2, 3);
     
@@ -468,10 +458,11 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     // Wait for UI to update after deletion
     // Navigate to dashboard and check for empty state
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
-    // Dashboard should show no ratings or empty message - scope to main content
+    // Dashboard should show empty state — scope to main content
     const main = page.locator('main');
-    const noRatingsMessage = main.getByText(/no ratings|no data|nothing to show/i);
-    await expect(noRatingsMessage).toBeVisible({ timeout: 5000 });
+    const noRatingsMessage = main.getByText(/no ratings|no data|nothing to show|no results/i)
+      .or(main.locator('[data-testid="empty-state"]'));
+    await expect(noRatingsMessage.first()).toBeVisible({ timeout: 5000 });
   });
 });
 
@@ -558,7 +549,7 @@ test.describe('Danger Zone - Dialog Cancel', () => {
     
     // Start event and add rating
     expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
-    const userToken = await addRegularUser(eventId, 'user@example.com', pin);
+    const userToken = await getUserToken(eventId, 'user@example.com', pin);
     await submitRating(eventId, userToken, 1, 4);
     
     // Verify rating exists

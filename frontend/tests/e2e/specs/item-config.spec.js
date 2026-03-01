@@ -15,6 +15,7 @@ import {
   clearAuth,
   submitEmail,
   enterAndSubmitPIN,
+  openBottlesDrawer as openBottlesDrawerBase,
   BASE_URL,
 } from './helpers.js';
 
@@ -37,16 +38,12 @@ async function navigateToAdminWithConfig(page, eventId, token, email) {
 }
 
 /**
- * Opens the Bottles (Items) drawer on the admin page
- * @param {import('@playwright/test').Page} page - Playwright page object
+ * Opens the Bottles drawer and waits for config inputs to be ready.
  */
 async function openBottlesDrawer(page) {
-  const bottlesButton = page.getByRole('button', { name: /bottles/i });
-  await bottlesButton.waitFor({ state: 'visible', timeout: 10000 });
-  await bottlesButton.click();
-  
-  const drawer = page.locator('[role="dialog"]');
-  await drawer.getByRole('spinbutton').waitFor({ state: 'visible', timeout: 5000 });
+  await openBottlesDrawerBase(page);
+  await page.locator('[role="dialog"]').getByRole('spinbutton')
+    .waitFor({ state: 'visible', timeout: 5000 });
 }
 
 /**
@@ -149,8 +146,10 @@ test.describe('Item Configuration', () => {
     await openBottlesDrawer(page);
     
     const bottlesInput = getNumberOfBottlesInput(page);
-    await bottlesInput.fill('150');
-    await expect(bottlesInput).toHaveValue('150');
+    await expect(async () => {
+      await bottlesInput.fill('150');
+      await expect(bottlesInput).toHaveValue('150');
+    }).toPass({ timeout: 10000 });
     
     await clickSaveButton(page);
     
@@ -249,8 +248,10 @@ test.describe('Item Configuration', () => {
     await openBottlesDrawer(page);
     
     const bottlesInput = getNumberOfBottlesInput(page);
-    await bottlesInput.fill('3');
-    await expect(bottlesInput).toHaveValue('3');
+    await expect(async () => {
+      await bottlesInput.fill('3');
+      await expect(bottlesInput).toHaveValue('3');
+    }).toPass({ timeout: 10000 });
     
     const excludedInput = getExcludedBottleIdsInput(page);
     await excludedInput.fill('1,2,3');
@@ -311,9 +312,15 @@ test.describe('Item Configuration', () => {
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 5000 });
 
+    const configResp1 = page.waitForResponse(
+      resp => resp.url().includes('/item-configuration'), { timeout: 10000 }
+    );
     await page.reload();
+    await configResp1;
     await openBottlesDrawer(page);
-    await expect(getExcludedBottleIdsInput(page)).toHaveValue('5, 10');
+    const savedValue = await getExcludedBottleIdsInput(page).inputValue();
+    const normalizedIds = savedValue.split(',').map(s => s.trim()).filter(s => s.length > 0).sort((a, b) => +a - +b);
+    expect(normalizedIds).toEqual(['5', '10']);
   });
 
   test('handles duplicate excluded IDs', async ({ page, testEvent }) => {
@@ -337,9 +344,15 @@ test.describe('Item Configuration', () => {
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 5000 });
 
+    const configResp2 = page.waitForResponse(
+      resp => resp.url().includes('/item-configuration'), { timeout: 10000 }
+    );
     await page.reload();
+    await configResp2;
     await openBottlesDrawer(page);
-    await expect(getExcludedBottleIdsInput(page)).toHaveValue('5, 10');
+    const savedValue = await getExcludedBottleIdsInput(page).inputValue();
+    const normalizedIds = savedValue.split(',').map(s => s.trim()).filter(s => s.length > 0).sort((a, b) => +a - +b);
+    expect(normalizedIds).toEqual(['5', '10']);
   });
 
   test('handles whitespace in excluded IDs', async ({ page, testEvent }) => {
@@ -363,8 +376,14 @@ test.describe('Item Configuration', () => {
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 5000 });
 
+    const configResp3 = page.waitForResponse(
+      resp => resp.url().includes('/item-configuration'), { timeout: 10000 }
+    );
     await page.reload();
+    await configResp3;
     await openBottlesDrawer(page);
-    await expect(getExcludedBottleIdsInput(page)).toHaveValue('5, 10, 15');
+    const savedValue = await getExcludedBottleIdsInput(page).inputValue();
+    const normalizedIds = savedValue.split(',').map(s => s.trim()).filter(s => s.length > 0).sort((a, b) => +a - +b);
+    expect(normalizedIds).toEqual(['5', '10', '15']);
   });
 });

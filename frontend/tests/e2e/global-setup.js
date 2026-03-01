@@ -13,8 +13,6 @@ import { BASE_URL, API_URL, TRACKING_FILE } from './e2e-config.js';
 export default async function globalSetup() {
   console.log('\n[E2E Setup] Initializing test environment...');
   
-  const trackingFile = TRACKING_FILE;
-
   // 1. Verify backend is reachable
   try {
     const response = await fetch(`${API_URL}/api/test/reset-counter`, {
@@ -48,9 +46,9 @@ export default async function globalSetup() {
   }
   
   // 3. Clear any leftover tracking file from previous runs
-  if (existsSync(trackingFile)) {
+  if (existsSync(TRACKING_FILE)) {
     try {
-      unlinkSync(trackingFile);
+      unlinkSync(TRACKING_FILE);
       console.log('[E2E Setup] Cleared leftover tracking file');
     } catch (error) {
       console.warn('[E2E Setup] Failed to clear tracking file:', error.message);

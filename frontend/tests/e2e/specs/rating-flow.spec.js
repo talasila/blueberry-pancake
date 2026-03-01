@@ -234,11 +234,8 @@ test.describe('Rating Flow', () => {
     const noteValue = await noteField.inputValue();
     expect(noteValue.length).toBeLessThanOrEqual(500);
     
-    // Now test that manually setting value beyond limit shows error
-    // Clear and type character by character to potentially bypass maxLength
+    // Verify exactly 500 characters (the limit) is accepted
     await noteField.clear();
-    
-    // Fill with exactly 500 characters - should be valid
     const validNote = 'B'.repeat(500);
     await noteField.fill(validNote);
     
