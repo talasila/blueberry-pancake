@@ -127,11 +127,12 @@ test.describe('Rating Flow', () => {
     const ratedItemButton = page.locator('button').filter({ hasText: /^1$/ }).first();
     await expect(ratedItemButton).toBeVisible();
     
-    // Fragile: depends on the exact theme color for rating 3. Will break if
-    // the rating color palette is changed in the app configuration.
-    // Default config: Rating 3 = "Not bad..." = #34C759 (green)
+    // Theme-dependent: rating 3 maps to green. If this assertion fails due to
+    // a theme change, update the expected RGB value to match the new palette.
     await expect(ratedItemButton).toHaveCSS('background-color', 'rgb(52, 199, 89)');
   });
+
+  // Note: User Story 3 (View Ratings) is covered in dashboard.spec.js
 
   // ===================================
   // User Story 4 - Bookmark Items

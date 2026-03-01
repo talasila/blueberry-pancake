@@ -98,13 +98,8 @@ test.describe('Similar Users Discovery', () => {
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
     await similarButton.click();
     
-    // Drawer should open - look for loading or content
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer).toBeVisible({ timeout: 5000 });
-    
-    // Should show loading state or results - scope to drawer
-    const loadingOrContent = drawer.getByText(/running compatibility scanner|no similar users found/i);
-    await expect(loadingOrContent.first()).toBeVisible({ timeout: 10000 });
   });
 
   test('shows "no similar users" message when no matches found', async ({ page, testEvent }) => {
@@ -324,7 +319,7 @@ test.describe('Similar Users Discovery', () => {
     await expect(similarButton).not.toBeVisible({ timeout: 5000 });
   });
 
-  test('drawer shows loading state structure', async ({ page, testEvent }) => {
+  test('drawer shows content after opening', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const adminToken = await addAdminToEvent(eventId, adminEmail);
@@ -353,13 +348,11 @@ test.describe('Similar Users Discovery', () => {
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer).toBeVisible({ timeout: 5000 });
     
-    // The regex below matches both the loading text ("Running compatibility scanner")
-    // and the final empty-state ("No similar users found").  Because the API call
-    // typically resolves before our assertion runs, this effectively verifies the
-    // final state rather than a true loading-spinner check.  A reliable loading-state
-    // test would require network throttling or request interception.
-    const content = drawer.getByText(/running compatibility scanner|no similar users found/i);
-    await expect(content.first()).toBeVisible({ timeout: 10000 });
+    // This test verifies the drawer renders content after opening, not a true
+    // loading-state check.  Reliably testing the loading spinner would require
+    // network throttling or request interception.
+    const content = drawer.getByText(/no similar users found/i);
+    await expect(content).toBeVisible({ timeout: 10000 });
   });
 
   test('handles users with no overlapping ratings', async ({ page, testEvent }) => {

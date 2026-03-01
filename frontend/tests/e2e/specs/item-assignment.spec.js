@@ -143,7 +143,7 @@ test.describe('Item Registration', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event via API
-    await changeEventState(eventId, 'started', 'created', token);
+    expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
     
     // Access event as regular user
     await clearAuth(page);
@@ -178,8 +178,8 @@ test.describe('Item Registration', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start then pause event via API
-    await changeEventState(eventId, 'started', 'created', token);
-    await changeEventState(eventId, 'paused', 'started', token);
+    expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
+    expect((await changeEventState(eventId, 'paused', 'started', token)).ok).toBe(true);
     
     // Access event as regular user
     await clearAuth(page);
@@ -206,8 +206,8 @@ test.describe('Item Registration', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start then complete event via API
-    await changeEventState(eventId, 'started', 'created', token);
-    await changeEventState(eventId, 'completed', 'started', token);
+    expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
+    expect((await changeEventState(eventId, 'completed', 'started', token)).ok).toBe(true);
     
     // Access event as regular user
     await clearAuth(page);
@@ -269,7 +269,7 @@ test.describe('Item Assignment', () => {
     await registerItemViaAPI(eventId, { name: 'Test Wine' }, token);
     
     // Start event
-    await changeEventState(eventId, 'started', 'created', token);
+    expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -299,8 +299,8 @@ test.describe('Item Assignment', () => {
     }, token);
     
     // Start then pause event
-    await changeEventState(eventId, 'started', 'created', token);
-    await changeEventState(eventId, 'paused', 'started', token);
+    expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
+    expect((await changeEventState(eventId, 'paused', 'started', token)).ok).toBe(true);
     
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -338,8 +338,8 @@ test.describe('Item Assignment', () => {
     }, token);
     
     // Start, pause, and assign via API
-    await changeEventState(eventId, 'started', 'created', token);
-    await changeEventState(eventId, 'paused', 'started', token);
+    expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
+    expect((await changeEventState(eventId, 'paused', 'started', token)).ok).toBe(true);
     await assignItemIdViaAPI(eventId, registeredItem.id, 5, token);
     
     await setAuthToken(page, token, adminEmail);
@@ -376,8 +376,8 @@ test.describe('Item Assignment', () => {
     }, token);
     
     // Start, pause, and assign to ID 3
-    await changeEventState(eventId, 'started', 'created', token);
-    await changeEventState(eventId, 'paused', 'started', token);
+    expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
+    expect((await changeEventState(eventId, 'paused', 'started', token)).ok).toBe(true);
     await assignItemIdViaAPI(eventId, registeredItem.id, 3, token);
     
     await setAuthToken(page, token, adminEmail);
@@ -413,11 +413,11 @@ test.describe('Item Assignment', () => {
     
     // Register two items
     const item1 = await registerItemViaAPI(eventId, { name: 'Wine One' }, token);
-    const item2 = await registerItemViaAPI(eventId, { name: 'Wine Two' }, token);
+    await registerItemViaAPI(eventId, { name: 'Wine Two' }, token);
     
     // Start, pause, and assign item1 to ID 5
-    await changeEventState(eventId, 'started', 'created', token);
-    await changeEventState(eventId, 'paused', 'started', token);
+    expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
+    expect((await changeEventState(eventId, 'paused', 'started', token)).ok).toBe(true);
     await assignItemIdViaAPI(eventId, item1.id, 5, token);
     
     await setAuthToken(page, token, adminEmail);
@@ -459,10 +459,10 @@ test.describe('Item Details Integration', () => {
     }, token);
     
     // Start, pause, assign to ID 1, then complete
-    await changeEventState(eventId, 'started', 'created', token);
-    await changeEventState(eventId, 'paused', 'started', token);
+    expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
+    expect((await changeEventState(eventId, 'paused', 'started', token)).ok).toBe(true);
     await assignItemIdViaAPI(eventId, registeredItem.id, 1, token);
-    await changeEventState(eventId, 'completed', 'paused', token);
+    expect((await changeEventState(eventId, 'completed', 'paused', token)).ok).toBe(true);
     
     // Access event as regular user
     await clearAuth(page);
@@ -496,8 +496,8 @@ test.describe('Item Details Integration', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start then complete event WITHOUT registering/assigning any items
-    await changeEventState(eventId, 'started', 'created', token);
-    await changeEventState(eventId, 'completed', 'started', token);
+    expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
+    expect((await changeEventState(eventId, 'completed', 'started', token)).ok).toBe(true);
     
     // Access event as regular user
     await clearAuth(page);
@@ -530,8 +530,8 @@ test.describe('Item Details Integration', () => {
     }, token);
     
     // Start, pause, and assign
-    await changeEventState(eventId, 'started', 'created', token);
-    await changeEventState(eventId, 'paused', 'started', token);
+    expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
+    expect((await changeEventState(eventId, 'paused', 'started', token)).ok).toBe(true);
     await assignItemIdViaAPI(eventId, registeredItem.id, 2, token);
     
     // Admin accesses dashboard page (where admin can view item details when paused)
@@ -566,7 +566,7 @@ test.describe('Item Details Integration', () => {
     }, token);
     
     // Start event
-    await changeEventState(eventId, 'started', 'created', token);
+    expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
     
     // Add a rating via API to have data in dashboard
     const userToken = await getUserToken(eventId, userEmail, pin);
@@ -574,9 +574,9 @@ test.describe('Item Details Integration', () => {
     expect(ratingResult.ok).toBe(true);
     
     // Pause, assign, and complete
-    await changeEventState(eventId, 'paused', 'started', token);
+    expect((await changeEventState(eventId, 'paused', 'started', token)).ok).toBe(true);
     await assignItemIdViaAPI(eventId, registeredItem.id, 3, token);
-    await changeEventState(eventId, 'completed', 'paused', token);
+    expect((await changeEventState(eventId, 'completed', 'paused', token)).ok).toBe(true);
     
     // Access the dashboard page
     await setAuthToken(page, token, adminEmail);

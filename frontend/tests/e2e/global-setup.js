@@ -15,7 +15,7 @@ export default async function globalSetup() {
   console.log('\n[E2E Setup] Initializing test environment...');
   
   const projectRoot = join(process.cwd(), '..');
-  const trackingFile = join(projectRoot, '.e2e-tracked-events.json');
+  const trackingFile = join(projectRoot, '.e2e-tracked-events.txt');
 
   // 1. Verify backend is reachable and reset counter
   try {

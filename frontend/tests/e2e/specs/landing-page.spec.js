@@ -113,6 +113,8 @@ test.describe('Landing Page', () => {
   });
 });
 
+// Tests in this describe share mutable `eventId`/`token` state via beforeEach/afterEach.
+// Playwright runs tests within a describe block serially by default, so this is safe.
 test.describe('Landing Page - Authenticated User', () => {
   const adminEmail = 'landing-auth@example.com';
   let eventId;

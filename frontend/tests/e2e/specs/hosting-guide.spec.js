@@ -63,10 +63,13 @@ test.describe('US1: Guide access from any page', () => {
   test('guide closes on backdrop click', async ({ page }) => {
     await page.goto(BASE_URL);
     await openGuide(page);
-    // Fragile: hardcoded y=80 assumes the backdrop is visible at this coordinate.
-    // Could break with layout/header height changes.
-    const viewport = page.viewportSize();
-    await page.mouse.click(viewport.width / 2, 80);
+    const dialogBox = await page.locator('[role="dialog"]').boundingBox();
+    if (dialogBox) {
+      await page.mouse.click(dialogBox.x + dialogBox.width / 2, Math.max(dialogBox.y - 20, 5));
+    } else {
+      const viewport = page.viewportSize();
+      await page.mouse.click(viewport.width / 2, 80);
+    }
     await expect(page.locator('[role="dialog"][aria-label="Hosting guide"]')).toBeHidden({ timeout: 3000 });
   });
 
@@ -237,7 +240,8 @@ test.describe('US5: Overview / table of contents', () => {
     const overviewBtn = page.getByRole('button', { name: /show overview/i });
     await expect(overviewBtn).toBeVisible({ timeout: 5000 });
     await overviewBtn.click();
-    await page.getByText('Share the Event Link').click();
+    const guide = page.locator('[role="dialog"][aria-label="Hosting guide"]');
+    await guide.getByText('Share the Event Link').click();
     await expect(page.getByText(/6\s*(of|\/)\s*8/i)).toBeVisible();
   });
 });

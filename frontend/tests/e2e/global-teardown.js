@@ -28,7 +28,7 @@ export default async function globalTeardown() {
   console.log('\n[E2E Cleanup] Starting post-test cleanup...');
   
   const projectRoot = join(process.cwd(), '..');
-  const trackingFile = join(projectRoot, '.e2e-tracked-events.json');
+  const trackingFile = join(projectRoot, '.e2e-tracked-events.txt');
   
   let trackedEventsDeleted = 0;
 
@@ -42,9 +42,13 @@ export default async function globalTeardown() {
       
       const results = await Promise.all(tracked.map(eventId => deleteEventViaAPI(eventId)));
       trackedEventsDeleted = results.filter(Boolean).length;
+      const failedCount = results.length - trackedEventsDeleted;
       
       if (trackedEventsDeleted > 0) {
-        console.log(`[E2E Cleanup] Deleted ${trackedEventsDeleted} tracked events via API`);
+        console.log(`[E2E Cleanup] Deleted ${trackedEventsDeleted}/${results.length} tracked events via API`);
+      }
+      if (failedCount > 0) {
+        console.warn(`[E2E Cleanup] Failed to delete ${failedCount} tracked events`);
       }
       
       // 2. Clear the tracking file

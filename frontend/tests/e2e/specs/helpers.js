@@ -4,7 +4,7 @@
  * 
  * Event Naming Convention:
  * - API-created events: TEST0001, TEST0002, etc. (auto-generated)
- * - UI-created events: Random IDs, tracked in .e2e-tracked-events.json
+ * - UI-created events: Random IDs, tracked in .e2e-tracked-events.txt
  */
 
 import { expect } from '@playwright/test';
@@ -12,9 +12,11 @@ import { appendFileSync } from 'fs';
 import { join } from 'path';
 import { BASE_URL, API_URL, TEST_OTP } from '../e2e-config.js';
 
+// Re-exported so specs can import from helpers.js instead of e2e-config.js directly.
+// All spec files should use this single import path for consistency.
 export { BASE_URL, API_URL };
 
-const TRACKING_FILE = join(process.cwd(), '..', '.e2e-tracked-events.json');
+const TRACKING_FILE = join(process.cwd(), '..', '.e2e-tracked-events.txt');
 
 /**
  * Track a UI-created event ID for cleanup.
@@ -40,6 +42,7 @@ export async function createTestEvent(name, pin) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(10000),
   });
   
   if (!response.ok) {
@@ -47,6 +50,9 @@ export async function createTestEvent(name, pin) {
   }
   
   const data = await response.json();
+  if (!data.eventId) {
+    throw new Error(`createTestEvent: API response missing eventId. Got: ${JSON.stringify(data)}`);
+  }
   return data.eventId;
 }
 
@@ -57,13 +63,17 @@ export async function deleteTestEvent(eventId) {
   try {
     const response = await fetch(`${API_URL}/api/test/events/${eventId}`, {
       method: 'DELETE',
+      signal: AbortSignal.timeout(10000),
     });
     
     if (!response.ok) {
       console.warn(`Failed to delete test event ${eventId}: ${response.status} ${response.statusText}`);
+      return false;
     }
+    return true;
   } catch (error) {
     console.warn(`Network error deleting test event ${eventId}: ${error.message}`);
+    return false;
   }
 }
 
@@ -75,6 +85,7 @@ export async function addAdminToEvent(eventId, email) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
+    signal: AbortSignal.timeout(10000),
   });
   
   if (!response.ok) {
@@ -108,6 +119,7 @@ export async function getUserToken(eventId, email, pin) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pin, email }),
+    signal: AbortSignal.timeout(10000),
   });
   if (!response.ok) {
     throw new Error(`Failed to get user token: ${await response.text()}`);
@@ -125,7 +137,10 @@ export async function getUserToken(eventId, email, pin) {
 export async function clearAuth(page) {
   await page.context().clearCookies();
   
-  await page.goto(BASE_URL);
+  const currentUrl = page.url();
+  if (!currentUrl.startsWith(BASE_URL)) {
+    await page.goto(BASE_URL);
+  }
   await page.evaluate(() => {
     localStorage.clear();
     sessionStorage.clear();
@@ -146,8 +161,7 @@ export async function setAuthToken(page, token, email = 'admin@example.com') {
     exp = payload.exp;
     authMethod = payload.authMethod || null;
   } catch (e) {
-    console.warn('Failed to decode JWT, using fallback expiry:', e.message);
-    exp = Math.floor(Date.now() / 1000) + 86400;
+    throw new Error(`setAuthToken received a malformed JWT (test bug): ${e.message}`);
   }
 
   await page.context().addCookies([{
@@ -176,6 +190,7 @@ export async function submitEmail(page, email) {
   }
   
   const emailInput = page.locator('input#email');
+  // maxlength="6" is a broad selector — it matches any 6-char text input, not just PINs.
   const pinInput = page.locator('input#pin')
     .or(page.locator('input[type="text"][maxlength="6"]'))
     .first();
@@ -183,7 +198,7 @@ export async function submitEmail(page, email) {
   const visibleLocator = emailInput.or(pinInput);
   await visibleLocator.first().waitFor({ state: 'visible', timeout: 5000 });
 
-  if (await pinInput.isVisible().catch(() => false)) {
+  if (await pinInput.isVisible({ timeout: 1000 }).catch(() => false)) {
     return;
   }
   await emailInput.fill(email);
@@ -226,6 +241,8 @@ export async function submitPIN(page) {
   
   await submitButton.click();
 
+  // The losing branch of Promise.race continues running in the background;
+  // this is expected — both waiters are harmless once the page has settled.
   const outcome = await Promise.race([
     page.waitForURL(url => !new URL(url).pathname.endsWith('/pin'), { timeout: 10000 }).then(() => 'navigated'),
     page.locator('[role="alert"]').or(page.locator('.text-destructive')).or(page.locator('.text-red-500')).first().waitFor({ state: 'visible', timeout: 10000 }).then(() => 'error'),
@@ -268,6 +285,7 @@ export async function getRootAdminToken(email) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
+    signal: AbortSignal.timeout(10000),
   });
   
   if (!response.ok) {
@@ -301,7 +319,8 @@ export async function submitRating(eventId, token, itemId, rating, note = '') {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify({ itemId, rating, note })
+    body: JSON.stringify({ itemId, rating, note }),
+    signal: AbortSignal.timeout(10000),
   });
   const data = response.ok ? await response.json() : await response.text();
   return { ok: response.ok, status: response.status, data };
@@ -318,7 +337,8 @@ export async function changeEventState(eventId, newState, currentState, token) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify({ state: newState, currentState })
+    body: JSON.stringify({ state: newState, currentState }),
+    signal: AbortSignal.timeout(10000),
   });
   const data = response.ok ? await response.json() : await response.text();
   return { ok: response.ok, status: response.status, data };
@@ -342,7 +362,8 @@ export async function startEvent(eventId, adminToken) {
  */
 export async function getEvent(eventId, token) {
   const response = await fetch(`${API_URL}/api/events/${eventId}`, {
-    headers: { 'Authorization': `Bearer ${token}` }
+    headers: { 'Authorization': `Bearer ${token}` },
+    signal: AbortSignal.timeout(10000),
   });
   const data = response.ok ? await response.json() : await response.text();
   return { ok: response.ok, status: response.status, data };
@@ -361,7 +382,8 @@ export async function configureItems(eventId, token, numberOfItems, excludedItem
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify(body)
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(10000),
   });
   const data = response.ok ? await response.json() : await response.text();
   return { ok: response.ok, status: response.status, data };
@@ -382,15 +404,16 @@ export async function authenticateViaOTP(page, email = 'creator@example.com') {
   await expect(emailInput).toBeVisible({ timeout: 10000 });
   await emailInput.fill(email);
 
-  const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
+  const requestButton = page.locator('form').getByRole('button', { name: /request|send|get.*otp|continue/i });
   await expect(requestButton).toBeEnabled({ timeout: 5000 });
   await requestButton.click();
 
+  // maxlength="6" is a broad selector — it matches any 6-char text input, not just OTP fields.
   const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
   await expect(otpInput).toBeVisible({ timeout: 10000 });
   await otpInput.fill(TEST_OTP);
 
-  const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });
+  const verifyButton = page.locator('form').getByRole('button', { name: /verify|submit|continue/i });
   await expect(verifyButton).toBeVisible({ timeout: 5000 });
   await verifyButton.click();
 
@@ -400,4 +423,9 @@ export async function authenticateViaOTP(page, email = 'creator@example.com') {
     page.waitForURL(url => !/\/auth\b/.test(url.pathname), { timeout: 15000 }),
     page.locator('[data-testid="auth-success"]').waitFor({ state: 'visible', timeout: 15000 }),
   ]);
+
+  const currentUrl = page.url();
+  if (currentUrl.includes('/error') || currentUrl.includes('/500') || currentUrl.includes('/404')) {
+    throw new Error(`authenticateViaOTP landed on error page: ${currentUrl}`);
+  }
 }

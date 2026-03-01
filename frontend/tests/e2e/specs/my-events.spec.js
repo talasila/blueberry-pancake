@@ -176,7 +176,8 @@ test.describe('My Events', () => {
       // Wait for redirect to admin page
       await page.waitForURL(/\/event\/[0-9A-Z]{8}\/admin/, { timeout: 10000 });
 
-      // Dismiss welcome bottom sheet if present
+      // Intentionally silent: the welcome sheet may or may not appear depending on
+      // timing. We dismiss it if present so it doesn't block the menu button below.
       const sheet = page.locator('[data-testid="welcome-bottom-sheet"]');
       if (await sheet.isVisible({ timeout: 3000 }).catch(() => false)) {
         const closeBtn = sheet.getByRole('button', { name: /close|dismiss|got it/i });

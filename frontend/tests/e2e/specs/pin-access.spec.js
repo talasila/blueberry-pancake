@@ -54,7 +54,7 @@ test.describe('PIN-based Event Access', () => {
     // Should see error message and stay on PIN page
     const errorMsg = await getErrorMessage(page);
     expect(errorMsg).not.toBeNull();
-    expect(errorMsg).toContain('Invalid PIN');
+    expect(errorMsg).toMatch(/invalid pin/i);
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/pin`));
   });
   
@@ -136,7 +136,8 @@ test.describe('PIN-based Event Access', () => {
     
     await clearAuth(page);
     
-    // Try to directly access PIN page
+    // Implementation-coupled: directly sets sessionStorage to simulate bypassing the email flow.
+    // If the app changes how it stores the email, this test will need updating.
     await page.evaluate((email) => {
       sessionStorage.setItem('email', email);
     }, adminEmail);
@@ -236,9 +237,8 @@ test.describe('PIN-based Event Access', () => {
     await expect(pinDisplay).not.toHaveText(pin, { timeout: 10000 });
 
     await expect(pinDisplay).not.toHaveText('', { timeout: 5000 });
-    let newPin;
     await expect(async () => {
-      newPin = await pinDisplay.textContent();
+      const newPin = await pinDisplay.textContent();
       expect(newPin).toHaveLength(6);
       expect(newPin).not.toBe(pin);
     }).toPass({ timeout: 5000 });
@@ -258,6 +258,6 @@ test.describe('PIN-based Event Access', () => {
     // Should see error message
     const errorMsg = await getErrorMessage(page);
     expect(errorMsg).not.toBeNull();
-    expect(errorMsg).toContain('not found');
+    expect(errorMsg).toMatch(/not found/i);
   });
 });

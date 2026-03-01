@@ -47,7 +47,7 @@ test.describe('Event Page', () => {
   });
 
   test('displays event name in header', async ({ page, testEvent }) => {
-    const { eventId } = testEvent;
+    const { eventId, eventName } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -55,7 +55,7 @@ test.describe('Event Page', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     
     const header = page.locator('header');
-    await expect(header).toContainText(/test/i, { timeout: 10000 });
+    await expect(header).toContainText(eventName, { timeout: 10000 });
   });
 
   test('shows error for non-existent event', async ({ page }) => {
@@ -189,16 +189,17 @@ test.describe('Event Page', () => {
     ];
     
     for (let i = 0; i < invalidEventIds.length; i++) {
-      const invalidId = invalidEventIds[i];
-      await clearAuth(page);
-      await page.goto(`${BASE_URL}/event/${invalidId}`);
-      
-      // App handles invalid IDs gracefully — either email entry or error page
-      // Broad getByText(/error/i) is intentional: the exact error varies by format violation
-      const main = page.locator('main');
-      const gracefulElement = main.getByText('Access Event')
-        .or(main.getByText(/error/i));
-      await expect(gracefulElement.first(), `iteration ${i}: event ID "${invalidId}" should show graceful state`).toBeVisible({ timeout: 10000 });
+      await test.step(`Test invalid event ID: ${invalidEventIds[i]}`, async () => {
+        const invalidId = invalidEventIds[i];
+        await clearAuth(page);
+        await page.goto(`${BASE_URL}/event/${invalidId}`);
+        
+        // Expected error texts vary by format violation (e.g. "not found", "invalid", "error")
+        const main = page.locator('main');
+        const gracefulElement = main.getByText('Access Event')
+          .or(main.getByText(/not found|invalid|does not exist|error/i));
+        await expect(gracefulElement.first(), `event ID "${invalidId}" should show graceful state`).toBeVisible({ timeout: 10000 });
+      });
     }
   });
 

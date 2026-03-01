@@ -12,6 +12,8 @@ import {
 } from './helpers.js';
 
 test.describe('Administrator Management', () => {
+  // Each test performs its own setup (addAdminToEvent + setAuthToken + goto) rather
+  // than using beforeEach, because the admin/email combinations vary per scenario.
 
   // ===================================
   // User Story 1 - Add New Administrator
@@ -25,9 +27,8 @@ test.describe('Administrator Management', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     
-    // Look for administrators section
-    const adminsSection = page.getByText(/administrator/i);
-    await expect(adminsSection.first()).toBeVisible({ timeout: 10000 });
+    const adminsSection = page.getByRole('button', { name: /administrator/i });
+    await expect(adminsSection).toBeVisible({ timeout: 10000 });
   });
 
   test('can add new administrator with valid email', async ({ page, testEvent }) => {
@@ -133,8 +134,10 @@ test.describe('Administrator Management', () => {
     const deleteButton = page.getByRole('button', { name: /delete.*second@example\.com/i });
     await expect(deleteButton).toBeVisible({ timeout: 5000 });
     
-    // Accept the native window.confirm() dialog that appears on click
-    page.once('dialog', (dialog) => dialog.accept());
+    page.once('dialog', async (dialog) => {
+      expect(dialog.message()).toMatch(/delete|remove/i);
+      await dialog.accept();
+    });
     await deleteButton.click();
     
     // Second admin should be removed
@@ -162,10 +165,15 @@ test.describe('Administrator Management', () => {
     const deleteButton = page.getByRole('button', { name: /delete.*owner@example\.com/i });
     const count = await deleteButton.count();
     if (count > 0) {
-      page.once('dialog', (dialog) => dialog.accept());
+      page.once('dialog', async (dialog) => {
+        expect(dialog.message()).toMatch(/delete|remove/i);
+        await dialog.accept();
+      });
       await deleteButton.first().click();
-      // Owner should still be present after attempted deletion
       await expect(drawer.getByText(adminEmail)).toBeVisible({ timeout: 5000 });
+    } else {
+      await expect(drawer.getByText(adminEmail)).toBeVisible();
+      await expect(deleteButton).toHaveCount(0);
     }
   });
 
@@ -187,10 +195,15 @@ test.describe('Administrator Management', () => {
     const deleteButton = page.getByRole('button', { name: /delete.*owner@example\.com/i });
     const count = await deleteButton.count();
     if (count > 0) {
-      page.once('dialog', (dialog) => dialog.accept());
+      page.once('dialog', async (dialog) => {
+        expect(dialog.message()).toMatch(/delete|remove/i);
+        await dialog.accept();
+      });
       await deleteButton.first().click();
-      // Last admin should still be present after attempted deletion
       await expect(drawer.getByText(adminEmail)).toBeVisible({ timeout: 5000 });
+    } else {
+      await expect(drawer.getByText(adminEmail)).toBeVisible();
+      await expect(deleteButton).toHaveCount(0);
     }
   });
 

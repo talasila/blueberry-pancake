@@ -41,7 +41,7 @@ export const test = base.extend({
     
     const eventId = await createTestEvent(eventName, pin);
     
-    await use({ eventId, pin });
+    await use({ eventId, pin, eventName });
     
     try {
       await deleteTestEvent(eventId);

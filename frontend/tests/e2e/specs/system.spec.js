@@ -13,7 +13,6 @@
 import { test, expect } from '@playwright/test';
 import { 
   BASE_URL,
-  API_URL,
   createTestEvent, 
   deleteTestEvent, 
   getRootAdminToken,
@@ -67,10 +66,8 @@ async function navigateToSystemPage(page) {
   // Wait for auth check to complete
   const authResponse = await authCheck;
   
-  // If auth failed (403), page shows Access Denied
   if (authResponse.status() === 403) {
-    await page.getByText('Access Denied').waitFor({ state: 'visible', timeout: 5000 });
-    return;
+    throw new Error('Root admin authentication failed: 403 Forbidden');
   }
   
   // Auth succeeded - wait for events API response (will throw on timeout)
@@ -457,6 +454,7 @@ test.describe('System Administration Dashboard', () => {
       await navigateToSystemPage(page);
 
       const eventRows = page.locator('[data-testid="event-row"]');
+      await page.waitForLoadState('networkidle');
       const rowCount = await eventRows.count();
 
       // Events list or empty state should always render
@@ -500,9 +498,10 @@ test.describe('System Administration Dashboard', () => {
       // Navigate and wait for both events and stats APIs
       await navigateToSystemPageWithStats(page);
       
-      // Should see state breakdown
-      await expect(page.getByText(/created/i).first()).toBeVisible();
-      await expect(page.getByText(/started/i).first()).toBeVisible();
+      // Should see state breakdown (scoped to main to avoid matching unrelated text)
+      const main = page.locator('main');
+      await expect(main.getByText(/created/i).first()).toBeVisible();
+      await expect(main.getByText(/started/i).first()).toBeVisible();
     });
     
   });

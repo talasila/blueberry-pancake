@@ -40,7 +40,7 @@ test.describe('OTP Authentication', () => {
     // Should be redirected to OTP entry page (detected as admin)
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/otp`), { timeout: 5000 });
     
-    // Wait for OTP request to complete (dev mode shows the generated OTP)
+    // Dev mode only: the banner showing the generated OTP is not rendered in production.
     await page.getByText(/OTP code generated|OTP code has been sent/i).waitFor({ state: 'visible', timeout: 5000 });
     
     // Wait for OTP input and enter test OTP
@@ -65,7 +65,12 @@ test.describe('OTP Authentication', () => {
     // Verify user session exists in localStorage (auth was successful)
     const session = await page.evaluate(() => localStorage.getItem('userSession'));
     expect(session).toBeTruthy();
-    const parsed = JSON.parse(session);
+    let parsed;
+    try {
+      parsed = JSON.parse(session);
+    } catch (e) {
+      throw new Error(`Session storage value is not valid JSON: "${session}"`);
+    }
     expect(parsed.email).toBe(adminEmail);
     
     // Verify admin can access the admin page
@@ -82,9 +87,9 @@ test.describe('OTP Authentication', () => {
     const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
     await requestButton.click();
     
-    // Enter wrong OTP
+    // Enter wrong OTP — increased timeout to handle slow backend under parallel load
     const otpInput = page.locator('input[maxlength="6"]').or(page.locator('input#otp'));
-    await expect(otpInput).toBeVisible({ timeout: 10000 });
+    await expect(otpInput).toBeVisible({ timeout: 15000 });
     await otpInput.fill('999999');
     
     const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });
@@ -92,8 +97,9 @@ test.describe('OTP Authentication', () => {
     await verifyButton.click();
     
     // Should show OTP-specific error message
-    await expect(page.locator('.text-destructive')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('.text-destructive')).toContainText(/invalid.*otp|incorrect.*code|otp.*expired|verification.*failed|too many failed attempts/i, { timeout: 10000 });
+    const errorElement = page.locator('.text-destructive').or(page.locator('[role="alert"]'));
+    await expect(errorElement).toBeVisible({ timeout: 10000 });
+    await expect(errorElement).toContainText(/invalid.*otp|incorrect.*code|otp.*expired|verification.*failed|too many failed attempts/i, { timeout: 10000 });
   });
 
   // ===================================

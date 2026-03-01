@@ -36,15 +36,15 @@ async function registerItem(eventId, token, name, price = null, description = ''
     },
     body: JSON.stringify({ name, price, description })
   });
-  const data = await response.json().catch((err) => {
-    console.error(`registerItem JSON parse failed for ${eventId}/${name}: ${err.message}`);
-    return {};
+  const data = await response.json().catch(e => {
+    throw new Error(`Failed to parse registerItem response for ${eventId}/${name}: ${e.message}`);
   });
   return { ok: response.ok, status: response.status, item: data };
 }
 
 /**
- * Update item configuration via API
+ * Update item configuration via API.
+ * TODO: Duplicated in concurrency.spec.js — consolidate into helpers.js.
  */
 async function updateItemConfig(eventId, adminToken, config) {
   const response = await fetch(`${API_URL}/api/events/${eventId}/item-configuration`, {
@@ -73,6 +73,13 @@ async function updateUserProfile(eventId, token, name) {
   return { ok: response.ok, status: response.status };
 }
 
+const EXPORT_BUTTON_NAMES = {
+  ratings: /export ratings data/i,
+  matrix: /export ratings matrix/i,
+  users: /export user data/i,
+  items: /export.*details/i,
+};
+
 /**
  * Open the Export Data drawer on the admin page
  */
@@ -89,15 +96,8 @@ async function openExportDrawer(page) {
  * Click a specific export button and wait for download
  */
 async function clickExportAndWaitForDownload(page, type) {
-  const buttonNames = {
-    ratings: /export ratings data/i,
-    matrix: /export ratings matrix/i,
-    users: /export user data/i,
-    items: /export.*details/i
-  };
-  
   const downloadPromise = page.waitForEvent('download');
-  const button = page.getByRole('button', { name: buttonNames[type] });
+  const button = page.getByRole('button', { name: EXPORT_BUTTON_NAMES[type] });
   await button.click();
   
   return await downloadPromise;
@@ -107,14 +107,7 @@ async function clickExportAndWaitForDownload(page, type) {
  * Click a specific export button (without waiting for download)
  */
 async function clickExportButton(page, type) {
-  const buttonNames = {
-    ratings: /export ratings data/i,
-    matrix: /export ratings matrix/i,
-    users: /export user data/i,
-    items: /export.*details/i
-  };
-  
-  const button = page.getByRole('button', { name: buttonNames[type] });
+  const button = page.getByRole('button', { name: EXPORT_BUTTON_NAMES[type] });
   await button.click();
 }
 
@@ -174,13 +167,7 @@ function parseCSVLine(line) {
  * Get export button by type
  */
 function getExportButton(page, type) {
-  const buttonNames = {
-    ratings: /export ratings data/i,
-    matrix: /export ratings matrix/i,
-    users: /export user data/i,
-    items: /export.*details/i
-  };
-  return page.getByRole('button', { name: buttonNames[type] });
+  return page.getByRole('button', { name: EXPORT_BUTTON_NAMES[type] });
 }
 
 // ===================================

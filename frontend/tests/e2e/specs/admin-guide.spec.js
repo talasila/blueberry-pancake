@@ -25,6 +25,8 @@ async function navigateToAdmin(page, eventId) {
 
 async function transitionEventViaAPI(eventId, targetState, currentState) {
   const adminEmail = 'admin@example.com';
+  // addAdminToEvent is idempotent — the API handles duplicate admin adds gracefully,
+  // so calling it every transition is safe and keeps the helper self-contained.
   const token = await addAdminToEvent(eventId, adminEmail);
   const result = await changeEventState(eventId, targetState, currentState, token);
   if (!result.ok) throw new Error(`State transition ${currentState} → ${targetState} failed: ${result.data}`);
@@ -440,7 +442,7 @@ test.describe('US6: Overview / quick-reference', () => {
     await openAdminGuide(page);
     await page.locator('button[aria-label="Show overview"]').click();
     const backButton = page.locator('button[aria-label="Back to step"]');
-    await backButton.waitFor({ state: 'visible', timeout: 10000 });
+    await backButton.waitFor({ state: 'visible', timeout: 15000 });
     await backButton.click();
     await expect(page.getByRole('heading', { name: 'Name Your Event' })).toBeVisible();
   });

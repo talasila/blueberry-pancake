@@ -27,11 +27,14 @@ async function navigateToAdminWithConfig(page, eventId, token, email) {
   await setAuthToken(page, token, email);
 
   let responseCount = 0;
-  const allConfigSettled = new Promise(resolve => {
-    const handler = resp => {
+  let handler;
+  const allConfigSettled = new Promise((resolve) => {
+    const timeout = setTimeout(() => resolve(), 3000);
+    handler = resp => {
       if (!resp.url().includes('/item-configuration')) return;
       responseCount++;
       if (responseCount >= 2) {
+        clearTimeout(timeout);
         page.off('response', handler);
         resolve();
       }
@@ -41,12 +44,15 @@ async function navigateToAdminWithConfig(page, eventId, token, email) {
 
   await page.goto(`${BASE_URL}/event/${eventId}/admin`);
 
+  // networkidle is unreliable for SPAs with long-polling or streaming, but
+  // combined with the 3s timeout fallback above it provides a reasonable gate.
   await page.waitForLoadState('networkidle');
   if (responseCount < 2) {
     await allConfigSettled.catch(() => {});
   }
-  page.removeAllListeners('response');
-  // Allow React to process the final API response and update component state
+  page.off('response', handler);
+  // React state-settling buffer: ensures the final API response is processed
+  // and component state is updated before tests interact with inputs.
   await page.waitForTimeout(500);
 }
 
@@ -64,18 +70,16 @@ async function openBottlesDrawer(page) {
 }
 
 /**
- * Gets the number of bottles input element
- * @param {import('@playwright/test').Page} page - Playwright page object
- * @returns {import('@playwright/test').Locator} The number input locator
+ * Gets the number of bottles input element.
+ * Unscoped getByRole works because the Bottles drawer contains exactly one spinbutton.
  */
 function getNumberOfBottlesInput(page) {
   return page.getByRole('spinbutton');
 }
 
 /**
- * Gets the excluded bottle IDs input element
- * @param {import('@playwright/test').Page} page - Playwright page object
- * @returns {import('@playwright/test').Locator} The excluded IDs input locator
+ * Gets the excluded bottle IDs input element.
+ * Unscoped getByRole works because the Bottles drawer contains exactly one textbox.
  */
 function getExcludedBottleIdsInput(page) {
   return page.getByRole('textbox');
@@ -129,6 +133,8 @@ test.describe('Item Configuration', () => {
     // Verify success (toast or no error) - scope to drawer to avoid matching event name
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 5000 });
+    // Positive check: drawer is still accessible after save
+    await expect(drawer).toBeVisible();
 
     // Verify persistence: reload and check value
     await page.reload();

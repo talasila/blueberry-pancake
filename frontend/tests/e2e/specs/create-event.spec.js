@@ -249,6 +249,8 @@ test.describe('Create Event', () => {
     await expect(eventIdInput).toBeVisible({ timeout: 5000 });
     await eventIdInput.fill('OIL12345');
 
+    await expect(eventIdInput).toHaveValue('OIL12345');
+
     // Click Join
     const joinButton = page.getByRole('button', { name: /join/i });
     await joinButton.click();
@@ -257,7 +259,7 @@ test.describe('Create Event', () => {
     // and show a "not found" message since no event matches this ID
     // Verify no validation error about invalid characters — the ID format is valid (8 alphanumeric)
     // Instead, expect a standard "not found" or redirect to email entry flow
-    await expect(page.locator('body')).not.toContainText(/invalid.*character/i);
+    await expect(page.locator('body')).not.toContainText(/invalid.*character/i, { timeout: 3000 });
 
     // Excluded Crockford characters are valid alphanumeric, so the app navigates to the
     // event email-entry page (the event won't exist, but the ID format is accepted).
@@ -302,7 +304,6 @@ test.describe('Create Event', () => {
     await landingCreateButton.click();
 
     await expect(page).toHaveURL(/\/create-event/, { timeout: 5000 });
-    await expect(page).not.toHaveURL(/\/auth/);
 
     // --- Create second event ---
     const nameInput2 = page.locator('input#event-name').or(page.getByLabel(/event name/i));

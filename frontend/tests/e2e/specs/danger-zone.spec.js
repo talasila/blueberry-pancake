@@ -25,10 +25,7 @@ import {
   API_URL,
 } from './helpers.js';
 
-/**
- * Helper: Add a regular (non-admin) user to event via PIN verification
- * This registers the user and returns their JWT token
- */
+/** Readability wrapper around getUserToken for non-admin user registration */
 async function addRegularUser(eventId, email, pin) {
   return getUserToken(eventId, email, pin);
 }
@@ -133,9 +130,9 @@ async function confirmDeletion(page, confirmationText) {
   const confirmButton = page.getByTestId('confirm-delete-button');
   await expect(confirmButton).toBeEnabled({ timeout: 3000 });
 
-  // Use dispatchEvent to bypass Playwright's pointer event interception checks
-  // which fail due to z-index layering between drawer and modal
-  await page.getByTestId('confirm-delete-button').dispatchEvent('click');
+  // dispatchEvent bypasses Playwright's pointer interception checks, needed
+  // due to z-index layering between the drawer and modal overlays.
+  await confirmButton.dispatchEvent('click');
 }
 
 // =============================================
@@ -151,7 +148,7 @@ test.describe('Danger Zone - Delete Individual User', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event and have user submit a rating
-    await changeEventState(eventId, 'started', 'created', token);
+    expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
     const userToken = await addRegularUser(eventId, userEmail, pin);
     await submitRating(eventId, userToken, 1, 4, 'Great wine!');
     
@@ -194,7 +191,7 @@ test.describe('Danger Zone - Delete Individual User', () => {
     const adminEmail = 'admin@example.com';
     const ownerToken = await addAdminToEvent(eventId, ownerEmail);
     
-    // Add another admin
+    // Inline fetch instead of addAdminToEvent: needs addToUsers: true which the helper doesn't support
     const addAdminResp = await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -289,7 +286,7 @@ test.describe('Danger Zone - Delete All Users', () => {
   });
 
   test('delete all users button is disabled when no non-admin users exist', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
@@ -317,7 +314,7 @@ test.describe('Danger Zone - Delete All Users', () => {
     const adminEmail = 'admin@example.com';
     const ownerToken = await addAdminToEvent(eventId, ownerEmail);
     
-    // Add another admin
+    // Inline fetch instead of addAdminToEvent: needs addToUsers: true which the helper doesn't support
     const addAdminResp = await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -360,7 +357,7 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event
-    await changeEventState(eventId, 'started', 'created', token);
+    expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
     
     // Add ratings from multiple users (with delays between additions)
     const user1Token = await addRegularUser(eventId, 'user1@example.com', pin);
@@ -413,7 +410,7 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     expect(itemResponse.ok).toBe(true);
     
     // Start event and add ratings
-    await changeEventState(eventId, 'started', 'created', token);
+    expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
     const userToken = await addRegularUser(eventId, 'user@example.com', pin);
     await submitRating(eventId, userToken, 1, 4);
     
@@ -441,7 +438,7 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event and add ratings
-    await changeEventState(eventId, 'started', 'created', token);
+    expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
     const userToken = await addRegularUser(eventId, 'user@example.com', pin);
     await submitRating(eventId, userToken, 1, 4);
     await submitRating(eventId, userToken, 2, 3);
@@ -471,7 +468,7 @@ test.describe('Danger Zone - Delete All Ratings', () => {
 test.describe('Danger Zone - Delete Event', () => {
 
   test('owner can delete the event', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     // The actual owner is test@example.com (created with the event by createTestEvent)
     const ownerEmail = 'test@example.com';
     const ownerToken = await addAdminToEvent(eventId, ownerEmail);
@@ -501,14 +498,14 @@ test.describe('Danger Zone - Delete Event', () => {
   });
 
   test('non-owner admin cannot see Delete Event option', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const ownerEmail = 'owner@example.com';
     const adminEmail = 'admin@example.com';
     
     // Create event with owner
     await addAdminToEvent(eventId, ownerEmail);
     
-    // Add another admin (non-owner)
+    // Inline fetch instead of addAdminToEvent: needs addToUsers: true which the helper doesn't support
     const adminResponse = await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -546,7 +543,7 @@ test.describe('Danger Zone - Dialog Cancel', () => {
     const token = await addAdminToEvent(eventId, adminEmail);
     
     // Start event and add rating
-    await changeEventState(eventId, 'started', 'created', token);
+    expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
     const userToken = await addRegularUser(eventId, 'user@example.com', pin);
     await submitRating(eventId, userToken, 1, 4);
     
@@ -568,8 +565,11 @@ test.describe('Danger Zone - Dialog Cancel', () => {
     const confirmDialog = page.getByRole('dialog', { name: 'Delete All Ratings' });
     await expect(confirmDialog).toBeVisible();
     
-    // Click Cancel button via dispatchEvent to bypass z-index layering issues
-    await page.getByRole('button', { name: /cancel/i }).dispatchEvent('click');
+    // dispatchEvent bypasses Playwright's pointer interception checks, needed
+    // due to z-index layering between the drawer and modal overlays.
+    const cancelButton = page.getByRole('button', { name: /cancel/i });
+    await expect(cancelButton).toBeEnabled({ timeout: 3000 });
+    await cancelButton.dispatchEvent('click');
     
     // Confirmation dialog should close (drawer stays open)
     await expect(confirmDialog).not.toBeVisible();
@@ -580,7 +580,7 @@ test.describe('Danger Zone - Dialog Cancel', () => {
   });
 
   test('delete button is disabled until confirmation text is entered', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
+    const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     

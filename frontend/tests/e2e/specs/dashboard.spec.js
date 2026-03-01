@@ -21,6 +21,7 @@ import {
   configureItems,
 } from './helpers.js';
 
+// Timeout convention: 10000ms for initial page loads/data fetching, 5000ms for subsequent UI interactions
 test.describe('Dashboard Page', () => {
 
   // ===================================
@@ -498,9 +499,11 @@ test.describe('Dashboard Page', () => {
       return cells.allTextContents();
     };
     
-    // Wait for sort to reflect in table
+    // Wait for sort to complete before capturing state
+    await page.waitForLoadState('networkidle');
     await expect(page.locator('table tbody tr')).not.toHaveCount(0, { timeout: 5000 });
     const afterFirstSort = await getFirstCellTexts();
+    expect(afterFirstSort.length).toBeGreaterThan(0);
 
     await userHeader.click();
 
@@ -576,21 +579,29 @@ test.describe('Dashboard Page', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     
-    // Click on Users tab
+    // Click on Users tab and wait for content to load
     const usersTab = page.getByRole('tab', { name: /users/i });
     await usersTab.click();
     
-    // Click on user row
-    const userRow = page.locator('table tbody tr').first();
-    await userRow.click();
+    // Wait for the testuser row to appear in the users table
+    const userRow = page.locator('table tbody tr').filter({ hasText: /testuser/i });
+    await expect(userRow.first()).toBeVisible({ timeout: 10000 });
+    await userRow.first().click();
     
-    // User details drawer should open
-    const drawer = page.locator('[role="dialog"]').or(page.locator('[data-state="open"]'));
-    await expect(drawer.first()).toBeVisible({ timeout: 5000 });
-    
-    // Drawer content may render in a portal outside [role="dialog"], so check page-level.
-    // The drawer being open is already verified above.
-    await expect(page.getByText(/testuser/i).first()).toBeVisible({ timeout: 10000 });
+    // Verify a drawer/dialog opened with user-related content (not a bottle details drawer)
+    await expect(async () => {
+      const dialogs = page.locator('[role="dialog"], [data-state="open"]');
+      const count = await dialogs.count();
+      let found = false;
+      for (let i = 0; i < count; i++) {
+        const text = await dialogs.nth(i).textContent();
+        if (/testuser/i.test(text)) {
+          found = true;
+          break;
+        }
+      }
+      expect(found).toBe(true);
+    }).toPass({ timeout: 10000 });
   });
 
   test('users table shows derived name from email when name not set', async ({ page, testEvent }) => {
@@ -686,6 +697,7 @@ test.describe('Dashboard Page', () => {
     await expect(page.getByText(/total users/i)).toBeVisible({ timeout: 5000 });
     const statsAfter = await page.getByText(/total users/i).locator('..').textContent();
     expect(statsAfter).toBeTruthy();
+    expect(statsAfter).toMatch(/\d/);
   });
 
   test('dashboard link visible to admin in dropdown menu', async ({ page, testEvent }) => {
