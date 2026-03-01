@@ -15,7 +15,7 @@ export default async function globalSetup() {
   
   const trackingFile = TRACKING_FILE;
 
-  // 1. Verify backend is reachable and reset counter
+  // 1. Verify backend is reachable
   try {
     const response = await fetch(`${API_URL}/api/test/reset-counter`, {
       method: 'POST',
@@ -23,9 +23,9 @@ export default async function globalSetup() {
     });
     
     if (response.ok) {
-      console.log('[E2E Setup] Test event counter reset');
+      console.log('[E2E Setup] Backend reachable, test endpoint reset');
     } else {
-      throw new Error(`[E2E Setup] Failed to reset counter: ${response.status}`);
+      throw new Error(`[E2E Setup] Backend test endpoint failed: ${response.status}`);
     }
   } catch (error) {
     if (error instanceof TypeError || error.name === 'AbortError') {

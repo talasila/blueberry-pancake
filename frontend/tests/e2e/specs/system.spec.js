@@ -94,7 +94,7 @@ async function navigateToSystemPageWithStats(page) {
 }
 
 test.describe('System Administration Dashboard', () => {
-  // Run system tests serially to avoid race conditions with shared test events
+  test.describe.configure({ mode: 'serial' });
   
   // ============================================================
   // US1: View All Events

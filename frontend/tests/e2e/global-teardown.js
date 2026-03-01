@@ -5,9 +5,8 @@
  * Uses the test API to delete events (no direct filesystem access).
  * 
  * Cleanup strategy:
- * 1. Delete all TEST* events via API
- * 2. Delete any tracked UI-created events via API
- * 3. Clear the tracking file
+ * 1. Delete tracked UI-created events via API, then clear the tracking file
+ * 2. Bulk-cleanup TEST* events via API (catch-all)
  */
 
 import { existsSync, readFileSync, unlinkSync } from 'fs';
@@ -33,7 +32,7 @@ export default async function globalTeardown() {
   
   let trackedEventsDeleted = 0;
 
-  // 1. Clean up tracked UI-created events via API
+  // Step 1: Clean up tracked UI-created events via API
   if (existsSync(trackingFile)) {
     try {
       const tracked = [...new Set(
@@ -54,14 +53,14 @@ export default async function globalTeardown() {
         console.warn(`[E2E Cleanup] Failed to delete ${failedCount} tracked events`);
       }
       
-      // 2. Clear the tracking file
+      // Clear the tracking file
       unlinkSync(trackingFile);
     } catch (error) {
       console.warn(`[E2E Cleanup] Error processing tracking file: ${error.message}`);
     }
   }
 
-  // 3. Bulk-cleanup TEST* events via API (catch-all)
+  // Step 2: Bulk-cleanup TEST* events via API (catch-all)
   try {
     const response = await fetch(`${API_URL}/api/test/cleanup`, {
       method: 'POST',

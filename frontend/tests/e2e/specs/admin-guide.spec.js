@@ -322,6 +322,8 @@ test.describe('US4: Completed state walkthrough', () => {
     await expect(drawer.getByRole('heading', { name: 'View the Dashboard' })).toBeVisible();
     await page.getByRole('button', { name: /next/i }).click();
     await expect(drawer.getByRole('heading', { name: 'Export Your Data' })).toBeVisible();
+    await page.getByRole('button', { name: /next/i }).click();
+    await expect(drawer.getByRole('heading', { name: 'Want to Reopen?' })).toBeVisible();
   });
 
   test('final step shows informational CTA about reopening', async ({ page, testEvent }) => {

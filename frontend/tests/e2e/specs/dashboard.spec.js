@@ -95,8 +95,9 @@ test.describe('Dashboard Page', () => {
     // Try to access dashboard
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     
-    // Should be redirected to event main page
+    // Should be redirected back to the event main page (not dashboard)
     await expect(page).not.toHaveURL(/\/dashboard/);
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
   });
 
   test('regular user can access dashboard when event is completed', async ({ page, testEvent }) => {
@@ -116,7 +117,8 @@ test.describe('Dashboard Page', () => {
     const verifyResponse = await fetch(`${API_URL}/api/events/${eventId}`, {
       headers: {
         'Authorization': `Bearer ${token}`
-      }
+      },
+      signal: AbortSignal.timeout(10000),
     });
     if (!verifyResponse.ok) {
       throw new Error(`Failed to verify event state: ${verifyResponse.status} ${verifyResponse.statusText}`);

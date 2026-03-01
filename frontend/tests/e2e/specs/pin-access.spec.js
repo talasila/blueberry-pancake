@@ -246,7 +246,7 @@ test.describe('PIN-based Event Access', () => {
   
   test('PIN entry for non-existent event', async ({ page }) => {
     await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/NONEXIST`);
+    await page.goto(`${BASE_URL}/event/ZZZZZZZZ`);
     
     await submitEmail(page, 'test@example.com');
     await enterAndSubmitPIN(page, '123456');

@@ -36,7 +36,8 @@ async function registerItemViaAPI(eventId, itemData, token) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify(itemData)
+    body: JSON.stringify(itemData),
+    signal: AbortSignal.timeout(10000),
   });
   
   if (!response.ok) {
@@ -56,7 +57,8 @@ async function assignItemIdViaAPI(eventId, itemId, itemIdToAssign, token) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify({ itemId: itemIdToAssign })
+    body: JSON.stringify({ itemId: itemIdToAssign }),
+    signal: AbortSignal.timeout(10000),
   });
   
   if (!response.ok) {
@@ -81,6 +83,7 @@ async function openBottlesDrawer(page) {
   const bottlesButton = page.getByRole('button', { name: /bottles/i });
   await bottlesButton.waitFor({ state: 'visible', timeout: 10000 });
   await bottlesButton.click();
+  await page.locator('[role="dialog"]').waitFor({ state: 'visible', timeout: 5000 });
 }
 
 /**
@@ -543,9 +546,8 @@ test.describe('Item Details Integration', () => {
     await bottlesTab.click();
     
     // Find and click on item ID 2 in the table
-    const itemCell = page.getByRole('cell', { name: '2', exact: true }).or(
-      page.locator('td', { hasText: /^2$/ })
-    ).first();
+    const table = page.locator('table');
+    const itemCell = table.getByRole('cell', { name: '2', exact: true }).first();
     await itemCell.click();
     
     // Should show the registered item name
@@ -587,9 +589,8 @@ test.describe('Item Details Integration', () => {
     await bottlesTab.click();
     
     // Find and click on item ID 3 in the ratings table
-    const itemCell = page.getByRole('cell', { name: '3', exact: true }).or(
-      page.locator('td', { hasText: /^3$/ })
-    ).first();
+    const table = page.locator('table');
+    const itemCell = table.getByRole('cell', { name: '3', exact: true }).first();
     await itemCell.click();
     
     // Should show the registered item name

@@ -248,7 +248,7 @@ export async function submitPIN(page) {
   // this is expected — both waiters are harmless once the page has settled.
   const outcome = await Promise.race([
     page.waitForURL(url => !url.pathname.endsWith('/pin'), { timeout: 10000 }).then(() => 'navigated'),
-    page.locator('[role="alert"]').or(page.locator('.text-destructive')).or(page.locator('.text-red-500')).first().waitFor({ state: 'visible', timeout: 10000 }).then(() => 'error'),
+    page.locator('[role="alert"]').or(page.locator('.text-destructive')).first().waitFor({ state: 'visible', timeout: 10000 }).then(() => 'error'),
   ]);
   return outcome;
 }
@@ -266,7 +266,6 @@ export async function enterAndSubmitPIN(page, pin) {
  */
 export async function getErrorMessage(page, { timeout = 5000 } = {}) {
   const errorLocator = page.locator('.text-destructive')
-    .or(page.locator('.text-red-500'))
     .or(page.locator('[role="alert"]'));
 
   try {

@@ -184,8 +184,8 @@ test.describe('OTP Authentication', () => {
     // Navigate to /auth with a target redirect
     await page.goto(`${BASE_URL}/auth`);
 
-    // Should redirect away from /auth. The destination depends on the 'from' query param
-    // (defaults to '/'), so we use a negative assertion rather than a specific URL.
+    // Should redirect away from /auth to the landing page (default when no 'from' param).
     await expect(page).not.toHaveURL(/\/auth/, { timeout: 5000 });
+    await expect(page).toHaveURL(new RegExp(`^${BASE_URL.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/?$`));
   });
 });

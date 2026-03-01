@@ -320,7 +320,7 @@ test.describe('Similar Users Discovery', () => {
     await expect(similarButton).not.toBeVisible({ timeout: 5000 });
   });
 
-  test('drawer shows content after opening', async ({ page, testEvent }) => {
+  test('drawer shows empty state when no similar users exist', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const adminToken = await addAdminToEvent(eventId, adminEmail);

@@ -45,24 +45,22 @@ async function openBottlesDrawer(page) {
   await bottlesButton.waitFor({ state: 'visible', timeout: 10000 });
   await bottlesButton.click();
   
-  // Wait for drawer to open - look for the number input (spinbutton)
-  await page.getByRole('spinbutton').waitFor({ state: 'visible', timeout: 5000 });
+  const drawer = page.locator('[role="dialog"]');
+  await drawer.getByRole('spinbutton').waitFor({ state: 'visible', timeout: 5000 });
 }
 
 /**
- * Gets the number of bottles input element.
- * Unscoped getByRole works because the Bottles drawer contains exactly one spinbutton.
+ * Gets the number of bottles input element, scoped to the drawer.
  */
 function getNumberOfBottlesInput(page) {
-  return page.getByRole('spinbutton');
+  return page.locator('[role="dialog"]').getByRole('spinbutton');
 }
 
 /**
- * Gets the excluded bottle IDs input element.
- * Unscoped getByRole works because the Bottles drawer contains exactly one textbox.
+ * Gets the excluded bottle IDs input element, scoped to the drawer.
  */
 function getExcludedBottleIdsInput(page) {
-  return page.getByRole('textbox');
+  return page.locator('[role="dialog"]').getByRole('textbox');
 }
 
 /**
@@ -71,11 +69,13 @@ function getExcludedBottleIdsInput(page) {
  */
 async function clickSaveButton(page) {
   const saveButton = page.getByRole('button', { name: /save/i });
+  const responsePromise = page.waitForResponse(
+    resp => resp.url().includes('/item-configuration'),
+    { timeout: 10000 }
+  );
   await saveButton.click();
-  // Wait for the save request to complete (button re-enables after loading)
-  await expect(async () => {
-    await expect(saveButton).toBeEnabled();
-  }).toPass({ timeout: 5000 });
+  await responsePromise;
+  await expect(saveButton).toBeEnabled({ timeout: 5000 });
 }
 
 test.describe('Item Configuration', () => {

@@ -157,6 +157,17 @@ function getExportButton(page, type) {
   return page.getByRole('button', { name: EXPORT_BUTTON_NAMES[type] });
 }
 
+/**
+ * Submit a rating and throw if the API call fails.
+ */
+async function submitRatingChecked(eventId, token, itemId, rating, note) {
+  const result = await submitRating(eventId, token, itemId, rating, note);
+  if (!result.ok) {
+    throw new Error(`submitRating failed for item ${itemId}: status ${result.status}`);
+  }
+  return result;
+}
+
 // ===================================
 // Test Suites
 // ===================================
@@ -230,7 +241,7 @@ test.describe('Data Export', () => {
       
       // Submit one rating
       const userToken = await getUserToken(eventId, 'rater@example.com', pin);
-      await submitRating(eventId, userToken, 1, 4, 'Great item!');
+      await submitRatingChecked(eventId, userToken, 1, 4, 'Great item!');
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -253,11 +264,11 @@ test.describe('Data Export', () => {
       const user1Token = await getUserToken(eventId, 'user1@example.com', pin);
       const user2Token = await getUserToken(eventId, 'user2@example.com', pin);
       
-      await submitRating(eventId, user1Token, 1, 4);
-      await submitRating(eventId, user1Token, 2, 3);
-      await submitRating(eventId, user2Token, 1, 2);
-      await submitRating(eventId, user2Token, 3, 4);
-      await submitRating(eventId, user2Token, 4, 1);
+      await submitRatingChecked(eventId, user1Token, 1, 4);
+      await submitRatingChecked(eventId, user1Token, 2, 3);
+      await submitRatingChecked(eventId, user2Token, 1, 2);
+      await submitRatingChecked(eventId, user2Token, 3, 4);
+      await submitRatingChecked(eventId, user2Token, 4, 1);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -277,7 +288,7 @@ test.describe('Data Export', () => {
       await startEvent(eventId, adminToken);
       
       const userToken = await getUserToken(eventId, 'user@example.com', pin);
-      await submitRating(eventId, userToken, 1, 4);
+      await submitRatingChecked(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -296,7 +307,7 @@ test.describe('Data Export', () => {
       
       const userToken = await getUserToken(eventId, 'user@example.com', pin);
       // Note with commas, quotes, and special characters
-      await submitRating(eventId, userToken, 1, 4, 'Great, "amazing" item & more!');
+      await submitRatingChecked(eventId, userToken, 1, 4, 'Great, "amazing" item & more!');
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -315,7 +326,7 @@ test.describe('Data Export', () => {
       await startEvent(eventId, adminToken);
       
       const userToken = await getUserToken(eventId, 'user@example.com', pin);
-      await submitRating(eventId, userToken, 1, 4);
+      await submitRatingChecked(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -333,7 +344,7 @@ test.describe('Data Export', () => {
       
       const userToken = await getUserToken(eventId, 'user@example.com', pin);
       await updateUserProfile(eventId, userToken, 'John Doe');
-      await submitRating(eventId, userToken, 1, 4);
+      await submitRatingChecked(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -374,10 +385,10 @@ test.describe('Data Export', () => {
       const user1Token = await getUserToken(eventId, 'user1@example.com', pin);
       const user2Token = await getUserToken(eventId, 'user2@example.com', pin);
       
-      await submitRating(eventId, user1Token, 1, 4);
-      await submitRating(eventId, user1Token, 2, 3);
-      await submitRating(eventId, user2Token, 1, 2);
-      await submitRating(eventId, user2Token, 3, 4);
+      await submitRatingChecked(eventId, user1Token, 1, 4);
+      await submitRatingChecked(eventId, user1Token, 2, 3);
+      await submitRatingChecked(eventId, user2Token, 1, 2);
+      await submitRatingChecked(eventId, user2Token, 3, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -402,8 +413,8 @@ test.describe('Data Export', () => {
       const user2Token = await getUserToken(eventId, 'user2@example.com', pin);
       
       // Both users rate item 1
-      await submitRating(eventId, user1Token, 1, 4);
-      await submitRating(eventId, user2Token, 1, 2);
+      await submitRatingChecked(eventId, user1Token, 1, 4);
+      await submitRatingChecked(eventId, user2Token, 1, 2);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -413,7 +424,9 @@ test.describe('Data Export', () => {
       const csv = await parseDownloadedCSV(download);
       const item1Row = csv.rows.find(r => r.itemId === '1');
       expect(item1Row['Average Rating']).toBe('3.00'); // (4+2)/2
-      expect(Number(item1Row['Weighted Rating'])).not.toBeNaN();
+      const weightedRating = Number(item1Row['Weighted Rating']);
+      expect(weightedRating).not.toBeNaN();
+      expect(weightedRating).toBeGreaterThan(0);
     });
 
     test('user columns use username (email) format when name exists', async ({ page, testEvent }) => {
@@ -423,7 +436,7 @@ test.describe('Data Export', () => {
       
       const userToken = await getUserToken(eventId, 'user@example.com', pin);
       await updateUserProfile(eventId, userToken, 'Jane Smith');
-      await submitRating(eventId, userToken, 1, 4);
+      await submitRatingChecked(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -442,7 +455,7 @@ test.describe('Data Export', () => {
       await startEvent(eventId, adminToken);
       
       const userToken = await getUserToken(eventId, 'user@example.com', pin);
-      await submitRating(eventId, userToken, 1, 4);
+      await submitRatingChecked(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -462,8 +475,8 @@ test.describe('Data Export', () => {
       const user2Token = await getUserToken(eventId, 'user2@example.com', pin);
       
       // User1 rates item 1, User2 rates item 2 - no overlap
-      await submitRating(eventId, user1Token, 1, 4);
-      await submitRating(eventId, user2Token, 2, 3);
+      await submitRatingChecked(eventId, user1Token, 1, 4);
+      await submitRatingChecked(eventId, user2Token, 2, 3);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -514,7 +527,7 @@ test.describe('Data Export', () => {
       
       const userToken = await getUserToken(eventId, 'user@example.com', pin);
       await updateUserProfile(eventId, userToken, 'Test User');
-      await submitRating(eventId, userToken, 1, 4);
+      await submitRatingChecked(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -548,7 +561,7 @@ test.describe('Data Export', () => {
       await startEvent(eventId, adminToken);
       
       const userToken = await getUserToken(eventId, 'regular@example.com', pin);
-      await submitRating(eventId, userToken, 1, 4);
+      await submitRatingChecked(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -592,9 +605,9 @@ test.describe('Data Export', () => {
       await startEvent(eventId, adminToken);
       
       const userToken = await getUserToken(eventId, 'rater@example.com', pin);
-      await submitRating(eventId, userToken, 1, 4);
-      await submitRating(eventId, userToken, 2, 2);
-      await submitRating(eventId, userToken, 3, 3);
+      await submitRatingChecked(eventId, userToken, 1, 4);
+      await submitRatingChecked(eventId, userToken, 2, 2);
+      await submitRatingChecked(eventId, userToken, 3, 3);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -613,7 +626,7 @@ test.describe('Data Export', () => {
       await startEvent(eventId, adminToken);
       
       const userToken = await getUserToken(eventId, 'user@example.com', pin);
-      await submitRating(eventId, userToken, 1, 4);
+      await submitRatingChecked(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -706,9 +719,9 @@ test.describe('Data Export', () => {
       const user2Token = await getUserToken(eventId, 'user2@example.com', pin);
       const user3Token = await getUserToken(eventId, 'user3@example.com', pin);
       
-      await submitRating(eventId, user1Token, 1, 4);
-      await submitRating(eventId, user2Token, 1, 3);
-      await submitRating(eventId, user3Token, 1, 2);
+      await submitRatingChecked(eventId, user1Token, 1, 4);
+      await submitRatingChecked(eventId, user2Token, 1, 3);
+      await submitRatingChecked(eventId, user3Token, 1, 2);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -720,7 +733,9 @@ test.describe('Data Export', () => {
       
       expect(item1?.numberOfRaters).toBe('3');
       expect(item1?.averageRating).toBe('3.00'); // (4+3+2)/3
-      expect(Number(item1?.weightedAverage)).not.toBeNaN();
+      const weightedAvg = Number(item1?.weightedAverage);
+      expect(weightedAvg).not.toBeNaN();
+      expect(weightedAvg).toBeGreaterThan(0);
     });
 
     test('includes rating distribution', async ({ page, testEvent }) => {
@@ -735,13 +750,13 @@ test.describe('Data Export', () => {
         users.push(await getUserToken(eventId, `user${i}@example.com`, pin));
       }
       
-      await submitRating(eventId, users[0], 1, 1); // one 1
-      await submitRating(eventId, users[1], 1, 2); // two 2s
-      await submitRating(eventId, users[2], 1, 2);
-      await submitRating(eventId, users[3], 1, 3); // one 3
-      await submitRating(eventId, users[4], 1, 4); // three 4s
-      await submitRating(eventId, users[5], 1, 4);
-      await submitRating(eventId, users[6], 1, 4);
+      await submitRatingChecked(eventId, users[0], 1, 1);
+      await submitRatingChecked(eventId, users[1], 1, 2);
+      await submitRatingChecked(eventId, users[2], 1, 2);
+      await submitRatingChecked(eventId, users[3], 1, 3);
+      await submitRatingChecked(eventId, users[4], 1, 4);
+      await submitRatingChecked(eventId, users[5], 1, 4);
+      await submitRatingChecked(eventId, users[6], 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -769,8 +784,8 @@ test.describe('Data Export', () => {
       await getUserToken(eventId, 'user3@example.com', pin); // joins but doesn't rate
       await getUserToken(eventId, 'user4@example.com', pin); // joins but doesn't rate
       
-      await submitRating(eventId, user1Token, 1, 4);
-      await submitRating(eventId, user2Token, 1, 3);
+      await submitRatingChecked(eventId, user1Token, 1, 4);
+      await submitRatingChecked(eventId, user2Token, 1, 3);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -829,7 +844,7 @@ test.describe('Data Export', () => {
       for (let i = 1; i <= 5; i++) {
         const userToken = await getUserToken(eventId, `user${i}@example.com`, pin);
         for (let j = 1; j <= 10; j++) {
-          await submitRating(eventId, userToken, j, (i % 4) + 1);
+          await submitRatingChecked(eventId, userToken, j, (i % 4) + 1);
         }
       }
       
@@ -856,7 +871,7 @@ test.describe('Data Export', () => {
       await startEvent(eventId, adminToken);
       
       const userToken = await getUserToken(eventId, 'user@example.com', pin);
-      await submitRating(eventId, userToken, 1, 4);
+      await submitRatingChecked(eventId, userToken, 1, 4);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);
@@ -896,7 +911,7 @@ test.describe('Data Export', () => {
       for (let i = 1; i <= 10; i++) {
         const userToken = await getUserToken(eventId, `largeuser${i}@example.com`, pin);
         for (let j = 1; j <= 10; j++) {
-          await submitRating(eventId, userToken, j, (i + j) % 4 + 1);
+          await submitRatingChecked(eventId, userToken, j, (i + j) % 4 + 1);
         }
       }
       
@@ -917,7 +932,7 @@ test.describe('Data Export', () => {
       // Submit exactly 10 ratings
       const userToken = await getUserToken(eventId, 'counter@example.com', pin);
       for (let i = 1; i <= 10; i++) {
-        await submitRating(eventId, userToken, i, (i % 4) + 1);
+        await submitRatingChecked(eventId, userToken, i, (i % 4) + 1);
       }
       
       await setAuthToken(page, adminToken, 'admin@example.com');
@@ -941,12 +956,12 @@ test.describe('Data Export', () => {
       const user1Token = await getUserToken(eventId, 'matrixuser1@example.com', pin);
       const user2Token = await getUserToken(eventId, 'matrixuser2@example.com', pin);
       
-      await submitRating(eventId, user1Token, 1, 4);
-      await submitRating(eventId, user1Token, 2, 3);
-      await submitRating(eventId, user1Token, 3, 2);
-      await submitRating(eventId, user2Token, 1, 2);
-      await submitRating(eventId, user2Token, 2, 4);
-      await submitRating(eventId, user2Token, 3, 3);
+      await submitRatingChecked(eventId, user1Token, 1, 4);
+      await submitRatingChecked(eventId, user1Token, 2, 3);
+      await submitRatingChecked(eventId, user1Token, 3, 2);
+      await submitRatingChecked(eventId, user2Token, 1, 2);
+      await submitRatingChecked(eventId, user2Token, 2, 4);
+      await submitRatingChecked(eventId, user2Token, 3, 3);
       
       await setAuthToken(page, adminToken, 'admin@example.com');
       await page.goto(`${BASE_URL}/event/${eventId}/admin`);

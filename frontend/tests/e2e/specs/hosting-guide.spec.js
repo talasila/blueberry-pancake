@@ -170,9 +170,10 @@ test.describe('US3: Host path navigation', () => {
       await page.getByRole('button', { name: /next/i }).click();
     }
     await expect(page.getByRole('heading', { name: 'Reveal & Compare' })).toBeVisible();
-    // Should see a CTA button (either Sign Up or Create Event)
+    // Should see a CTA button (either Sign Up or Create Event) that is clickable
     const cta = page.getByRole('button', { name: /sign up|create your event/i });
     await expect(cta).toBeVisible();
+    await expect(cta).toBeEnabled();
   });
 });
 
