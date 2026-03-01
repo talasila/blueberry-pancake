@@ -63,12 +63,14 @@ test.describe('US1: Guide access from any page', () => {
   test('guide closes on backdrop click', async ({ page }) => {
     await page.goto(BASE_URL);
     await openGuide(page);
-    const dialogBox = await page.locator('[role="dialog"]').boundingBox();
-    if (dialogBox) {
-      await page.mouse.click(dialogBox.x + dialogBox.width / 2, Math.max(dialogBox.y - 20, 5));
+    const dialogBox = await page.locator('[role="dialog"][aria-label="Hosting guide"]').boundingBox();
+    if (dialogBox && dialogBox.y > 40) {
+      await page.mouse.click(dialogBox.x + dialogBox.width / 2, dialogBox.y - 20);
     } else {
-      const viewport = page.viewportSize();
-      await page.mouse.click(viewport.width / 2, 80);
+      // Dialog is too close to top — click to the left of it instead
+      const fallbackX = dialogBox ? Math.max(dialogBox.x - 20, 5) : 5;
+      const fallbackY = dialogBox ? dialogBox.y + dialogBox.height / 2 : 80;
+      await page.mouse.click(fallbackX, fallbackY);
     }
     await expect(page.locator('[role="dialog"][aria-label="Hosting guide"]')).toBeHidden({ timeout: 3000 });
   });

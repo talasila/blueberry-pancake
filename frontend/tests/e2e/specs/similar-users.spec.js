@@ -40,8 +40,8 @@ test.describe('Similar Users Discovery', () => {
     // Gate: wait for the main event page content to render before negative assertion
     await expect(page.getByText(/event has not started yet|tap a number/i)).toBeVisible({ timeout: 10000 });
 
-    // Similar users button should NOT be visible (no ratings yet)
-    const similarButton = page.getByRole('button', { name: /similar.*taste|find.*similar/i });
+    // Use the same locator as positive assertions to avoid false negatives
+    const similarButton = page.getByRole('button', { name: /similar tastes/i });
     await expect(similarButton).not.toBeVisible({ timeout: 5000 });
   });
 
@@ -221,7 +221,8 @@ test.describe('Similar Users Discovery', () => {
     await expect(verySimilarEntry).toBeVisible({ timeout: 10000 });
 
     const drawer = page.locator('[role="dialog"]');
-    const userEntries = drawer.locator('[data-testid="similar-user-entry"]').or(drawer.locator('button').filter({ hasText: /@example\.com/ }));
+    const userEntries = drawer.locator('[data-testid="similar-user-entry"]')
+      .or(drawer.locator('button').filter({ hasText: /@example\.com/ }));
     await expect(async () => {
       const allTexts = await userEntries.allTextContents();
       const veryIdx = allTexts.findIndex(t => t.includes(verySimilarEmail));

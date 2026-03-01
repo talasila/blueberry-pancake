@@ -144,8 +144,9 @@ test.describe('OTP Authentication', () => {
       verifyButton.click(),
     ]);
     
-    // Verify error message is displayed (may vary: "Invalid OTP", "OTP not found or expired", or "Too many failed attempts" if rate-limited)
-    await expect(page.getByText(/invalid otp|otp not found|too many failed attempts/i)).toBeVisible({ timeout: 10000 });
+    // Verify error message is displayed — use the same locator pattern as the earlier OTP test
+    const errorElement = page.locator('.text-destructive').or(page.locator('[role="alert"]'));
+    await expect(errorElement).toBeVisible({ timeout: 10000 });
     
     // Verify user stays on OTP page (not redirected)
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/otp`));

@@ -26,7 +26,8 @@ import { DEFAULT_TEST_PIN } from '../e2e-config.js';
 async function getRatings(eventId, token) {
   const response = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
     method: 'GET',
-    headers: { 'Authorization': `Bearer ${token}` }
+    headers: { 'Authorization': `Bearer ${token}` },
+    signal: AbortSignal.timeout(10000),
   });
   if (!response.ok) {
     throw new Error(`Failed to get ratings: ${await response.text()}`);
@@ -71,7 +72,8 @@ async function addAdministrator(eventId, adminToken, newAdminEmail) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${adminToken}`
     },
-    body: JSON.stringify({ email: newAdminEmail })
+    body: JSON.stringify({ email: newAdminEmail }),
+    signal: AbortSignal.timeout(10000),
   });
   return { ok: response.ok, status: response.status, data: response.ok ? await response.json() : await response.text() };
 }
@@ -87,7 +89,8 @@ async function updateItemConfig(eventId, adminToken, config) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${adminToken}`
     },
-    body: JSON.stringify(config)
+    body: JSON.stringify(config),
+    signal: AbortSignal.timeout(10000),
   });
   return { ok: response.ok, status: response.status, data: response.ok ? await response.json() : await response.text() };
 }
@@ -102,7 +105,8 @@ async function saveBookmarks(eventId, token, bookmarks) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify({ bookmarks })
+    body: JSON.stringify({ bookmarks }),
+    signal: AbortSignal.timeout(10000),
   });
   return { ok: response.ok, status: response.status, data: response.ok ? await response.json() : await response.text() };
 }
@@ -116,7 +120,8 @@ async function regeneratePIN(eventId, adminToken) {
     headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${adminToken}`
-    }
+    },
+    signal: AbortSignal.timeout(10000),
   });
   return { ok: response.ok, status: response.status, data: response.ok ? await response.json() : await response.text() };
 }
@@ -127,7 +132,8 @@ async function regeneratePIN(eventId, adminToken) {
 async function getBookmarks(eventId, token) {
   const response = await fetch(`${API_URL}/api/events/${eventId}/bookmarks`, {
     method: 'GET',
-    headers: { 'Authorization': `Bearer ${token}` }
+    headers: { 'Authorization': `Bearer ${token}` },
+    signal: AbortSignal.timeout(10000),
   });
   return { ok: response.ok, status: response.status, data: response.ok ? await response.json() : await response.text() };
 }
@@ -270,7 +276,8 @@ test.describe('Multi-Tenant Isolation', () => {
     
     // Try to access Event 2's ratings with Event 1's token - should get 403
     const ratingsResponse = await fetch(`${API_URL}/api/events/${event2Id}/ratings`, {
-      headers: { 'Authorization': `Bearer ${user1Token}` }
+      headers: { 'Authorization': `Bearer ${user1Token}` },
+      signal: AbortSignal.timeout(10000),
     });
     
     expect(ratingsResponse.status).toBe(403);
@@ -292,7 +299,8 @@ test.describe('Multi-Tenant Isolation', () => {
     
     // Try GET bookmarks
     const getResponse = await fetch(`${API_URL}/api/events/${event2Id}/bookmarks`, {
-      headers: { 'Authorization': `Bearer ${user1Token}` }
+      headers: { 'Authorization': `Bearer ${user1Token}` },
+      signal: AbortSignal.timeout(10000),
     });
     expect(getResponse.status).toBe(403);
     
@@ -303,7 +311,8 @@ test.describe('Multi-Tenant Isolation', () => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${user1Token}`
       },
-      body: JSON.stringify({ bookmarks: [1, 2, 3] })
+      body: JSON.stringify({ bookmarks: [1, 2, 3] }),
+      signal: AbortSignal.timeout(10000),
     });
     expect(putResponse.status).toBe(403);
   });
@@ -321,7 +330,8 @@ test.describe('Multi-Tenant Isolation', () => {
     const user1Token = await getUserToken(event1Id, 'user@example.com', DEFAULT_TEST_PIN);
     
     const response = await fetch(`${API_URL}/api/events/${event2Id}/similar-users`, {
-      headers: { 'Authorization': `Bearer ${user1Token}` }
+      headers: { 'Authorization': `Bearer ${user1Token}` },
+      signal: AbortSignal.timeout(10000),
     });
     
     expect(response.status).toBe(403);
@@ -347,7 +357,8 @@ test.describe('Multi-Tenant Isolation', () => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${user1Token}`
       },
-      body: JSON.stringify({ itemId: 1, rating: 4 })
+      body: JSON.stringify({ itemId: 1, rating: 4 }),
+      signal: AbortSignal.timeout(10000),
     });
     
     expect(response.status).toBe(403);
@@ -365,7 +376,8 @@ test.describe('Multi-Tenant Isolation', () => {
     
     // Admin of Event 1 tries to access Event 2's dashboard
     const response = await fetch(`${API_URL}/api/events/${event2Id}/dashboard`, {
-      headers: { 'Authorization': `Bearer ${admin1Token}` }
+      headers: { 'Authorization': `Bearer ${admin1Token}` },
+      signal: AbortSignal.timeout(10000),
     });
     
     expect(response.status).toBe(403);
@@ -388,7 +400,8 @@ test.describe('Multi-Tenant Isolation', () => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${admin1Token}`
       },
-      body: JSON.stringify({ state: 'started', currentState: 'created' })
+      body: JSON.stringify({ state: 'started', currentState: 'created' }),
+      signal: AbortSignal.timeout(10000),
     });
     
     expect(response.status).toBe(403);
@@ -411,7 +424,8 @@ test.describe('Multi-Tenant Isolation', () => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${admin1Token}`
       },
-      body: JSON.stringify({ numberOfItems: 50 })
+      body: JSON.stringify({ numberOfItems: 50 }),
+      signal: AbortSignal.timeout(10000),
     });
     
     expect(response.status).toBe(403);
@@ -439,7 +453,8 @@ test.describe('Multi-Tenant Isolation', () => {
     
     // This token should NOT work for Event 2 (must authenticate separately)
     const crossEventResponse = await fetch(`${API_URL}/api/events/${event2Id}/ratings`, {
-      headers: { 'Authorization': `Bearer ${userTokenEvent1}` }
+      headers: { 'Authorization': `Bearer ${userTokenEvent1}` },
+      signal: AbortSignal.timeout(10000),
     });
     expect(crossEventResponse.status).toBe(403);
     
@@ -448,13 +463,15 @@ test.describe('Multi-Tenant Isolation', () => {
     
     // Event 2 token should work for Event 2
     const validResponse = await fetch(`${API_URL}/api/events/${event2Id}/ratings`, {
-      headers: { 'Authorization': `Bearer ${userTokenEvent2}` }
+      headers: { 'Authorization': `Bearer ${userTokenEvent2}` },
+      signal: AbortSignal.timeout(10000),
     });
     expect(validResponse.ok).toBe(true);
     
     // But Event 2 token should NOT work for Event 1
     const crossEventResponse2 = await fetch(`${API_URL}/api/events/${event1Id}/ratings`, {
-      headers: { 'Authorization': `Bearer ${userTokenEvent2}` }
+      headers: { 'Authorization': `Bearer ${userTokenEvent2}` },
+      signal: AbortSignal.timeout(10000),
     });
     expect(crossEventResponse2.status).toBe(403);
   });
@@ -507,7 +524,8 @@ test.describe('Multi-Tenant Isolation', () => {
     
     // Verify Event 1 dashboard shows ratings
     const dashboard1Response = await fetch(`${API_URL}/api/events/${event1Id}/dashboard`, {
-      headers: { 'Authorization': `Bearer ${admin1Token}` }
+      headers: { 'Authorization': `Bearer ${admin1Token}` },
+      signal: AbortSignal.timeout(10000),
     });
     expect(dashboard1Response.ok).toBe(true);
     const dashboard1 = await dashboard1Response.json();
@@ -515,7 +533,8 @@ test.describe('Multi-Tenant Isolation', () => {
     
     // Verify Event 2 dashboard shows ZERO ratings (not contaminated by Event 1)
     const dashboard2Response = await fetch(`${API_URL}/api/events/${event2Id}/dashboard`, {
-      headers: { 'Authorization': `Bearer ${admin2Token}` }
+      headers: { 'Authorization': `Bearer ${admin2Token}` },
+      signal: AbortSignal.timeout(10000),
     });
     expect(dashboard2Response.ok).toBe(true);
     const dashboard2 = await dashboard2Response.json();
@@ -546,7 +565,8 @@ test.describe('Multi-Tenant Isolation', () => {
     
     // User 1 should see User 2 as similar in Event 1
     const similar1Response = await fetch(`${API_URL}/api/events/${event1Id}/similar-users`, {
-      headers: { 'Authorization': `Bearer ${user1Event1Token}` }
+      headers: { 'Authorization': `Bearer ${user1Event1Token}` },
+      signal: AbortSignal.timeout(10000),
     });
     expect(similar1Response.ok).toBe(true);
     const similar1 = await similar1Response.json();
@@ -563,7 +583,8 @@ test.describe('Multi-Tenant Isolation', () => {
     
     // User 1 in Event 2 should NOT see matcher2 (who only rated in Event 1)
     const similar2Response = await fetch(`${API_URL}/api/events/${event2Id}/similar-users`, {
-      headers: { 'Authorization': `Bearer ${user1Event2Token}` }
+      headers: { 'Authorization': `Bearer ${user1Event2Token}` },
+      signal: AbortSignal.timeout(10000),
     });
     expect(similar2Response.ok).toBe(true);
     const similar2 = await similar2Response.json();
@@ -592,13 +613,15 @@ test.describe('Multi-Tenant Isolation', () => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${userEvent1Token}`
       },
-      body: JSON.stringify({ name: 'Event1 User Name' })
+      body: JSON.stringify({ name: 'Event1 User Name' }),
+      signal: AbortSignal.timeout(10000),
     });
     expect(updateResponse.ok).toBe(true);
     
     // Verify profile in Event 1 has the name
     const profile1Response = await fetch(`${API_URL}/api/events/${event1Id}/profile`, {
-      headers: { 'Authorization': `Bearer ${userEvent1Token}` }
+      headers: { 'Authorization': `Bearer ${userEvent1Token}` },
+      signal: AbortSignal.timeout(10000),
     });
     expect(profile1Response.ok).toBe(true);
     const profile1 = await profile1Response.json();
@@ -606,7 +629,8 @@ test.describe('Multi-Tenant Isolation', () => {
     
     // Verify profile in Event 2 does NOT have the name from Event 1
     const profile2Response = await fetch(`${API_URL}/api/events/${event2Id}/profile`, {
-      headers: { 'Authorization': `Bearer ${userEvent2Token}` }
+      headers: { 'Authorization': `Bearer ${userEvent2Token}` },
+      signal: AbortSignal.timeout(10000),
     });
     expect(profile2Response.ok).toBe(true);
     const profile2 = await profile2Response.json();
@@ -1008,7 +1032,7 @@ test.describe('Cache Consistency', () => {
     expect(allRatings.length).toBe(3);
     
     // Verify each item was rated by the correct user
-    const ratedItems = allRatings.map(r => parseInt(r.itemId || r.item_id));
+    const ratedItems = allRatings.map(r => parseInt(r.itemId));
     expect(ratedItems).toContain(1);
     expect(ratedItems).toContain(2);
     expect(ratedItems).toContain(3);
@@ -1091,11 +1115,14 @@ test.describe('Cache Consistency', () => {
       )
     );
     
-    await Promise.all(ratingPromises);
+    const ratingResults = await Promise.all(ratingPromises);
+    const failedRatings = ratingResults.filter(r => !r.ok);
+    expect(failedRatings.length).toBe(0);
     
     // Fetch dashboard data
     const dashboardResponse = await fetch(`${API_URL}/api/events/${testEventId}/dashboard`, {
-      headers: { 'Authorization': `Bearer ${adminToken}` }
+      headers: { 'Authorization': `Bearer ${adminToken}` },
+      signal: AbortSignal.timeout(10000),
     });
     
     expect(dashboardResponse.ok).toBe(true);
@@ -1190,7 +1217,8 @@ test.describe('Event Lifecycle Concurrency', () => {
     
     // Request similar users while admin pauses event
     const similarUsersPromise = fetch(`${API_URL}/api/events/${testEventId}/similar-users`, {
-      headers: { 'Authorization': `Bearer ${user1Token}` }
+      headers: { 'Authorization': `Bearer ${user1Token}` },
+      signal: AbortSignal.timeout(10000),
     });
     
     const [similarResult, pauseResult] = await Promise.all([

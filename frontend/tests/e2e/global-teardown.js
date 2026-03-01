@@ -11,12 +11,14 @@
  */
 
 import { existsSync, readFileSync, unlinkSync } from 'fs';
-import { join } from 'path';
-import { API_URL } from './e2e-config.js';
+import { API_URL, TRACKING_FILE } from './e2e-config.js';
 
 async function deleteEventViaAPI(eventId) {
   try {
-    const response = await fetch(`${API_URL}/api/test/events/${eventId}`, { method: 'DELETE' });
+    const response = await fetch(`${API_URL}/api/test/events/${eventId}`, {
+      method: 'DELETE',
+      signal: AbortSignal.timeout(10000),
+    });
     return response.ok;
   } catch (error) {
     console.warn(`[E2E Cleanup] Failed to delete event ${eventId}: ${error.message}`);
@@ -27,8 +29,7 @@ async function deleteEventViaAPI(eventId) {
 export default async function globalTeardown() {
   console.log('\n[E2E Cleanup] Starting post-test cleanup...');
   
-  const projectRoot = join(process.cwd(), '..');
-  const trackingFile = join(projectRoot, '.e2e-tracked-events.txt');
+  const trackingFile = TRACKING_FILE;
   
   let trackedEventsDeleted = 0;
 
@@ -60,7 +61,10 @@ export default async function globalTeardown() {
 
   // 3. Bulk-cleanup TEST* events via API (catch-all)
   try {
-    const response = await fetch(`${API_URL}/api/test/cleanup`, { method: 'POST' });
+    const response = await fetch(`${API_URL}/api/test/cleanup`, {
+      method: 'POST',
+      signal: AbortSignal.timeout(10000),
+    });
     if (response.ok) {
       const data = await response.json();
       console.log(`[E2E Cleanup] Bulk API cleanup: ${data.deleted ?? 0} TEST* events`);

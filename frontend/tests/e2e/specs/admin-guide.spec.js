@@ -68,7 +68,9 @@ async function closeGuideViaButton(page) {
 
 async function navigateToStep(page, stepIndex) {
   for (let i = 0; i < stepIndex; i++) {
-    await page.getByRole('button', { name: /next/i }).click();
+    const nextButton = page.getByRole('button', { name: /next/i });
+    await nextButton.waitFor({ state: 'visible', timeout: 5000 });
+    await nextButton.click();
   }
 }
 

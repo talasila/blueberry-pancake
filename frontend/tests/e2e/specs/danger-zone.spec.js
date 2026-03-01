@@ -35,7 +35,8 @@ async function addRegularUser(eventId, email, pin) {
  */
 async function getRatingsCount(eventId, token) {
   const response = await fetch(`${API_URL}/api/events/${eventId}/ratings`, {
-    headers: { 'Authorization': `Bearer ${token}` }
+    headers: { 'Authorization': `Bearer ${token}` },
+    signal: AbortSignal.timeout(10000),
   });
   
   if (!response.ok) {
@@ -60,6 +61,7 @@ async function waitForRatingsCount(eventId, token, expected, { maxWaitMs = 5000,
     if (count === expected) return count;
     await new Promise(r => setTimeout(r, intervalMs));
   }
+  console.warn(`waitForRatingsCount: expected ${expected}, got ${count} after ${maxWaitMs}ms`);
   return count;
 }
 
@@ -68,7 +70,8 @@ async function waitForRatingsCount(eventId, token, expected, { maxWaitMs = 5000,
  */
 async function getUsersCount(eventId, token) {
   const response = await fetch(`${API_URL}/api/events/${eventId}`, {
-    headers: { 'Authorization': `Bearer ${token}` }
+    headers: { 'Authorization': `Bearer ${token}` },
+    signal: AbortSignal.timeout(10000),
   });
   
   if (!response.ok) {
@@ -92,6 +95,7 @@ async function waitForUsersCount(eventId, token, expected, { maxWaitMs = 5000, i
     if (count === expected) return count;
     await new Promise(r => setTimeout(r, intervalMs));
   }
+  console.warn(`waitForUsersCount: expected ${expected}, got ${count} after ${maxWaitMs}ms`);
   return count;
 }
 
@@ -100,7 +104,7 @@ async function waitForUsersCount(eventId, token, expected, { maxWaitMs = 5000, i
  */
 async function eventExists(eventId, token) {
   const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
-  const response = await fetch(`${API_URL}/api/events/${eventId}`, { headers });
+  const response = await fetch(`${API_URL}/api/events/${eventId}`, { headers, signal: AbortSignal.timeout(10000) });
   return response.ok;
 }
 
@@ -191,11 +195,11 @@ test.describe('Danger Zone - Delete Individual User', () => {
     const adminEmail = 'admin@example.com';
     const ownerToken = await addAdminToEvent(eventId, ownerEmail);
     
-    // Inline fetch instead of addAdminToEvent: needs addToUsers: true which the helper doesn't support
     const addAdminResp = await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: adminEmail, addToUsers: true })
+      body: JSON.stringify({ email: adminEmail, addToUsers: true }),
+      signal: AbortSignal.timeout(10000),
     });
     expect(addAdminResp.ok).toBe(true);
     
@@ -314,11 +318,11 @@ test.describe('Danger Zone - Delete All Users', () => {
     const adminEmail = 'admin@example.com';
     const ownerToken = await addAdminToEvent(eventId, ownerEmail);
     
-    // Inline fetch instead of addAdminToEvent: needs addToUsers: true which the helper doesn't support
     const addAdminResp = await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: adminEmail, addToUsers: true })
+      body: JSON.stringify({ email: adminEmail, addToUsers: true }),
+      signal: AbortSignal.timeout(10000),
     });
     expect(addAdminResp.ok).toBe(true);
     
@@ -398,14 +402,14 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
     
-    // Register an item
     const itemResponse = await fetch(`${API_URL}/api/events/${eventId}/items`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({ name: 'Test Wine', price: '50' })
+      body: JSON.stringify({ name: 'Test Wine', price: '50' }),
+      signal: AbortSignal.timeout(10000),
     });
     expect(itemResponse.ok).toBe(true);
     
@@ -423,9 +427,9 @@ test.describe('Danger Zone - Delete All Ratings', () => {
     await deleteRatingsButton.click();
     await confirmDeletion(page, 'DELETE RATINGS');
     
-    // Verify items still exist
     const itemsResponse = await fetch(`${API_URL}/api/events/${eventId}/items`, {
-      headers: { 'Authorization': `Bearer ${token}` }
+      headers: { 'Authorization': `Bearer ${token}` },
+      signal: AbortSignal.timeout(10000),
     });
     const items = await itemsResponse.json();
     expect(items.length).toBe(1);
@@ -505,11 +509,11 @@ test.describe('Danger Zone - Delete Event', () => {
     // Create event with owner
     await addAdminToEvent(eventId, ownerEmail);
     
-    // Inline fetch instead of addAdminToEvent: needs addToUsers: true which the helper doesn't support
     const adminResponse = await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: adminEmail, addToUsers: true })
+      body: JSON.stringify({ email: adminEmail, addToUsers: true }),
+      signal: AbortSignal.timeout(10000),
     });
     expect(adminResponse.ok).toBe(true);
     const adminData = await adminResponse.json();

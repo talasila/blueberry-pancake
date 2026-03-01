@@ -255,7 +255,6 @@ test.describe('PIN-based Event Access', () => {
     await submitEmail(page, 'test@example.com');
     await enterAndSubmitPIN(page, '123456');
     
-    // Should see error message
     const errorMsg = await getErrorMessage(page);
     expect(errorMsg).not.toBeNull();
     expect(errorMsg).toMatch(/not found/i);

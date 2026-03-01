@@ -130,19 +130,21 @@ test.describe('Administrator Management', () => {
     await adminsButton.waitFor({ state: 'visible', timeout: 10000 });
     await adminsButton.click();
     
-    // Find delete button for second admin by its accessible name
-    const deleteButton = page.getByRole('button', { name: /delete.*second@example\.com/i });
+    const drawer = page.locator('[role="dialog"]');
+    const deleteButton = drawer.getByRole('button', { name: /delete.*second@example\.com/i });
     await expect(deleteButton).toBeVisible({ timeout: 5000 });
     
+    let dialogHandled = false;
     page.once('dialog', async (dialog) => {
+      dialogHandled = true;
       expect(dialog.message()).toMatch(/delete|remove/i);
       await dialog.accept();
     });
     await deleteButton.click();
     
     // Second admin should be removed
-    const drawer = page.locator('[role="dialog"]');
     await expect(drawer.getByText('second@example.com')).not.toBeVisible({ timeout: 5000 });
+    expect(dialogHandled).toBe(true);
   });
 
   test('cannot delete owner administrator', async ({ page, testEvent }) => {
@@ -162,19 +164,23 @@ test.describe('Administrator Management', () => {
     
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer.getByText(adminEmail)).toBeVisible({ timeout: 10000 });
-    const deleteButton = page.getByRole('button', { name: /delete.*owner@example\.com/i });
-    const count = await deleteButton.count();
-    if (count > 0) {
-      page.once('dialog', async (dialog) => {
-        expect(dialog.message()).toMatch(/delete|remove/i);
-        await dialog.accept();
-      });
-      await deleteButton.first().click();
-      await expect(drawer.getByText(adminEmail)).toBeVisible({ timeout: 5000 });
-    } else {
-      await expect(drawer.getByText(adminEmail)).toBeVisible();
-      await expect(deleteButton).toHaveCount(0);
-    }
+
+    // The owner delete button should be present (the app shows it) but clicking it
+    // should be rejected server-side, leaving the owner in place.
+    const deleteButton = drawer.getByRole('button', { name: /delete.*owner@example\.com/i });
+    await expect(deleteButton).toBeVisible({ timeout: 5000 });
+
+    let dialogHandled = false;
+    page.once('dialog', async (dialog) => {
+      dialogHandled = true;
+      expect(dialog.message()).toMatch(/delete|remove/i);
+      await dialog.accept();
+    });
+    await deleteButton.first().click();
+
+    // Owner should still be present after the delete attempt
+    await expect(drawer.getByText(adminEmail)).toBeVisible({ timeout: 5000 });
+    expect(dialogHandled).toBe(true);
   });
 
   test('cannot delete last administrator', async ({ page, testEvent }) => {
@@ -192,19 +198,21 @@ test.describe('Administrator Management', () => {
     
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer.getByText(adminEmail)).toBeVisible({ timeout: 10000 });
-    const deleteButton = page.getByRole('button', { name: /delete.*owner@example\.com/i });
-    const count = await deleteButton.count();
-    if (count > 0) {
-      page.once('dialog', async (dialog) => {
-        expect(dialog.message()).toMatch(/delete|remove/i);
-        await dialog.accept();
-      });
-      await deleteButton.first().click();
-      await expect(drawer.getByText(adminEmail)).toBeVisible({ timeout: 5000 });
-    } else {
-      await expect(drawer.getByText(adminEmail)).toBeVisible();
-      await expect(deleteButton).toHaveCount(0);
-    }
+
+    const deleteButton = drawer.getByRole('button', { name: /delete.*owner@example\.com/i });
+    await expect(deleteButton).toBeVisible({ timeout: 5000 });
+
+    let dialogHandled = false;
+    page.once('dialog', async (dialog) => {
+      dialogHandled = true;
+      expect(dialog.message()).toMatch(/delete|remove/i);
+      await dialog.accept();
+    });
+    await deleteButton.first().click();
+
+    // Last admin should still be present after the delete attempt
+    await expect(drawer.getByText(adminEmail)).toBeVisible({ timeout: 5000 });
+    expect(dialogHandled).toBe(true);
   });
 
   // ===================================

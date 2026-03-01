@@ -130,7 +130,7 @@ test.describe('Event Page', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}`);
     
-    const menuButton = page.locator('[aria-label="Open menu"]');
+    const menuButton = page.getByRole('button', { name: 'Open menu' });
     await expect(menuButton).toBeVisible({ timeout: 5000 });
     await menuButton.click();
     
@@ -146,7 +146,7 @@ test.describe('Event Page', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}`);
     
-    const menuButton = page.locator('[aria-label="Open menu"]');
+    const menuButton = page.getByRole('button', { name: 'Open menu' });
     await expect(menuButton).toBeVisible({ timeout: 5000 });
     await menuButton.click();
     
@@ -165,7 +165,7 @@ test.describe('Event Page', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     
-    const menuButton = page.locator('[aria-label="Open menu"]');
+    const menuButton = page.getByRole('button', { name: 'Open menu' });
     await expect(menuButton).toBeVisible({ timeout: 5000 });
     await menuButton.click();
     
@@ -194,10 +194,11 @@ test.describe('Event Page', () => {
         await clearAuth(page);
         await page.goto(`${BASE_URL}/event/${invalidId}`);
         
-        // Expected error texts vary by format violation (e.g. "not found", "invalid", "error")
         const main = page.locator('main');
-        const gracefulElement = main.getByText('Access Event')
-          .or(main.getByText(/not found|invalid|does not exist|error/i));
+        const errorElement = main.getByText(/not found|invalid|does not exist|error/i);
+        const emailPage = page.locator('input#email').or(page.locator('input[type="email"]'));
+        // Either an error message or the email entry page (graceful redirect) should appear
+        const gracefulElement = errorElement.or(emailPage);
         await expect(gracefulElement.first(), `event ID "${invalidId}" should show graceful state`).toBeVisible({ timeout: 10000 });
       });
     }
@@ -215,7 +216,7 @@ test.describe('Event Page', () => {
       await setAuthToken(page, token, adminEmail);
       await page.goto(`${BASE_URL}/event/${longNameEventId}`);
       
-      // Header should contain (a portion of) the event name
+      // Header should contain at least the beginning of the event name
       const header = page.locator('header');
       await expect(header).toContainText(longName.substring(0, 20), { timeout: 10000 });
     } finally {

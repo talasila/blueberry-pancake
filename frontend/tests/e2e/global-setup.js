@@ -8,14 +8,12 @@
  */
 
 import { existsSync, unlinkSync } from 'fs';
-import { join } from 'path';
-import { BASE_URL, API_URL } from './e2e-config.js';
+import { BASE_URL, API_URL, TRACKING_FILE } from './e2e-config.js';
 
 export default async function globalSetup() {
   console.log('\n[E2E Setup] Initializing test environment...');
   
-  const projectRoot = join(process.cwd(), '..');
-  const trackingFile = join(projectRoot, '.e2e-tracked-events.txt');
+  const trackingFile = TRACKING_FILE;
 
   // 1. Verify backend is reachable and reset counter
   try {

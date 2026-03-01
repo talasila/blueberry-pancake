@@ -176,12 +176,14 @@ test.describe('My Events', () => {
       // Wait for redirect to admin page
       await page.waitForURL(/\/event\/[0-9A-Z]{8}\/admin/, { timeout: 10000 });
 
-      // Intentionally silent: the welcome sheet may or may not appear depending on
-      // timing. We dismiss it if present so it doesn't block the menu button below.
+      // Dismiss the welcome sheet if it appears — it could overlay the menu button.
       const sheet = page.locator('[data-testid="welcome-bottom-sheet"]');
-      if (await sheet.isVisible({ timeout: 3000 }).catch(() => false)) {
+      const sheetVisible = await sheet.waitFor({ state: 'visible', timeout: 3000 })
+        .then(() => true)
+        .catch(() => false);
+      if (sheetVisible) {
         const closeBtn = sheet.getByRole('button', { name: /close|dismiss|got it/i });
-        if (await closeBtn.isVisible().catch(() => false)) {
+        if (await closeBtn.isVisible()) {
           await closeBtn.click();
         }
       }

@@ -34,7 +34,8 @@ async function registerItem(eventId, token, name, price = null, description = ''
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify({ name, price, description })
+    body: JSON.stringify({ name, price, description }),
+    signal: AbortSignal.timeout(10000)
   });
   const data = await response.json().catch(e => {
     throw new Error(`Failed to parse registerItem response for ${eventId}/${name}: ${e.message}`);
@@ -53,7 +54,8 @@ async function updateItemConfig(eventId, adminToken, config) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${adminToken}`
     },
-    body: JSON.stringify(config)
+    body: JSON.stringify(config),
+    signal: AbortSignal.timeout(10000)
   });
   return { ok: response.ok, status: response.status };
 }
@@ -68,7 +70,8 @@ async function updateUserProfile(eventId, token, name) {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     },
-    body: JSON.stringify({ name })
+    body: JSON.stringify({ name }),
+    signal: AbortSignal.timeout(10000)
   });
   return { ok: response.ok, status: response.status };
 }

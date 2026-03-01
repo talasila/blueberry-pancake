@@ -48,7 +48,7 @@ async function navigateToAdminWithConfig(page, eventId, token, email) {
   // combined with the 3s timeout fallback above it provides a reasonable gate.
   await page.waitForLoadState('networkidle');
   if (responseCount < 2) {
-    await allConfigSettled.catch(() => {});
+    await allConfigSettled;
   }
   page.off('response', handler);
   // React state-settling buffer: ensures the final API response is processed
@@ -92,7 +92,10 @@ function getExcludedBottleIdsInput(page) {
 async function clickSaveButton(page) {
   const saveButton = page.getByRole('button', { name: /save/i });
   await saveButton.click();
-  await expect(saveButton).not.toBeDisabled({ timeout: 5000 });
+  // Wait for the save request to complete (button re-enables after loading)
+  await expect(async () => {
+    await expect(saveButton).toBeEnabled();
+  }).toPass({ timeout: 5000 });
 }
 
 test.describe('Item Configuration', () => {

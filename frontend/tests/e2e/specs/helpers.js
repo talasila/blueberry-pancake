@@ -9,14 +9,11 @@
 
 import { expect } from '@playwright/test';
 import { appendFileSync } from 'fs';
-import { join } from 'path';
-import { BASE_URL, API_URL, TEST_OTP } from '../e2e-config.js';
+import { BASE_URL, API_URL, TEST_OTP, TRACKING_FILE } from '../e2e-config.js';
 
 // Re-exported so specs can import from helpers.js instead of e2e-config.js directly.
 // All spec files should use this single import path for consistency.
 export { BASE_URL, API_URL };
-
-const TRACKING_FILE = join(process.cwd(), '..', '.e2e-tracked-events.txt');
 
 /**
  * Track a UI-created event ID for cleanup.
@@ -93,6 +90,9 @@ export async function addAdminToEvent(eventId, email) {
   }
   
   const data = await response.json();
+  if (!data.token) {
+    throw new Error(`addAdminToEvent: API response missing token. Got: ${JSON.stringify(data)}`);
+  }
   return data.token;
 }
 
@@ -190,9 +190,9 @@ export async function submitEmail(page, email) {
   }
   
   const emailInput = page.locator('input#email');
-  // maxlength="6" is a broad selector — it matches any 6-char text input, not just PINs.
   const pinInput = page.locator('input#pin')
     .or(page.locator('input[type="text"][maxlength="6"]'))
+    .or(page.locator('[data-input-otp]'))
     .first();
 
   const visibleLocator = emailInput.or(pinInput);
@@ -293,6 +293,9 @@ export async function getRootAdminToken(email) {
   }
   
   const data = await response.json();
+  if (!data.token) {
+    throw new Error(`getRootAdminToken: API response missing token. Got: ${JSON.stringify(data)}`);
+  }
   return data.token;
 }
 

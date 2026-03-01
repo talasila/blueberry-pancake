@@ -48,8 +48,7 @@ test.describe('Rating Flow', () => {
     const itemButton = page.locator('button').filter({ hasText: /^1$/ }).first();
     await itemButton.click();
     
-    // Drawer should open - look for drawer content
-    const drawer = page.locator('[role="dialog"]').or(page.locator('.drawer')).or(page.locator('[data-state="open"]'));
+    const drawer = page.locator('[role="dialog"]');
     await expect(drawer.first()).toBeVisible({ timeout: 5000 });
   });
 

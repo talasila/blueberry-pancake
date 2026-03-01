@@ -66,8 +66,8 @@ async function navigateToSystemPage(page) {
   // Wait for auth check to complete
   const authResponse = await authCheck;
   
-  if (authResponse.status() === 403) {
-    throw new Error('Root admin authentication failed: 403 Forbidden');
+  if (!authResponse.ok()) {
+    throw new Error(`Root admin authentication failed: ${authResponse.status()} ${authResponse.statusText()}`);
   }
   
   // Auth succeeded - wait for events API response (will throw on timeout)
@@ -454,7 +454,9 @@ test.describe('System Administration Dashboard', () => {
       await navigateToSystemPage(page);
 
       const eventRows = page.locator('[data-testid="event-row"]');
-      await page.waitForLoadState('networkidle');
+      // Wait for either event rows or empty state to appear before counting
+      await page.locator('[data-testid="event-row"]').or(page.getByText(/no events found/i)).first()
+        .waitFor({ state: 'visible', timeout: 10000 });
       const rowCount = await eventRows.count();
 
       // Events list or empty state should always render
@@ -498,10 +500,10 @@ test.describe('System Administration Dashboard', () => {
       // Navigate and wait for both events and stats APIs
       await navigateToSystemPageWithStats(page);
       
-      // Should see state breakdown (scoped to main to avoid matching unrelated text)
+      // Should see state breakdown — match the pattern "State: Count"
       const main = page.locator('main');
-      await expect(main.getByText(/created/i).first()).toBeVisible();
-      await expect(main.getByText(/started/i).first()).toBeVisible();
+      await expect(main.getByText(/created\s*[:]\s*\d+/i).or(main.getByText(/created/i).first())).toBeVisible();
+      await expect(main.getByText(/started\s*[:]\s*\d+/i).or(main.getByText(/started/i).first())).toBeVisible();
     });
     
   });

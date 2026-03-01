@@ -37,8 +37,7 @@ test.describe('Event State Management', () => {
     const notStartedMessage = page.getByText(/event has not started yet/i);
     await expect(notStartedMessage).toBeVisible({ timeout: 5000 });
     
-    const itemGrid = page.locator('.grid.grid-cols-3');
-    const bottleItem = itemGrid.locator('button').filter({ hasText: /^1$/ }).first();
+    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     const drawerMessage = page.getByText('This event has not started yet. Rating is not available.');
@@ -59,8 +58,6 @@ test.describe('Event State Management', () => {
     await stateButton.scrollIntoViewIfNeeded();
     await stateButton.click();
     
-    // Click start button — use JS click to handle mobile viewport where dropdown animation
-    // may leave the button below the fold momentarily
     const startButton = page.getByRole('button', { name: /^start$/i });
     await startButton.waitFor({ state: 'visible', timeout: 5000 });
     await startButton.scrollIntoViewIfNeeded();
@@ -68,7 +65,6 @@ test.describe('Event State Management', () => {
     
     const stateIndicator = page.getByRole('button', { name: /state.*started/i });
     await expect(stateIndicator).toBeVisible({ timeout: 10000 });
-    await page.waitForLoadState('networkidle');
     
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
@@ -81,8 +77,7 @@ test.describe('Event State Management', () => {
     const rateMessage = page.getByText('Tap a number to rate');
     await expect(rateMessage).toBeVisible({ timeout: 5000 });
     
-    const itemGrid = page.locator('.grid.grid-cols-3');
-    const bottleItem = itemGrid.locator('button').filter({ hasText: /^1$/ }).first();
+    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     const ratingSelector = page.getByText(/select a rating/i);
@@ -139,7 +134,6 @@ test.describe('Event State Management', () => {
     
     const stateIndicator = page.getByRole('button', { name: /state.*paused/i });
     await expect(stateIndicator).toBeVisible({ timeout: 10000 });
-    await page.waitForLoadState('networkidle');
     
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
@@ -152,8 +146,7 @@ test.describe('Event State Management', () => {
     const pausedMessage = page.getByText('Event is paused');
     await expect(pausedMessage).toBeVisible({ timeout: 5000 });
     
-    const itemGrid = page.locator('.grid.grid-cols-3');
-    const bottleItem = itemGrid.locator('button').filter({ hasText: /^1$/ }).first();
+    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     const drawerMessage = page.getByText('This event is currently paused. Rating is not available.');
@@ -185,7 +178,6 @@ test.describe('Event State Management', () => {
     
     const stateIndicator = page.getByRole('button', { name: /state.*started/i });
     await expect(stateIndicator).toBeVisible({ timeout: 10000 });
-    await page.waitForLoadState('networkidle');
     
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
@@ -197,8 +189,7 @@ test.describe('Event State Management', () => {
     const rateMessage = page.getByText('Tap a number to rate');
     await expect(rateMessage).toBeVisible({ timeout: 5000 });
     
-    const itemGrid = page.locator('.grid.grid-cols-3');
-    const bottleItem = itemGrid.locator('button').filter({ hasText: /^1$/ }).first();
+    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     const ratingSelector = page.getByText(/select a rating/i);
@@ -231,7 +222,6 @@ test.describe('Event State Management', () => {
     
     const stateIndicator = page.getByRole('button', { name: /state.*(completed|finished)/i });
     await expect(stateIndicator).toBeVisible({ timeout: 10000 });
-    await page.waitForLoadState('networkidle');
     
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
@@ -243,8 +233,7 @@ test.describe('Event State Management', () => {
     const viewDetailsMessage = page.getByText('Tap a number to view details');
     await expect(viewDetailsMessage).toBeVisible({ timeout: 5000 });
     
-    const itemGrid = page.locator('.grid.grid-cols-3');
-    const bottleItem = itemGrid.locator('button').filter({ hasText: /^1$/ }).first();
+    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     const drawerHeader = page.getByRole('heading', { name: /1.*details/i });
@@ -279,7 +268,6 @@ test.describe('Event State Management', () => {
     
     const stateIndicator = page.getByRole('button', { name: /state.*(completed|finished)/i });
     await expect(stateIndicator).toBeVisible({ timeout: 10000 });
-    await page.waitForLoadState('networkidle');
     
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
@@ -291,8 +279,7 @@ test.describe('Event State Management', () => {
     const viewDetailsMessage = page.getByText('Tap a number to view details');
     await expect(viewDetailsMessage).toBeVisible({ timeout: 5000 });
     
-    const itemGrid = page.locator('.grid.grid-cols-3');
-    const bottleItem = itemGrid.locator('button').filter({ hasText: /^1$/ }).first();
+    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     const drawerHeader = page.getByRole('heading', { name: /1.*details/i });
@@ -332,7 +319,6 @@ test.describe('Event State Management', () => {
     
     const stateIndicator = page.getByRole('button', { name: /state.*started/i });
     await expect(stateIndicator).toBeVisible({ timeout: 10000 });
-    await page.waitForLoadState('networkidle');
     
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
@@ -344,8 +330,7 @@ test.describe('Event State Management', () => {
     const rateMessage = page.getByText('Tap a number to rate');
     await expect(rateMessage).toBeVisible({ timeout: 5000 });
     
-    const itemGrid = page.locator('.grid.grid-cols-3');
-    const bottleItem = itemGrid.locator('button').filter({ hasText: /^1$/ }).first();
+    const bottleItem = page.locator('button').filter({ hasText: /^1$/ }).first();
     await bottleItem.click();
     
     const ratingSelector = page.getByText(/select a rating/i);

@@ -137,6 +137,8 @@ test.describe('Dashboard Page', () => {
     
     // Should be able to view dashboard (not redirected away)
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/dashboard`));
+    await expect(page.locator('main')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /dashboard/i })).toBeVisible({ timeout: 10000 });
   });
 
   // ===================================
@@ -337,10 +339,14 @@ test.describe('Dashboard Page', () => {
     const firstRow = page.locator('table tbody tr').first();
     await expect(firstRow).toBeVisible();
     
-    // The row should contain the rating value (4) or calculated average
-    // Weighted average for item with one rating of 4 should be close to 4
-    // Use .first() since both Avg and Wt.Avg columns may show 4.00
-    await expect(firstRow.getByText(/[0-9]\.[0-9]|^4$/).first()).toBeVisible();
+    // Verify the Wt. Avg column specifically by finding the last numeric cell
+    // Weighted average for item with one rating of 4 should be close to 4.00
+    const wtAvgHeader = page.getByText(/wt.*avg/i).first();
+    await expect(wtAvgHeader).toBeVisible();
+    // The Wt.Avg is the last data column — verify the row contains a decimal number
+    const cells = firstRow.locator('td');
+    const lastCell = cells.last();
+    await expect(lastCell).toContainText(/\d+\.\d+/, { timeout: 5000 });
   });
 
   // ===================================
@@ -500,10 +506,8 @@ test.describe('Dashboard Page', () => {
     };
     
     // Wait for sort to complete before capturing state
-    await page.waitForLoadState('networkidle');
     await expect(page.locator('table tbody tr')).not.toHaveCount(0, { timeout: 5000 });
     const afterFirstSort = await getFirstCellTexts();
-    expect(afterFirstSort.length).toBeGreaterThan(0);
 
     await userHeader.click();
 
@@ -590,7 +594,7 @@ test.describe('Dashboard Page', () => {
     
     // Verify a drawer/dialog opened with user-related content (not a bottle details drawer)
     await expect(async () => {
-      const dialogs = page.locator('[role="dialog"], [data-state="open"]');
+      const dialogs = page.locator('[role="dialog"]');
       const count = await dialogs.count();
       let found = false;
       for (let i = 0; i < count; i++) {
@@ -682,22 +686,21 @@ test.describe('Dashboard Page', () => {
     const refreshButton = page.getByRole('button', { name: /refresh/i });
     await expect(refreshButton).toBeVisible({ timeout: 5000 });
     
-    // Capture a stat value before refresh to verify DOM updates
     const statsBefore = await page.getByText(/total users/i).locator('..').textContent();
 
-    // Click refresh and verify a new API call is made
+    // Click refresh and verify a dashboard-specific API call is made
     const responsePromise = page.waitForResponse(
-      (resp) => resp.url().includes(`/api/events/${eventId}`)
+      (resp) => resp.url().includes(`/api/events/${eventId}`) && resp.request().method() === 'GET'
     );
     await refreshButton.click();
     const response = await responsePromise;
     expect(response.status()).toBe(200);
 
-    // Verify the dashboard content is still rendered after refresh (DOM updated)
+    // Verify the dashboard content is still rendered and unchanged after refresh
     await expect(page.getByText(/total users/i)).toBeVisible({ timeout: 5000 });
     const statsAfter = await page.getByText(/total users/i).locator('..').textContent();
     expect(statsAfter).toBeTruthy();
-    expect(statsAfter).toMatch(/\d/);
+    expect(statsAfter).toBe(statsBefore);
   });
 
   test('dashboard link visible to admin in dropdown menu', async ({ page, testEvent }) => {
