@@ -33,7 +33,7 @@ import { calculateUserRatingProgress } from '@/utils/ratingProgress';
 function EventPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { event: contextEvent, isAdmin } = useEventContext();
+  const { event: contextEvent, isAdmin, refetch } = useEventContext();
   const { pluralLower } = useItemTerminology(contextEvent);
   
   const hasAuth = apiClient.hasEventAccess(eventId);
@@ -71,6 +71,13 @@ function EventPage() {
     
     redirectCheckedForEventRef.current = eventId;
   }, [eventId, navigate]);
+
+  // Fetch latest event data on mount so in-app navigation always shows fresh state
+  useEffect(() => {
+    if (hasAuth) {
+      refetch();
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Handle invalid authentication - redirect if API returns 401
   useEffect(() => {

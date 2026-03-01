@@ -39,7 +39,7 @@ vi.mock('../../src/services/apiClient.js', () => {
 const renderWithProviders = (event = null, isAdmin = false) => {
   return render(
     <BrowserRouter>
-      <EventContextProvider event={event} eventId="A5ohYrHe" isAdmin={isAdmin}>
+      <EventContextProvider event={event} eventId="A5ohYrHe" isAdmin={isAdmin} refetch={vi.fn()}>
         <EventPage />
       </EventContextProvider>
     </BrowserRouter>
@@ -351,7 +351,7 @@ describe('EventPage Component', () => {
       
       rerender(
         <BrowserRouter>
-          <EventContextProvider event={updatedEvent} eventId="A5ohYrHe" isAdmin={false}>
+          <EventContextProvider event={updatedEvent} eventId="A5ohYrHe" isAdmin={false} refetch={vi.fn()}>
             <EventPage />
           </EventContextProvider>
         </BrowserRouter>

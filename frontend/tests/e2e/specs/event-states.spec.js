@@ -343,4 +343,42 @@ test.describe('Event State Management', () => {
     await expect(stateButton).toBeVisible({ timeout: 5000 });
     await expect(stateButton).toContainText(/started/i, { timeout: 5000 });
   });
+
+  test('rating is available immediately after navigating from admin page to event page', async ({ page, testEvent }) => {
+    const { eventId } = testEvent;
+    const adminEmail = 'admin@example.com';
+    const token = await addAdminToEvent(eventId, adminEmail);
+
+    await setAuthToken(page, token, adminEmail);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
+
+    // Start the event via admin UI
+    const stateButton = page.getByRole('button', { name: /state.*created/i });
+    await stateButton.scrollIntoViewIfNeeded();
+    await stateButton.click();
+
+    const startButton = page.getByRole('button', { name: /^start$/i });
+    await startButton.waitFor({ state: 'visible', timeout: 5000 });
+    await startButton.scrollIntoViewIfNeeded();
+    await startButton.click({ timeout: 5000 });
+
+    const stateIndicator = page.getByRole('button', { name: /state.*started/i });
+    await expect(stateIndicator).toBeVisible({ timeout: 10000 });
+
+    // Navigate to event/rating page via in-app menu (SPA navigation)
+    const menuButton = page.getByRole('button', { name: 'Open menu' });
+    await menuButton.click();
+
+    const backToEvent = page.getByRole('menuitem', { name: 'Back to Event' });
+    await expect(backToEvent).toBeVisible({ timeout: 5000 });
+    await backToEvent.click();
+
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
+
+    // Rating UI should be available immediately (not after a 30s poll)
+    await expect(page.getByText('Tap a number to rate')).toBeVisible({ timeout: 5000 });
+
+    await page.locator(BOTTLE_1).first().click();
+    await expect(page.getByText(/select a rating/i)).toBeVisible({ timeout: 5000 });
+  });
 });

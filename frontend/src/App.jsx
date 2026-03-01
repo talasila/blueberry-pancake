@@ -217,7 +217,7 @@ function EventContextProviderForRoute({ eventId, children }) {
   const [currentEvent, setCurrentEvent] = useState(null);
   
   const hasAuth = apiClient.hasEventAccess(eventId);
-  const { event: polledEvent } = useEventPolling(hasAuth ? eventId : null);
+  const { event: polledEvent, refetch } = useEventPolling(hasAuth ? eventId : null);
   
   // Fetch initial event data
   useEffect(() => {
@@ -252,7 +252,7 @@ function EventContextProviderForRoute({ eventId, children }) {
   const isAdmin = isUserAdmin(userEmail, currentEvent);
 
   return (
-    <EventContextProvider event={currentEvent} eventId={eventId} isAdmin={isAdmin}>
+    <EventContextProvider event={currentEvent} eventId={eventId} isAdmin={isAdmin} refetch={refetch}>
       {children}
     </EventContextProvider>
   );
