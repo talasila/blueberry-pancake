@@ -2443,7 +2443,6 @@ function EventAdminPage({ onOpenAdminGuide }) {
                   const config = getStateConfig(transition);
                   const Icon = config.icon;
                   const targetBlock = eventStateHelpContent[transition];
-                  const targetLabel = getStateConfig(transition).label;
 
                   return (
                     <div key={transition} className="space-y-1">
@@ -2466,7 +2465,6 @@ function EventAdminPage({ onOpenAdminGuide }) {
                         )}
                       </Button>
                       <div className="text-xs text-muted-foreground rounded-md bg-muted/50 p-2 space-y-0.5">
-                        <p className="font-medium text-foreground">{targetLabel}</p>
                         <p>Host can: {toList(targetBlock?.adminCan).join('; ')}</p>
                         {toList(targetBlock?.adminCannot).length > 0 && (
                           <p>Host cannot: {toList(targetBlock.adminCannot).join('; ')}</p>
