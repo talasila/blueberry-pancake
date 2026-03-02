@@ -24,25 +24,7 @@ import DeleteAllUsersDialog from '@/components/DeleteAllUsersDialog';
 import DeleteUserDialog from '@/components/DeleteUserDialog';
 import { toast } from 'sonner';
 import WelcomeBottomSheet from '@/components/WelcomeBottomSheet';
-
-/**
- * Get transition description (what the transition will do)
- * @param {string} fromState - Current state
- * @param {string} toState - Target state
- * @returns {string} Description of what the transition will do
- */
-function getTransitionDescription(fromState, toState) {
-  const descriptions = {
-    'created→started': 'Will start the event, enabling user feedback and ratings.',
-    'started→paused': 'Will pause the event, temporarily disabling user feedback.',
-    'started→completed': 'Will complete the event, ending feedback collection and enabling results.',
-    'paused→started': 'Will resume the event, re-enabling user feedback and ratings.',
-    'paused→completed': 'Will complete the event, ending feedback collection and enabling results.',
-    'completed→started': 'Will reopen the event, re-enabling user feedback and ratings.',
-    'completed→paused': 'Will reopen the event in paused state, allowing preparation before enabling feedback.'
-  };
-  return descriptions[`${fromState}→${toState}`] || `Will transition event to "${toState}" state.`;
-}
+import { eventStateHelpContent } from '@/data/eventStateHelpContent';
 
 /**
  * Get valid state transitions for a given current state
@@ -127,6 +109,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
   
   // Drawer state
   const [openDrawer, setOpenDrawer] = useState(null);
+  const [stateHelpExpanded, setStateHelpExpanded] = useState(false);
   const isHandlingPopStateRef = useRef(false); // Prevent infinite loops when handling popstate
   const [itemsTab, setItemsTab] = useState('configuration'); // 'configuration' or 'assignment'
   
@@ -2418,6 +2401,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
       <SideDrawer
         isOpen={openDrawer === 'state'}
         onClose={() => {
+          setStateHelpExpanded(false);
           // Check if current history state has a drawer that matches the open drawer
           // Only go back if we're on a drawer state we created
           if (history.state?.drawer === openDrawer) {
@@ -2442,11 +2426,8 @@ function EventAdminPage({ onOpenAdminGuide }) {
           {/* State Actions */}
           {(() => {
             const validTransitions = getValidTransitions(event.state);
-            const stateLabels = {
-              started: 'Start',
-              paused: 'Pause',
-              completed: 'Complete'
-            };
+            const stateLabels = { started: 'Start', paused: 'Pause', completed: 'Complete' };
+            const toList = (v) => (Array.isArray(v) ? v : v ? [v] : []);
 
             if (validTransitions.length === 0) {
               return (
@@ -2461,7 +2442,9 @@ function EventAdminPage({ onOpenAdminGuide }) {
                 {validTransitions.map(transition => {
                   const config = getStateConfig(transition);
                   const Icon = config.icon;
-                  
+                  const targetBlock = eventStateHelpContent[transition];
+                  const targetLabel = getStateConfig(transition).label;
+
                   return (
                     <div key={transition} className="space-y-1">
                       <Button
@@ -2482,15 +2465,61 @@ function EventAdminPage({ onOpenAdminGuide }) {
                           </>
                         )}
                       </Button>
-                      <p className="text-xs text-muted-foreground">
-                        {getTransitionDescription(event.state, transition)}
-                      </p>
+                      <div className="text-xs text-muted-foreground rounded-md bg-muted/50 p-2 space-y-0.5">
+                        <p className="font-medium text-foreground">{targetLabel}</p>
+                        <p>Host can: {toList(targetBlock?.adminCan).join('; ')}</p>
+                        {toList(targetBlock?.adminCannot).length > 0 && (
+                          <p>Host cannot: {toList(targetBlock.adminCannot).join('; ')}</p>
+                        )}
+                        <p>Guest can: {toList(targetBlock?.guestCan).join('; ')}</p>
+                        {toList(targetBlock?.guestCannot).length > 0 && (
+                          <p>Guest cannot: {toList(targetBlock.guestCannot).join('; ')}</p>
+                        )}
+                      </div>
                     </div>
                   );
                 })}
               </div>
             );
           })()}
+
+          {/* Inline help: what each state means */}
+          <div className="border-t pt-4 mt-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+              onClick={() => setStateHelpExpanded((v) => !v)}
+              aria-expanded={stateHelpExpanded}
+              aria-label="What each state means"
+              data-testid="event-state-help-trigger"
+            >
+              {stateHelpExpanded ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
+              What each state means
+            </Button>
+            {stateHelpExpanded && (
+              <div data-testid="event-state-help-content" className="mt-3 text-sm overflow-hidden min-w-0 text-muted-foreground space-y-3 pb-2">
+                {['created', 'started', 'paused', 'completed'].map((stateKey) => {
+                  const block = eventStateHelpContent[stateKey];
+                  const label = getStateConfig(stateKey).label;
+                  const toList = (v) => (Array.isArray(v) ? v : v ? [v] : []);
+                  return (
+                    <div key={stateKey} className="space-y-1">
+                      <p className="font-medium text-foreground">{label}</p>
+                      <p className="text-xs">Host can: {toList(block.adminCan).join('; ')}</p>
+                      {toList(block.adminCannot).length > 0 && (
+                        <p className="text-xs">Host cannot: {toList(block.adminCannot).join('; ')}</p>
+                      )}
+                      <p className="text-xs">Guest can: {toList(block.guestCan).join('; ')}</p>
+                      {toList(block.guestCannot).length > 0 && (
+                        <p className="text-xs">Guest cannot: {toList(block.guestCannot).join('; ')}</p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </SideDrawer>
 

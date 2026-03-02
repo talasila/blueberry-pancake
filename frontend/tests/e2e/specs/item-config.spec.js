@@ -322,10 +322,12 @@ test.describe('Item Configuration', () => {
       await expect(drawer.getByText(/error/i)).not.toBeVisible({ timeout: 5000 });
 
       const configResp = page.waitForResponse(
-        resp => resp.url().includes('/item-configuration'), { timeout: 10000 }
+        resp => resp.url().includes('/item-configuration') && resp.request().method() === 'GET',
+        { timeout: 10000 }
       );
       await page.reload();
       await configResp;
+      await page.getByRole('button', { name: /bottles/i }).waitFor({ state: 'visible', timeout: 10000 });
       await openBottlesDrawer(page);
       const savedValue = await getExcludedBottleIdsInput(page).inputValue();
       const normalizedIds = savedValue.split(',').map(s => s.trim()).filter(s => s.length > 0).sort((a, b) => +a - +b);
