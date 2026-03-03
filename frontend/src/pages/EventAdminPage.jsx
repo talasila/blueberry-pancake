@@ -25,6 +25,7 @@ import DeleteUserDialog from '@/components/DeleteUserDialog';
 import { toast } from 'sonner';
 import WelcomeBottomSheet from '@/components/WelcomeBottomSheet';
 import { eventStateHelpContent } from '@/data/eventStateHelpContent';
+import { getGapType } from '@/utils/eventGuardrail';
 
 /**
  * Get valid state transitions for a given current state
@@ -409,6 +410,14 @@ function EventAdminPage({ onOpenAdminGuide }) {
       
       setNumberOfItems(result.numberOfItems);
       setExcludedItemIdsInput((result.excludedItemIds || []).join(', '));
+      setEvent(prev => prev ? {
+        ...prev,
+        itemConfiguration: {
+          ...prev.itemConfiguration,
+          numberOfItems: result.numberOfItems,
+          excludedItemIds: result.excludedItemIds || []
+        }
+      } : prev);
       
       if (result.warning) {
         setConfigWarning(result.warning);
@@ -1753,7 +1762,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
                 // Add to history for browser back navigation
                 history.pushState({ drawer: 'items' }, '', window.location.pathname);
               }}
-              className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
+              className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
             >
               <div className="flex flex-col items-start text-left">
                 <div className="flex items-center gap-2">
@@ -1776,7 +1785,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
                 // Add to history for browser back navigation
                 history.pushState({ drawer: 'ratings-configuration' }, '', window.location.pathname);
               }}
-              className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
+              className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
             >
               <div className="flex flex-col items-start text-left">
                 <div className="flex items-center gap-2">
@@ -1804,7 +1813,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
                 setOpenDrawer('state');
                 history.pushState({ drawer: 'state' }, '', window.location.pathname);
               }}
-              className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
+              className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
             >
               <div className="flex flex-col items-start text-left">
                 <div className="flex items-center gap-2">
@@ -1822,7 +1831,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
                 // Add to history for browser back navigation
                 history.pushState({ drawer: 'pin' }, '', window.location.pathname);
               }}
-              className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
+              className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
             >
               <div className="flex flex-col items-start text-left">
                 <div className="flex items-center gap-2">
@@ -1843,7 +1852,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
                 setOpenDrawer('administrators');
                 history.pushState({ drawer: 'administrators' }, '', window.location.pathname);
               }}
-              className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
+              className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
             >
               <div className="flex flex-col items-start text-left">
                 <span className="font-semibold">Administrators</span>
@@ -1859,7 +1868,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
                   // Add to history for browser back navigation
                   history.pushState({ drawer: 'export-data' }, '', window.location.pathname);
                 }}
-                className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
+                className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
               >
                 <div className="flex flex-col items-start text-left">
                   <div className="flex items-center gap-2">
@@ -1879,7 +1888,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
                   // Add to history for browser back navigation
                   history.pushState({ drawer: 'danger-zone' }, '', window.location.pathname);
                 }}
-                className="w-full flex items-center justify-between py-4 px-4 border-b hover:bg-muted/50 transition-colors text-left"
+                className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
               >
                 <div className="flex flex-col items-start text-left">
                   <div className="flex items-center gap-2">
@@ -1927,7 +1936,6 @@ function EventAdminPage({ onOpenAdminGuide }) {
               <Input
                 type="number"
                 min="1"
-                max="100"
                 value={numberOfItems}
                 onChange={(e) => {
                   setNumberOfItems(e.target.value);
@@ -2422,6 +2430,42 @@ function EventAdminPage({ onOpenAdminGuide }) {
           {transitionSuccess && (
             <Message type="success">{transitionSuccess}</Message>
           )}
+
+          {/* Start guard-rail: info/warning when registered count ≠ rating slots (created or completed only) */}
+          {event && (event.state === 'created' || event.state === 'completed') && (() => {
+            const configSection = `${itemTerminology.plural} configuration`;
+            if (itemsError) {
+              return (
+                <Message type="info" data-testid="event-guardrail-fallback">
+                  Counts unavailable.
+                </Message>
+              );
+            }
+            const numberOfItems = event.itemConfiguration?.numberOfItems ?? 0;
+            const excludedCount = event.itemConfiguration?.excludedItemIds?.length ?? 0;
+            const availableSlots = Math.max(0, numberOfItems - excludedCount);
+            const registeredCount = Array.isArray(items) ? items.length : 0;
+            const gapType = getGapType(registeredCount, availableSlots);
+            if (gapType === 'zero-registrations' || gapType === 'more-slots') {
+              const regLabel = registeredCount === 1 ? itemTerminology.singularLower : itemTerminology.pluralLower;
+              const regVerb = registeredCount === 1 ? 'is' : 'are';
+              return (
+                <Message type="info" data-testid="event-guardrail-info">
+                  {registeredCount} {regLabel} {regVerb} registered while {availableSlots} {availableSlots === 1 ? itemTerminology.singularLower : itemTerminology.pluralLower} {availableSlots === 1 ? 'is' : 'are'} available for rating by guests. You can start the event; {itemTerminology.pluralLower} can be registered later. Only registered {itemTerminology.pluralLower} can be mapped to {itemTerminology.singularLower} IDs when the event is paused. This helps you to make your results announcement more personal (e.g Jim is the winner vs bottle 10 is the winner) and also guests to easily identify a bottle after results are announced.
+                </Message>                
+              );
+            }
+            if (gapType === 'fewer-slots') {
+              const regLabel = registeredCount === 1 ? itemTerminology.singularLower : itemTerminology.pluralLower;
+              const regVerb = registeredCount === 1 ? 'is' : 'are';
+              return (
+                <Message type="warning" data-testid="event-guardrail-warning">
+                  {registeredCount} {regLabel} {regVerb} registered while only {availableSlots} {availableSlots === 1 ? itemTerminology.singularLower : itemTerminology.pluralLower} {availableSlots === 1 ? 'is' : 'are'} available for rating by guests. Adjust the {itemTerminology.singularLower} count in the {configSection} section to match the number of registered {itemTerminology.pluralLower}.
+                </Message>
+              );
+            }
+            return null;
+          })()}
 
           {/* State Actions */}
           {(() => {

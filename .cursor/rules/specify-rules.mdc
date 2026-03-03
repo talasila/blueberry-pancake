@@ -104,6 +104,8 @@ JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 - N/A (reads existing in-memory event state; no new persistence) (020-post-creation-welcome-modal)
 - JavaScript (ESM), Node.js >=22.12.0 + React 19, Vite, Radix UI (accordion), Tailwind CSS, react-router-dom (frontend); Node, serverless-express, AWS SDK DynamoDB (backend) (021-event-state-help-guide)
 - N/A for this feature (static content; reads existing event state from context) (021-event-state-help-guide)
+- JavaScript (ESM), Node.js >=22.12.0 + React 19, Vite, Radix UI, Tailwind CSS, react-router-dom (frontend) (022-start-event-guardrail)
+- N/A (reads existing event, items, itemConfiguration from EventAdminPage state) (022-start-event-guardrail)
 
 ## Recent Changes
 - 001-root-admin: Added Node.js 22+, JavaScript ES2020+ + Express 5, React 19, Vite, Tailwind CSS 4, Radix UI

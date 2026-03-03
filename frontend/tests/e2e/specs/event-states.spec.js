@@ -344,6 +344,53 @@ test.describe('Event State Management', () => {
     await expect(stateButton).toContainText(/started/i, { timeout: 5000 });
   });
 
+  // ===================================
+  // Start guard-rail (bottle count mismatch)
+  // ===================================
+
+  test('State drawer shows guardrail info when fewer bottles registered than slots and Start works in one click', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
+    const adminEmail = 'admin@example.com';
+    const token = await addAdminToEvent(eventId, adminEmail);
+
+    await setAuthToken(page, token, adminEmail);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
+
+    const stateButton = page.getByRole('button', { name: /state.*created/i });
+    await stateButton.scrollIntoViewIfNeeded();
+    await stateButton.click();
+
+    const guardrailInfo = page.getByTestId('event-guardrail-info');
+    await expect(guardrailInfo).toBeVisible({ timeout: 5000 });
+    await expect(guardrailInfo).toContainText(/registered.*available for rating/i);
+    await expect(guardrailInfo).toContainText(/you can start the event/i);
+
+    const startButton = page.getByRole('button', { name: /^start$/i });
+    await startButton.waitFor({ state: 'visible', timeout: 5000 });
+    await startButton.click({ timeout: 5000 });
+
+    const stateIndicator = page.getByRole('button', { name: /state.*started/i });
+    await expect(stateIndicator).toBeVisible({ timeout: 10000 });
+  });
+
+  test('State drawer Start button remains clickable and starts event in one click with guardrail visible', async ({ page, testEvent }) => {
+    const { eventId } = testEvent;
+    const adminEmail = 'admin@example.com';
+    const token = await addAdminToEvent(eventId, adminEmail);
+
+    await setAuthToken(page, token, adminEmail);
+    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
+
+    const stateButton = page.getByRole('button', { name: /state.*created/i });
+    await stateButton.scrollIntoViewIfNeeded();
+    await stateButton.click();
+
+    const startButton = page.getByRole('button', { name: /^start$/i });
+    await expect(startButton).toBeEnabled({ timeout: 5000 });
+    await startButton.click({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: /state.*started/i })).toBeVisible({ timeout: 10000 });
+  });
+
   test('rating is available immediately after navigating from admin page to event page', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';

@@ -316,9 +316,10 @@ test.describe('Similar Users Discovery', () => {
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
     await similarButton.click();
     
-    // Wait for drawer to open
+    // Wait for drawer to fully open and content to load (also ensures CSS transition completes)
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer).toBeVisible({ timeout: 5000 });
+    await expect(drawer.getByText(/no similar users found/i)).toBeVisible({ timeout: 10000 });
     
     // Click close button
     const closeButton = drawer.getByRole('button', { name: /close/i });
@@ -327,7 +328,7 @@ test.describe('Similar Users Discovery', () => {
     // Implementation-coupled: the drawer uses CSS transform to hide, so Playwright's
     // not.toBeVisible() doesn't work reliably. Checking aria-hidden is the
     // most reliable signal that the drawer has closed.
-    await expect(drawer).toHaveAttribute('aria-hidden', 'true', { timeout: 5000 });
+    await expect(drawer).toHaveAttribute('aria-hidden', 'true', { timeout: 10000 });
   });
 
   test('clicking on a similar user opens detail drawer with appropriate sections', async ({ page, testEvent }) => {

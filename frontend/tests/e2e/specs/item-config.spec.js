@@ -329,6 +329,9 @@ test.describe('Item Configuration', () => {
       await configResp;
       await page.getByRole('button', { name: /bottles/i }).waitFor({ state: 'visible', timeout: 10000 });
       await openBottlesDrawer(page);
+      if (expected.length > 0) {
+        await expect(getExcludedBottleIdsInput(page)).not.toHaveValue('', { timeout: 10000 });
+      }
       const savedValue = await getExcludedBottleIdsInput(page).inputValue();
       const normalizedIds = savedValue.split(',').map(s => s.trim()).filter(s => s.length > 0).sort((a, b) => +a - +b);
       expect(normalizedIds).toEqual(expected);
