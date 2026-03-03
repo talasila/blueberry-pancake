@@ -151,7 +151,9 @@ function EventAdminPage({ onOpenAdminGuide }) {
   const [isDeletingUser, setIsDeletingUser] = useState(false);
   const [deleteUserError, setDeleteUserError] = useState('');
   const [deleteUserSuccess, setDeleteUserSuccess] = useState('');
-  const [selectedUserEmail, setSelectedUserEmail] = useState('');
+  // Guests drawer state
+  const [guestSearchQuery, setGuestSearchQuery] = useState('');
+  const [isRefreshingGuests, setIsRefreshingGuests] = useState(false);
   
   // Export data state
   const [isExportingRatings, setIsExportingRatings] = useState(false);
@@ -777,6 +779,8 @@ function EventAdminPage({ onOpenAdminGuide }) {
       // For now, we'll show items count and leave ratings as "N/A" or fetch if needed
       // Actually, let's fetch ratings to show accurate count
       
+      const userItemNames = userItems.map(item => item.name).filter(Boolean);
+
       return {
         email,
         normalizedEmail,
@@ -784,7 +788,8 @@ function EventAdminPage({ onOpenAdminGuide }) {
         registeredAt: userData?.registeredAt || null,
         isAdministrator: isAdmin,
         isOwner,
-        itemsCount: userItems.length
+        itemsCount: userItems.length,
+        itemNames: userItemNames,
       };
     }).sort((a, b) => {
       // Sort: owners first, then admins, then regular users
@@ -961,6 +966,39 @@ function EventAdminPage({ onOpenAdminGuide }) {
     setDeleteUserError('');
     setDeleteUserSuccess('');
   };
+
+  const refreshGuestsData = async () => {
+    setIsRefreshingGuests(true);
+    try {
+      const refreshedEvent = await apiClient.getEvent(eventId);
+      setEvent(refreshedEvent);
+      const allItems = await itemService.getItems(eventId);
+      setItems(allItems || []);
+      await fetchAdministrators();
+    } catch (error) {
+      console.error('Failed to refresh guests data:', error);
+    } finally {
+      setIsRefreshingGuests(false);
+    }
+  };
+
+  useEffect(() => {
+    if (openDrawer === 'guests' && eventId) {
+      refreshGuestsData();
+    }
+  }, [openDrawer === 'guests']);
+
+  const filteredGuests = useMemo(() => {
+    const allGuests = getAllUsersWithStats();
+    if (!guestSearchQuery.trim()) return allGuests;
+    const query = guestSearchQuery.trim().toLowerCase();
+    return allGuests.filter(guest => {
+      if (guest.name?.toLowerCase().includes(query)) return true;
+      if (guest.email.toLowerCase().includes(query)) return true;
+      if (guest.itemNames.some(name => name.toLowerCase().includes(query))) return true;
+      return false;
+    });
+  }, [event?.users, items, administrators, guestSearchQuery]);
 
   // Handle export ratings data
   const handleExportRatings = async () => {
@@ -1856,6 +1894,23 @@ function EventAdminPage({ onOpenAdminGuide }) {
             >
               <div className="flex flex-col items-start text-left">
                 <span className="font-semibold">Administrators</span>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
+
+            {/* Guests Card */}
+            <button
+              onClick={() => {
+                setOpenDrawer('guests');
+                history.pushState({ drawer: 'guests' }, '', window.location.pathname);
+              }}
+              className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
+            >
+              <div className="flex flex-col items-start text-left">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">Guests</span>
+                  <Badge variant="outline">{getNonAdminUserCount()} registered</Badge>
+                </div>
               </div>
               <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
             </button>
@@ -2785,6 +2840,132 @@ function EventAdminPage({ onOpenAdminGuide }) {
         </div>
       </SideDrawer>
 
+      {/* Guests Drawer */}
+      <SideDrawer
+        isOpen={openDrawer === 'guests'}
+        onClose={() => {
+          if (history.state?.drawer === openDrawer) {
+            history.back();
+          } else {
+            setOpenDrawer(null);
+          }
+        }}
+        title="Guests"
+        width="w-full max-w-2xl"
+      >
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder={`Search by name, email, or ${itemTerminology.singularLower}...`}
+                value={guestSearchQuery}
+                onChange={(e) => setGuestSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={refreshGuestsData}
+              disabled={isRefreshingGuests}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshingGuests ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
+
+          {deleteUserError && (
+            <Message type="error">{deleteUserError}</Message>
+          )}
+
+          {deleteUserSuccess && (
+            <Message type="success">{deleteUserSuccess}</Message>
+          )}
+
+          {(() => {
+            const allGuests = getAllUsersWithStats();
+            const displayGuests = filteredGuests;
+
+            if (allGuests.length === 0) {
+              return (
+                <p className="text-sm text-muted-foreground text-center py-8">
+                  No guests registered yet
+                </p>
+              );
+            }
+
+            return (
+              <>
+                <p className="text-sm text-muted-foreground">
+                  {guestSearchQuery.trim()
+                    ? `Showing ${displayGuests.length} of ${allGuests.length} guests`
+                    : `${allGuests.length} guests`}
+                </p>
+
+                {displayGuests.length === 0 && guestSearchQuery.trim() ? (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    No guests match your search
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {displayGuests.map((guest) => (
+                      <div
+                        key={guest.email}
+                        className="flex items-start justify-between gap-3 p-3 border rounded-lg"
+                      >
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2">
+                            {guest.name ? (
+                              <span className="font-semibold truncate">{guest.name}</span>
+                            ) : (
+                              <span className="font-semibold truncate">{guest.email}</span>
+                            )}
+                            {guest.isOwner && (
+                              <Badge variant="outline">Owner</Badge>
+                            )}
+                            {guest.isAdministrator && !guest.isOwner && (
+                              <Badge variant="outline">Admin</Badge>
+                            )}
+                          </div>
+                          {guest.name && (
+                            <p className="text-sm text-muted-foreground">{guest.email}</p>
+                          )}
+                          <p className="text-sm text-muted-foreground">
+                            Registered: {guest.registeredAt
+                              ? new Date(guest.registeredAt).toLocaleDateString()
+                              : 'Unknown'}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {guest.itemsCount} {guest.itemsCount === 1
+                              ? itemTerminology.singularLower
+                              : itemTerminology.pluralLower}
+                            {guest.itemNames.length > 0 && (
+                              <>{': '}{guest.itemNames.join(', ')}</>
+                            )}
+                          </p>
+                        </div>
+                        {!guest.isOwner && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => handleOpenDeleteUserDialog(guest.email, guest.name, guest.isAdministrator)}
+                            disabled={isRefreshingGuests}
+                            className="shrink-0"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      </SideDrawer>
+
       {/* Export Data Drawer */}
       {isCurrentUserAdministrator() && (
         <SideDrawer
@@ -2994,81 +3175,6 @@ function EventAdminPage({ onOpenAdminGuide }) {
 
             {deleteUsersSuccess && (
               <Message type="success">{deleteUsersSuccess}</Message>
-            )}
-
-            {deleteUserError && (
-              <Message type="error">{deleteUserError}</Message>
-            )}
-
-            {deleteUserSuccess && (
-              <Message type="success">{deleteUserSuccess}</Message>
-            )}
-
-            {/* Users Management Section */}
-            {isCurrentUserAdministrator() && (
-              <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
-                <div className="space-y-3">
-                  <div>
-                    <h4 className="font-semibold text-destructive mb-1">Users Management</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Delete individual users and all their associated data. Administrators can be deleted except the owner or last administrator.
-                    </p>
-                  </div>
-                  
-                  {getAllUsersWithStats().length === 0 ? (
-                    <p className="text-sm text-muted-foreground text-center py-2">
-                      No users found.
-                    </p>
-                  ) : (
-                    <div className="space-y-2">
-                      <select
-                        data-testid="user-select"
-                        className="w-full h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                        value={selectedUserEmail}
-                        onChange={(e) => setSelectedUserEmail(e.target.value)}
-                        disabled={isDeletingUser}
-                      >
-                        <option value="">Select a user to delete...</option>
-                        {getAllUsersWithStats().map((user) => {
-                          const canDelete = !user.isOwner && 
-                            !(user.isAdministrator && Object.keys(administrators || {}).length <= 1);
-                          
-                          if (!canDelete) return null;
-                          
-                          const displayText = user.name 
-                            ? `${user.name} (${user.email})`
-                            : user.email;
-                          
-                          return (
-                            <option key={user.email} value={user.email}>
-                              {displayText}
-                            </option>
-                          );
-                        })}
-                      </select>
-                      <Button
-                        data-testid="delete-user-button"
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => {
-                          if (selectedUserEmail) {
-                            const user = getAllUsersWithStats().find(u => u.email === selectedUserEmail);
-                            if (user) {
-                              handleOpenDeleteUserDialog(user.email, user.name, user.isAdministrator);
-                              setSelectedUserEmail('');
-                            }
-                          }
-                        }}
-                        disabled={!selectedUserEmail || isDeletingUser}
-                        className="w-full sm:w-auto"
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete User
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
             )}
 
             {/* Delete All Users Section */}

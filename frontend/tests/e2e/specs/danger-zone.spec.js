@@ -136,10 +136,22 @@ async function confirmDeletion(page, confirmationText) {
 }
 
 // =============================================
-// DELETE INDIVIDUAL USER TESTS
+// DELETE INDIVIDUAL USER TESTS (via Guests drawer)
 // =============================================
 
-test.describe('Danger Zone - Delete Individual User', () => {
+/**
+ * Helper: Open Guests drawer
+ */
+async function openGuestsDrawer(page) {
+  const guestsButton = page.getByRole('button', { name: /guests/i });
+  await guestsButton.waitFor({ state: 'visible', timeout: 10000 });
+  await guestsButton.click();
+  const drawer = page.getByRole('dialog', { name: /guests/i });
+  await drawer.waitFor({ state: 'visible', timeout: 5000 });
+  return drawer;
+}
+
+test.describe('Delete Individual User (via Guests drawer)', () => {
 
   test('admin can delete a regular user', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
@@ -155,26 +167,21 @@ test.describe('Danger Zone - Delete Individual User', () => {
     // Verify user exists and has rating
     const initialUserCount = await getUsersCount(eventId, token);
     const initialRatingsCount = await getRatingsCount(eventId, token);
-    expect(initialUserCount).toBeGreaterThanOrEqual(2); // admin + user
+    expect(initialUserCount).toBeGreaterThanOrEqual(2);
     expect(initialRatingsCount).toBe(1);
     
-    // Navigate to admin page
+    // Navigate to admin page and open Guests drawer
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    // Open Danger Zone drawer
-    await openDangerZoneDrawer(page);
+    const drawer = await openGuestsDrawer(page);
     
-    // Select the user to delete using data-testid
-    const userSelect = page.getByTestId('user-select');
-    await userSelect.selectOption(userEmail);
-    
-    // Click Delete User button using data-testid
-    await page.getByTestId('delete-user-button').click();
+    // Click delete on the user row
+    const userRow = drawer.locator('.border.rounded-lg', { hasText: userEmail });
+    await userRow.getByRole('button').click();
     
     // Confirm deletion
     await confirmDeletion(page, 'DELETE USER');
     
-    // Wait for UI to update after deletion
     // Verify user's ratings are also deleted (poll for eventual consistency)
     const finalRatingsCount = await waitForRatingsCount(eventId, token, 0);
     expect(finalRatingsCount).toBe(0);
@@ -182,7 +189,7 @@ test.describe('Danger Zone - Delete Individual User', () => {
     // Verify user count decreased (poll for eventual consistency)
     // Event has 2 admins: test@example.com (owner from creation) + admin@example.com
     const finalUserCount = await waitForUsersCount(eventId, token, 2);
-    expect(finalUserCount).toBe(2); // Both admins remain
+    expect(finalUserCount).toBe(2);
   });
 
   test('admin can delete non-owner admin when multiple admins exist', async ({ page, testEvent }) => {
@@ -193,18 +200,14 @@ test.describe('Danger Zone - Delete Individual User', () => {
     
     await addAdminAsUser(eventId, adminEmail);
     
-    // Navigate as owner
+    // Navigate as owner and open Guests drawer
     await setAuthToken(page, ownerToken, ownerEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    await openDangerZoneDrawer(page);
+    const drawer = await openGuestsDrawer(page);
     
-    // Select the non-owner admin to delete
-    const userSelect = page.getByTestId('user-select');
-    await expect(userSelect.locator('option', { hasText: adminEmail })).toHaveCount(1);
-    await userSelect.selectOption(adminEmail);
-    
-    // Click Delete User button
-    await page.getByTestId('delete-user-button').click();
+    // Click delete on the admin row
+    const adminRow = drawer.locator('.border.rounded-lg', { hasText: adminEmail });
+    await adminRow.getByRole('button').click();
     
     // Confirm deletion
     await confirmDeletion(page, 'DELETE USER');

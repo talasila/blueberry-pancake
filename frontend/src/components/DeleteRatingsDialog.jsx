@@ -38,7 +38,7 @@ function DeleteRatingsDialog({ isOpen, onClose, onConfirm, eventName, isDeleting
   const isConfirmEnabled = confirmationPhrase === CONFIRMATION_TEXT && !isDeleting;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-[110] flex items-center justify-center">
       {/* Backdrop */}
       <div 
         className="fixed inset-0 bg-black/50 backdrop-blur-sm"
@@ -48,7 +48,7 @@ function DeleteRatingsDialog({ isOpen, onClose, onConfirm, eventName, isDeleting
       
       {/* Dialog */}
       <div 
-        className="relative z-50 w-full max-w-md mx-4 bg-background border border-destructive/20 rounded-lg shadow-lg"
+        className="relative z-[110] w-full max-w-md mx-4 bg-background border border-destructive/20 rounded-lg shadow-lg"
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-ratings-dialog-title"
