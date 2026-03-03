@@ -148,7 +148,10 @@ test.describe('Production Smoke Test', () => {
         expect(eventId).toMatch(/^[0-9A-HJ-NP-TV-Z]{8}$/);
 
         await page.waitForURL(new RegExp(`/event/${eventId}/admin`), { timeout: 10_000 });
-        await expect(page.getByText(/event created/i)).toBeVisible({ timeout: 5000 });
+
+        // Post-creation welcome sheet replaced the old "event created" banner
+        await expect(page.getByText(/your event is ready/i)).toBeVisible({ timeout: 10_000 });
+        await page.getByTestId('welcome-got-it').click();
 
         console.log(`\n  🎉 Event created: ${eventId} (PIN: ${eventPIN})\n`);
       });
