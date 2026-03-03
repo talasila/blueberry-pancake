@@ -64,11 +64,12 @@ class RatingService {
    * @param {number} rating - Rating value (1 to maxRating)
    * @param {string} note - Optional note (max 500 characters)
    * @param {string} email - User email
+   * @param {object} [preloadedEvent] - Pre-loaded event from middleware (avoids redundant DB read)
    * @returns {Promise<object>} Saved rating object
    */
-  async submitRating(eventId, itemId, rating, note, email) {
-    // Validate event state (must be "started")
-    const event = await eventService.getEvent(eventId);
+  async submitRating(eventId, itemId, rating, note, email, preloadedEvent) {
+    // Use pre-loaded event from middleware when available (FR-008)
+    const event = preloadedEvent || await eventService.getEvent(eventId);
     if (event.state !== 'started') {
       throw new Error(`Event is not in started state. Rating is not available. Current state: ${event.state}`);
     }
@@ -142,11 +143,12 @@ class RatingService {
    * @param {string} eventId - Event identifier
    * @param {number} itemId - Item identifier
    * @param {string} email - User email
+   * @param {object} [preloadedEvent] - Pre-loaded event from middleware (avoids redundant DB read)
    * @returns {Promise<boolean>} True if rating was deleted, false if not found
    */
-  async deleteRating(eventId, itemId, email) {
-    // Validate event state (must be "started")
-    const event = await eventService.getEvent(eventId);
+  async deleteRating(eventId, itemId, email, preloadedEvent) {
+    // Use pre-loaded event from middleware when available (FR-008)
+    const event = preloadedEvent || await eventService.getEvent(eventId);
     if (event.state !== 'started') {
       throw new Error(`Event is not in started state. Rating deletion is not available. Current state: ${event.state}`);
     }

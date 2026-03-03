@@ -2,6 +2,7 @@ import { Router } from 'express';
 import ratingService from '../services/RatingService.js';
 import { toCSV } from '../utils/csvParser.js';
 import requireAuth from '../middleware/requireAuth.js';
+import requireEventMembership from '../middleware/requireEventMembership.js';
 import { isValidEmail } from '../utils/emailUtils.js';
 import { validateEventId, validateNumericItemId, validateAuthentication } from '../utils/validators.js';
 import { handleApiError, badRequestError, unauthorizedError } from '../utils/apiErrorHandler.js';
@@ -39,7 +40,7 @@ router.get('/ratings', requireAuth, async (req, res) => {
  * Submit a rating for an item
  * Requires JWT authentication
  */
-router.post('/ratings', requireAuth, async (req, res) => {
+router.post('/ratings', requireAuth, requireEventMembership, async (req, res) => {
   try {
     const { eventId } = req.params;
     
@@ -72,8 +73,8 @@ router.post('/ratings', requireAuth, async (req, res) => {
       return badRequestError(res, 'Rating is required');
     }
 
-    // Submit rating
-    const savedRating = await ratingService.submitRating(eventId, itemId, rating, note || '', userEmail);
+    // Submit rating — pass req.event from middleware to avoid redundant getEvent()
+    const savedRating = await ratingService.submitRating(eventId, itemId, rating, note || '', userEmail, req.event);
 
     res.status(201).json(savedRating);
   } catch (error) {
@@ -134,7 +135,7 @@ router.get('/ratings/:itemId', requireAuth, async (req, res) => {
  * Delete user's rating for a specific item
  * Requires JWT authentication
  */
-router.delete('/ratings/:itemId', requireAuth, async (req, res) => {
+router.delete('/ratings/:itemId', requireAuth, requireEventMembership, async (req, res) => {
   try {
     const { eventId, itemId } = req.params;
     
@@ -162,8 +163,8 @@ router.delete('/ratings/:itemId', requireAuth, async (req, res) => {
       return badRequestError(res, 'Invalid item ID');
     }
 
-    // Delete rating
-    const deleted = await ratingService.deleteRating(eventId, itemIdValidation.value, userEmail);
+    // Delete rating — pass req.event from middleware to avoid redundant getEvent()
+    const deleted = await ratingService.deleteRating(eventId, itemIdValidation.value, userEmail, req.event);
 
     if (!deleted) {
       return res.status(404).json({

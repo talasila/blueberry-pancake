@@ -180,10 +180,11 @@ class ItemService {
    * @param {string} eventId - Event identifier
    * @param {object} itemData - Item data (name, price, description)
    * @param {string} ownerEmail - Email of user registering the item
+   * @param {object} [preloadedEvent] - Pre-loaded event from middleware (avoids redundant DB read)
    * @returns {Promise<object>} Registered item with generated ID and timestamp
    * @throws {Error} If validation fails or event state doesn't allow registration
    */
-  async registerItem(eventId, itemData, ownerEmail) {
+  async registerItem(eventId, itemData, ownerEmail, preloadedEvent) {
     // Validate event ID format
     const eventIdValidation = validateEventId(eventId);
     if (!eventIdValidation.valid) {
@@ -203,8 +204,8 @@ class ItemService {
       throw new Error(validation.error);
     }
 
-    // Get event and validate state
-    const event = await eventService.getEvent(eventId);
+    // Use pre-loaded event from middleware when available (FR-008)
+    const event = preloadedEvent || await eventService.getEvent(eventId);
     this.validateRegistrationState(event.state);
 
     // Initialize items array if needed
@@ -441,10 +442,11 @@ class ItemService {
    * @param {string} itemId - Item unique identifier (nanoid)
    * @param {object} updates - Item data updates (name, price, description)
    * @param {string} ownerEmail - Email of user updating the item
+   * @param {object} [preloadedEvent] - Pre-loaded event from middleware (avoids redundant DB read)
    * @returns {Promise<object>} Updated item
    * @throws {Error} If validation fails, item not found, or user is not owner
    */
-  async updateItem(eventId, itemId, updates, ownerEmail) {
+  async updateItem(eventId, itemId, updates, ownerEmail, preloadedEvent) {
     // Validate event ID format
     const eventIdValidation = validateEventId(eventId);
     if (!eventIdValidation.valid) {
@@ -458,8 +460,8 @@ class ItemService {
 
     const normalizedEmail = ownerEmail.trim().toLowerCase();
 
-    // Get event and validate state
-    const event = await eventService.getEvent(eventId);
+    // Use pre-loaded event from middleware when available (FR-008)
+    const event = preloadedEvent || await eventService.getEvent(eventId);
     this.validateRegistrationState(event.state);
 
     // Initialize items array if needed
@@ -525,10 +527,11 @@ class ItemService {
    * @param {string} eventId - Event identifier
    * @param {string} itemId - Item unique identifier (nanoid)
    * @param {string} ownerEmail - Email of user deleting the item
+   * @param {object} [preloadedEvent] - Pre-loaded event from middleware (avoids redundant DB read)
    * @returns {Promise<{message: string}>} Success message
    * @throws {Error} If validation fails, item not found, or user is not owner
    */
-  async deleteItem(eventId, itemId, ownerEmail) {
+  async deleteItem(eventId, itemId, ownerEmail, preloadedEvent) {
     // Validate event ID format
     const eventIdValidation = validateEventId(eventId);
     if (!eventIdValidation.valid) {
@@ -542,8 +545,8 @@ class ItemService {
 
     const normalizedEmail = ownerEmail.trim().toLowerCase();
 
-    // Get event and validate state
-    const event = await eventService.getEvent(eventId);
+    // Use pre-loaded event from middleware when available (FR-008)
+    const event = preloadedEvent || await eventService.getEvent(eventId);
     this.validateRegistrationState(event.state);
 
     // Initialize items array if needed

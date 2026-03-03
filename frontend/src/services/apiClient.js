@@ -267,6 +267,16 @@ class ApiClient {
           return this.request(endpoint, options, true);
         }
         
+        // Check if this is a membership revocation (deleted guest)
+        if (errorData.code === 'EVENT_MEMBERSHIP_REQUIRED') {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('membership-revoked', {
+              detail: { message: errorData.error },
+            }));
+          }
+          return Promise.reject(new Error(errorData.error || 'Your access to this event has been removed'));
+        }
+
         // Check if this is an event access denial
         if (errorData.code === 'EVENT_ACCESS_DENIED') {
           const deniedEventId = this.getEventIdFromUrl(endpoint);

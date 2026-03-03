@@ -258,6 +258,8 @@ test.describe('Guests – Search and Filter (US2)', () => {
 
     const searchInput = drawer.getByPlaceholder(/search/i);
     await searchInput.fill('alice');
+    // Wait for positive proof that React applied the filter before checking the negative
+    await expect(drawer.getByText(/^Showing \d+ of \d+ guests$/)).toBeVisible({ timeout: 10000 });
     await expect(drawer.getByText('bob@example.com')).not.toBeVisible();
 
     await searchInput.clear();
@@ -312,7 +314,8 @@ test.describe('Guests – Delete Individual Guest (US3)', () => {
     await confirmDeletion(page, 'DELETE USER');
 
     // The guest should disappear from the list
-    await expect(drawer.getByText('doomed@example.com')).not.toBeVisible({ timeout: 10000 });
+    // Use exact match to avoid the success toast ("User doomed@example.com and all…") triggering strict mode
+    await expect(drawer.getByText('doomed@example.com', { exact: true })).not.toBeVisible({ timeout: 10000 });
   });
 
   test('cancel deletion does not remove guest', async ({ page, testEvent }) => {

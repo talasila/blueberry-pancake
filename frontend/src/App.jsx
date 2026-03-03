@@ -26,6 +26,7 @@ import apiClient from './services/apiClient.js';
 import { isUserAdmin } from './utils/adminCheck.js';
 import GuideDrawer from './components/guide/GuideDrawer';
 import AdminGuideDrawer from './components/guide/AdminGuideDrawer';
+import MembershipRevokedDialog from './components/MembershipRevokedDialog';
 
 /**
  * AppLayout Component
@@ -263,6 +264,7 @@ function App() {
     <Router>
       <AppLayout />
       <Toaster />
+      <MembershipRevokedDialog />
     </Router>
   );
 }

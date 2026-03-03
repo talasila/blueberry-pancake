@@ -866,7 +866,15 @@ class EventService {
     event.updatedAt = new Date().toISOString();
     await this.updateEvent(eventId, event);
 
-    // Note: Dashboard and similar users cache invalidation happens automatically via DynamoDB TTL
+    // Invalidate cached aggregate stats so stale scores are never served
+    if (ratingsDeleted > 0) {
+      try {
+        await dataRepository.deleteDashboardCache(eventId);
+        await dataRepository.deleteAllSimilarUsersCache(eventId);
+      } catch (error) {
+        loggerService.warn(`Error invalidating caches after bulk user deletion: ${error.message}`);
+      }
+    }
 
     loggerService.info(`All users deleted for event ${eventId} by ${normalizedRequesterEmail}`, {
       eventId,
@@ -998,7 +1006,15 @@ class EventService {
     event.updatedAt = new Date().toISOString();
     await this.updateEvent(eventId, event);
 
-    // Note: Dashboard and similar users cache invalidation happens automatically via DynamoDB TTL
+    // Invalidate cached aggregate stats so stale scores are never served
+    if (ratingsDeleted > 0) {
+      try {
+        await dataRepository.deleteDashboardCache(eventId);
+        await dataRepository.deleteAllSimilarUsersCache(eventId);
+      } catch (error) {
+        loggerService.warn(`Error invalidating caches after user deletion: ${error.message}`);
+      }
+    }
 
     loggerService.info(`User deleted from event ${eventId} by ${normalizedRequesterEmail}`, {
       eventId,
@@ -1068,6 +1084,23 @@ class EventService {
     this.migrateAdministratorField(event);
     const normalizedEmail = this.normalizeEmail(email);
     return event.administrators && event.administrators[normalizedEmail] !== undefined;
+  }
+
+  /**
+   * Check if a user is a member of an event (in event.users OR an administrator).
+   * Used by requireEventMembership middleware to gate write operations.
+   * @param {object} event - Event object
+   * @param {string} email - Email address to check
+   * @returns {boolean} True if user is in event.users or is an administrator
+   */
+  isEventMember(event, email) {
+    if (!event || !email) {
+      return false;
+    }
+    const normalizedEmail = this.normalizeEmail(email);
+    const inUsers = event.users && event.users[normalizedEmail] !== undefined;
+    if (inUsers) return true;
+    return this.isAdministrator(event, normalizedEmail);
   }
 
   /**

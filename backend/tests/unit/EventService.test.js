@@ -1184,3 +1184,53 @@ describe('EventService.getEvent', () => {
     });
   });
 });
+
+describe('EventService.isEventMember', () => {
+  it('should return true when email is in event.users', () => {
+    const event = {
+      users: { 'alice@example.com': { name: 'Alice' } },
+      administrators: { 'admin@example.com': { assignedAt: '2024-01-01', owner: true } },
+    };
+    expect(eventService.isEventMember(event, 'alice@example.com')).toBe(true);
+  });
+
+  it('should return true when email is an administrator (not in users)', () => {
+    const event = {
+      users: { 'bob@example.com': { name: 'Bob' } },
+      administrators: { 'admin@example.com': { assignedAt: '2024-01-01', owner: true } },
+    };
+    expect(eventService.isEventMember(event, 'admin@example.com')).toBe(true);
+  });
+
+  it('should return true when email is both a user and an administrator', () => {
+    const event = {
+      users: { 'admin@example.com': { name: 'Admin' } },
+      administrators: { 'admin@example.com': { assignedAt: '2024-01-01', owner: true } },
+    };
+    expect(eventService.isEventMember(event, 'admin@example.com')).toBe(true);
+  });
+
+  it('should return false when email is in neither users nor administrators', () => {
+    const event = {
+      users: { 'bob@example.com': { name: 'Bob' } },
+      administrators: { 'admin@example.com': { assignedAt: '2024-01-01', owner: true } },
+    };
+    expect(eventService.isEventMember(event, 'stranger@example.com')).toBe(false);
+  });
+
+  it('should return false for null/undefined inputs', () => {
+    expect(eventService.isEventMember(null, 'a@b.com')).toBe(false);
+    expect(eventService.isEventMember(undefined, 'a@b.com')).toBe(false);
+    expect(eventService.isEventMember({ users: {} }, null)).toBe(false);
+    expect(eventService.isEventMember({ users: {} }, undefined)).toBe(false);
+    expect(eventService.isEventMember(null, null)).toBe(false);
+  });
+
+  it('should normalize email case before checking', () => {
+    const event = {
+      users: { 'alice@example.com': { name: 'Alice' } },
+      administrators: {},
+    };
+    expect(eventService.isEventMember(event, 'Alice@Example.COM')).toBe(true);
+  });
+});

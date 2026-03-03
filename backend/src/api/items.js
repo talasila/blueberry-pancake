@@ -3,6 +3,7 @@ import itemService from '../services/ItemService.js';
 import eventService from '../services/EventService.js';
 import loggerService from '../logging/Logger.js';
 import requireAuth from '../middleware/requireAuth.js';
+import requireEventMembership from '../middleware/requireEventMembership.js';
 import { validateEventId, validateItemId, validateNumericItemId, validateAuthentication } from '../utils/validators.js';
 import { handleApiError, badRequestError, unauthorizedError } from '../utils/apiErrorHandler.js';
 
@@ -16,7 +17,7 @@ router.use(requireAuth);
  * Register a new item for an event
  * Only allowed when event is in "created" or "started" state
  */
-router.post('/', async (req, res) => {
+router.post('/', requireEventMembership, async (req, res) => {
   try {
     const { eventId } = req.params;
     const userEmail = req.user?.email;
@@ -39,8 +40,8 @@ router.post('/', async (req, res) => {
 
     const { name, price, description } = req.body;
 
-    // Register item
-    const item = await itemService.registerItem(eventId, { name, price, description }, userEmail);
+    // Register item — pass req.event from middleware to avoid redundant getEvent()
+    const item = await itemService.registerItem(eventId, { name, price, description }, userEmail, req.event);
 
     res.status(201).json(item);
   } catch (error) {
@@ -177,7 +178,7 @@ router.get('/by-item-id/:itemId', async (req, res) => {
  * Update an existing item
  * Only allowed when event is in "created" or "started" state. User must be item owner.
  */
-router.patch('/:itemId', async (req, res) => {
+router.patch('/:itemId', requireEventMembership, async (req, res) => {
   try {
     const { eventId, itemId } = req.params;
     const userEmail = req.user?.email;
@@ -202,8 +203,8 @@ router.patch('/:itemId', async (req, res) => {
 
     const { name, price, description } = req.body;
 
-    // Update item
-    const item = await itemService.updateItem(eventId, itemId, { name, price, description }, userEmail);
+    // Update item — pass req.event from middleware to avoid redundant getEvent()
+    const item = await itemService.updateItem(eventId, itemId, { name, price, description }, userEmail, req.event);
 
     res.json(item);
   } catch (error) {
@@ -216,7 +217,7 @@ router.patch('/:itemId', async (req, res) => {
  * Delete an item
  * Only allowed when event is in "created" or "started" state. User must be item owner.
  */
-router.delete('/:itemId', async (req, res) => {
+router.delete('/:itemId', requireEventMembership, async (req, res) => {
   try {
     const { eventId, itemId } = req.params;
     const userEmail = req.user?.email;
@@ -239,8 +240,8 @@ router.delete('/:itemId', async (req, res) => {
       return badRequestError(res, itemIdValidation.error);
     }
 
-    // Delete item
-    const result = await itemService.deleteItem(eventId, itemId, userEmail);
+    // Delete item — pass req.event from middleware to avoid redundant getEvent()
+    const result = await itemService.deleteItem(eventId, itemId, userEmail, req.event);
 
     res.json(result);
   } catch (error) {

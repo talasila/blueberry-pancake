@@ -135,6 +135,11 @@ export function handleApiError(res, error, context = 'process request') {
     return notFoundError(res, message.includes('Event') ? 'Event not found' : message);
   }
 
+  // Membership enforcement (403 with machine-readable code)
+  if (message.includes('not registered for this event')) {
+    return res.status(403).json({ error: message, code: 'EVENT_MEMBERSHIP_REQUIRED' });
+  }
+
   // Authorization errors (403)
   if (message.includes('Unauthorized') || 
       message.includes('administrator') || 

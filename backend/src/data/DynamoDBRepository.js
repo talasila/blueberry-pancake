@@ -573,6 +573,18 @@ class DynamoDBRepository extends DataRepository {
     }));
   }
 
+  async deleteDashboardCache(eventId) {
+    await this.initialize();
+
+    await this.docClient.send(new DeleteCommand({
+      TableName: this.tableName,
+      Key: {
+        PK: this.eventPK(eventId),
+        SK: this.dashboardSK(),
+      },
+    }));
+  }
+
   // ==================== OTP ====================
 
   async setOTP(email, code, ttlSeconds = 600) {
@@ -975,6 +987,23 @@ class DynamoDBRepository extends DataRepository {
         ...data,
       },
     }));
+  }
+
+  async deleteAllSimilarUsersCache(eventId) {
+    await this.initialize();
+
+    const items = await this._queryAll({
+      TableName: this.tableName,
+      KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+      ExpressionAttributeValues: {
+        ':pk': this.similarUsersPK(eventId),
+        ':prefix': 'SIMILAR#',
+      },
+      ProjectionExpression: 'PK, SK',
+    });
+
+    if (items.length === 0) return;
+    await this._batchWrite(items);
   }
 
   // ==================== BOOKMARKS ====================

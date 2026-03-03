@@ -191,6 +191,24 @@ export default class DataRepository {
     throw new Error('setDashboardCache not implemented');
   }
 
+  /**
+   * Delete cached dashboard data for an event
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<void>}
+   */
+  async deleteDashboardCache(eventId) {
+    throw new Error('deleteDashboardCache not implemented');
+  }
+
+  /**
+   * Delete all cached similar-users entries for an event
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<void>}
+   */
+  async deleteAllSimilarUsersCache(eventId) {
+    throw new Error('deleteAllSimilarUsersCache not implemented');
+  }
+
   // ==================== OTP ====================
 
   /**

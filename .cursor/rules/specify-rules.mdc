@@ -108,6 +108,8 @@ JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 - N/A (reads existing event, items, itemConfiguration from EventAdminPage state) (022-start-event-guardrail)
 - JavaScript (ESM), Node.js >=22.12.0 + React 19, Vite, Radix UI, Tailwind CSS, lucide-react, react-router-dom (frontend) (023-guest-management)
 - N/A (reads existing event data from DynamoDB via existing APIs; no new storage) (023-guest-management)
+- JavaScript (ES modules), Node.js >= 22.12.0 + Express 5.x, AWS SDK v3 (DynamoDB), jsonwebtoken, @codegenie/serverless-express (024-enforce-membership-writes)
+- DynamoDB (single-table design, PK/SK with GSI1). Dashboard + similarity caches use TTL. (024-enforce-membership-writes)
 
 ## Recent Changes
 - 001-root-admin: Added Node.js 22+, JavaScript ES2020+ + Express 5, React 19, Vite, Tailwind CSS 4, Radix UI
