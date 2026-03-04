@@ -32,6 +32,7 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
   const isSystemRoute = location.pathname.startsWith('/system');
   const isStandalonePage = ['/my-events', '/create-event'].includes(location.pathname);
   const isLandingPage = location.pathname === '/';
+  const showHamburgerMenu = authState && !isLandingPage && !isSystemRoute && !isStandalonePage;
   const eventName = event?.name;
 
   // Extract eventId from pathname if not available from context
@@ -117,6 +118,11 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
     navigate('/my-events');
   };
 
+  const handleGuideClick = () => {
+    setIsMenuOpen(false);
+    onToggleGuide();
+  };
+
   const handleLogout = async () => {
     setIsMenuOpen(false);
     
@@ -195,8 +201,8 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
               </div>
             )}
           </div>
-          {/* Guide icon — visible to all users, independent of auth state */}
-          {guideVariant && (
+          {/* Guide icon — shown in header only when hamburger menu is not available */}
+          {guideVariant && !showHamburgerMenu && (
             <button
               data-testid="guide-icon"
               onClick={onToggleGuide}
@@ -232,7 +238,7 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
               <LogOut className="h-5 w-5" />
             </div>
           )}
-          {authState && !isLandingPage && !isSystemRoute && !isStandalonePage && (
+          {showHamburgerMenu && (
             <DropdownMenu
               isOpen={isMenuOpen}
               onClose={() => setIsMenuOpen(false)}
@@ -297,6 +303,17 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
                   icon={<Settings className="h-4 w-4" />}
                 >
                   Settings
+                </DropdownMenuItem>
+              )}
+
+              {guideVariant && (
+                <DropdownMenuItem
+                  onClick={handleGuideClick}
+                  icon={guideVariant === 'admin'
+                    ? <BookOpen className="h-4 w-4" />
+                    : <HelpCircle className="h-4 w-4" />}
+                >
+                  {guideVariant === 'admin' ? 'Admin Guide' : 'Help'}
                 </DropdownMenuItem>
               )}
               
