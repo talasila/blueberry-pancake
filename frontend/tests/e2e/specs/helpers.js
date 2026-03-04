@@ -413,14 +413,34 @@ export async function openBottlesDrawer(page) {
 }
 
 /**
+ * Dismiss the guest welcome bottom sheet if it's visible.
+ * No-op if the sheet doesn't appear (admin login, paused/completed events, etc.).
+ */
+export async function dismissGuestWelcomeSheet(page) {
+  const skipBtn = page.locator('[data-testid="guest-welcome-skip-btn"]');
+  try {
+    await skipBtn.waitFor({ state: 'visible', timeout: 2000 });
+    await skipBtn.click();
+    await page.locator('[data-testid="guest-welcome-bottom-sheet"]').waitFor({ state: 'hidden', timeout: 2000 });
+  } catch {
+    // Sheet didn't appear — nothing to dismiss
+  }
+}
+
+/**
  * Log in as a user to an event via the browser UI.
  * Clears auth, navigates to the event, enters email & PIN.
+ * By default, auto-dismisses the guest welcome bottom sheet so it doesn't
+ * block subsequent interactions. Pass { dismissWelcome: false } to keep it open.
  */
-export async function loginAsUserToEvent(page, eventId, email, pin) {
+export async function loginAsUserToEvent(page, eventId, email, pin, { dismissWelcome = true } = {}) {
   await clearAuth(page);
   await page.goto(`${BASE_URL}/event/${eventId}`);
   await submitEmail(page, email);
   await enterAndSubmitPIN(page, pin);
+  if (dismissWelcome) {
+    await dismissGuestWelcomeSheet(page);
+  }
 }
 
 /**

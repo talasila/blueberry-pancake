@@ -12,6 +12,7 @@ import {
   clearAuth,
   submitEmail,
   enterAndSubmitPIN,
+  dismissGuestWelcomeSheet,
   getUserToken,
   BASE_URL,
   API_URL,
@@ -99,6 +100,7 @@ test.describe('Dashboard Page', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'regularuser@example.com');
     await enterAndSubmitPIN(page, pin);
+    await dismissGuestWelcomeSheet(page);
     
     // Wait for event page to fully load after PIN entry
     await page.waitForURL(new RegExp(`/event/${eventId}$`), { timeout: 10000 });
@@ -628,6 +630,7 @@ test.describe('Dashboard Page', () => {
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'regularuser@example.com');
     await enterAndSubmitPIN(page, pin);
+    await dismissGuestWelcomeSheet(page);
     
     // Wait for event page to load
     await page.waitForURL(new RegExp(`/event/${eventId}$`), { timeout: 10000 });

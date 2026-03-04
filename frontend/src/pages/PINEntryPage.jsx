@@ -104,7 +104,7 @@ function PINEntryPage() {
       
       // Redirect to event page
       setTimeout(() => {
-        navigate(`/event/${eventId}`, { replace: true });
+        navigate(`/event/${eventId}`, { state: { guestJustLoggedIn: true }, replace: true });
       }, 1000);
     } catch (err) {
       // Show user-friendly error message with better context

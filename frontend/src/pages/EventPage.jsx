@@ -1,5 +1,5 @@
 import { useEventContext } from '@/contexts/EventContext';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import apiClient from '@/services/apiClient';
 import { ratingService } from '@/services/ratingService';
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Users, BarChart3 } from 'lucide-react';
 import { useItemTerminology } from '@/utils/itemTerminology';
 import { calculateUserRatingProgress } from '@/utils/ratingProgress';
+import GuestWelcomeBottomSheet from '@/components/GuestWelcomeBottomSheet';
 
 /**
  * EventPage Component
@@ -33,10 +34,14 @@ import { calculateUserRatingProgress } from '@/utils/ratingProgress';
 function EventPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { event: contextEvent, isAdmin, refetch } = useEventContext();
-  const { pluralLower } = useItemTerminology(contextEvent);
+  const { singular, pluralLower } = useItemTerminology(contextEvent);
   
   const hasAuth = apiClient.hasEventAccess(eventId);
+
+  const [showGuestWelcome, setShowGuestWelcome] = useState(false);
+  const hasCheckedGuestWelcomeRef = useRef(false);
   
   const [event, setEvent] = useState(contextEvent);
   const [isLoading, setIsLoading] = useState(!contextEvent);
@@ -98,6 +103,21 @@ function EventPage() {
       setError(null);
     }
   }, [contextEvent]);
+
+  // Show guest welcome bottom sheet once event data is available (deferred from mount)
+  useEffect(() => {
+    if (hasCheckedGuestWelcomeRef.current) return;
+    if (!contextEvent) return;
+    hasCheckedGuestWelcomeRef.current = true;
+
+    if (isAdmin) return;
+    if (!location.state?.guestJustLoggedIn) return;
+
+    const eventState = contextEvent.state;
+    if (eventState === 'created' || eventState === 'started') {
+      setShowGuestWelcome(true);
+    }
+  }, [contextEvent, isAdmin, location.state]);
 
   // Generate available item IDs based on itemConfiguration
   useEffect(() => {
@@ -471,6 +491,17 @@ function EventPage() {
     }, 100);
   };
 
+  const handleGuestWelcomeDismiss = () => {
+    setShowGuestWelcome(false);
+    window.history.replaceState({}, document.title);
+  };
+
+  const handleGuestWelcomeRegister = () => {
+    setShowGuestWelcome(false);
+    window.history.replaceState({}, document.title);
+    navigate(`/event/${eventId}/profile`);
+  };
+
   const userRatingProgressData = useMemo(
     () => calculateUserRatingProgress(ratings, availableItemIds, ratingConfig?.maxRating || 4),
     [ratings, availableItemIds, ratingConfig]
@@ -557,9 +588,26 @@ function EventPage() {
                 </p>
               )}
               {event?.state === 'created' && (
-                <p className="text-center text-sm text-muted-foreground">
-                  Event has not started yet
-                </p>
+                <div className="space-y-2">
+                  <p className="text-center text-sm text-muted-foreground">
+                    Event has not started yet
+                  </p>
+                  {!isAdmin && (
+                    <div className="text-center" data-testid="guest-inline-registration-prompt">
+                      <p className="text-sm text-muted-foreground">
+                        Brought a {singular.toLowerCase()} to share?
+                      </p>
+                      <Button
+                        variant="link"
+                        className="text-sm px-0"
+                        onClick={() => navigate(`/event/${eventId}/profile`)}
+                        data-testid="guest-inline-register-btn"
+                      >
+                        Register My {singular}
+                      </Button>
+                    </div>
+                  )}
+                </div>
               )}
               {event?.state === 'paused' && (
                 <p className="text-center text-sm text-muted-foreground">
@@ -773,6 +821,16 @@ function EventPage() {
           eventId={eventId}
           itemId={openItemDetailsItemId || 0}
           eventState={event?.state}
+        />
+      )}
+
+      {/* Guest Welcome Bottom Sheet - one-time post-login nudge */}
+      {!isAdmin && (
+        <GuestWelcomeBottomSheet
+          isOpen={showGuestWelcome}
+          onDismiss={handleGuestWelcomeDismiss}
+          onRegister={handleGuestWelcomeRegister}
+          event={event}
         />
       )}
     </RatingErrorBoundary>

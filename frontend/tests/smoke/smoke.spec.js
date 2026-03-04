@@ -229,6 +229,17 @@ test.describe('Production Smoke Test', () => {
           // Event page
           await userPage.waitForURL(new RegExp(`/event/${eventId}$`), { timeout: 10_000 });
           await userPage.waitForLoadState('networkidle');
+
+          // Dismiss guest welcome bottom sheet if it appeared after PIN login
+          const skipBtn = userPage.locator('[data-testid="guest-welcome-skip-btn"]');
+          try {
+            await skipBtn.waitFor({ state: 'visible', timeout: 3000 });
+            await skipBtn.click();
+            await userPage.locator('[data-testid="guest-welcome-bottom-sheet"]').waitFor({ state: 'hidden', timeout: 2000 });
+          } catch {
+            // Sheet didn't appear — continue
+          }
+
           await expect(userPage.getByText('Tap a number to rate')).toBeVisible({ timeout: 5000 });
 
           // Rate item 1 with a "3 - Not bad..."
