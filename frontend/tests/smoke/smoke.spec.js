@@ -250,7 +250,7 @@ test.describe('Production Smoke Test', () => {
           await ratingDropdown.click();
 
           await userPage.getByRole('button', { name: /3 - Not bad/i }).click();
-          await userPage.getByRole('button', { name: /submit rating/i }).click();
+          await userPage.getByRole('button', { name: /^submit$/i }).click();
 
           await expect(
             userPage.getByText(/rating submitted successfully/i),

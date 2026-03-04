@@ -463,10 +463,10 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
           {isSubmitting 
             ? (retryCount > 0 ? `Retrying... (${retryCount}/${MAX_RETRIES})` : 'Submitting...')
             : existingRating && !selectedRating
-            ? 'Remove Rating'
+            ? 'Remove'
             : existingRating 
-            ? 'Update Rating' 
-            : 'Submit Rating'}
+            ? 'Update' 
+            : 'Submit'}
         </Button>
       </div>
     </form>

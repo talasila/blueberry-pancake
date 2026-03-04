@@ -92,8 +92,7 @@ test.describe('Rating Flow', () => {
     const ratingOption = page.getByRole('button', { name: /3 - Not bad/i });
     await ratingOption.click();
     
-    // Click Submit Rating button
-    const submitButton = page.getByRole('button', { name: /submit rating/i });
+    const submitButton = page.getByRole('button', { name: /^submit$/i });
     await submitButton.click();
     
     // Verify success message appears
@@ -215,8 +214,7 @@ test.describe('Rating Flow', () => {
     const validNote = 'B'.repeat(500);
     await noteField.fill(validNote);
     
-    // Submit button should be enabled with valid note
-    const submitButton = page.getByRole('button', { name: /submit rating/i });
+    const submitButton = page.getByRole('button', { name: /^submit$/i });
     await expect(submitButton).toBeEnabled();
     
     // Verify the character count is at the limit

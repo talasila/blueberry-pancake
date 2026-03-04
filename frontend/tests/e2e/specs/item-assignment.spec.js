@@ -455,8 +455,6 @@ test.describe('Item Details Integration', () => {
     await assignItemIdViaAPI(eventId, registeredItem.id, 1, token);
     expect((await changeEventState(eventId, 'completed', 'paused', token)).ok).toBe(true);
     
-    // Access event as regular user
-    await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
     await enterAndSubmitPIN(page, pin);
@@ -490,8 +488,6 @@ test.describe('Item Details Integration', () => {
     expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
     expect((await changeEventState(eventId, 'completed', 'started', token)).ok).toBe(true);
     
-    // Access event as regular user
-    await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
     await enterAndSubmitPIN(page, pin);
