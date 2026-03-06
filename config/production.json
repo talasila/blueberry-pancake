@@ -10,8 +10,8 @@
     "maxSize": 500
   },
   "security": {
-    "jwtSecret": "Mcr7Bs4rFStYBlUrSxRhYOJ+j/kyMTMnE0/2HVCXdA0=",
-    "csrfSecret": "YlsQQpWpyJvN7i4mo1OnxBfjqv4BMZ98rNigal7fL5w=",
+    "jwtSecret": "SET_VIA_ENV_VAR",
+    "csrfSecret": "SET_VIA_ENV_VAR",
     "xsrfEnabled": true
   },
   "logging": {
@@ -19,7 +19,7 @@
     "console": false
   },
   "email": {
-    "resendApiKey": "re_6RipC75d_PhQmhfHdnnhT542ZaRHjwhqu",
+    "resendApiKey": "SET_VIA_ENV_VAR",
     "fromAddress": "sreeni@7155421.xyz"
   }
 }
