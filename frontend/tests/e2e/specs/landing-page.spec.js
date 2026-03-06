@@ -61,19 +61,28 @@ test.describe('Landing Page', () => {
   });
 
   // ===================================
-  // User Story 2 - Create Event Interface
+  // Create / My Events Links
   // ===================================
 
-  test('displays Create button', async ({ page }) => {
-    const createButton = page.getByRole('button', { name: /create/i });
-    await expect(createButton).toBeVisible();
+  test('displays Create an Event and My Events links', async ({ page }) => {
+    const createLink = page.getByRole('button', { name: /create an event/i });
+    const myEventsLink = page.getByRole('button', { name: /my events/i });
+    await expect(createLink).toBeVisible();
+    await expect(myEventsLink).toBeVisible();
   });
 
-  test('clicking Create navigates to auth page', async ({ page }) => {
-    const createButton = page.getByRole('button', { name: /create/i });
-    await createButton.click();
+  test('clicking Create an Event navigates to auth page', async ({ page }) => {
+    const createLink = page.getByRole('button', { name: /create an event/i });
+    await createLink.click();
     
     // Should navigate to auth page for OTP authentication
+    await expect(page).toHaveURL(/\/auth/);
+  });
+
+  test('clicking My Events navigates to auth page when not authenticated', async ({ page }) => {
+    const myEventsLink = page.getByRole('button', { name: /my events/i });
+    await myEventsLink.click();
+
     await expect(page).toHaveURL(/\/auth/);
   });
 
@@ -98,11 +107,13 @@ test.describe('Landing Page', () => {
     // All main elements should still be visible
     const eventIdInput = page.locator('input#event-id');
     const joinButton = page.getByRole('button', { name: /join/i });
-    const createButton = page.getByRole('button', { name: /create/i });
+    const createLink = page.getByRole('button', { name: /create an event/i });
+    const myEventsLink = page.getByRole('button', { name: /my events/i });
     
     await expect(eventIdInput).toBeVisible();
     await expect(joinButton).toBeVisible();
-    await expect(createButton).toBeVisible();
+    await expect(createLink).toBeVisible();
+    await expect(myEventsLink).toBeVisible();
   });
 
 });
@@ -127,11 +138,11 @@ test.describe('Landing Page - Authenticated User', () => {
     }
   });
 
-  test('clicking Create navigates directly to create-event when authenticated', async ({ page }) => {
+  test('clicking Create an Event navigates directly to create-event when authenticated', async ({ page }) => {
     await page.goto(BASE_URL);
 
-    const createButton = page.getByRole('button', { name: /create/i });
-    await createButton.click();
+    const createLink = page.getByRole('button', { name: /create an event/i });
+    await createLink.click();
 
     await expect(page).toHaveURL(/\/create-event/, { timeout: 5000 });
 
@@ -142,8 +153,8 @@ test.describe('Landing Page - Authenticated User', () => {
   test('clicking My Events navigates directly to my-events when authenticated', async ({ page }) => {
     await page.goto(BASE_URL);
 
-    const myEventsButton = page.getByRole('button', { name: /my events|view my events/i });
-    await myEventsButton.click();
+    const myEventsLink = page.getByRole('button', { name: /my events/i });
+    await myEventsLink.click();
 
     await expect(page).toHaveURL(/\/my-events/, { timeout: 5000 });
 

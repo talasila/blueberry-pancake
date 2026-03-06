@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { PlusCircle, List } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,11 +11,8 @@ import apiClient from '@/services/apiClient';
 /**
  * LandingPage Component
  * 
- * Landing page component that displays:
- * 1. Join an event card with event ID input and Join button
- * 2. Create an event card with Create button
- * 
- * Note: The header is now handled by the App component and is reusable across all pages.
+ * Landing page with a Join card (event ID input + button) and
+ * lightweight icon links for Create an Event and My Events.
  * 
  * @returns {JSX.Element} The landing page component
  */
@@ -123,46 +121,26 @@ function LandingPage() {
               </CardFooter>
             </Card>
 
-            {/* Create an Event Card - User Story 2 */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Create an event</CardTitle>
-                <CardDescription>
-                  Start a new blind tasting event
-                </CardDescription>
-              </CardHeader>
-              <CardFooter>
-                <Button
-                  type="button"
-                  onClick={handleCreateClick}
-                  className="w-full"
-                  aria-label="Create event button"
-                >
-                  Create
-                </Button>
-              </CardFooter>
-            </Card>
-
-            {/* My Events Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle>My Events</CardTitle>
-                <CardDescription>
-                  Find your previously created events
-                </CardDescription>
-              </CardHeader>
-              <CardFooter>
-                <Button
-                  type="button"
-                  onClick={handleMyEventsClick}
-                  className="w-full"
-                  variant="outline"
-                  aria-label="My events button"
-                >
-                  View My Events
-                </Button>
-              </CardFooter>
-            </Card>
+            <div className="flex items-center justify-between">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleCreateClick}
+                aria-label="Create an event"
+              >
+                <PlusCircle />
+                Create an Event
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleMyEventsClick}
+                aria-label="My events"
+              >
+                <List />
+                My Events
+              </Button>
+            </div>
           </div>
         </div>
       </div>
