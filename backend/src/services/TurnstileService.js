@@ -4,6 +4,9 @@ import loggerService from '../logging/Logger.js';
 const TEST_SECRET_KEY = '1x0000000000000000000000000000000AA';
 const SITEVERIFY_URL = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
 
+const CIRCUIT_BREAKER_THRESHOLD = 5;
+const CIRCUIT_BREAKER_WINDOW_MS = 30_000;
+
 class TurnstileService {
   constructor() {
     const prod = isProduction();
@@ -19,12 +22,17 @@ class TurnstileService {
     }
 
     this.secret = secret;
+    this._consecutiveFailures = 0;
+    this._firstFailureAt = null;
   }
 
   async verify(token, remoteIP) {
-    // FR-019: missing token → fail open (subject to all other rate limits)
     if (!token) {
-      loggerService.warn(`Turnstile token missing ip=${remoteIP} (fail-open per FR-019)`);
+      if (isProduction()) {
+        loggerService.warn(`Turnstile token missing ip=${remoteIP} — rejected (production)`);
+        return { success: false, errorCodes: ['missing-input-response'] };
+      }
+      loggerService.warn(`Turnstile token missing ip=${remoteIP} (fail-open, non-production)`);
       return { success: true, failOpen: true };
     }
 
@@ -44,16 +52,48 @@ class TurnstileService {
       const success = result.success === true;
       const errorCodes = result['error-codes'] || [];
 
-      if (!success) {
+      if (success) {
+        this._resetCircuitBreaker();
+      } else {
         loggerService.warn(`Turnstile verification rejected ip=${remoteIP} errorCodes=${JSON.stringify(errorCodes)}`);
       }
 
       return { success, errorCodes };
     } catch (err) {
-      // FR-013: siteverify unreachable → fail open (subject to all other rate limits)
-      loggerService.warn(`Turnstile siteverify unreachable ip=${remoteIP} (fail-open per FR-013): ${err.message}`);
-      return { success: true, failOpen: true };
+      return this._handleVerifyError(err, remoteIP);
     }
+  }
+
+  _handleVerifyError(err, remoteIP) {
+    const now = Date.now();
+
+    if (this._firstFailureAt && (now - this._firstFailureAt) > CIRCUIT_BREAKER_WINDOW_MS) {
+      this._resetCircuitBreaker();
+    }
+
+    if (this._firstFailureAt === null) {
+      this._firstFailureAt = now;
+    }
+    this._consecutiveFailures++;
+
+    if (this._consecutiveFailures > CIRCUIT_BREAKER_THRESHOLD) {
+      loggerService.warn(
+        `Turnstile siteverify unreachable ip=${remoteIP} — circuit breaker OPEN ` +
+        `(${this._consecutiveFailures} consecutive failures): ${err.message}`
+      );
+      return { success: false, errorCodes: ['siteverify-unreachable'] };
+    }
+
+    loggerService.warn(
+      `Turnstile siteverify unreachable ip=${remoteIP} (fail-open, ` +
+      `failure ${this._consecutiveFailures}/${CIRCUIT_BREAKER_THRESHOLD}): ${err.message}`
+    );
+    return { success: true, failOpen: true };
+  }
+
+  _resetCircuitBreaker() {
+    this._consecutiveFailures = 0;
+    this._firstFailureAt = null;
   }
 }
 

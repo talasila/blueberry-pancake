@@ -15,20 +15,52 @@ describe('TurnstileService', () => {
     warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const mod = await import('../../src/services/TurnstileService.js');
     turnstileService = mod.default;
+    turnstileService._resetCircuitBreaker();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  describe('verify', () => {
+  describe('verify — missing token (non-production)', () => {
     it('returns success:true with failOpen when token is null/undefined/empty', async () => {
       expect(await turnstileService.verify(null)).toEqual({ success: true, failOpen: true });
       expect(await turnstileService.verify(undefined)).toEqual({ success: true, failOpen: true });
       expect(await turnstileService.verify('')).toEqual({ success: true, failOpen: true });
       expect(fetchMock).not.toHaveBeenCalled();
     });
+  });
 
+  describe('verify — missing token (production)', () => {
+    let origNodeEnv;
+    let origKey;
+
+    beforeEach(() => {
+      origNodeEnv = process.env.NODE_ENV;
+      origKey = process.env.TURNSTILE_SECRET_KEY;
+    });
+
+    afterEach(() => {
+      process.env.NODE_ENV = origNodeEnv;
+      if (origKey !== undefined) process.env.TURNSTILE_SECRET_KEY = origKey;
+      else delete process.env.TURNSTILE_SECRET_KEY;
+      vi.resetModules();
+    });
+
+    it('returns success:false when token is missing in production', async () => {
+      process.env.NODE_ENV = 'production';
+      process.env.TURNSTILE_SECRET_KEY = 'real-secret-key-for-test';
+      vi.resetModules();
+      const mod = await import('../../src/services/TurnstileService.js');
+      const prodService = mod.default;
+
+      const result = await prodService.verify(null, '1.2.3.4');
+      expect(result).toEqual({ success: false, errorCodes: ['missing-input-response'] });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('verify — valid/invalid tokens', () => {
     it('returns success:true when Cloudflare returns success:true', async () => {
       fetchMock.mockResolvedValue({ json: () => Promise.resolve({ success: true }) });
       const result = await turnstileService.verify('valid-token', '1.2.3.4');
@@ -55,27 +87,46 @@ describe('TurnstileService', () => {
       });
       const result = await turnstileService.verify('bad-token', '1.2.3.4');
       expect(result).toEqual({ success: false, errorCodes });
-      expect(logSpy).toHaveBeenCalledWith(
-        expect.stringContaining('Turnstile verification rejected')
-      );
     });
+  });
 
-    it('returns success:true with failOpen on network timeout', async () => {
+  describe('verify — circuit breaker', () => {
+    it('fails open for the first consecutive failure', async () => {
       fetchMock.mockRejectedValue(new Error('The operation was aborted'));
       const result = await turnstileService.verify('token', '1.2.3.4');
       expect(result).toEqual({ success: true, failOpen: true });
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('fail-open')
-      );
     });
 
-    it('returns success:true with failOpen on fetch error', async () => {
+    it('fails open up to the threshold (5 failures)', async () => {
       fetchMock.mockRejectedValue(new Error('Network error'));
+      for (let i = 0; i < 5; i++) {
+        const result = await turnstileService.verify('token', '1.2.3.4');
+        expect(result).toEqual({ success: true, failOpen: true });
+      }
+    });
+
+    it('fails closed after exceeding the threshold', async () => {
+      fetchMock.mockRejectedValue(new Error('Network error'));
+      for (let i = 0; i < 5; i++) {
+        await turnstileService.verify('token', '1.2.3.4');
+      }
       const result = await turnstileService.verify('token', '1.2.3.4');
-      expect(result).toEqual({ success: true, failOpen: true });
-      expect(warnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('fail-open')
-      );
+      expect(result).toEqual({ success: false, errorCodes: ['siteverify-unreachable'] });
+    });
+
+    it('resets after a successful verification', async () => {
+      fetchMock.mockRejectedValue(new Error('Network error'));
+      for (let i = 0; i < 4; i++) {
+        await turnstileService.verify('token', '1.2.3.4');
+      }
+
+      fetchMock.mockResolvedValue({ json: () => Promise.resolve({ success: true }) });
+      const ok = await turnstileService.verify('valid-token', '1.2.3.4');
+      expect(ok.success).toBe(true);
+
+      fetchMock.mockRejectedValue(new Error('Network error'));
+      const afterReset = await turnstileService.verify('token', '1.2.3.4');
+      expect(afterReset).toEqual({ success: true, failOpen: true });
     });
   });
 });

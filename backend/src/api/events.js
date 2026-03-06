@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import eventService from '../services/EventService.js';
 import pinService from '../services/PINService.js';
 import ratingService from '../services/RatingService.js';
+import rateLimitService from '../services/RateLimitService.js';
 import loggerService from '../logging/Logger.js';
 import { 
   generateToken, 
@@ -239,13 +240,21 @@ router.get('/:eventId/check-admin', async (req, res) => {
       return badRequestError(res, 'Invalid event ID format');
     }
 
-    // Turnstile verification (rejects invalid/expired tokens; missing tokens fail open)
     const turnstileResult = await verifyTurnstile(req, res);
     if (!turnstileResult.success) return;
 
+    // Global rate limit (caps total check-admin requests across all callers)
+    const globalResult = await rateLimitService.checkGlobalCheckAdminLimit();
+    if (!globalResult.allowed) {
+      const retryAfterSeconds = Math.ceil(globalResult.retryAfter || 0);
+      const retryAfterMinutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
+      return res.status(429).json({
+        error: `Too many requests. Please try again in ${retryAfterMinutes} minute(s).`,
+        retryAfter: retryAfterSeconds
+      });
+    }
+
     if (isProduction()) {
-      // Import rateLimitService dynamically to avoid circular dependencies
-      const rateLimitService = (await import('../services/RateLimitService.js')).default;
       const clientIP = req.ip || req.socket?.remoteAddress || 'unknown';
       const ipLimit = await rateLimitService.checkIPLimit(clientIP);
       

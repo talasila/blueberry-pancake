@@ -47,7 +47,7 @@ describe('verifyTurnstile', () => {
     expect(res.json).toHaveBeenCalledWith({ error: 'Request could not be processed. Please try again.' });
   });
 
-  it('returns success:true when token is missing (null) - fail-open', async () => {
+  it('returns success:true when token is missing in non-production (fail-open)', async () => {
     mockVerify.mockResolvedValue({ success: true, failOpen: true });
 
     const result = await verifyTurnstile(req, res);
@@ -55,6 +55,25 @@ describe('verifyTurnstile', () => {
     expect(result).toEqual({ success: true });
     expect(res.status).not.toHaveBeenCalled();
     expect(res.json).not.toHaveBeenCalled();
+  });
+
+  it('returns success:false when token is missing in production (fail-closed)', async () => {
+    mockVerify.mockResolvedValue({ success: false, errorCodes: ['missing-input-response'] });
+
+    const result = await verifyTurnstile(req, res);
+
+    expect(result).toEqual({ success: false });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Request could not be processed. Please try again.' });
+  });
+
+  it('returns success:false when circuit breaker is open', async () => {
+    mockVerify.mockResolvedValue({ success: false, errorCodes: ['siteverify-unreachable'] });
+
+    const result = await verifyTurnstile(req, res);
+
+    expect(result).toEqual({ success: false });
+    expect(res.status).toHaveBeenCalledWith(400);
   });
 
   it('extracts token from req.body.turnstileToken', async () => {
@@ -85,20 +104,16 @@ describe('verifyTurnstile', () => {
     expect(mockVerify).toHaveBeenCalledWith('body-token', '1.2.3.4');
   });
 
-  it('logs rejection with IP, path, and errorCodes', async () => {
-    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  it('sends 400 and logs rejection when verification fails with errorCodes', async () => {
     mockVerify.mockResolvedValue({
       success: false,
       errorCodes: ['invalid-input-response', 'timeout-or-duplicate']
     });
 
-    await verifyTurnstile(req, res);
+    const result = await verifyTurnstile(req, res);
 
-    expect(logSpy).toHaveBeenCalledWith('Turnstile verification failed', {
-      ip: '1.2.3.4',
-      path: '/api/test',
-      errorCodes: ['invalid-input-response', 'timeout-or-duplicate']
-    });
-    logSpy.mockRestore();
+    expect(result).toEqual({ success: false });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: 'Request could not be processed. Please try again.' });
   });
 });

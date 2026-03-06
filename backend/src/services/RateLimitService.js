@@ -26,6 +26,10 @@ class RateLimitService {
     this.GLOBAL_LIMIT = prod ? 100 : 10000;
     this.GLOBAL_WINDOW_SECONDS = 60;
     this.GLOBAL_WINDOW_MS = this.GLOBAL_WINDOW_SECONDS * 1000;
+
+    this.GLOBAL_CHECK_ADMIN_LIMIT = prod ? 60 : 10000;
+    this.GLOBAL_CHECK_ADMIN_WINDOW_SECONDS = 60;
+    this.GLOBAL_CHECK_ADMIN_WINDOW_MS = this.GLOBAL_CHECK_ADMIN_WINDOW_SECONDS * 1000;
   }
 
   /**
@@ -186,6 +190,42 @@ class RateLimitService {
       return { allowed: true };
     } catch (error) {
       loggerService.error('Error checking global rate limit:', error);
+      return { allowed: true };
+    }
+  }
+
+  /**
+   * Check global check-admin request rate limit across all callers.
+   * Prevents distributed admin email enumeration.
+   * @returns {Promise<{allowed: boolean, retryAfter?: number}>}
+   */
+  async checkGlobalCheckAdminLimit() {
+    try {
+      const current = await dataRepository.getRateLimit('global', 'check-admin');
+      const now = Date.now();
+
+      if (current && current.windowStart) {
+        const windowStartMs = new Date(current.windowStart).getTime();
+
+        if ((now - windowStartMs) > this.GLOBAL_CHECK_ADMIN_WINDOW_MS) {
+          await dataRepository.resetRateLimit('global', 'check-admin');
+        } else if (current.count >= this.GLOBAL_CHECK_ADMIN_LIMIT) {
+          const retryAfter = Math.ceil((this.GLOBAL_CHECK_ADMIN_WINDOW_MS - (now - windowStartMs)) / 1000);
+          return { allowed: false, retryAfter };
+        }
+      }
+
+      const result = await dataRepository.incrementRateLimit('global', 'check-admin', this.GLOBAL_CHECK_ADMIN_WINDOW_SECONDS);
+
+      if (result.count > this.GLOBAL_CHECK_ADMIN_LIMIT) {
+        const windowStartMs = new Date(result.windowStart).getTime();
+        const retryAfter = Math.ceil((this.GLOBAL_CHECK_ADMIN_WINDOW_MS - (now - windowStartMs)) / 1000);
+        return { allowed: false, retryAfter };
+      }
+
+      return { allowed: true };
+    } catch (error) {
+      loggerService.error('Error checking global check-admin rate limit:', error);
       return { allowed: true };
     }
   }
