@@ -42,19 +42,19 @@ export function getJWTCookieOptions() {
 
 /**
  * JWT authentication middleware
- * Validates JWT tokens from httpOnly cookie or Authorization header
+ * Validates JWT tokens from Authorization header or httpOnly cookie.
+ * Bearer header is checked first so that an explicit header always governs
+ * authentication — prevents a garbage Bearer from being ignored while the
+ * browser-sent cookie silently authenticates the request.
  */
 export function jwtAuth(req, res, next) {
   try {
-    // Try to get token from httpOnly cookie first (more secure)
-    let token = req.cookies?.[JWT_COOKIE_NAME];
-    
-    // Fall back to Authorization header for backward compatibility
-    if (!token) {
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith('Bearer ')) {
-        token = authHeader.substring(7);
-      }
+    let token;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    } else {
+      token = req.cookies?.[JWT_COOKIE_NAME];
     }
     
     if (!token) {

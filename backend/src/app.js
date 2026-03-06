@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import jwt from 'jsonwebtoken';
 import cookieParser from 'cookie-parser';
 import { logger } from './middleware/logger.js';
 import { errorHandler } from './middleware/errorHandler.js';
@@ -49,7 +50,8 @@ if (isProduction() && !frontendUrl) {
 }
 app.use(cors({
   origin: frontendUrl || true,
-  credentials: true
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
 }));
 
 app.use(cookieParser());
@@ -66,7 +68,15 @@ if (xsrfInitialized) {
     const stateChangingMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
     if (!stateChangingMethods.includes(req.method)) return next();
     const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) return next();
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      try {
+        const secret = process.env.JWT_SECRET || configLoader.get('security.jwtSecret');
+        jwt.verify(authHeader.substring(7), secret, { algorithms: ['HS256'] });
+        return next();
+      } catch {
+        // Invalid Bearer token — fall through to CSRF validation
+      }
+    }
     const exemptPaths = [
       /^\/api\/auth\/otp\//,
       /^\/api\/auth\/logout$/,
