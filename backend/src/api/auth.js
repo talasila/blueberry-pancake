@@ -363,8 +363,13 @@ router.post('/refresh', async (req, res) => {
       });
     }
 
+    // Rotate refresh token: invalidate the old one and issue a new one
+    await invalidateRefreshToken(refreshToken);
+    const newRefreshToken = await generateRefreshToken(email);
+
     // Set new JWT cookie
     res.cookie(JWT_COOKIE_NAME, token, getJWTCookieOptions());
+    res.cookie(REFRESH_COOKIE_NAME, newRefreshToken, getRefreshCookieOptions());
 
     loggerService.info(`Token refreshed for ${email}`).catch(() => {});
 
