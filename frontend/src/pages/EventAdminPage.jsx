@@ -2003,7 +2003,10 @@ function EventAdminPage({ onOpenAdminGuide }) {
         onClose={() => setOpenDrawer(null)}
         title="Mood"
       >
-        <div className="p-4 space-y-4">
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Set the vibe for your event. Pick a mood and your guests will see it reflected throughout the experience.
+          </p>
           {event?.state !== 'created' && (
             <Message type="info" className="text-sm">
               Theme can only be changed before the event is started.
