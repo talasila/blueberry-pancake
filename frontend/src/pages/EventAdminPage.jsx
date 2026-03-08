@@ -2,7 +2,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { RefreshCw, Copy, Check, Trash2, Edit2, X, AlertTriangle, Download, Search, Filter, ChevronDown, ChevronUp, ChevronRight } from 'lucide-react';
+import { RefreshCw, Copy, Check, Trash2, Edit2, X, AlertTriangle, Download, Search, Filter, ChevronDown, ChevronUp, ChevronRight, Palette, LayoutList, Star, ToggleLeft, KeyRound, ShieldCheck, Users } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1822,6 +1822,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
             >
               <div className="flex flex-col items-start text-left">
                 <div className="flex items-center gap-2">
+                  <Palette className="h-4 w-4" />
                   <span className="font-semibold">Mood</span>
                   <Badge variant="outline" className="text-xs flex items-center gap-1.5">
                     <span
@@ -1850,6 +1851,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
             >
               <div className="flex flex-col items-start text-left">
                 <div className="flex items-center gap-2">
+                  <LayoutList className="h-4 w-4" />
                   <span className="font-semibold">{itemTerminology.plural}</span>
                   <Badge variant="outline" className="text-xs">
                     {numberOfItems} total
@@ -1873,6 +1875,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
             >
               <div className="flex flex-col items-start text-left">
                 <div className="flex items-center gap-2">
+                  <Star className="h-4 w-4" />
                   <span className="font-semibold">Ratings</span>
                   {ratings.length > 0 && (
                     <div className="flex items-center gap-1">
@@ -1901,6 +1904,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
             >
               <div className="flex flex-col items-start text-left">
                 <div className="flex items-center gap-2">
+                  <ToggleLeft className="h-4 w-4" />
                   <span className="font-semibold">State</span>
                   <StateBadge state={event.state} />
                 </div>
@@ -1919,6 +1923,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
             >
               <div className="flex flex-col items-start text-left">
                 <div className="flex items-center gap-2">
+                  <KeyRound className="h-4 w-4" />
                   <span className="font-semibold">PIN</span>
                   {event.pin && (
                     <Badge variant="outline" className="font-mono text-xs">
@@ -1939,7 +1944,10 @@ function EventAdminPage({ onOpenAdminGuide }) {
               className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
             >
               <div className="flex flex-col items-start text-left">
-                <span className="font-semibold">Administrators</span>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4" />
+                  <span className="font-semibold">Administrators</span>
+                </div>
               </div>
               <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
             </button>
@@ -1954,6 +1962,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
             >
               <div className="flex flex-col items-start text-left">
                 <div className="flex items-center gap-2">
+                  <Users className="h-4 w-4" />
                   <span className="font-semibold">Guests</span>
                   <Badge variant="outline">{getNonAdminUserCount()} registered</Badge>
                 </div>
