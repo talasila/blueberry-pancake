@@ -2132,7 +2132,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
           {/* Assignment Tab */}
           <TabsContent value="assignment" className="space-y-4">
             <div className="text-sm text-muted-foreground font-normal">
-              Summary of registered {itemTerminology.pluralLower} and {itemTerminology.singularLower} ID assignments.
+              Match each registered {itemTerminology.singularLower} to its blind tasting number. This links the {itemTerminology.singularLower} name and who brought it to the ratings, so everything lines up when results are revealed. Pause the event first to make assignments.
             </div>
 
           {/* Items error */}
@@ -2813,7 +2813,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
       >
         <div className="space-y-4">
           <div className="text-sm text-muted-foreground font-normal">
-            Manage administrators for this event. The owner cannot be removed.
+            Administrators can manage event settings, control the event state, and view the dashboard. Add others by email — they'll have full access once they join the event. The event owner is always an administrator and cannot be removed.
           </div>
           {/* Administrators list */}
           {isLoadingAdministrators ? (
@@ -2932,6 +2932,9 @@ function EventAdminPage({ onOpenAdminGuide }) {
         width="w-full max-w-2xl"
       >
         <div className="space-y-4">
+          <div className="text-sm text-muted-foreground font-normal">
+            Everyone who has joined the event using the PIN. You can search by name, email, or registered {itemTerminology.singularLower}. Removing a guest deletes all their data including ratings, items, and bookmarks.
+          </div>
           <div className="flex items-center justify-between gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -3232,7 +3235,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
         >
           <div className="space-y-4">
             <div className="text-sm text-muted-foreground font-normal">
-              Irreversible and destructive actions. Only event administrators can perform these actions.
+              These actions are permanent and cannot be undone. Please be certain before proceeding.
             </div>
 
             {deleteEventError && (
