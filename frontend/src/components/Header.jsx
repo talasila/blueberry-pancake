@@ -171,7 +171,14 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-[9999] bg-background border-b border-border shadow-md" style={{ width: '100vw', marginRight: 'calc(100% - 100vw)' }}>
+    <header
+      className={`fixed top-0 left-0 right-0 z-[9999] border-b border-border shadow-md${!isEventRoute ? ' bg-background' : ''}`}
+      style={{
+        width: '100vw',
+        marginRight: 'calc(100% - 100vw)',
+        backgroundColor: isEventRoute ? 'var(--event-header-bg)' : undefined,
+      }}
+    >
       <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-2">
         <div className="w-full max-w-md flex items-center justify-between gap-2">
           <div className="flex items-center gap-2 min-w-0 flex-1">

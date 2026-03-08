@@ -27,6 +27,7 @@ import { isUserAdmin } from './utils/adminCheck.js';
 import GuideDrawer from './components/guide/GuideDrawer';
 import AdminGuideDrawer from './components/guide/AdminGuideDrawer';
 import MembershipRevokedDialog from './components/MembershipRevokedDialog';
+import EventThemeProvider from './components/EventThemeProvider';
 
 /**
  * AppLayout Component
@@ -201,7 +202,9 @@ function AppLayout() {
   if (isEventRoute && eventId) {
     return (
       <EventContextProviderForRoute eventId={eventId}>
-        {content}
+        <EventThemeProvider>
+          {content}
+        </EventThemeProvider>
       </EventContextProviderForRoute>
     );
   }

@@ -30,11 +30,28 @@ const DEFAULT_RATING_PRESETS = {
   ]
 };
 
+const VALID_THEMES = ['classic', 'cellar', 'terracotta', 'golden', 'olive', 'garden', 'ocean', 'midnight', 'lavender', 'rose'];
+
 /**
  * EventService
  * Handles event creation business logic
  */
 class EventService {
+  /**
+   * Validate theme preset identifier
+   * @param {string} theme - Theme identifier
+   * @returns {{valid: boolean, error?: string}} Validation result
+   */
+  validateTheme(theme) {
+    if (theme === undefined || theme === null) {
+      return { valid: true };
+    }
+    if (typeof theme !== 'string' || !VALID_THEMES.includes(theme)) {
+      return { valid: false, error: `Invalid theme. Must be one of: ${VALID_THEMES.join(', ')}` };
+    }
+    return { valid: true };
+  }
+
   /**
    * Validate event name
    * @param {string} name - Event name
@@ -106,9 +123,10 @@ class EventService {
    * @param {string} name - Event name
    * @param {string} typeOfItem - Type of item (currently only "wine")
    * @param {string} administratorEmail - Email of the event administrator
+   * @param {string} [theme] - Theme preset identifier (defaults to 'classic')
    * @returns {Promise<object>} Created event object
    */
-  async createEvent(name, typeOfItem, administratorEmail) {
+  async createEvent(name, typeOfItem, administratorEmail, theme) {
     // Validate inputs
     const nameValidation = this.validateEventName(name);
     if (!nameValidation.valid) {
@@ -118,6 +136,11 @@ class EventService {
     const typeValidation = this.validateTypeOfItem(typeOfItem);
     if (!typeValidation.valid) {
       throw new Error(typeValidation.error);
+    }
+
+    const themeValidation = this.validateTheme(theme);
+    if (!themeValidation.valid) {
+      throw new Error(themeValidation.error);
     }
 
     if (!administratorEmail || typeof administratorEmail !== 'string') {
@@ -161,6 +184,7 @@ class EventService {
       name: nameValidation.value,
       typeOfItem,
       state: 'created',
+      theme: theme || 'classic',
       administrators: {
         [normalizedAdminEmail]: {
           assignedAt: now,
@@ -308,6 +332,38 @@ class EventService {
       loggerService.error(`Error updating event ${eventId}: ${error.message}`, error);
       throw error;
     }
+  }
+
+  /**
+   * Update event theme preset. Only allowed when event is in "created" state.
+   * @param {string} eventId - Event identifier
+   * @param {string} theme - Theme preset identifier
+   * @param {string} administratorEmail - Email of administrator performing update
+   * @returns {Promise<object>} Updated event
+   */
+  async updateTheme(eventId, theme, administratorEmail) {
+    if (!theme) {
+      throw new Error('Theme is required');
+    }
+
+    const themeValidation = this.validateTheme(theme);
+    if (!themeValidation.valid) {
+      throw new Error(themeValidation.error);
+    }
+
+    const event = await this.getEvent(eventId);
+
+    const normalizedEmail = this.normalizeEmail(administratorEmail);
+    if (!this.isAdministrator(event, normalizedEmail)) {
+      throw new Error('Only administrators can update the theme');
+    }
+
+    if (event.state !== 'created') {
+      throw new Error('Theme can only be changed when event is in created state');
+    }
+
+    event.theme = theme;
+    return this.updateEvent(eventId, event);
   }
 
   /**
@@ -2026,6 +2082,7 @@ class EventService {
             eventId: event.eventId,
             name: event.name,
             state: event.state,
+            theme: event.theme,
             createdAt: event.createdAt
           });
         }

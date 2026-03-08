@@ -37,10 +37,10 @@ router.post('/', requireAuth, async (req, res) => {
       return unauthorizedError(res, 'Authentication required');
     }
 
-    const { name, typeOfItem } = req.body;
+    const { name, typeOfItem, theme } = req.body;
 
     // Create event
-    const event = await eventService.createEvent(name, typeOfItem, administratorEmail);
+    const event = await eventService.createEvent(name, typeOfItem, administratorEmail, theme);
 
     try {
       const existingToken = req.cookies?.[JWT_COOKIE_NAME];
@@ -748,6 +748,38 @@ router.patch('/:eventId/rating-configuration', requireAuth, async (req, res) => 
     res.json(result);
   } catch (error) {
     return handleApiError(res, error, 'update rating configuration');
+  }
+});
+
+/**
+ * PATCH /api/events/:eventId/theme
+ * Update event theme preset. Only allowed when event is in "created" state.
+ * Requires authentication (JWT token) and administrator authorization.
+ */
+router.patch('/:eventId/theme', requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const requesterEmail = req.user?.email;
+    const { theme } = req.body;
+
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, eventIdValidation.error);
+    }
+
+    if (!requesterEmail) {
+      return unauthorizedError(res, 'Authentication required');
+    }
+
+    const updatedEvent = await eventService.updateTheme(
+      eventIdValidation.eventId,
+      theme,
+      requesterEmail
+    );
+
+    res.json(updatedEvent);
+  } catch (error) {
+    return handleApiError(res, error, 'update theme');
   }
 });
 

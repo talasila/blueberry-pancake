@@ -588,6 +588,16 @@ class ApiClient {
   }
 
   /**
+   * Update event theme preset
+   * @param {string} eventId - Event identifier
+   * @param {string} theme - Theme preset identifier
+   * @returns {Promise<any>} Updated event data
+   */
+  async updateTheme(eventId, theme) {
+    return this.patch(`/events/${eventId}/theme`, { theme });
+  }
+
+  /**
    * Get bookmarks for the current user in an event
    * @param {string} eventId - Event identifier
    * @returns {Promise<any>} Response data with bookmarks array

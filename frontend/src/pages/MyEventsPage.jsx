@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { RefreshCw, Plus, Calendar } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { StateBadge } from '@/utils/eventState.jsx';
+import { getPreset } from '@/utils/themePresets';
 
 function MyEventsPage() {
   const navigate = useNavigate();
@@ -96,7 +97,14 @@ function MyEventsPage() {
                   to={`/event/${event.eventId}/admin`}
                   className="block"
                 >
-                  <Card className="hover:bg-accent/50 transition-colors cursor-pointer">
+                  <Card
+                    className="hover:bg-accent/50 transition-colors cursor-pointer"
+                    style={
+                      getPreset(event.theme).id !== 'classic'
+                        ? { borderLeftWidth: '4px', borderLeftColor: getPreset(event.theme).light.accent }
+                        : undefined
+                    }
+                  >
                     <CardHeader className="pb-2">
                       <div className="flex items-start justify-between gap-2">
                         <CardTitle className="text-base">{event.name}</CardTitle>

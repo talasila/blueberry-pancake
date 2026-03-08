@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import apiClient from '@/services/apiClient';
+import ThemePicker from '@/components/ThemePicker';
 
 /**
  * CreateEventPage Component
@@ -17,6 +18,7 @@ function CreateEventPage() {
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [typeOfItem, setTypeOfItem] = useState('wine');
+  const [theme, setTheme] = useState('classic');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [nameError, setNameError] = useState('');
@@ -79,7 +81,8 @@ function CreateEventPage() {
     try {
       const response = await apiClient.createEvent({
         name: trimmedName,
-        typeOfItem
+        typeOfItem,
+        theme
       });
       
       if (response.user) {
@@ -154,6 +157,16 @@ function CreateEventPage() {
                   >
                     <option value="wine">Wine</option>
                   </select>
+                </div>
+
+                {/* Mood / Theme Picker */}
+                <div className="space-y-2">
+                  <Label>Mood</Label>
+                  <ThemePicker
+                    selectedTheme={theme}
+                    onSelect={setTheme}
+                    disabled={isSubmitting}
+                  />
                 </div>
 
                 {/* Error Message */}

@@ -24,6 +24,8 @@ import DeleteAllUsersDialog from '@/components/DeleteAllUsersDialog';
 import DeleteUserDialog from '@/components/DeleteUserDialog';
 import { toast } from 'sonner';
 import WelcomeBottomSheet from '@/components/WelcomeBottomSheet';
+import ThemePicker from '@/components/ThemePicker';
+import { getPreset } from '@/utils/themePresets';
 import { eventStateHelpContent } from '@/data/eventStateHelpContent';
 import { getGapType } from '@/utils/eventGuardrail';
 
@@ -59,9 +61,10 @@ function EventAdminPage({ onOpenAdminGuide }) {
   const { eventId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { event: contextEvent } = useEventContext();
+  const { event: contextEvent, refetch } = useEventContext();
   const { event: polledEvent } = useEventPolling(eventId);
   const [event, setEvent] = useState(contextEvent);
+  const [pendingTheme, setPendingTheme] = useState(null);
   const itemTerminology = useItemTerminology(event);
   const [isLoading, setIsLoading] = useState(!contextEvent);
   const [isRegenerating, setIsRegenerating] = useState(false);
@@ -235,6 +238,13 @@ function EventAdminPage({ onOpenAdminGuide }) {
       setIsLoading(false);
     }
   }, [contextEvent, polledEvent]);
+
+  // Clear optimistic theme override once polling confirms the change
+  useEffect(() => {
+    if (pendingTheme && event?.theme === pendingTheme) {
+      setPendingTheme(null);
+    }
+  }, [event?.theme, pendingTheme]);
 
   // Initialize edited name when event changes
   useEffect(() => {
@@ -696,6 +706,18 @@ function EventAdminPage({ onOpenAdminGuide }) {
       setNameError(error.message || 'Failed to update event name. Please try again.');
     } finally {
       setIsSavingName(false);
+    }
+  };
+
+  const handleThemeChange = async (newTheme) => {
+    setPendingTheme(newTheme);
+    try {
+      await apiClient.updateTheme(eventId, newTheme);
+      refetch();
+      toast.success('Theme updated');
+    } catch (error) {
+      setPendingTheme(null);
+      toast.error(error.message || 'Failed to update theme');
     }
   };
 
@@ -1793,6 +1815,22 @@ function EventAdminPage({ onOpenAdminGuide }) {
 
           {/* Category Cards */}
           <div className="w-full">
+            {/* Theme Card */}
+            <button
+              onClick={() => setOpenDrawer('theme')}
+              className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
+            >
+              <div className="flex flex-col items-start text-left">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold">Mood</span>
+                  <Badge variant="outline" className="text-xs">
+                    {getPreset(pendingTheme || event?.theme).name}
+                  </Badge>
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
+
             {/* Items (Configuration & Management) Card */}
             <button
               onClick={() => {
@@ -1959,6 +1997,26 @@ function EventAdminPage({ onOpenAdminGuide }) {
       </div>
 
       {/* Side Drawers */}
+      {/* Theme Drawer */}
+      <SideDrawer
+        isOpen={openDrawer === 'theme'}
+        onClose={() => setOpenDrawer(null)}
+        title="Mood"
+      >
+        <div className="p-4 space-y-4">
+          {event?.state !== 'created' && (
+            <Message type="info" className="text-sm">
+              Theme can only be changed before the event is started.
+            </Message>
+          )}
+          <ThemePicker
+            selectedTheme={pendingTheme || event?.theme || 'classic'}
+            onSelect={handleThemeChange}
+            disabled={event?.state !== 'created'}
+          />
+        </div>
+      </SideDrawer>
+
       {/* Items Drawer (Configuration & Assignment Tabs) */}
       <SideDrawer
         isOpen={openDrawer === 'items'}

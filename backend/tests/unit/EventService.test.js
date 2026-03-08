@@ -1183,6 +1183,181 @@ describe('EventService.getEvent', () => {
       expect(result).toEqual([5, 10, 15]);
     });
   });
+
+  describe('theme', () => {
+    describe('validateTheme', () => {
+      it('should return { valid: true } for valid theme', () => {
+        expect(eventService.validateTheme('cellar')).toEqual({ valid: true });
+      });
+
+      it('should return { valid: false, error } for invalid theme', () => {
+        const result = eventService.validateTheme('invalid');
+        expect(result).toEqual({ valid: false, error: expect.stringContaining('Invalid theme') });
+        expect(result.error).toContain('classic, cellar, terracotta, golden, olive, garden, ocean, midnight, lavender, rose');
+      });
+
+      it('should return { valid: true } when theme is undefined (optional)', () => {
+        expect(eventService.validateTheme(undefined)).toEqual({ valid: true });
+      });
+
+      it('should return { valid: true } when theme is null (optional)', () => {
+        expect(eventService.validateTheme(null)).toEqual({ valid: true });
+      });
+    });
+
+    describe('createEvent with theme', () => {
+      beforeEach(() => {
+        vi.clearAllMocks();
+        eventService.generateEventId = vi.fn().mockResolvedValue('TEST1234');
+        DynamoDBRepository.eventExists.mockResolvedValue(false);
+        DynamoDBRepository.writeEventConfig.mockResolvedValue();
+      });
+
+      it('should store valid theme in event object', async () => {
+        const event = await eventService.createEvent('Test Event', 'wine', 'admin@example.com', 'cellar');
+
+        expect(event).toHaveProperty('theme', 'cellar');
+        expect(DynamoDBRepository.writeEventConfig).toHaveBeenCalledWith(
+          'TEST1234',
+          expect.objectContaining({ theme: 'cellar' })
+        );
+      });
+
+      it('should default to classic when theme is omitted', async () => {
+        const event = await eventService.createEvent('Test Event', 'wine', 'admin@example.com');
+
+        expect(event).toHaveProperty('theme', 'classic');
+        expect(DynamoDBRepository.writeEventConfig).toHaveBeenCalledWith(
+          'TEST1234',
+          expect.objectContaining({ theme: 'classic' })
+        );
+      });
+
+      it('should throw when theme is invalid', async () => {
+        await expect(
+          eventService.createEvent('Test Event', 'wine', 'admin@example.com', 'invalid')
+        ).rejects.toThrow(/Invalid theme/);
+
+        expect(DynamoDBRepository.writeEventConfig).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('updateTheme', () => {
+      const eventId = 'TEST1234';
+      const administratorEmail = 'admin@example.com';
+
+      beforeEach(() => {
+        vi.clearAllMocks();
+        DynamoDBRepository.writeEventConfig.mockResolvedValue();
+      });
+
+      it('should succeed when event state is created', async () => {
+        const mockEvent = {
+          eventId,
+          name: 'Test Event',
+          state: 'created',
+          typeOfItem: 'wine',
+          theme: 'classic',
+          administrators: {
+            [administratorEmail]: {
+              assignedAt: '2025-01-27T10:30:00.000Z',
+              owner: true
+            }
+          },
+          users: {},
+          createdAt: '2025-01-27T10:30:00.000Z',
+          updatedAt: '2025-01-27T10:30:00.000Z'
+        };
+        DynamoDBRepository.readEventConfig.mockResolvedValue({ ...mockEvent });
+
+        const result = await eventService.updateTheme(eventId, 'cellar', administratorEmail);
+
+        expect(result.theme).toBe('cellar');
+        expect(DynamoDBRepository.writeEventConfig).toHaveBeenCalledWith(
+          eventId,
+          expect.objectContaining({ theme: 'cellar' })
+        );
+      });
+
+      it('should throw when event state is started', async () => {
+        const mockEvent = {
+          eventId,
+          name: 'Test Event',
+          state: 'started',
+          typeOfItem: 'wine',
+          theme: 'classic',
+          administrators: {
+            [administratorEmail]: {
+              assignedAt: '2025-01-27T10:30:00.000Z',
+              owner: true
+            }
+          },
+          users: {},
+          createdAt: '2025-01-27T10:30:00.000Z',
+          updatedAt: '2025-01-27T10:30:00.000Z'
+        };
+        DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
+
+        await expect(
+          eventService.updateTheme(eventId, 'cellar', administratorEmail)
+        ).rejects.toThrow('Theme can only be changed when event is in created state');
+
+        expect(DynamoDBRepository.writeEventConfig).not.toHaveBeenCalled();
+      });
+
+      it('should throw when theme is invalid', async () => {
+        const mockEvent = {
+          eventId,
+          name: 'Test Event',
+          state: 'created',
+          typeOfItem: 'wine',
+          theme: 'classic',
+          administrators: {
+            [administratorEmail]: {
+              assignedAt: '2025-01-27T10:30:00.000Z',
+              owner: true
+            }
+          },
+          users: {},
+          createdAt: '2025-01-27T10:30:00.000Z',
+          updatedAt: '2025-01-27T10:30:00.000Z'
+        };
+        DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
+
+        await expect(
+          eventService.updateTheme(eventId, 'invalid', administratorEmail)
+        ).rejects.toThrow(/Invalid theme/);
+
+        expect(DynamoDBRepository.writeEventConfig).not.toHaveBeenCalled();
+      });
+
+      it('should throw when non-admin attempts update', async () => {
+        const mockEvent = {
+          eventId,
+          name: 'Test Event',
+          state: 'created',
+          typeOfItem: 'wine',
+          theme: 'classic',
+          administrators: {
+            [administratorEmail]: {
+              assignedAt: '2025-01-27T10:30:00.000Z',
+              owner: true
+            }
+          },
+          users: {},
+          createdAt: '2025-01-27T10:30:00.000Z',
+          updatedAt: '2025-01-27T10:30:00.000Z'
+        };
+        DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
+
+        await expect(
+          eventService.updateTheme(eventId, 'cellar', 'other@example.com')
+        ).rejects.toThrow('Only administrators can update the theme');
+
+        expect(DynamoDBRepository.writeEventConfig).not.toHaveBeenCalled();
+      });
+    });
+  });
 });
 
 describe('EventService.isEventMember', () => {
