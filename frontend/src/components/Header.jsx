@@ -7,6 +7,7 @@ import apiClient from '@/services/apiClient';
 import DropdownMenu, { DropdownMenuItem } from './DropdownMenu';
 import { clearAllBookmarks } from '@/utils/bookmarkStorage';
 import { StateIcon } from '@/utils/eventState.jsx';
+import { getPreset } from '@/utils/themePresets';
 
 /**
  * Header Component
@@ -34,6 +35,13 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
   const isLandingPage = location.pathname === '/';
   const showHamburgerMenu = authState && !isLandingPage && !isSystemRoute && !isStandalonePage;
   const eventName = event?.name;
+
+  const logoFill = useMemo(() => {
+    if (!isEventRoute || !event?.theme || event.theme === 'classic') return 'black';
+    const preset = getPreset(event.theme);
+    const isDark = document.documentElement.classList.contains('dark');
+    return isDark ? preset.light.accent : preset.dark.accent;
+  }, [isEventRoute, event?.theme]);
 
   // Extract eventId from pathname if not available from context
   const pathEventId = useMemo(() => {
@@ -195,7 +203,7 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
                 }
               }}
             >
-              <Logo size={32} className="text-foreground" />
+              <Logo size={32} className="text-foreground" circleFill={logoFill} />
             </div>
             {isEventRoute && eventName && (
               <div className="flex items-center gap-1.5 min-w-0">
