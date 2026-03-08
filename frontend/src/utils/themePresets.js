@@ -10,7 +10,7 @@ const THEME_PRESETS = {
   classic: {
     id: 'classic',
     name: 'Classic',
-    description: 'Clean and neutral',
+    description: 'The timeless choice',
     light: {
       accent: 'oklch(0.205 0 0)',
       accentForeground: 'oklch(0.985 0 0)',
@@ -30,7 +30,7 @@ const THEME_PRESETS = {
   cellar: {
     id: 'cellar',
     name: 'Cellar',
-    description: 'Warm burgundy',
+    description: 'Aged oak & candlelight',
     light: {
       accent: 'oklch(0.45 0.15 15)',
       accentForeground: 'oklch(0.985 0 0)',
@@ -50,7 +50,7 @@ const THEME_PRESETS = {
   terracotta: {
     id: 'terracotta',
     name: 'Terracotta',
-    description: 'Earthy warmth',
+    description: 'Sun-baked countryside',
     light: {
       accent: 'oklch(0.55 0.14 45)',
       accentForeground: 'oklch(0.985 0 0)',
@@ -70,7 +70,7 @@ const THEME_PRESETS = {
   golden: {
     id: 'golden',
     name: 'Golden',
-    description: 'Warm amber',
+    description: 'Sunset on the vineyard',
     light: {
       accent: 'oklch(0.65 0.17 75)',
       accentForeground: 'oklch(0.20 0.03 75)',
@@ -90,7 +90,7 @@ const THEME_PRESETS = {
   olive: {
     id: 'olive',
     name: 'Olive',
-    description: 'Muted green',
+    description: 'Tuscan hillside',
     light: {
       accent: 'oklch(0.52 0.10 125)',
       accentForeground: 'oklch(0.985 0 0)',
@@ -110,7 +110,7 @@ const THEME_PRESETS = {
   garden: {
     id: 'garden',
     name: 'Garden',
-    description: 'Fresh green',
+    description: 'Al fresco afternoon',
     light: {
       accent: 'oklch(0.55 0.15 155)',
       accentForeground: 'oklch(0.985 0 0)',
@@ -130,7 +130,7 @@ const THEME_PRESETS = {
   ocean: {
     id: 'ocean',
     name: 'Ocean',
-    description: 'Cool teal',
+    description: 'Seaside aperitivo',
     light: {
       accent: 'oklch(0.50 0.12 200)',
       accentForeground: 'oklch(0.985 0 0)',
@@ -150,7 +150,7 @@ const THEME_PRESETS = {
   midnight: {
     id: 'midnight',
     name: 'Midnight',
-    description: 'Deep navy',
+    description: 'Late-night lounge',
     light: {
       accent: 'oklch(0.40 0.12 260)',
       accentForeground: 'oklch(0.985 0 0)',
@@ -170,7 +170,7 @@ const THEME_PRESETS = {
   lavender: {
     id: 'lavender',
     name: 'Lavender',
-    description: 'Soft purple',
+    description: 'Provençal evening',
     light: {
       accent: 'oklch(0.55 0.14 300)',
       accentForeground: 'oklch(0.985 0 0)',
@@ -190,7 +190,7 @@ const THEME_PRESETS = {
   rose: {
     id: 'rose',
     name: 'Rosé',
-    description: 'Soft pink',
+    description: 'Patio brunch vibes',
     light: {
       accent: 'oklch(0.65 0.15 350)',
       accentForeground: 'oklch(0.985 0 0)',
