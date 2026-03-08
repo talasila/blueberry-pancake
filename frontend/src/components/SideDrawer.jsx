@@ -23,6 +23,12 @@ function SideDrawer({
   const [isAnimating, setIsAnimating] = useState(false);
   const hasBeenOpenedRef = useRef(false);
   const viewportHeight = useViewportHeight();
+  const [headerHeight, setHeaderHeight] = useState(49);
+
+  useEffect(() => {
+    const header = document.querySelector('header');
+    if (header) setHeaderHeight(header.offsetHeight);
+  }, [isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -59,10 +65,10 @@ function SideDrawer({
       {/* Backdrop with fade animation */}
       {isOpen && (
         <div
-          className="fixed top-16 left-0 right-0 bg-black/50 z-[99] transition-opacity duration-300 ease-in-out"
+          className="fixed left-0 right-0 bg-black/50 z-[99] transition-opacity duration-300 ease-in-out"
           onClick={onClose}
           aria-hidden="true"
-          style={{ zIndex: 99, height: `${viewportHeight - 64}px`, bottom: 0 }}
+          style={{ zIndex: 99, top: `${headerHeight}px`, height: `${viewportHeight - headerHeight}px` }}
         />
       )}
       
@@ -70,7 +76,7 @@ function SideDrawer({
       {isOpen && (
         <div
           className={`
-            fixed top-16 right-0 ${width}
+            fixed right-0 ${width}
             bg-background shadow-xl z-[100]
             transform transition-transform duration-300 ease-out
             ${isAnimating ? 'translate-x-0' : 'translate-x-full'}
@@ -78,7 +84,7 @@ function SideDrawer({
           role="dialog"
           aria-modal="true"
           aria-labelledby="drawer-title"
-          style={{ zIndex: 100, height: `${viewportHeight - 64}px` }}
+          style={{ zIndex: 100, top: `${headerHeight}px`, height: `${viewportHeight - headerHeight}px` }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="flex flex-col h-full">
