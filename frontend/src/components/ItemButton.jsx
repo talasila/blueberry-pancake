@@ -33,7 +33,7 @@ function ItemButton({ itemId, ratingColor, isBookmarked, isWinner, onClick }) {
           "flex items-center justify-center",
           "transition-all duration-200",
           "hover:scale-105 active:scale-95",
-          "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
+          "outline-2 outline-offset-2 outline-transparent focus:outline-[var(--event-accent)]",
           "shadow-md hover:shadow-lg",
           ratingColor 
             ? "text-white" 

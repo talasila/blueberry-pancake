@@ -157,7 +157,7 @@ function RatingDrawer({
       >
         <div className="flex flex-col h-full max-h-[75vh]">
           {/* Header with title, bookmark button, and close button */}
-          <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0">
+          <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0 rounded-t-lg" style={{ backgroundColor: 'var(--event-header-bg)' }}>
             <h2 id="drawer-title" className="text-base font-semibold">
               {singular} {itemId}
             </h2>
