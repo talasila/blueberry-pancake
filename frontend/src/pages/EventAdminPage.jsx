@@ -1823,7 +1823,15 @@ function EventAdminPage({ onOpenAdminGuide }) {
               <div className="flex flex-col items-start text-left">
                 <div className="flex items-center gap-2">
                   <span className="font-semibold">Mood</span>
-                  <Badge variant="outline" className="text-xs">
+                  <Badge variant="outline" className="text-xs flex items-center gap-1.5">
+                    <span
+                      className="inline-block w-2.5 h-2.5 rounded-full border border-black/10"
+                      style={{ backgroundColor: getPreset(pendingTheme || event?.theme).light.accent }}
+                    />
+                    <span
+                      className="inline-block w-2.5 h-2.5 rounded-full border border-black/10"
+                      style={{ backgroundColor: getPreset(pendingTheme || event?.theme).light.headerBg }}
+                    />
                     {getPreset(pendingTheme || event?.theme).name}
                   </Badge>
                 </div>

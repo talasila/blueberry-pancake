@@ -22,7 +22,7 @@ test.describe('Theme Presets', () => {
 
     const classicCard = page.locator('[data-testid="theme-card-classic"]');
     await expect(classicCard).toBeVisible();
-    await expect(classicCard).toHaveClass(/ring-2/);
+    await expect(classicCard).toHaveClass(/ring-1/);
   });
 
   test('selecting a theme on create applies it to the event', async ({ page }) => {
