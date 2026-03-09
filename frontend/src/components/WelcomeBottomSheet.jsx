@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
+import WalkthroughDrawer from '@/components/guide/WalkthroughDrawer';
 
 /**
  * WelcomeBottomSheet — read-only post-creation orientation overlay.
@@ -17,6 +18,7 @@ export default function WelcomeBottomSheet({
 }) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
+  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const previousOverflowRef = useRef('');
   const hasEventData = event?.pin && event?.ratingConfiguration && event?.itemConfiguration;
 
@@ -168,17 +170,32 @@ export default function WelcomeBottomSheet({
             <Button className="w-full" onClick={onDismiss} data-testid="welcome-got-it">
               Got it
             </Button>
-            <button
-              type="button"
-              className="text-sm text-muted-foreground hover:text-foreground transition-colors text-center py-1"
-              onClick={onOpenAdminGuide}
-              data-testid="welcome-open-guide"
-            >
-              Show me the setup guide
-            </button>
+            <div className="flex items-center justify-center gap-3">
+              <button
+                type="button"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors text-center py-1"
+                onClick={() => setWalkthroughOpen(true)}
+                data-testid="welcome-open-walkthrough"
+              >
+                How does it work?
+              </button>
+              <span className="text-muted-foreground/40">|</span>
+              <button
+                type="button"
+                className="text-sm text-muted-foreground hover:text-foreground transition-colors text-center py-1"
+                onClick={onOpenAdminGuide}
+                data-testid="welcome-open-guide"
+              >
+                Setup guide
+              </button>
+            </div>
           </div>
         </div>
       </div>
+      <WalkthroughDrawer
+        isOpen={walkthroughOpen}
+        onClose={() => setWalkthroughOpen(false)}
+      />
     </>
   );
 }

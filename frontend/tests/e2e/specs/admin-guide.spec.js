@@ -107,7 +107,7 @@ test.describe('US1: State-aware admin guide access', () => {
     await setupAdmin(page, eventId);
     await navigateToAdmin(page, eventId);
     await openAdminGuide(page);
-    await expect(page.getByRole('heading', { name: 'Name Your Event' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'How a Tasting Works' })).toBeVisible();
   });
 
   test('guide shows "started" content after transition', async ({ page, testEvent }) => {
@@ -160,11 +160,12 @@ test.describe('US1: State-aware admin guide access', () => {
 });
 
 // ---------------------------------------------------------------------------
-// US2 — Walk Through Event Setup (created state, 7 steps)
+// US2 — Walk Through Event Setup (created state, 8 steps)
 // ---------------------------------------------------------------------------
 
 test.describe('US2: Created state walkthrough', () => {
   const CREATED_HEADINGS = [
+    'How a Tasting Works',
     'Name Your Event',
     'Set Up Your Items',
     'Configure Ratings',
@@ -174,7 +175,7 @@ test.describe('US2: Created state walkthrough', () => {
     'Ready to Go!',
   ];
 
-  test('created-state guide shows 7 steps', async ({ page, testEvent }) => {
+  test('created-state guide shows 8 steps', async ({ page, testEvent }) => {
     // NOTE: step count is verified against the CREATED_HEADINGS constant
     // defined in this test file, not derived from the UI.  If the product
     // adds/removes a step, this constant must be updated manually.
@@ -195,9 +196,9 @@ test.describe('US2: Created state walkthrough', () => {
     await setupAdmin(page, eventId);
     await navigateToAdmin(page, eventId);
     await openAdminGuide(page);
-    await expect(page.getByText(/1\s*(of|\/)\s*7/i)).toBeVisible();
+    await expect(page.getByText(/1\s*(of|\/)\s*8/i)).toBeVisible();
     await navigateToStep(page, 1);
-    await expect(page.getByText(/2\s*(of|\/)\s*7/i)).toBeVisible();
+    await expect(page.getByText(/2\s*(of|\/)\s*8/i)).toBeVisible();
   });
 
   test('rating configuration step contains locking warning', async ({ page, testEvent }) => {
@@ -205,7 +206,7 @@ test.describe('US2: Created state walkthrough', () => {
     await setupAdmin(page, eventId);
     await navigateToAdmin(page, eventId);
     await openAdminGuide(page);
-    await navigateToStep(page, 2);
+    await navigateToStep(page, 3);
     const drawer = page.locator('[role="dialog"][aria-label="Admin guide"]');
     await expect(drawer.getByText(/lock permanently/i)).toBeVisible();
   });
@@ -218,7 +219,7 @@ test.describe('US2: Created state walkthrough', () => {
     await setupAdmin(page, eventId);
     await navigateToAdmin(page, eventId);
     await openAdminGuide(page);
-    await navigateToStep(page, 6);
+    await navigateToStep(page, 7);
     const drawer = page.locator('[role="dialog"][aria-label="Admin guide"]');
     await expect(drawer.getByRole('heading', { name: 'Ready to Go!' })).toBeVisible();
     await expect(drawer.getByText(/^Look for the Start Event button/i)).toBeVisible();
@@ -230,25 +231,26 @@ test.describe('US2: Created state walkthrough', () => {
     await navigateToAdmin(page, eventId);
     await openAdminGuide(page);
     await navigateToStep(page, 1);
-    await expect(page.getByRole('heading', { name: 'Set Up Your Items' })).toBeVisible();
-    await page.getByRole('button', { name: /back/i }).click();
     await expect(page.getByRole('heading', { name: 'Name Your Event' })).toBeVisible();
+    await page.getByRole('button', { name: /back/i }).click();
+    await expect(page.getByRole('heading', { name: 'How a Tasting Works' })).toBeVisible();
   });
 });
 
 // ---------------------------------------------------------------------------
-// US3 — Understand Running State (started state, 4 steps)
+// US3 — Understand Running State (started state, 5 steps)
 // ---------------------------------------------------------------------------
 
 test.describe('US3: Started state walkthrough', () => {
   const STARTED_HEADINGS = [
     'Your Event is Live',
+    'Guests Can Register Bottles',
     'What Guests See',
     'Need a Break?',
     'Time to Wrap Up',
   ];
 
-  test('started-state guide shows 4 steps', async ({ page, testEvent }) => {
+  test('started-state guide shows 5 steps', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     await transitionTo(eventId, 'started');
     await setupAdmin(page, eventId);
@@ -269,7 +271,7 @@ test.describe('US3: Started state walkthrough', () => {
     await navigateToAdmin(page, eventId);
     await openAdminGuide(page);
     const drawer = page.locator('[role="dialog"][aria-label="Admin guide"]');
-    await navigateToStep(page, 1);
+    await navigateToStep(page, 2);
     await expect(drawer.getByText(/number grid/i)).toBeVisible();
     await navigateToStep(page, 1);
     await expect(drawer.getByText(/Pause the event/i)).toBeVisible();
@@ -281,7 +283,7 @@ test.describe('US3: Started state walkthrough', () => {
     await setupAdmin(page, eventId);
     await navigateToAdmin(page, eventId);
     await openAdminGuide(page);
-    await navigateToStep(page, 3);
+    await navigateToStep(page, 4);
     const drawer = page.locator('[role="dialog"][aria-label="Admin guide"]');
     await expect(drawer.getByText(/^Look for the Complete Event button/i)).toBeVisible();
   });
@@ -344,7 +346,7 @@ test.describe('US4: Completed state walkthrough', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('US5: Paused state walkthrough', () => {
-  const PAUSED_HEADINGS = ['Event is Paused', 'Assign Item IDs', 'Resume or Finish'];
+  const PAUSED_HEADINGS = ['Event is Paused', 'Match Bottles to Numbers', 'Resume or Finish'];
 
   test('paused-state guide shows 3 steps', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
@@ -370,7 +372,7 @@ test.describe('US5: Paused state walkthrough', () => {
     await navigateToAdmin(page, eventId);
     await openAdminGuide(page);
     await navigateToStep(page, 1);
-    await expect(page.getByText(/only time/i)).toBeVisible();
+    await expect(page.getByText(/Assignment tab/i)).toBeVisible();
   });
 
   test('final step shows informational CTA about resuming or completing', async ({
@@ -421,7 +423,7 @@ test.describe('US6: Overview / quick-reference', () => {
     await openAdminGuide(page);
     await page.locator('button[aria-label="Show overview"]').click();
     await page.getByRole('button', { name: /Share the PIN/ }).click();
-    await expect(page.getByText(/6\s*(of|\/)\s*7/i)).toBeVisible();
+    await expect(page.getByText(/7\s*(of|\/)\s*8/i)).toBeVisible();
   });
 
   test('current step is highlighted in overview', async ({ page, testEvent }) => {
@@ -433,7 +435,7 @@ test.describe('US6: Overview / quick-reference', () => {
     await page.locator('button[aria-label="Show overview"]').click();
     const secondItem = page.locator('button[aria-current="step"]');
     await expect(secondItem).toBeVisible();
-    await expect(secondItem).toContainText('Set Up Your Items');
+    await expect(secondItem).toContainText('Name Your Event');
   });
 
   test('back button returns from overview to step view', async ({ page, testEvent }) => {
@@ -445,6 +447,6 @@ test.describe('US6: Overview / quick-reference', () => {
     const backButton = page.locator('button[aria-label="Back to step"]');
     await backButton.waitFor({ state: 'visible', timeout: 15000 });
     await backButton.click();
-    await expect(page.getByRole('heading', { name: 'Name Your Event' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'How a Tasting Works' })).toBeVisible();
   });
 });

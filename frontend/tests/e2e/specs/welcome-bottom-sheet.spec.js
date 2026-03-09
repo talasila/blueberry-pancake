@@ -69,7 +69,7 @@ test.describe('Welcome Bottom Sheet', () => {
 
       await expect(page.locator('[data-testid="welcome-start-info"]')).toContainText('State');
 
-      await expect(page.locator('[data-testid="welcome-open-guide"]')).toContainText('setup guide');
+      await expect(page.locator('[data-testid="welcome-open-guide"]')).toContainText('Setup guide');
 
       await expect(page.getByText(/event created.*share the pin/i)).not.toBeVisible();
     } finally {

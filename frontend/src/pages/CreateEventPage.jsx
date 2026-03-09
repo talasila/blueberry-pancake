@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import apiClient from '@/services/apiClient';
 import ThemePicker from '@/components/ThemePicker';
+import WalkthroughDrawer from '@/components/guide/WalkthroughDrawer';
 
 /**
  * CreateEventPage Component
@@ -22,6 +23,7 @@ function CreateEventPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [nameError, setNameError] = useState('');
+  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
 
   /**
    * Validate event name on blur
@@ -108,7 +110,14 @@ function CreateEventPage() {
             <CardHeader>
               <CardTitle>Create Event</CardTitle>
               <CardDescription>
-                Guests join with a PIN, taste items by number, and rate them blind. If someone brought an item they can optionally register it. Later, you match registered items to their tasting numbers so the results reveal who brought what.
+                Set up a blind tasting event in seconds.{' '}
+                <button
+                  type="button"
+                  className="inline text-primary hover:underline font-medium"
+                  onClick={() => setWalkthroughOpen(true)}
+                >
+                  How does it work?
+                </button>
               </CardDescription>
             </CardHeader>
             <form onSubmit={handleSubmit}>
@@ -191,6 +200,11 @@ function CreateEventPage() {
 
         </div>
       </div>
+
+      <WalkthroughDrawer
+        isOpen={walkthroughOpen}
+        onClose={() => setWalkthroughOpen(false)}
+      />
     </div>
   );
 }

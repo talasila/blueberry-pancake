@@ -1,52 +1,30 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X, List, ArrowLeft, BookOpen } from 'lucide-react';
+import { X, List, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useEventContext } from '@/contexts/EventContext';
-import { adminGuideContent } from '@/data/adminGuideContent';
-import { getStateConfig } from '@/utils/eventState.jsx';
+import { walkthroughSteps } from '@/data/walkthroughContent';
 import GuideStepCard from './GuideStepCard';
 import GuideProgress from './GuideProgress';
 import GuideNavigation from './GuideNavigation';
-import WalkthroughDrawer from './WalkthroughDrawer';
-
-const STATE_LABELS = {
-  created: 'Setup Guide',
-  started: 'Running Guide',
-  paused: 'Paused Guide',
-  completed: 'Completion Guide',
-};
-
-const CTA_MESSAGES = {
-  created:
-    'Look for the Start Event button in the state management section below to kick things off.',
-  started:
-    'Look for the Complete Event button in the state management section below when everyone is done.',
-  paused:
-    'Use Resume or Complete in the state management section below when you\'re ready.',
-  completed:
-    'You can reopen via the state management section, or export your data from the admin page.',
-};
 
 /**
- * AdminGuideDrawer — state-aware bottom sheet overlay for the admin guide.
- * Reads event.state from EventContext and displays appropriate step content.
- * Reuses GuideStepCard, GuideProgress, and GuideNavigation from the hosting guide.
+ * WalkthroughDrawer — bottom sheet that walks the user through
+ * the full blind-tasting lifecycle in numbered step cards.
+ *
+ * Reuses the same step card / navigation / progress components
+ * as AdminGuideDrawer and GuideDrawer.
  *
  * @param {object} props
  * @param {boolean} props.isOpen
  * @param {function} props.onClose
  */
-export default function AdminGuideDrawer({ isOpen, onClose }) {
-  const { event } = useEventContext();
-  const eventState = event?.state;
-  const steps = adminGuideContent[eventState] || [];
+export default function WalkthroughDrawer({ isOpen, onClose }) {
+  const steps = walkthroughSteps;
   const totalSteps = steps.length;
 
   const [isAnimating, setIsAnimating] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [showOverview, setShowOverview] = useState(false);
-  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
   const previousOverflowRef = useRef('');
 
   const isLastStep = currentStep === totalSteps - 1;
@@ -68,7 +46,6 @@ export default function AdminGuideDrawer({ isOpen, onClose }) {
     return () => clearTimeout(unmountTimer);
   }, [isOpen]);
 
-  // Restore body scroll on unmount (e.g., navigating away while guide is open)
   useEffect(() => {
     return () => {
       document.body.style.overflow = previousOverflowRef.current || '';
@@ -94,11 +71,21 @@ export default function AdminGuideDrawer({ isOpen, onClose }) {
     setShowOverview(false);
   }, []);
 
-  // Reset step when state changes (e.g., another admin transitions the event)
+  // Browser back button dismissal
   useEffect(() => {
-    setCurrentStep(0);
-    setShowOverview(false);
-  }, [eventState]);
+    if (!isOpen) return;
+
+    window.history.pushState({ walkthroughDrawer: true }, '');
+
+    const handlePopState = (e) => {
+      if (e.state?.walkthroughDrawer === undefined) {
+        handleClose();
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [isOpen, handleClose]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -119,40 +106,7 @@ export default function AdminGuideDrawer({ isOpen, onClose }) {
 
   if (!isMounted) return null;
 
-  const stateConfig = eventState ? getStateConfig(eventState) : null;
-  const headerTitle = showOverview
-    ? 'All Steps'
-    : STATE_LABELS[eventState] || 'Admin Guide';
-
-  if (!eventState || steps.length === 0) {
-    return (
-      <>
-        <div
-          className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ease-in-out ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
-          onClick={handleClose}
-          aria-hidden="true"
-        />
-        <div
-          className={`fixed bottom-0 left-0 right-0 w-full max-h-[85vh] bg-background shadow-xl z-50 rounded-t-lg transform transition-transform duration-300 ease-out ${isOpen && isAnimating ? 'translate-y-0' : 'translate-y-full'} ${!isOpen ? 'pointer-events-none' : ''}`}
-          role="dialog"
-          aria-modal="true"
-          aria-label="Admin guide"
-          aria-hidden={!isOpen}
-        >
-          <div className="flex items-center justify-between px-4 py-3 border-b">
-            <h2 className="text-base font-semibold">Admin Guide</h2>
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={handleClose} aria-label="Close guide">
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-          <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
-            <BookOpen className="h-10 w-10 text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">Loading event data...</p>
-          </div>
-        </div>
-      </>
-    );
-  }
+  const headerTitle = showOverview ? 'All Steps' : 'How a Tasting Works';
 
   return (
     <>
@@ -161,7 +115,7 @@ export default function AdminGuideDrawer({ isOpen, onClose }) {
         className={`fixed inset-0 bg-black/50 z-40 transition-opacity duration-300 ease-in-out ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onClick={handleClose}
         aria-hidden="true"
-        data-testid="admin-guide-backdrop"
+        data-testid="walkthrough-backdrop"
       />
 
       {/* Drawer */}
@@ -169,8 +123,9 @@ export default function AdminGuideDrawer({ isOpen, onClose }) {
         className={`fixed bottom-0 left-0 right-0 w-full max-h-[85vh] bg-background shadow-xl z-50 rounded-t-lg transform transition-transform duration-300 ease-out ${isOpen && isAnimating ? 'translate-y-0' : 'translate-y-full'} ${!isOpen ? 'pointer-events-none' : ''}`}
         role="dialog"
         aria-modal="true"
-        aria-label="Admin guide"
+        aria-label="How a tasting works walkthrough"
         aria-hidden={!isOpen}
+        data-testid="walkthrough-drawer"
       >
         <div className="flex flex-col h-full max-h-[85vh]">
           {/* Header */}
@@ -188,11 +143,6 @@ export default function AdminGuideDrawer({ isOpen, onClose }) {
                 </Button>
               )}
               <h2 className="text-base font-semibold">{headerTitle}</h2>
-              {stateConfig && !showOverview && (
-                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${stateConfig.className}`}>
-                  {stateConfig.label}
-                </span>
-              )}
             </div>
 
             <div className="flex items-center gap-1">
@@ -212,7 +162,7 @@ export default function AdminGuideDrawer({ isOpen, onClose }) {
                 size="icon"
                 className="h-8 w-8"
                 onClick={handleClose}
-                aria-label="Close guide"
+                aria-label="Close walkthrough"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -223,7 +173,7 @@ export default function AdminGuideDrawer({ isOpen, onClose }) {
           <div className="flex-1 overflow-y-auto">
             {/* Overview / table of contents */}
             {showOverview && (
-              <nav aria-label="Guide steps overview" className="flex flex-col gap-1 p-4">
+              <nav aria-label="Walkthrough steps overview" className="flex flex-col gap-1 p-4">
                 {steps.map((step, i) => (
                   <button
                     key={step.id}
@@ -260,25 +210,11 @@ export default function AdminGuideDrawer({ isOpen, onClose }) {
                   <GuideProgress currentStep={currentStep} totalSteps={totalSteps} />
                 </div>
 
-                {/* Full walkthrough link on the overview step */}
-                {currentStep === 0 && eventState === 'created' && (
-                  <div className="px-6 pb-4 text-center">
-                    <button
-                      type="button"
-                      className="text-sm text-primary hover:underline font-medium"
-                      onClick={() => setWalkthroughOpen(true)}
-                    >
-                      See the full walkthrough
-                    </button>
-                  </div>
-                )}
-
-                {/* Informational CTA on last step */}
-                {isLastStep && CTA_MESSAGES[eventState] && (
+                {isLastStep && (
                   <div className="px-6 pb-6">
-                    <p className="rounded-lg bg-muted p-4 text-center text-sm text-muted-foreground">
-                      {CTA_MESSAGES[eventState]}
-                    </p>
+                    <Button className="w-full" onClick={handleClose}>
+                      Got it
+                    </Button>
                   </div>
                 )}
               </>
@@ -286,11 +222,6 @@ export default function AdminGuideDrawer({ isOpen, onClose }) {
           </div>
         </div>
       </div>
-
-      <WalkthroughDrawer
-        isOpen={walkthroughOpen}
-        onClose={() => setWalkthroughOpen(false)}
-      />
     </>
   );
 }

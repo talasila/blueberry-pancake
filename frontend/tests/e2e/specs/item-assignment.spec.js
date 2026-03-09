@@ -250,7 +250,7 @@ test.describe('Item Assignment', () => {
     // Look for the assignment select or a message indicating assignment is not available
     // Scope to drawer to avoid matching event name
     const drawer = page.locator('[role="dialog"]');
-    const assignmentMessage = drawer.getByText(/assignment.*paused|pause.*assign/i);
+    const assignmentMessage = drawer.getByText(/ID assignment is only available/i);
     await expect(assignmentMessage).toBeVisible();
   });
 
@@ -276,7 +276,7 @@ test.describe('Item Assignment', () => {
     
     // Assignment should not be available message - scope to drawer
     const drawer = page.locator('[role="dialog"]');
-    const assignmentMessage = drawer.getByText(/assignment.*paused|pause.*assign/i);
+    const assignmentMessage = drawer.getByText(/ID assignment is only available/i);
     await expect(assignmentMessage).toBeVisible();
   });
 
