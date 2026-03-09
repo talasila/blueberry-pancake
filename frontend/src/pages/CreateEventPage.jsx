@@ -108,7 +108,7 @@ function CreateEventPage() {
             <CardHeader>
               <CardTitle>Create Event</CardTitle>
               <CardDescription>
-                Create a new blind tasting event
+                Guests join with a PIN, taste items by number, and rate them blind. If someone brought an item they can optionally register it. Later, you match registered items to their tasting numbers so the results reveal who brought what.
               </CardDescription>
             </CardHeader>
             <form onSubmit={handleSubmit}>

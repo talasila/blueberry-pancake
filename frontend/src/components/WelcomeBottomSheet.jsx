@@ -128,6 +128,18 @@ export default function WelcomeBottomSheet({
               </p>
             </div>
 
+            {/* Registration & assignment */}
+            <div className="mt-4" data-testid="welcome-registration-info">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                Bottles & blind tasting
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Guests who brought an item can optionally register it. Later, pause the event and go to{' '}
+                <span className="font-medium text-foreground">Items → Assignment</span>{' '}
+                to match each item to its tasting number. This is how results reveal who brought what.
+              </p>
+            </div>
+
             {/* Starting the event */}
             <div className="mt-4" data-testid="welcome-start-info">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">

@@ -1,7 +1,7 @@
 /**
  * Static admin guide content keyed by event lifecycle state.
  *
- * Four state paths: created (7 steps), started (4), paused (3), completed (4).
+ * Four state paths: created (8 steps), started (5), paused (3), completed (4).
  * Each step has an id, heading, description (≤3 sentences), and a lucide-react icon name.
  *
  * Content topics sourced from spec.md "Guide Content Steps".
@@ -13,48 +13,55 @@ export const adminGuideContent = {
   created: [
     {
       id: 'created-1',
+      heading: 'How a Tasting Works',
+      description:
+        'Guests join with a PIN, taste items by number, and rate them blind. If someone brought an item they can optionally register it. Later, you match registered items to their tasting numbers so the results reveal who brought what.',
+      icon: 'Wine',
+    },
+    {
+      id: 'created-2',
       heading: 'Name Your Event',
       description:
         'Give your event a name that your guests will recognize — something like "Friday Wine Night" or "Holiday Tasting." You can always change it later before you start.',
       icon: 'Edit3',
     },
     {
-      id: 'created-2',
+      id: 'created-3',
       heading: 'Set Up Your Items',
       description:
-        'Choose how many items to include and exclude any you don\'t need. Each item gets a number that guests will use when rating. You can add or remove items any time before starting.',
+        'Choose how many items to include and exclude any you don\'t need. Each item gets a tasting number that guests will use when rating. You can adjust this any time before starting.',
       icon: 'List',
     },
     {
-      id: 'created-3',
+      id: 'created-4',
       heading: 'Configure Ratings',
       description:
         'Pick your rating scale and customize the labels and colors for each score. This is your only chance — rating settings lock permanently once you start the event!',
       icon: 'Star',
     },
     {
-      id: 'created-4',
+      id: 'created-5',
       heading: 'Enable Note Suggestions',
       description:
         'Turn on tasting note hints so guests get helpful prompts while rating. This works great for wine events where guests might not know tasting terminology.',
       icon: 'MessageSquare',
     },
     {
-      id: 'created-5',
+      id: 'created-6',
       heading: 'Add Co-Administrators',
       description:
         'Invite others to help manage the event by adding them as co-administrators. They\'ll have the same admin access as you and can help run things on the day.',
       icon: 'UserPlus',
     },
     {
-      id: 'created-6',
+      id: 'created-7',
       heading: 'Share the PIN',
       description:
         'Copy the event PIN or link and send it to your guests so they can join. They\'ll need this to access the event on their phones.',
       icon: 'Share2',
     },
     {
-      id: 'created-7',
+      id: 'created-8',
       heading: 'Ready to Go!',
       description:
         'Once everyone has arrived and you\'re ready for the first pour, start the event. Look for the Start Event button in the state management section below.',
@@ -71,20 +78,27 @@ export const adminGuideContent = {
     },
     {
       id: 'started-2',
+      heading: 'Guests Can Register Bottles',
+      description:
+        'If a guest brought an item, they can register it from their phone. This is optional — it just means the results can later show which item was which and who brought it.',
+      icon: 'ClipboardList',
+    },
+    {
+      id: 'started-3',
       heading: 'What Guests See',
       description:
         'Each guest sees a number grid and taps to rate each item. They can also leave tasting notes if you enabled that feature. Everything happens in real time.',
       icon: 'Smartphone',
     },
     {
-      id: 'started-3',
+      id: 'started-4',
       heading: 'Need a Break?',
       description:
-        'Pause the event to temporarily stop ratings. This is useful for assigning item IDs between rounds, or just taking a break. Guests will see a "paused" message.',
+        'Pause the event to temporarily stop ratings and match registered items to their tasting numbers. Guests will see a "paused" message until you resume.',
       icon: 'PauseCircle',
     },
     {
-      id: 'started-4',
+      id: 'started-5',
       heading: 'Time to Wrap Up',
       description:
         'Complete the event when all items have been tasted and rated. Don\'t worry — you can always reopen it later if needed. Look for the Complete Event button in the state management section below.',
@@ -101,16 +115,16 @@ export const adminGuideContent = {
     },
     {
       id: 'paused-2',
-      heading: 'Assign Item IDs',
+      heading: 'Match Bottles to Numbers',
       description:
-        'This is the only time you can assign real item identifiers (like wine names) to the numbered items. Head to the item assignment page to match numbers to names.',
+        'Go to the Items section and open the Assignment tab. Match each registered item to its blind tasting number — this is how results will show who brought what when scores are revealed.',
       icon: 'Tag',
     },
     {
       id: 'paused-3',
       heading: 'Resume or Finish',
       description:
-        'Resume the event to continue tasting, or complete it if you\'re done. Once you resume, item assignment will be locked again. Use Resume or Complete in the state management section below.',
+        'Resume the event to continue tasting, or complete it if you\'re done. Once you resume, assignments will be locked again. Use Resume or Complete in the state management section below.',
       icon: 'Play',
     },
   ],
