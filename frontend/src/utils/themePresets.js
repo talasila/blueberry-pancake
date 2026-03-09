@@ -237,6 +237,8 @@ export function getThemeVars(presetId, isDark = false) {
     '--event-surface': palette.surface,
     '--event-surface-fg': palette.surfaceForeground,
     '--event-header-bg': palette.headerBg,
+    '--primary': palette.accent,
+    '--primary-foreground': isDark ? palette.accentForeground : 'oklch(0.985 0 0)',
   };
 }
 
