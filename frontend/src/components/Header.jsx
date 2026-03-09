@@ -150,6 +150,7 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
   };
 
   const handleToggleDarkMode = () => {
+    setIsMenuOpen(false);
     const next = !isDark;
     document.documentElement.classList.toggle('dark', next);
     localStorage.setItem('theme', next ? 'dark' : 'light');
