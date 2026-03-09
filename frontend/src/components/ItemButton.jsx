@@ -29,7 +29,7 @@ function ItemButton({ itemId, ratingColor, isBookmarked, isWinner, onClick }) {
       <button
         onClick={(e) => { e.currentTarget.focus(); onClick(e); }}
         className={cn(
-          "relative w-[56px] h-[56px] rounded-full text-[26px] font-normal leading-none",
+          "relative w-[60px] h-[60px] rounded-full text-[28px] font-normal leading-none",
           "flex items-center justify-center",
           "transition-all duration-200",
           "hover:scale-105 active:scale-95",
