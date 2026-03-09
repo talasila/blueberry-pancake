@@ -7,9 +7,10 @@
  * @param {number} size - Size of the logo in pixels (default: 32)
  * @param {string} className - Additional CSS classes
  * @param {string} circleFill - Fill color for the circle (default: 'black')
+ * @param {string} textFill - Fill color for the "b" letter (default: 'white')
  * @returns {JSX.Element} The logo SVG component
  */
-function Logo({ size = 32, className = '', circleFill = 'black' }) {
+function Logo({ size = 32, className = '', circleFill = 'black', textFill = 'white' }) {
   return (
     <svg
       width={size}
@@ -34,7 +35,7 @@ function Logo({ size = 32, className = '', circleFill = 'black' }) {
         fontWeight="300"
         fontFamily="OpenSans-SemiBold"
         textAnchor="start"
-        fill="white"
+        fill={textFill}
         letterSpacing="-0.3"
         className="select-none"
       >

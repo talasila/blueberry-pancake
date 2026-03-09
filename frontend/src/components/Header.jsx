@@ -1,4 +1,4 @@
-import { Menu, User, BarChart3, Settings, LogOut, ArrowLeft, HelpCircle, BookOpen, List } from 'lucide-react';
+import { Menu, User, BarChart3, Settings, LogOut, ArrowLeft, HelpCircle, BookOpen, List, Sun, Moon } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMemo, useState, useEffect } from 'react';
 import Logo from './Logo.jsx';
@@ -28,7 +28,19 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
   const { event, eventId, isAdmin } = useEventContext();
   const [authState, setAuthState] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  
+  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
+
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class'],
+    });
+    return () => observer.disconnect();
+  }, []);
+
   const isEventRoute = location.pathname.startsWith('/event/');
   const isSystemRoute = location.pathname.startsWith('/system');
   const isStandalonePage = ['/my-events', '/create-event'].includes(location.pathname);
@@ -36,12 +48,18 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
   const showHamburgerMenu = authState && !isLandingPage && !isSystemRoute && !isStandalonePage;
   const eventName = event?.name;
 
-  const logoFill = useMemo(() => {
-    if (!isEventRoute || !event?.theme || event.theme === 'classic') return 'black';
+  const { logoFill, logoTextFill } = useMemo(() => {
+    if (!isEventRoute || !event?.theme || event.theme === 'classic') {
+      return isDark
+        ? { logoFill: 'white', logoTextFill: 'black' }
+        : { logoFill: 'black', logoTextFill: 'white' };
+    }
     const preset = getPreset(event.theme);
-    const isDark = document.documentElement.classList.contains('dark');
-    return isDark ? preset.light.accent : preset.dark.accent;
-  }, [isEventRoute, event?.theme]);
+    return {
+      logoFill: isDark ? preset.light.accent : preset.dark.accent,
+      logoTextFill: 'white',
+    };
+  }, [isEventRoute, event?.theme, isDark]);
 
   // Extract eventId from pathname if not available from context
   const pathEventId = useMemo(() => {
@@ -131,6 +149,12 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
     onToggleGuide();
   };
 
+  const handleToggleDarkMode = () => {
+    const next = !isDark;
+    document.documentElement.classList.toggle('dark', next);
+    localStorage.setItem('theme', next ? 'dark' : 'light');
+  };
+
   const handleLogout = async () => {
     setIsMenuOpen(false);
     
@@ -203,7 +227,7 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
                 }
               }}
             >
-              <Logo size={32} className="text-foreground" circleFill={logoFill} />
+              <Logo size={32} className="text-foreground" circleFill={logoFill} textFill={logoTextFill} />
             </div>
             {isEventRoute && eventName && (
               <div className="flex items-center gap-1.5 min-w-0">
@@ -331,7 +355,14 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
                   {guideVariant === 'admin' ? 'Admin Guide' : 'Help'}
                 </DropdownMenuItem>
               )}
-              
+
+              <DropdownMenuItem
+                onClick={handleToggleDarkMode}
+                icon={isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              >
+                {isDark ? 'Light Mode' : 'Dark Mode'}
+              </DropdownMenuItem>
+
               <DropdownMenuItem
                 onClick={handleLogout}
                 icon={<LogOut className="h-4 w-4" />}
