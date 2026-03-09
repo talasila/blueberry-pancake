@@ -27,7 +27,7 @@ function ItemButton({ itemId, ratingColor, isBookmarked, isWinner, onClick }) {
         </div>
       )}
       <button
-        onClick={onClick}
+        onClick={(e) => { e.currentTarget.focus(); onClick(e); }}
         className={cn(
           "relative w-16 h-16 rounded-full text-3xl font-normal",
           "flex items-center justify-center",
