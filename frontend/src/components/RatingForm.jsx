@@ -247,7 +247,6 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3">
-      <p className="text-xs font-medium text-muted-foreground">How do you rate this {singularLower}?</p>
       {/* Rating Options - list with colored left handle */}
       <div
         role="radiogroup"

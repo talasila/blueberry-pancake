@@ -159,7 +159,7 @@ function RatingDrawer({
           {/* Header with title, bookmark button, and close button */}
           <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0 rounded-t-lg" style={{ backgroundColor: 'var(--event-header-bg)' }}>
             <h2 id="drawer-title" className="text-base font-semibold">
-              {singular} {itemId}
+              {eventState === 'started' ? `Rate ${singular} ${itemId}` : `${singular} ${itemId}`}
             </h2>
             <div className="flex items-center gap-2">
               {eventState === 'started' && (
