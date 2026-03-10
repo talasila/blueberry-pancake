@@ -1,18 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { ChevronDown } from 'lucide-react';
+import { Check, Plus } from 'lucide-react';
 import { ratingService } from '@/services/ratingService';
 import { useParams } from 'react-router-dom';
-import apiClient from '@/services/apiClient';
 import { useQuotes } from '@/hooks/useQuotes';
 import { useEventContext } from '@/contexts/EventContext';
 import { useItemTerminology } from '@/utils/itemTerminology';
 
 /**
  * RatingForm Component
- * Form for submitting ratings with optional notes
- * 
+ * Rating selection with colored handle rows, optional tappable quote suggestions
+ * (wine events), and a note textarea in a unified composition area.
+ *
  * @param {object} props
  * @param {number} props.itemId - Item identifier
  * @param {string} props.eventId - Event identifier
@@ -27,7 +26,6 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
   const effectiveEventId = eventId || eventIdFromParams;
   const { event } = useEventContext();
   const { singularLower } = useItemTerminology(event);
-  
 
   const [selectedRating, setSelectedRating] = useState(existingRating?.rating || null);
   const [note, setNote] = useState(existingRating?.note || '');
@@ -35,8 +33,6 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const dropdownRef = useRef(null);
   const timeoutRefs = useRef([]);
   const MAX_RETRIES = 3;
 
@@ -44,6 +40,7 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
   const { getSuggestionsForRating } = useQuotes();
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const [usedSuggestionIndices, setUsedSuggestionIndices] = useState(new Set());
 
   // Clear pending timeouts on unmount
   useEffect(() => {
@@ -61,8 +58,8 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
     setSuccess(false);
     setIsSubmitting(false);
     setRetryCount(0);
-    setIsDropdownOpen(false);
     setSuggestions([]);
+    setUsedSuggestionIndices(new Set());
   }, [itemId, existingRating]);
 
   // Extract maxRating as primitive to avoid object reference issues in dependency array
@@ -80,7 +77,7 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
       if (shouldShowSuggestions) {
         try {
           setLoadingSuggestions(true);
-          // Pass maxRating for normalized quote file mapping
+          setUsedSuggestionIndices(new Set());
           const newSuggestions = await getSuggestionsForRating(selectedRating, maxRating);
           setSuggestions(newSuggestions || []);
         } catch (error) {
@@ -148,42 +145,12 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
     return currentNote;
   };
 
-  /**
-   * Handle suggestion button click
-   * Adds suggestion text to note field
-   * @param {string} suggestionText - Text of the clicked suggestion
-   */
-  const handleSuggestionClick = (suggestionText) => {
+  const handleSuggestionClick = (suggestionText, index) => {
+    if (usedSuggestionIndices.has(index)) return;
     const updatedNote = appendSuggestionWithLimit(note, suggestionText);
     setNote(updatedNote);
+    setUsedSuggestionIndices(prev => new Set(prev).add(index));
   };
-
-  /**
-   * Handle clear button click
-   * Clears both the selected rating and note
-   */
-  const handleClear = () => {
-    setSelectedRating(null);
-    setNote('');
-    setError(null);
-    setIsDropdownOpen(false);
-  };
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsDropdownOpen(false);
-      }
-    };
-
-    if (isDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      return () => {
-        document.removeEventListener('mousedown', handleClickOutside);
-      };
-    }
-  }, [isDropdownOpen]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -279,156 +246,136 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Rating Options */}
-      <div>
-        <div className="relative" ref={dropdownRef}>
-          <button
-            type="button"
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            className="w-full px-3 py-2 border-2 rounded-md focus:outline-none focus:ring-2 focus:ring-ring transition-colors flex items-center justify-between"
-            style={
-              selectedRating
-                ? {
-                    backgroundColor: ratingConfig.ratings.find(r => r.value === selectedRating)?.color || '',
-                    color: 'white',
-                    borderColor: ratingConfig.ratings.find(r => r.value === selectedRating)?.color || ''
-                  }
-                : {
-                    backgroundColor: 'var(--background)',
-                    color: 'var(--foreground)',
-                    borderColor: 'var(--input)'
-                  }
-            }
-          >
-            <div className="flex items-center gap-2">
-              {selectedRating ? (
-                <>
-                  <div
-                    className="w-4 h-4 rounded-full"
-                    style={{
-                      backgroundColor: ratingConfig.ratings.find(r => r.value === selectedRating)?.color || ''
-                    }}
-                  />
-                  <span>
-                    {selectedRating} - {ratingConfig.ratings.find(r => r.value === selectedRating)?.label || ''}
-                  </span>
-                </>
-              ) : (
-                <span className="text-muted-foreground">-- Select a rating --</span>
-              )}
-            </div>
-            <ChevronDown className={`h-4 w-4 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-          </button>
-
-          {isDropdownOpen && (
-            <div className="absolute z-10 w-full mt-1 bg-background border border-input rounded-md shadow-lg max-h-60 overflow-auto">
-              {/* No rating option */}
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedRating(null);
-                  setIsDropdownOpen(false);
-                }}
-                className="w-full px-3 py-2 text-left hover:bg-accent flex items-center gap-2 transition-colors"
-                style={{
-                  backgroundColor: selectedRating === null ? 'var(--muted)' : undefined,
-                  color: selectedRating === null ? 'var(--muted-foreground)' : undefined
-                }}
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <p className="text-xs font-medium text-muted-foreground">How do you rate this {singularLower}?</p>
+      {/* Rating Options - list with colored left handle */}
+      <div
+        role="radiogroup"
+        aria-label="Rating"
+        className="flex flex-col gap-1"
+      >
+        {ratingConfig.ratings.map((option) => {
+          const isSelected = selectedRating === option.value;
+          return (
+            <button
+              key={option.value}
+              type="button"
+              role="radio"
+              aria-checked={isSelected}
+              onClick={() => setSelectedRating(isSelected ? null : option.value)}
+              className={`w-full rounded-lg flex items-stretch text-left transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 active:scale-[0.98] overflow-hidden ${
+                isSelected ? '' : 'bg-muted/50'
+              }`}
+              style={
+                isSelected
+                  ? { backgroundColor: option.color, color: 'white' }
+                  : {}
+              }
+            >
+              <span
+                className={`w-8 flex-shrink-0 flex items-center justify-center transition-colors duration-150 ${isSelected ? '' : 'bg-muted-foreground/20'}`}
+                style={isSelected ? { backgroundColor: 'rgba(255,255,255,0.15)' } : {}}
               >
-                <div className="w-5 h-5 rounded-full flex-shrink-0 border-2 border-muted-foreground" />
-                <span className="text-muted-foreground">No rating</span>
-              </button>
-              {ratingConfig.ratings.map((ratingOption) => (
-                <button
-                  key={ratingOption.value}
-                  type="button"
-                  onClick={() => {
-                    setSelectedRating(ratingOption.value);
-                    setIsDropdownOpen(false);
-                  }}
-                  className="w-full px-3 py-2 text-left hover:bg-accent flex items-center gap-2 transition-colors"
-                  style={{
-                    backgroundColor: selectedRating === ratingOption.value ? ratingOption.color : undefined,
-                    color: selectedRating === ratingOption.value ? 'white' : undefined
-                  }}
-                >
-                  <div
-                    className="w-5 h-5 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: ratingOption.color }}
-                  />
-                  <span>
-                    {ratingOption.value} - {ratingOption.label}
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+                <span
+                  className="w-4 h-4 rounded-full border-2 transition-all duration-150"
+                  style={
+                    isSelected
+                      ? { backgroundColor: option.color, borderColor: 'white' }
+                      : { backgroundColor: 'white', borderColor: option.color }
+                  }
+                />
+              </span>
+              <span className="flex items-center px-3 py-2">
+                <span className="font-medium text-sm">
+                  {option.value} &ndash; {option.label}
+                </span>
+              </span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Note Suggestions - Only for wine events with suggestions enabled */}
-      {eventType === 'wine' && noteSuggestionsEnabled !== false && selectedRating !== null && (
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">Note Suggestions</Label>
-          {loadingSuggestions ? (
-            <div className="text-xs text-muted-foreground py-2">Loading suggestions...</div>
-          ) : suggestions.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              {suggestions.map((suggestion, index) => (
-                <Button
-                  key={index}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleSuggestionClick(suggestion.text)}
-                  onKeyDown={(e) => {
-                    // Keyboard navigation support
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      handleSuggestionClick(suggestion.text);
-                    }
-                  }}
-                  className="text-xs text-left justify-start h-auto py-2 px-3 break-words whitespace-normal"
-                  aria-label={`Add suggestion: ${suggestion.text.substring(0, 50)}${suggestion.text.length > 50 ? '...' : ''}`}
-                  tabIndex={0}
-                >
-                  {suggestion.text}
-                </Button>
-              ))}
+      {/* Note composition area - quote suggestions + textarea as one unit */}
+      <div className="rounded-lg border border-input overflow-hidden">
+        {/* Tappable quote suggestions - shown for wine events */}
+        {eventType === 'wine' && noteSuggestionsEnabled !== false && selectedRating !== null && (
+          <div className="border-b border-input/50 bg-muted/30 transition-all duration-200">
+            <div className="px-3 pt-2 pb-2 border-b border-input/30 rounded-t-lg" style={{ backgroundColor: 'var(--event-surface)', color: 'var(--event-surface-fg)' }}>
+              <span className="text-xs font-medium">Tap a suggestion or write your own</span>
             </div>
-          ) : null}
-        </div>
-      )}
+            <div className="min-h-[80px]">
+              {loadingSuggestions ? (
+                <div className="text-xs text-muted-foreground px-3 py-2">Loading...</div>
+              ) : suggestions.length > 0 ? (
+                <div key={selectedRating} className="flex flex-col divide-y divide-input/30 animate-fade-in">
+                  {suggestions.map((suggestion, index) => {
+                    const isUsed = usedSuggestionIndices.has(index);
+                    return (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => handleSuggestionClick(suggestion.text, index)}
+                        disabled={isUsed}
+                        className={`flex items-start gap-2 text-left px-3 py-2 transition-all duration-200 ${
+                          isUsed
+                            ? 'opacity-40'
+                            : 'active:bg-accent/70'
+                        }`}
+                        aria-label={isUsed
+                          ? `Already added: ${suggestion.text.substring(0, 50)}`
+                          : `Add to note: ${suggestion.text.substring(0, 50)}${suggestion.text.length > 50 ? '...' : ''}`
+                        }
+                      >
+                        {isUsed
+                          ? <Check className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
+                          : <Plus className="h-4 w-4 mt-0.5 flex-shrink-0 text-muted-foreground" />
+                        }
+                        <span className={`text-xs italic leading-relaxed ${isUsed ? 'line-through text-muted-foreground' : ''}`}>
+                          {suggestion.text}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        )}
 
-      {/* Note Field */}
-      <div>
+        {/* Textarea */}
         <textarea
           id="note"
+          aria-label={`Optional note about this ${singularLower}`}
           value={note}
           onChange={(e) => setNote(e.target.value)}
           maxLength={500}
-          rows={3}
-          className="w-full px-3 py-2 border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring"
-          placeholder={`(Optional) Add a note about this ${singularLower}...`}
+          rows={2}
+          className="w-full px-3 py-2 border-0 bg-transparent focus:outline-none resize-none"
+          placeholder={
+            eventType === 'wine' && noteSuggestionsEnabled !== false && selectedRating !== null
+              ? `Or write your own note...`
+              : `Add a note about this ${singularLower} (optional)`
+          }
         />
-        {note.length > 500 && (
-          <p className="text-sm text-destructive mt-1">
-            Note exceeds 500 character limit
+
+        {/* Character count */}
+        <div className="px-3 pb-1.5">
+          <p className={`text-xs text-right ${note.length > 450 ? 'text-destructive' : 'text-muted-foreground'}`}>
+            {note.length}/500
           </p>
-        )}
+        </div>
       </div>
 
       {/* Error Message */}
       {error && (
-        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-4">
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3">
           <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
 
       {/* Success Message */}
       {success && (
-        <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4">
+        <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-3">
           <p className="text-sm text-green-600 dark:text-green-400">
             Rating submitted successfully!
           </p>
@@ -445,15 +392,6 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
           className="flex-1"
         >
           Cancel
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handleClear}
-          disabled={isSubmitting || (!selectedRating && !note && !existingRating)}
-          className="flex-1"
-        >
-          Clear
         </Button>
         <Button
           type="submit"

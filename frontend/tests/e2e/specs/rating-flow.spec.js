@@ -61,11 +61,8 @@ test.describe('Rating Flow', () => {
     
     const drawer = page.locator('[role="dialog"]');
     await expect(drawer).toBeVisible({ timeout: 5000 });
-    const ratingControl = drawer.locator('[role="slider"]')
-      .or(drawer.locator('input[type="range"]'))
-      .or(drawer.getByText(/select a rating/i));
-    
-    await expect(ratingControl.first()).toBeVisible({ timeout: 5000 });
+    const ratingControl = drawer.locator('[role="radiogroup"]');
+    await expect(ratingControl).toBeVisible({ timeout: 5000 });
   });
 
   test('can submit rating for an item', async ({ page, testEvent }) => {
@@ -81,15 +78,12 @@ test.describe('Rating Flow', () => {
     const itemButton = page.locator('button').filter({ hasText: /^1$/ }).first();
     await itemButton.click();
     
-    // Wait for drawer to open and rating selector to appear
-    const ratingDropdown = page.getByText(/select a rating/i);
-    await expect(ratingDropdown).toBeVisible({ timeout: 5000 });
-    
-    // Click the dropdown to open rating options
-    await ratingDropdown.click();
+    // Wait for drawer to open and rating options to appear
+    const ratingGroup = page.locator('[role="radiogroup"]');
+    await expect(ratingGroup).toBeVisible({ timeout: 5000 });
     
     // Select rating 3 - "Not bad..."
-    const ratingOption = page.getByRole('button', { name: /3 - Not bad/i });
+    const ratingOption = page.getByRole('radio', { name: /3.*Not bad/i });
     await ratingOption.click();
     
     const submitButton = page.getByRole('button', { name: /^submit$/i });
@@ -186,13 +180,12 @@ test.describe('Rating Flow', () => {
     const itemButton = page.locator('button').filter({ hasText: /^1$/ }).first();
     await itemButton.click();
     
-    // Wait for drawer to open and rating selector to appear
-    const ratingDropdown = page.getByText(/select a rating/i);
-    await expect(ratingDropdown).toBeVisible({ timeout: 5000 });
+    // Wait for drawer to open and rating options to appear
+    const ratingGroup = page.locator('[role="radiogroup"]');
+    await expect(ratingGroup).toBeVisible({ timeout: 5000 });
     
     // Select a rating first (required to submit)
-    await ratingDropdown.click();
-    const ratingOption = page.getByRole('button', { name: /3 - Not bad/i });
+    const ratingOption = page.getByRole('radio', { name: /3.*Not bad/i });
     await ratingOption.click();
     
     // Find the note textarea

@@ -245,11 +245,10 @@ test.describe('Production Smoke Test', () => {
           // Rate item 1 with a "3 - Not bad..."
           await userPage.locator('button').filter({ hasText: '1' }).first().click();
 
-          const ratingDropdown = userPage.getByText(/select a rating/i);
-          await expect(ratingDropdown).toBeVisible({ timeout: 5000 });
-          await ratingDropdown.click();
+          const ratingGroup = userPage.locator('[role="radiogroup"]');
+          await expect(ratingGroup).toBeVisible({ timeout: 5000 });
 
-          await userPage.getByRole('button', { name: /3 - Not bad/i }).click();
+          await userPage.getByRole('radio', { name: /3.*Not bad/i }).click();
           await userPage.getByRole('button', { name: /^submit$/i }).click();
 
           await expect(

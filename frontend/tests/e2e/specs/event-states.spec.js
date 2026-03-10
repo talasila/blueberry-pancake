@@ -65,7 +65,7 @@ test.describe('Event State Management', () => {
     
     await page.locator(BOTTLE_1).first().click();
     
-    await expect(page.getByText(/select a rating/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/how do you rate this/i)).toBeVisible({ timeout: 5000 });
   });
 
   test('started event shows pause and complete options', async ({ page, testEvent }) => {
@@ -165,7 +165,7 @@ test.describe('Event State Management', () => {
     
     await page.locator(BOTTLE_1).first().click();
     
-    await expect(page.getByText(/select a rating/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/how do you rate this/i)).toBeVisible({ timeout: 5000 });
   });
 
   // ===================================
@@ -284,7 +284,7 @@ test.describe('Event State Management', () => {
     
     await page.locator(BOTTLE_1).first().click();
     
-    await expect(page.getByText(/select a rating/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/how do you rate this/i)).toBeVisible({ timeout: 5000 });
   });
 
   // ===================================
@@ -426,6 +426,6 @@ test.describe('Event State Management', () => {
     await expect(page.getByText('Tap a number to rate')).toBeVisible({ timeout: 5000 });
 
     await page.locator(BOTTLE_1).first().click();
-    await expect(page.getByText(/select a rating/i)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(/how do you rate this/i)).toBeVisible({ timeout: 5000 });
   });
 });
