@@ -1,20 +1,18 @@
-import { X, ArrowUpDown, ArrowUp, ArrowDown, Bookmark } from 'lucide-react';
+import { X, Bookmark } from 'lucide-react';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { ratingService } from '@/services/ratingService';
 import { useEventContext } from '@/contexts/EventContext';
-import { useItemTerminology } from '@/utils/itemTerminology';
 import apiClient from '@/services/apiClient';
 import { loadBookmarksFromServer, getBookmarks } from '@/utils/bookmarkStorage';
 import { calculateUserRatingProgress } from '@/utils/ratingProgress';
 
 /**
  * UserDetailsDrawer Component
- * Slide-out drawer that displays user rating details including:
- * - Rating progress visualizations (progress bar, rated items circles, sparkline)
- * - List of all ratings with comments/notes
- * 
+ * Bottom drawer showing a user's rating timeline, distribution summary,
+ * and sortable card list of individual ratings with notes.
+ *
  * @param {object} props
  * @param {boolean} props.isOpen - Whether drawer is open
  * @param {function} props.onClose - Close handler
@@ -32,7 +30,6 @@ function UserDetailsDrawer({
   availableItemIds = []
 }) {
   const { event } = useEventContext();
-  const { singular, pluralLower } = useItemTerminology(event);
   const [isAnimating, setIsAnimating] = useState(false);
   const hasBeenOpenedRef = useRef(false);
   const [ratings, setRatings] = useState([]);
@@ -40,7 +37,7 @@ function UserDetailsDrawer({
   const [error, setError] = useState(null);
   const [currentUserEmail, setCurrentUserEmail] = useState(null);
   const [ratingConfiguration, setRatingConfiguration] = useState(ratingConfig);
-  const [sortColumn, setSortColumn] = useState('id');
+  const [sortColumn, setSortColumn] = useState('time');
   const [sortDirection, setSortDirection] = useState('asc');
   const [bookmarks, setBookmarks] = useState([]);
 
@@ -197,17 +194,6 @@ function UserDetailsDrawer({
     return ratingOption?.label || `${ratingValue}`;
   };
 
-  // Format timestamp for display
-  const formatTimestamp = (timestamp) => {
-    if (!timestamp) return 'Unknown date';
-    try {
-      const date = new Date(timestamp);
-      return date.toLocaleString();
-    } catch (err) {
-      return timestamp;
-    }
-  };
-
   // Handle column header click for sorting
   const handleSort = (column) => {
     if (sortColumn === column) {
@@ -218,16 +204,6 @@ function UserDetailsDrawer({
       setSortColumn(column);
       setSortDirection('asc');
     }
-  };
-
-  // Render sort icon
-  const renderSortIcon = (column) => {
-    if (sortColumn !== column) {
-      return <ArrowUpDown className="h-4 w-4 ml-1 text-muted-foreground" />;
-    }
-    return sortDirection === 'asc' 
-      ? <ArrowUp className="h-4 w-4 ml-1" />
-      : <ArrowDown className="h-4 w-4 ml-1" />;
   };
 
   // Sort ratings based on selected column and direction
@@ -243,6 +219,10 @@ function UserDetailsDrawer({
         case 'rating':
           aValue = parseInt(a.rating, 10);
           bValue = parseInt(b.rating, 10);
+          break;
+        case 'time':
+          aValue = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+          bValue = b.timestamp ? new Date(b.timestamp).getTime() : 0;
           break;
         default:
           return 0;
@@ -297,11 +277,9 @@ function UserDetailsDrawer({
         <div className="flex flex-col h-full max-h-[75vh]">
           {/* Header with title and close button */}
           <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0 rounded-t-lg" style={{ backgroundColor: 'var(--event-header-bg)' }}>
-            <div>
-              <h2 id="user-details-title" className="text-base font-semibold">
-                {title}
-              </h2>
-            </div>
+            <h2 id="user-details-title" className="text-base font-semibold">
+              {title}
+            </h2>
             <Button
               variant="ghost"
               size="icon"
@@ -319,7 +297,7 @@ function UserDetailsDrawer({
           </div>
           
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-4">
             {isLoading ? (
               <div className="flex items-center justify-center py-8">
                 <LoadingSpinner />
@@ -338,207 +316,192 @@ function UserDetailsDrawer({
               </div>
             ) : (
               <div className="space-y-6">
-                {/* Rating Progress Visualizations */}
+                {/* Rating Visualizations */}
                 {userRatingProgressData && (
-                  <div>
-                    <h3 className="text-sm font-medium mb-3">Rating Progress</h3>
-                    <div className="space-y-4">
-                      {/* Combined Progress and History Bar */}
-                      <div>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs text-muted-foreground">Progress</span>
-                          <span className="text-xs font-medium">
-                            {userRatingProgressData.ratingProgression.toFixed(1)}%
-                          </span>
-                        </div>
-                        {userRatingProgressData.totalRatings > 0 ? (
+                  <div className="space-y-5">
+                    {/* Your Journey — chronological history bar */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-medium text-muted-foreground">Rating Timeline</span>
+                        <span className="text-xs text-muted-foreground">
+                          {userRatingProgressData.totalRatings} of {itemIds.length} rated
+                        </span>
+                      </div>
+                      {userRatingProgressData.totalRatings > 0 ? (
+                        <div
+                          className="w-full h-5 bg-muted rounded-full overflow-hidden"
+                          role="progressbar"
+                          aria-valuenow={userRatingProgressData.ratingProgression}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-label={`${userRatingProgressData.ratingProgression.toFixed(0)}% complete — ratings shown left to right in the order you rated them`}
+                        >
                           <div
-                            className="w-full h-5 bg-muted rounded-full overflow-hidden relative"
-                            role="progressbar"
-                            aria-valuenow={userRatingProgressData.ratingProgression}
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                            aria-label={`${userRatingProgressData.ratingProgression.toFixed(0)}% complete`}
+                            className="h-full flex"
+                            style={{ width: `${userRatingProgressData.ratingProgression}%` }}
                           >
-                            {/* Container for the filled portion (progress width) */}
-                            <div
-                              className="h-full flex"
-                              style={{ width: `${userRatingProgressData.ratingProgression}%` }}
-                            >
-                              {/* Chronological history segments within the filled portion */}
-                              {userRatingProgressData.ratings.map((ratingValue, index) => {
-                                const ratingConfig = ratingConfiguration?.ratings?.find(r => r.value === ratingValue);
-                                const color = ratingConfig?.color || '#6B7280';
-                                const segmentWidth = 100 / userRatingProgressData.ratings.length;
-                                
+                            {userRatingProgressData.ratings.map((ratingValue, index) => {
+                              const rc = ratingConfiguration?.ratings?.find(r => r.value === ratingValue);
+                              const color = rc?.color || '#6B7280';
+                              const segmentWidth = 100 / userRatingProgressData.ratings.length;
+                              return (
+                                <div
+                                  key={index}
+                                  className="h-full transition-all"
+                                  style={{
+                                    width: `${segmentWidth}%`,
+                                    backgroundColor: color,
+                                    minWidth: '2px'
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          className="w-full h-5 bg-muted rounded-full"
+                          role="progressbar"
+                          aria-valuenow={0}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-label="0% complete"
+                        />
+                      )}
+                      <p className="text-[10px] text-muted-foreground/70 mt-1">Each color is a rating, in the order {isCurrentUser ? 'you tasted them' : 'they were tasted'}</p>
+                    </div>
+
+                    {/* At a Glance — stacked distribution bar + legend */}
+                    <div>
+                      <span className="text-xs font-medium text-muted-foreground mb-1.5 block">At a Glance</span>
+                      {userRatingProgressData.totalRatings > 0 ? (
+                        <>
+                          <div className="w-full h-3 bg-muted rounded-full overflow-hidden flex">
+                            {ratingConfiguration?.ratings
+                              ?.slice()
+                              .sort((a, b) => b.value - a.value)
+                              .map((rc) => {
+                                const count = sortedRatings.filter(
+                                  r => parseInt(r.rating, 10) === rc.value
+                                ).length;
+                                if (count === 0) return null;
+                                const pct = (count / userRatingProgressData.totalRatings) * 100;
                                 return (
                                   <div
-                                    key={index}
-                                    className="h-full transition-all"
+                                    key={rc.value}
+                                    className="h-full transition-all duration-300"
                                     style={{
-                                      width: `${segmentWidth}%`,
-                                      backgroundColor: color,
-                                      minWidth: '2px'
+                                      width: `${pct}%`,
+                                      backgroundColor: rc.color,
+                                      minWidth: '3px'
                                     }}
-                                    title={`Rating ${ratingValue}${ratingConfig?.label ? `: ${ratingConfig.label}` : ''}`}
                                   />
                                 );
                               })}
-                            </div>
                           </div>
-                        ) : (
-                          <div
-                            className="w-full h-5 bg-muted rounded-full"
-                            role="progressbar"
-                            aria-valuenow={0}
-                            aria-valuemin={0}
-                            aria-valuemax={100}
-                            aria-label="0% complete"
-                          />
-                        )}
-                      </div>
-
-                      {/* Rated Items - grouped by rating in horizontal rows */}
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs text-muted-foreground">Distribution</span>
-                          <span className="text-xs text-muted-foreground">Total: {userRatingProgressData.totalRatings}</span>
-                        </div>
-                        {userRatingProgressData.totalRatings > 0 ? (
-                          <div className="space-y-1">
+                          {/* Legend */}
+                          <div className="flex gap-2 mt-1.5">
                             {ratingConfiguration?.ratings
-                              ?.sort((a, b) => a.value - b.value) // Sort ascending (lowest rating first)
-                              .map((ratingConfig) => {
-                                // Filter ratings for this rating value
-                                const itemsWithThisRating = sortedRatings.filter(
-                                  rating => parseInt(rating.rating, 10) === ratingConfig.value
-                                );
-                                
-                                // Skip if no items with this rating
-                                if (itemsWithThisRating.length === 0) return null;
-                                
+                              ?.slice()
+                              .sort((a, b) => b.value - a.value)
+                              .map((rc) => {
+                                const count = sortedRatings.filter(
+                                  r => parseInt(r.rating, 10) === rc.value
+                                ).length;
                                 return (
-                                  <div key={ratingConfig.value} className="flex items-center gap-2">
-                                    <span className="text-xs text-muted-foreground w-4 text-right">{itemsWithThisRating.length}</span>
-                                    <div className="flex gap-0.5">
-                                      {itemsWithThisRating.map((rating, index) => (
-                                        <div
-                                          key={`${rating.itemId}-${index}`}
-                                          className="w-2 h-2 rounded-full shadow-sm cursor-help"
-                                          style={{ backgroundColor: ratingConfig.color }}
-                                          title={`${singular} ${rating.itemId}: ${ratingConfig.label || ratingConfig.value}${rating.note ? '\n' + rating.note : ''}`}
-                                        />
-                                      ))}
-                                    </div>
-                                  </div>
+                                  <span key={rc.value} className="flex items-center gap-1">
+                                    <span
+                                      className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
+                                      style={{ backgroundColor: rc.color, opacity: count > 0 ? 1 : 0.35 }}
+                                    >
+                                      {rc.value}
+                                    </span>
+                                    <span className={`text-xs tabular-nums ${count > 0 ? 'text-foreground' : 'text-muted-foreground/40'}`}>
+                                      {count}
+                                    </span>
+                                  </span>
                                 );
                               })}
                           </div>
-                        ) : (
-                          <div className="text-xs text-muted-foreground text-center py-2">No ratings</div>
-                        )}
-                      </div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-muted-foreground text-center py-2">No ratings yet</div>
+                      )}
                     </div>
                   </div>
                 )}
 
-                {/* All Ratings Table */}
+                {/* Your Ratings list */}
                 <div>
-                  <h3 className="text-sm font-medium mb-3">
-                    All Ratings ({sortedRatings.length})
-                  </h3>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-muted-foreground">{isCurrentUser ? 'Your' : `${displayName}'s`} Ratings</span>
+                    {sortedRatings.length > 1 && (
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleSort('id')}
+                          className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${sortColumn === 'id' ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
+                        >
+                          #{sortColumn === 'id' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSort('rating')}
+                          className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${sortColumn === 'rating' ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
+                        >
+                          Rating{sortColumn === 'rating' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSort('time')}
+                          className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${sortColumn === 'time' ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
+                        >
+                          Time{sortColumn === 'time' ? (sortDirection === 'asc' ? '↑' : '↓') : ''}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   {sortedRatings.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No ratings yet.
+                    <p className="text-xs text-muted-foreground text-center py-4">
+                      No ratings yet — tap a number above to get started!
                     </p>
                   ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse text-sm">
-                        <thead>
-                          <tr className="border-b">
-                            <th
-                              className="text-left p-2 font-medium cursor-pointer hover:bg-muted/50"
-                              onClick={() => handleSort('id')}
-                            >
-                              <div className="flex items-center">
-                                ID
-                                {renderSortIcon('id')}
-                              </div>
-                            </th>
-                            <th
-                              className="text-left p-2 font-medium cursor-pointer hover:bg-muted/50"
-                              onClick={() => handleSort('rating')}
-                            >
-                              <div className="flex items-center">
-                                Rating & Comment
-                                {renderSortIcon('rating')}
-                              </div>
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {sortedRatings.map((rating, index) => {
-                            const ratingValue = parseInt(rating.rating, 10);
-                            const ratingColor = getRatingColor(ratingValue);
-                            const hasNote = rating.note && rating.note.trim();
+                    <div className="space-y-1.5">
+                      {sortedRatings.map((rating, index) => {
+                        const ratingValue = parseInt(rating.rating, 10);
+                        const ratingColor = getRatingColor(ratingValue);
+                        const hasNote = rating.note && rating.note.trim();
+                        const isBookmarked = isCurrentUser && bookmarks.includes(rating.itemId);
 
-                            return (
-                              <tr
-                                key={`${rating.itemId}-${rating.timestamp}-${index}`}
-                                className="border-b"
+                        return (
+                          <div
+                            key={`${rating.itemId}-${rating.timestamp}-${index}`}
+                            className="flex items-stretch rounded-lg overflow-hidden bg-muted/40"
+                          >
+                            <span className="w-8 flex-shrink-0 flex items-center justify-center bg-muted-foreground/20 text-xs font-bold text-muted-foreground">
+                              {rating.itemId}
+                            </span>
+                            <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2">
+                              <div className="flex-1 min-w-0">
+                                {hasNote ? (
+                                  <p className="text-xs text-muted-foreground whitespace-pre-wrap">{rating.note}</p>
+                                ) : (
+                                  <span className="text-xs text-muted-foreground">{getRatingLabel(ratingValue)}</span>
+                                )}
+                              </div>
+                              {isBookmarked && (
+                                <Bookmark className="h-3 w-3 fill-yellow-500 text-yellow-500 flex-shrink-0" aria-label="Bookmarked" />
+                              )}
+                              <div
+                                className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white"
+                                style={{ backgroundColor: ratingColor || 'var(--muted)' }}
                               >
-                                <td className="p-2 align-top">
-                                  <div className="flex items-start gap-2">
-                                    <span className="font-medium">
-                                      {rating.itemId}
-                                    </span>
-                                    {isCurrentUser && bookmarks.includes(rating.itemId) && (
-                                      <Bookmark 
-                                        className="h-3 w-3 fill-yellow-500 text-yellow-500 flex-shrink-0" 
-                                        aria-label="Bookmarked"
-                                      />
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="p-2">
-                                  <div className="flex items-start gap-3">
-                                    {ratingColor ? (
-                                      <div
-                                        className="inline-flex items-center justify-center rounded-full text-xs font-medium flex-shrink-0"
-                                        style={{
-                                          backgroundColor: ratingColor,
-                                          color: '#ffffff',
-                                          width: '24px',
-                                          height: '24px'
-                                        }}
-                                      >
-                                        {ratingValue}
-                                      </div>
-                                    ) : (
-                                      <div
-                                        className="inline-flex items-center justify-center rounded-full text-xs font-medium bg-muted text-muted-foreground flex-shrink-0"
-                                        style={{
-                                          width: '24px',
-                                          height: '24px'
-                                        }}
-                                      >
-                                        {ratingValue}
-                                      </div>
-                                    )}
-                                    {hasNote ? (
-                                      <p className="text-sm text-foreground whitespace-pre-wrap flex-1">
-                                        {rating.note}
-                                      </p>
-                                    ) : (
-                                      <span className="text-muted-foreground text-sm">—</span>
-                                    )}
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
+                                {ratingValue}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

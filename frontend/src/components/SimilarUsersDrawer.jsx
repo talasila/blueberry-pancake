@@ -293,7 +293,7 @@ function SimilarUsersDrawer({
           </div>
           
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 overflow-y-auto p-4">
             {content}
           </div>
         </div>
@@ -346,7 +346,7 @@ function SimilarUsersDrawer({
               </div>
               
               {/* Content */}
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="flex-1 overflow-y-auto p-4">
                 {selectedUser.commonItems && selectedUser.commonItems.length > 0 ? (
                   <div className="space-y-4">
                     {/* Summary */}
