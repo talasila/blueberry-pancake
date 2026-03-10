@@ -1,4 +1,4 @@
-import { X, Star, Sparkles } from 'lucide-react';
+import { X } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import Message from '@/components/Message';
@@ -15,13 +15,11 @@ import { useEventContext } from '@/contexts/EventContext';
  * @param {boolean} props.isOpen - Whether drawer is open
  * @param {function} props.onClose - Close handler
  * @param {string} props.eventId - Event identifier
- * @param {string} props.eventState - Current event state (created, started, paused, completed)
  */
 function SimilarUsersDrawer({ 
   isOpen, 
   onClose, 
   eventId,
-  eventState
 }) {
   const { event } = useEventContext();
   const { singular } = useItemTerminology(event);
@@ -30,7 +28,9 @@ function SimilarUsersDrawer({
   const [similarUsers, setSimilarUsers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [selectedUser, setSelectedUser] = useState(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  const [isDetailsAnimating, setIsDetailsAnimating] = useState(false);
+  const detailsUserRef = useRef(null);
   
   // Get rating configuration from event
   const ratingConfig = event?.ratingConfiguration || {};
@@ -70,47 +70,27 @@ function SimilarUsersDrawer({
     if (isOpen && eventId) {
       fetchSimilarUsers();
     } else {
-      // Reset state when drawer closes
       setSimilarUsers([]);
       setError(null);
-      setSelectedUser(null);
+      setIsDetailsOpen(false);
+      setIsDetailsAnimating(false);
     }
   }, [isOpen, eventId, fetchSimilarUsers]);
 
   // Handle user selection - open details drawer
   const handleUserClick = (user) => {
-    setSelectedUser(user);
-    // Push a history state so back button works
-    window.history.pushState({ detailsDrawerOpen: true }, '');
+    detailsUserRef.current = user;
+    setIsDetailsOpen(true);
+    const timer = setTimeout(() => setIsDetailsAnimating(true), 10);
+    return () => clearTimeout(timer);
   };
 
-  // Close details drawer
-  const handleCloseDetails = (e) => {
-    if (e) {
-      e.stopPropagation();
-    }
-    setSelectedUser(null);
-    // If we're closing via button click (not back button), go back in history
-    if (e && window.history.state?.detailsDrawerOpen) {
-      window.history.back();
-    }
-  };
-
-  // Handle browser back button for details drawer
-  useEffect(() => {
-    const handlePopState = (event) => {
-      // If details drawer is open and back is pressed, close it
-      if (selectedUser && !event.state?.detailsDrawerOpen) {
-        setSelectedUser(null);
-      }
-    };
-
-    window.addEventListener('popstate', handlePopState);
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
-  }, [selectedUser]);
-
+  // Close details drawer with exit animation
+  const handleCloseDetails = useCallback((e) => {
+    if (e) e.stopPropagation();
+    setIsDetailsAnimating(false);
+    setTimeout(() => setIsDetailsOpen(false), 300);
+  }, []);
 
   // Sort items by ID in ascending order
   const sortItemsById = (items) => {
@@ -126,18 +106,6 @@ function SimilarUsersDrawer({
     return ratingOption?.color || null;
   };
 
-  // Get alignment indicator
-  const getAlignmentIndicator = (userRating, similarUserRating) => {
-    const diff = Math.abs(userRating - similarUserRating);
-    if (diff === 0) {
-      return { icon: 'perfect', label: 'Perfect match', className: 'text-green-600' };
-    } else if (diff === 1) {
-      return { icon: 'close', label: 'Close match', className: 'text-blue-600' };
-    } else {
-      return { icon: 'different', label: 'Different', className: 'text-orange-600' };
-    }
-  };
-
   // Don't render if drawer was never opened (optimization)
   if (!isOpen && !hasBeenOpenedRef.current) {
     return null;
@@ -149,16 +117,14 @@ function SimilarUsersDrawer({
     content = (
       <div className="flex flex-col items-center justify-center py-8" role="status" aria-live="polite" aria-label="Loading similar users">
         <LoadingSpinner />
-        <p className="mt-4 text-sm text-muted-foreground">Running compatibility scanner...</p>
-        {/* Loading skeleton for better UX (T044) */}
-        <div className="mt-6 w-full space-y-4 animate-pulse">
+        <p className="mt-4 text-xs text-muted-foreground">Running compatibility scanner...</p>
+        <div className="mt-6 w-full space-y-1.5 animate-pulse">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="border rounded-lg p-4 space-y-3">
-              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/3"></div>
-              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded w-1/4"></div>
-              <div className="space-y-2">
-                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded"></div>
+            <div key={i} className="flex items-stretch rounded-lg overflow-hidden bg-muted/40">
+              <span className="w-8 flex-shrink-0 bg-muted-foreground/20" />
+              <div className="flex-1 px-3 py-2.5 space-y-1.5">
+                <div className="h-3 bg-muted rounded w-1/3" />
+                <div className="h-2.5 bg-muted rounded w-1/4" />
               </div>
             </div>
           ))}
@@ -180,55 +146,56 @@ function SimilarUsersDrawer({
   } else {
     content = (
       <div className="space-y-3">
-        <p className="text-sm text-muted-foreground">
-        People who like what you like! The bar shows how well your tastes match.
-        </p>
-        <p className="text-sm text-muted-foreground">
-        <strong>Click to view details.</strong>
-        </p>
-        <div className="space-y-2">
+        <span className="text-xs text-muted-foreground leading-snug block">Ranked by how closely their ratings match yours. Tap anyone to see a side-by-side comparison.</span>
+        <div className="space-y-1.5">
           {similarUsers.map((user, index) => {
-            const matchPercentage = user.similarityScore !== null ? user.similarityScore * 100 : 0;
-            
+            const score = user.similarityScore ?? 0;
+            const fillCount = score * 5;
             const commonItemsCount = user.commonItemsCount || (user.commonItems ? user.commonItems.length : 0);
             
             return (
-              <div key={user.email || index} className="flex items-center gap-3">
-                <button
-                  onClick={() => handleUserClick(user)}
-                  className="flex-1 flex items-center justify-between p-2 border rounded-lg cursor-pointer hover:opacity-90 transition-all text-left relative overflow-hidden group"
-                >
-                  {/* Progress bar background */}
-                  <div 
-                    className="absolute left-0 top-0 bottom-0 bg-gray-200 dark:bg-gray-800 transition-all duration-1000 ease-out"
-                    style={{ width: `${matchPercentage}%` }}
-                  />
-                  
-                  {/* Content overlay */}
-                  <div className="relative z-10 flex items-center gap-3 w-full">
-                    {/* Match number */}
-                    <div className="flex items-center justify-center w-8 h-8 rounded-full bg-primary/10 text-primary font-semibold text-sm shrink-0">
-                      {index + 1}
-                    </div>
-                    <div className="flex flex-col flex-1 min-w-0">
-                      <span className="font-medium truncate text-sm">
-                        {user.name || user.email}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {commonItemsCount} common {commonItemsCount === 1 ? singular.toLowerCase() : `${singular.toLowerCase()}s`}
-                      </span>
-                    </div>
-                    {user.similarityScore !== null && (
-                      <div className="flex items-center gap-2 shrink-0">
-                        {/* Sparkle icon for high matches */}
-                        {user.similarityScore >= 0.8 && (
-                          <Sparkles className="h-4 w-4 text-yellow-500 animate-pulse" />
-                        )}
-                      </div>
-                    )}
+              <button
+                key={user.email || index}
+                onClick={() => handleUserClick(user)}
+                className="w-full flex items-stretch rounded-lg overflow-hidden bg-muted/40 text-left active:scale-[0.98] transition-all duration-150"
+              >
+                <span className="w-8 flex-shrink-0 flex items-center justify-center bg-muted-foreground/20 text-xs font-bold text-muted-foreground">
+                  {index + 1}
+                </span>
+                <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium truncate block">{user.name || user.email}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {commonItemsCount} common
+                    </span>
                   </div>
-                </button>
-              </div>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {[0, 1, 2, 3, 4].map((i) => {
+                      const remainder = fillCount - i;
+                      const isFull = remainder >= 0.75;
+                      const isHalf = !isFull && remainder >= 0.25;
+
+                      return (
+                        <div
+                          key={i}
+                          className="w-2.5 h-2.5 rounded-full overflow-hidden border"
+                          style={{
+                            borderColor: 'var(--event-accent)',
+                            backgroundColor: 'var(--event-surface)',
+                          }}
+                        >
+                          {isFull && (
+                            <div className="w-full h-full" style={{ backgroundColor: 'var(--event-accent)' }} />
+                          )}
+                          {isHalf && (
+                            <div className="w-1/2 h-full" style={{ backgroundColor: 'var(--event-accent)' }} />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </button>
             );
           })}
         </div>
@@ -252,7 +219,7 @@ function SimilarUsersDrawer({
       {/* Drawer - slides up from bottom with animation */}
       <div
         className={`
-          fixed bottom-0 left-0 right-0 w-full max-h-[75vh]
+          fixed bottom-0 left-0 right-0 w-full max-h-[90vh]
           bg-background shadow-xl z-50 rounded-t-lg
           transform transition-transform duration-300 ease-out
           ${isOpen && isAnimating ? 'translate-y-0' : 'translate-y-full'}
@@ -261,21 +228,15 @@ function SimilarUsersDrawer({
         role="dialog"
         aria-modal="true"
         aria-labelledby="drawer-title"
-        aria-describedby="drawer-description"
         aria-hidden={!isOpen}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex flex-col h-full max-h-[75vh]">
+        <div className="flex flex-col h-full max-h-[90vh]">
           {/* Header with title and close button */}
           <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0 rounded-t-lg" style={{ backgroundColor: 'var(--event-header-bg)' }}>
-            <div>
-              <h2 id="drawer-title" className="text-base font-semibold">
-                Similar Tastes
-              </h2>
-              <p id="drawer-description" className="text-xs text-muted-foreground sr-only">
-                Discover users with similar rating patterns and compare your ratings
-              </p>
-            </div>
+            <h2 id="drawer-title" className="text-base font-semibold">
+              Similar Tastes
+            </h2>
             <Button
               variant="ghost"
               size="icon"
@@ -296,347 +257,108 @@ function SimilarUsersDrawer({
           <div className="flex-1 overflow-y-auto p-4">
             {content}
           </div>
+
+          {/* Dim overlay when details drawer is open */}
+          <div
+            className={`absolute inset-0 rounded-t-lg bg-black/20 transition-opacity duration-300 ${isDetailsAnimating ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+            onClick={(e) => { e.stopPropagation(); handleCloseDetails(e); }}
+          />
         </div>
       </div>
 
-      {/* User Details Drawer */}
-      {selectedUser && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/50 z-50 transition-opacity duration-300 ease-in-out opacity-100"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleCloseDetails(e);
-            }}
-            aria-hidden="true"
-          />
-          
-          {/* Details Drawer */}
-          <div
-            className="fixed bottom-0 left-0 right-0 w-full max-h-[75vh] bg-background shadow-xl z-[60] rounded-t-lg transform transition-transform duration-300 ease-out translate-y-0"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="details-drawer-title"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex flex-col h-full max-h-[75vh]">
-              {/* Header */}
-              <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0 rounded-t-lg" style={{ backgroundColor: 'var(--event-header-bg)' }}>
-                <div>
-                  <h2 id="details-drawer-title" className="text-base font-semibold">
-                    {selectedUser.name || selectedUser.email}
-                  </h2>
+      {/* Details Drawer — always rendered, animated via CSS */}
+      {isDetailsOpen && (
+        <div
+          className={`
+            fixed bottom-0 left-0 right-0 w-full max-h-[90vh]
+            bg-background shadow-xl z-[60] rounded-t-lg border-t
+            transform transition-transform duration-300 ease-out
+            ${isDetailsAnimating ? 'translate-y-0' : 'translate-y-full'}
+          `}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="details-drawer-title"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex flex-col h-full max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0 rounded-t-lg" style={{ backgroundColor: 'var(--event-header-bg)' }}>
+              <h2 id="details-drawer-title" className="text-base font-semibold">
+                {(detailsUserRef.current?.name || detailsUserRef.current?.email) ?? ''}
+              </h2>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleCloseDetails(e);
+                }}
+                aria-label="Close details drawer"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto p-4">
+              {detailsUserRef.current?.commonItems && detailsUserRef.current.commonItems.length > 0 ? (
+                <div className="space-y-5">
                   <p className="text-xs text-muted-foreground">
-                    {selectedUser.commonItemsCount} common {selectedUser.commonItemsCount === 1 ? singular.toLowerCase() : `${singular.toLowerCase()}s`}
+                    Each row is a {singular.toLowerCase()} you both rated. The big dot on the center line is your rating. The small dot is theirs — the further apart, the more you disagreed.
                   </p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleCloseDetails(e);
-                  }}
-                  aria-label="Close details drawer"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              
-              {/* Content */}
-              <div className="flex-1 overflow-y-auto p-4">
-                {selectedUser.commonItems && selectedUser.commonItems.length > 0 ? (
-                  <div className="space-y-4">
-                    {/* Summary */}
-                    {(() => {
-                      const sortedItems = sortItemsById(selectedUser.commonItems);
-                      const perfectMatches = sortedItems.filter(item => item.userRating === item.similarUserRating).length;
-                      const closeMatches = sortedItems.filter(item => Math.abs(item.userRating - item.similarUserRating) === 1).length;
-                      const differentMatches = sortedItems.filter(item => Math.abs(item.userRating - item.similarUserRating) > 1).length;
-                      const totalItems = sortedItems.length;
-                      
-                      // Find this user's position in the list
-                      const userIndex = similarUsers.findIndex(u => u.email === selectedUser.email);
-                      const position = userIndex + 1;
-                      const totalUsers = similarUsers.length;
-                      
-                      // Get similarity score as percentage
-                      const similarityPercent = selectedUser.similarityScore !== null 
-                        ? Math.round(selectedUser.similarityScore * 100) 
-                        : 0;
-                      
-                      // Get MAE value for display (round to 2 decimal places)
-                      const maeValue = selectedUser.mae !== null && selectedUser.mae !== undefined
-                        ? selectedUser.mae.toFixed(2)
-                        : null;
-                      
-                      // Get the top match for comparison
-                      const topMatch = similarUsers[0];
-                      const topMatchScore = topMatch?.similarityScore ?? 0;
-                      const topMatchPercent = topMatchScore !== null ? Math.round(topMatchScore * 100) : 0;
-                      const currentScore = selectedUser.similarityScore ?? 0;
-                      const scoreDifference = topMatchScore - currentScore;
-                      
-                      const getPositionLabel = () => {
-                        if (position === 1) return { text: 'Your best match!', color: 'text-green-600' };
-                        if (position === 2) return { text: 'Your 2nd best match', color: 'text-blue-600' };
-                        if (position === 3) return { text: 'Your 3rd best match', color: 'text-yellow-600' };
-                        return { text: `Your ${position}th best match`, color: 'text-orange-600' };
-                      };
-                      
-                      const positionInfo = getPositionLabel();
-                      
+                  <div className="space-y-1.5">
+                    {sortItemsById(detailsUserRef.current.commonItems).map((item, itemIndex) => {
+                      const userColor = getRatingColor(item.userRating);
+                      const similarColor = getRatingColor(item.similarUserRating);
+                      const diff = item.similarUserRating - item.userRating;
+                      const offsetPx = diff * 22;
+
                       return (
-                        <div className="bg-muted/50 rounded-lg p-4 space-y-3">
-                          <div>
-                            <p className="text-sm font-semibold mb-1">
-                              {positionInfo.text} <span className={`text-xs font-normal ${positionInfo.color}`}>(#{position} of {totalUsers})</span>
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              Taste similarity: <strong>{similarityPercent}%</strong>
-                              {maeValue !== null && (
-                                <span> (MAE: {maeValue})</span>
+                        <div
+                          key={itemIndex}
+                          className="flex items-stretch rounded-lg overflow-hidden bg-muted/40"
+                        >
+                          <span className="w-8 flex-shrink-0 flex items-center justify-center bg-muted-foreground/20 text-xs font-bold text-muted-foreground">
+                            {item.itemId}
+                          </span>
+                          <div className="flex-1 flex items-center justify-center py-2 relative">
+                            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-muted-foreground/15" />
+                            <div
+                              className="w-4 h-4 rounded-full z-10 flex items-center justify-center"
+                              style={{ backgroundColor: userColor || 'var(--muted)' }}
+                            >
+                              {diff === 0 && (
+                                <div
+                                  className="w-2 h-2 rounded-full border border-white"
+                                  style={{ backgroundColor: similarColor || 'var(--muted)' }}
+                                />
                               )}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-1 italic">
-                              Based on how close your ratings are across {totalItems} common {totalItems === 1 ? singular.toLowerCase() : `${singular.toLowerCase()}s`}. 
-                              {totalItems > 3 && ' More common ratings make the match more reliable.'}
-                            </p>
-                            {position > 1 && topMatch && (
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {scoreDifference > 0.3 
-                                  ? `This person's rating patterns are less similar to yours than your top match.`
-                                  : scoreDifference > 0.15
-                                  ? `This person's rating patterns are somewhat less similar to yours than your top match.`
-                                  : `This person's rating patterns are very close to your top match.`
-                                }
-                              </p>
+                            </div>
+                            {diff !== 0 && (
+                              <div
+                                className="w-3 h-3 rounded-full absolute"
+                                style={{
+                                  backgroundColor: similarColor || 'var(--muted)',
+                                  left: `calc(50% + ${offsetPx}px - 6px)`,
+                                  opacity: 0.7,
+                                }}
+                              />
                             )}
                           </div>
-                          
-                          <div className="space-y-2 text-sm">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2 text-muted-foreground">
-                                <Star className="h-4 w-4 fill-current text-green-600" />
-                                <span>Perfect matches:</span>
-                              </div>
-                              <span className="font-medium">
-                                {perfectMatches} {perfectMatches === 1 ? 'item' : 'items'} ({Math.round((perfectMatches / totalItems) * 100)}%)
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2 text-muted-foreground">
-                                <span className="text-blue-600 text-base">≈</span>
-                                <span>Close matches:</span>
-                              </div>
-                              <span className="font-medium">
-                                {closeMatches} {closeMatches === 1 ? 'item' : 'items'} ({Math.round((closeMatches / totalItems) * 100)}%)
-                              </span>
-                            </div>
-                            {differentMatches > 0 && (
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-2 text-muted-foreground">
-                                  <span className="text-orange-600">•</span>
-                                  <span>Different opinions:</span>
-                                </div>
-                                <span className="font-medium">
-                                  {differentMatches} {differentMatches === 1 ? 'item' : 'items'} ({Math.round((differentMatches / totalItems) * 100)}%)
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                          
-                          {/* Bar chart: Rating deviation visualization (You as baseline) */}
-                          {sortedItems.length > 1 && (() => {
-                            // Calculate deviations from your ratings
-                            const deviations = sortedItems.map(item => item.similarUserRating - item.userRating);
-                            const maxDeviation = Math.max(...deviations.map(Math.abs), 1);
-                            
-                            const width = 280;
-                            const height = 80;
-                            const padding = 8;
-                            const chartWidth = width - (padding * 2);
-                            const chartHeight = height - (padding * 2);
-                            const centerY = padding + (chartHeight / 2);
-                            const barWidth = chartWidth / sortedItems.length;
-                            const barSpacing = barWidth * 0.2; // 20% spacing between bars
-                            const actualBarWidth = barWidth - barSpacing;
-                            
-                            return (
-                              <div className="pt-3 border-t">
-                                <p className="text-xs font-medium text-muted-foreground mb-2">Rating differences (relative to you):</p>
-                                <div className="relative w-full">
-                                  <svg 
-                                    viewBox={`0 0 ${width} ${height}`} 
-                                    className="w-full h-auto overflow-visible"
-                                    preserveAspectRatio="xMidYMid meet"
-                                  >
-                                    {/* Baseline (your ratings) - extends beyond chart */}
-                                    <line
-                                      x1={0}
-                                      y1={centerY}
-                                      x2={width}
-                                      y2={centerY}
-                                      stroke="#4b5563"
-                                      strokeWidth="1"
-                                    />
-                                    
-                                    {/* Bars for each item */}
-                                    {deviations.map((deviation, idx) => {
-                                      const isPositive = deviation > 0;
-                                      const absDeviation = Math.abs(deviation);
-                                      const isPerfect = absDeviation < 0.1;
-                                      const isClose = absDeviation >= 0.1 && absDeviation <= 1;
-                                      const isDifferent = absDeviation > 1;
-                                      
-                                      // Normalize deviation to chart height
-                                      const normalizedDev = deviation / maxDeviation;
-                                      const barHeight = Math.abs(normalizedDev) * (chartHeight / 2);
-                                      
-                                      // Bar position
-                                      const barX = padding + (idx * barWidth) + (barSpacing / 2);
-                                      const barY = isPositive 
-                                        ? centerY - barHeight 
-                                        : centerY;
-                                      
-                                      return (
-                                        <g key={idx}>
-                                          {isPerfect ? (
-                                            // Perfect matches: green stars (centered on baseline)
-                                            <g transform={`translate(${barX + (actualBarWidth / 2)}, ${centerY - 0.5}) scale(0.75)`}>
-                                              <path
-                                                d="M 0 -6 L 1.8 -1.8 L 6 -0.6 L 3 2.4 L 3.6 7 L 0 4.6 L -3.6 7 L -3 2.4 L -6 -0.6 L -1.8 -1.8 Z"
-                                                fill="#10b981"
-                                                stroke="#10b981"
-                                                strokeWidth="0.3"
-                                              />
-                                            </g>
-                                          ) : isClose ? (
-                                            // Close matches: blue bars (thinner)
-                                            <rect
-                                              x={barX + (actualBarWidth * 0.2)}
-                                              y={barY}
-                                              width={actualBarWidth * 0.6}
-                                              height={barHeight || 1}
-                                              fill="#3b82f6"
-                                              opacity={0.8}
-                                              rx="1"
-                                            />
-                                          ) : isDifferent ? (
-                                            // Different opinions: red bars (thinner)
-                                            <rect
-                                              x={barX + (actualBarWidth * 0.2)}
-                                              y={barY}
-                                              width={actualBarWidth * 0.6}
-                                              height={barHeight || 1}
-                                              fill="#ef4444"
-                                              opacity={0.8}
-                                              rx="1"
-                                            />
-                                          ) : null}
-                                        </g>
-                                      );
-                                    })}
-                                  </svg>
-                                </div>
-                              </div>
-                            );
-                          })()}
                         </div>
                       );
-                    })()}
-                    
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm border-collapse">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left py-2 px-3 font-medium text-muted-foreground">
-                            ID
-                          </th>
-                          <th className="text-center py-2 px-3 font-medium text-muted-foreground">
-                            You
-                          </th>
-                          <th className="text-center py-2 px-3 font-medium text-muted-foreground">
-                            {(selectedUser.name || selectedUser.email).length > 10 
-                              ? (selectedUser.name || selectedUser.email).substring(0, 10) + '...'
-                              : (selectedUser.name || selectedUser.email)
-                            }
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sortItemsById(selectedUser.commonItems).map((item, itemIndex) => {
-                          const userColor = getRatingColor(item.userRating);
-                          const similarColor = getRatingColor(item.similarUserRating);
-                          const alignment = getAlignmentIndicator(item.userRating, item.similarUserRating);
-                          const diff = Math.abs(item.userRating - item.similarUserRating);
-                          
-                          // Determine background color based on match type
-                          const getRowBackgroundClass = () => {
-                            if (diff === 0) {
-                              return 'bg-green-50 dark:bg-green-950/20'; // Perfect match - greenish
-                            } else if (diff === 1) {
-                              return 'bg-blue-50 dark:bg-blue-950/20'; // Close match - bluish
-                            } else {
-                              return 'bg-red-50 dark:bg-red-950/20'; // Different opinions - reddish
-                            }
-                          };
-
-                          return (
-                            <tr 
-                              key={itemIndex}
-                              className={`
-                                border-b transition-colors
-                                ${getRowBackgroundClass()}
-                              `}
-                            >
-                              <td className="py-2 px-3 font-medium">
-                                <div className="flex items-center gap-2">
-                                  <span>{item.itemId}</span>
-                                  {alignment.icon === 'perfect' && (
-                                    <Star className={`h-3 w-3 fill-current ${alignment.className}`} title={alignment.label} />
-                                  )}
-                                  {alignment.icon === 'close' && (
-                                    <span className={`text-xs ${alignment.className}`} title={alignment.label}>≈</span>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="py-2 px-3 text-center">
-                                <div
-                                  className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-900 shadow-sm flex items-center justify-center mx-auto"
-                                  style={userColor ? { backgroundColor: userColor } : { backgroundColor: '#D1D5DB' }}
-                                  title={`Your rating: ${item.userRating}`}
-                                >
-                                  <span className="text-xs font-semibold text-white">{item.userRating}</span>
-                                </div>
-                              </td>
-                              <td className="py-2 px-3 text-center">
-                                <div
-                                  className="w-8 h-8 rounded-full border-2 border-white dark:border-gray-900 shadow-sm flex items-center justify-center mx-auto"
-                                  style={similarColor ? { backgroundColor: similarColor } : { backgroundColor: '#D1D5DB' }}
-                                  title={`${selectedUser.name || selectedUser.email} rating: ${item.similarUserRating}`}
-                                >
-                                  <span className="text-xs font-semibold text-white">{item.similarUserRating}</span>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                    </div>
+                    })}
                   </div>
-                ) : (
-                  <Message type="info">
-                    No common items found.
-                  </Message>
-                )}
-              </div>
+                </div>
+              ) : (
+                <Message type="info">
+                  No common items found.
+                </Message>
+              )}
             </div>
           </div>
-        </>
+        </div>
       )}
     </>
   );

@@ -15,10 +15,9 @@ class SimilarityService {
    * Find similar users for the current user
    * @param {string} eventId - Event identifier
    * @param {string} currentUserEmail - Current user's email address
-   * @param {number} limit - Maximum number of similar users to return (default: 5)
    * @returns {Promise<Array<object>>} Array of similar user objects with similarity scores
    */
-  async findSimilarUsers(eventId, currentUserEmail, limit = 5) {
+  async findSimilarUsers(eventId, currentUserEmail) {
     const startTime = performance.now();
     
     // Check cache first
@@ -129,14 +128,9 @@ class SimilarityService {
         return a.email.localeCompare(b.email); // Alphabetical
       });
 
-      // Limit to top N users (if limit is specified and not Infinity)
-      const result = limit === Infinity || limit === undefined 
-        ? similarUsers 
-        : similarUsers.slice(0, limit);
-
       // Cache for 30 seconds
       try {
-        await dataRepository.setSimilarUsersCache(eventId, currentUserEmail, { similarUsers: result }, 30);
+        await dataRepository.setSimilarUsersCache(eventId, currentUserEmail, { similarUsers }, 30);
       } catch (cacheError) {
         // Cache write failed, but we have the data - just log and continue
         loggerService.warn(`Failed to cache similar users for event ${eventId}: ${cacheError.message}`);
@@ -144,14 +138,14 @@ class SimilarityService {
 
       // Performance monitoring
       const calculationTime = performance.now() - startTime;
-      loggerService.info(`Similar users calculation completed for event ${eventId}, user ${currentUserEmail}: ${result.length} users found in ${calculationTime.toFixed(2)}ms`).catch(() => {});
+      loggerService.info(`Similar users calculation completed for event ${eventId}, user ${currentUserEmail}: ${similarUsers.length} users found in ${calculationTime.toFixed(2)}ms`).catch(() => {});
       
       // Log warning if calculation takes too long (exceeds 2s target per SC-001)
       if (calculationTime > 2000) {
         loggerService.warn(`Similar users calculation exceeded 2s target: ${calculationTime.toFixed(2)}ms for event ${eventId}, user ${currentUserEmail}`).catch(() => {});
       }
 
-      return result;
+      return similarUsers;
     } catch (error) {
       loggerService.error(`Error finding similar users for event ${eventId}, user ${currentUserEmail}: ${error.message}`, error);
       throw error;

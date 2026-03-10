@@ -83,7 +83,7 @@ describe('SimilarityService', () => {
       expect(result[0].commonItemsCount).toBe(3);
     });
 
-    it('should return maximum 5 similar users', async () => {
+    it('should return all similar users without a limit', async () => {
       const eventId = 'testEvent';
       const currentUserEmail = 'user@example.com';
       
@@ -93,7 +93,6 @@ describe('SimilarityService', () => {
         { email: 'user@example.com', itemId: 3, rating: 3 }
       ];
 
-      // Add 7 similar users
       for (let i = 1; i <= 7; i++) {
         ratings.push(
           { email: `user${i}@example.com`, itemId: 1, rating: 4 },
@@ -105,7 +104,7 @@ describe('SimilarityService', () => {
       ratingService.getRatings.mockResolvedValue(ratings);
 
       const result = await similarityService.findSimilarUsers(eventId, currentUserEmail);
-      expect(result.length).toBeLessThanOrEqual(5);
+      expect(result.length).toBe(7);
     });
 
     it('should sort users by similarity score (descending)', async () => {
@@ -272,7 +271,7 @@ describe('SimilarityService', () => {
         { email: 'userb@example.com', itemId: 4, rating: 4 }
       ]);
 
-      const result = await similarityService.findSimilarUsers(eventId, currentUserEmail, 5);
+      const result = await similarityService.findSimilarUsers(eventId, currentUserEmail);
       // User B should rank higher due to more common items (confidence boost)
       expect(result[0].email).toBe('userb@example.com');
       expect(result[0].commonItemsCount).toBe(4);

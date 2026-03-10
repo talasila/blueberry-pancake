@@ -785,7 +785,6 @@ function EventPage() {
         isOpen={isSimilarUsersDrawerOpen}
         onClose={handleSimilarUsersDrawerClose}
         eventId={eventId}
-        eventState={event?.state}
       />
 
       {/* User Details Drawer */}

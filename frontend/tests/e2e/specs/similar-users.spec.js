@@ -373,16 +373,12 @@ test.describe('Similar Users Discovery', () => {
     const detailHeading = page.getByRole('heading', { name: similarUserEmail });
     await expect(detailHeading).toBeVisible({ timeout: 5000 });
     
-    // Check for similarity score percentage
-    const similarityScore = page.getByText(/taste similarity.*\d+%/i);
-    await expect(similarityScore).toBeVisible({ timeout: 5000 });
+    // Check for the per-item comparison help text
+    const helpText = page.getByText(/the big dot on the center line is your rating/i);
+    await expect(helpText).toBeVisible({ timeout: 5000 });
     
-    // Check for common bottles info
-    const commonBottles = page.getByText(/common bottles/i);
-    await expect(commonBottles.first()).toBeVisible({ timeout: 5000 });
-    
-    // Check for rating comparison table
-    const ratingTable = page.getByRole('table');
-    await expect(ratingTable).toBeVisible({ timeout: 5000 });
+    // Check that comparison rows are rendered (item IDs visible in gray handles)
+    const firstItemRow = page.locator('.bg-muted\\/40').first();
+    await expect(firstItemRow).toBeVisible({ timeout: 5000 });
   });
 });
