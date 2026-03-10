@@ -753,7 +753,7 @@ router.patch('/:eventId/rating-configuration', requireAuth, async (req, res) => 
 
 /**
  * PATCH /api/events/:eventId/theme
- * Update event theme preset. Only allowed when event is in "created" state.
+ * Update event theme preset. Only allowed when event is in "created" or "paused" state.
  * Requires authentication (JWT token) and administrator authorization.
  */
 router.patch('/:eventId/theme', requireAuth, async (req, res) => {

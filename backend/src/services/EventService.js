@@ -335,7 +335,7 @@ class EventService {
   }
 
   /**
-   * Update event theme preset. Only allowed when event is in "created" state.
+   * Update event theme preset. Only allowed when event is in "created" or "paused" state.
    * @param {string} eventId - Event identifier
    * @param {string} theme - Theme preset identifier
    * @param {string} administratorEmail - Email of administrator performing update
@@ -358,8 +358,8 @@ class EventService {
       throw new Error('Only administrators can update the theme');
     }
 
-    if (event.state !== 'created') {
-      throw new Error('Theme can only be changed when event is in created state');
+    if (event.state !== 'created' && event.state !== 'paused') {
+      throw new Error('Theme can only be changed when event is in created or paused state');
     }
 
     event.theme = theme;

@@ -1279,6 +1279,31 @@ describe('EventService.getEvent', () => {
         );
       });
 
+      it('should allow theme change when event is paused', async () => {
+        const mockEvent = {
+          eventId,
+          name: 'Test Event',
+          state: 'paused',
+          typeOfItem: 'wine',
+          theme: 'classic',
+          administrators: {
+            [administratorEmail]: {
+              assignedAt: '2025-01-27T10:30:00.000Z',
+              owner: true
+            }
+          },
+          users: {},
+          createdAt: '2025-01-27T10:30:00.000Z',
+          updatedAt: '2025-01-27T10:30:00.000Z'
+        };
+        DynamoDBRepository.readEventConfig.mockResolvedValue({ ...mockEvent });
+
+        const result = await eventService.updateTheme(eventId, 'cellar', administratorEmail);
+
+        expect(result.theme).toBe('cellar');
+        expect(DynamoDBRepository.writeEventConfig).toHaveBeenCalled();
+      });
+
       it('should throw when event state is started', async () => {
         const mockEvent = {
           eventId,
@@ -1300,7 +1325,7 @@ describe('EventService.getEvent', () => {
 
         await expect(
           eventService.updateTheme(eventId, 'cellar', administratorEmail)
-        ).rejects.toThrow('Theme can only be changed when event is in created state');
+        ).rejects.toThrow('Theme can only be changed when event is in created or paused state');
 
         expect(DynamoDBRepository.writeEventConfig).not.toHaveBeenCalled();
       });

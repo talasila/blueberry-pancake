@@ -2024,15 +2024,15 @@ function EventAdminPage({ onOpenAdminGuide }) {
           <p className="text-sm text-muted-foreground">
             Set the vibe for your event. Pick a mood and your guests will see it reflected throughout the experience.
           </p>
-          {event?.state !== 'created' && (
+          {event?.state !== 'created' && event?.state !== 'paused' && (
             <Message type="info" className="text-sm">
-              Theme can only be changed before the event is started.
+              Theme can only be changed before the event is started or while paused.
             </Message>
           )}
           <ThemePicker
             selectedTheme={pendingTheme || event?.theme || 'classic'}
             onSelect={handleThemeChange}
-            disabled={event?.state !== 'created'}
+            disabled={event?.state !== 'created' && event?.state !== 'paused'}
           />
         </div>
       </SideDrawer>
