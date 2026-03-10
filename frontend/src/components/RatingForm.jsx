@@ -294,14 +294,16 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
         })}
       </div>
 
+      {/* Section label for suggestions */}
+      {eventType === 'wine' && noteSuggestionsEnabled !== false && selectedRating !== null && (
+        <span className="text-xs font-medium text-muted-foreground mb-1 block">Tap a suggestion or write your own</span>
+      )}
+
       {/* Note composition area - quote suggestions + textarea as one unit */}
       <div className="rounded-lg border border-input overflow-hidden">
         {/* Tappable quote suggestions - shown for wine events */}
         {eventType === 'wine' && noteSuggestionsEnabled !== false && selectedRating !== null && (
           <div className="border-b border-input/50 bg-muted/30 transition-all duration-200">
-            <div className="px-3 pt-2 pb-2 border-b border-input/30 rounded-t-lg" style={{ backgroundColor: 'var(--event-surface)', color: 'var(--event-surface-fg)' }}>
-              <span className="text-xs font-medium">Tap a suggestion or write your own</span>
-            </div>
             <div className="min-h-[80px]">
               {loadingSuggestions ? (
                 <div className="text-xs text-muted-foreground px-3 py-2">Loading...</div>
