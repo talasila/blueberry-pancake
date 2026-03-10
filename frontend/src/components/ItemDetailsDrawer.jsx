@@ -334,7 +334,7 @@ function ItemDetailsDrawer({
       >
         <div className="flex flex-col h-full max-h-[75vh]">
           {/* Header with title and close button */}
-          <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0">
+          <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0 rounded-t-lg" style={{ backgroundColor: 'var(--event-header-bg)' }}>
             <h2 id="item-details-title" className="text-base font-semibold">
               {item ? `${singular} ${item.itemId} Details` : `${singular} ${itemId} Details`}
             </h2>

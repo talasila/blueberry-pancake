@@ -129,7 +129,7 @@ export default function WalkthroughDrawer({ isOpen, onClose }) {
       >
         <div className="flex flex-col h-full max-h-[85vh]">
           {/* Header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0">
+          <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0 rounded-t-lg" style={{ backgroundColor: 'var(--event-header-bg)' }}>
             <div className="flex items-center gap-2">
               {showOverview && (
                 <Button

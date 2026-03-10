@@ -296,7 +296,7 @@ function UserDetailsDrawer({
       >
         <div className="flex flex-col h-full max-h-[75vh]">
           {/* Header with title and close button */}
-          <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0">
+          <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0 rounded-t-lg" style={{ backgroundColor: 'var(--event-header-bg)' }}>
             <div>
               <h2 id="user-details-title" className="text-base font-semibold">
                 {title}

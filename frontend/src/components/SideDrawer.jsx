@@ -89,7 +89,7 @@ function SideDrawer({
         >
           <div className="flex flex-col h-full">
             {/* Header with title and close button */}
-            <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0 bg-background">
+            <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0" style={{ backgroundColor: 'var(--event-header-bg)' }}>
               <h2 id="drawer-title" className="text-lg font-semibold flex-1">
                 {title}
               </h2>
