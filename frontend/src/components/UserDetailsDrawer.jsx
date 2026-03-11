@@ -371,9 +371,9 @@ function UserDetailsDrawer({
                       <p className="text-[10px] text-muted-foreground/70 mt-1">Each color is a rating, in the order {isCurrentUser ? 'you tasted them' : 'they were tasted'}</p>
                     </div>
 
-                    {/* At a Glance — stacked distribution bar + legend */}
+                    {/* Rating Breakdown — stacked distribution bar + legend */}
                     <div>
-                      <span className="text-xs font-medium text-muted-foreground mb-1.5 block">At a Glance</span>
+                      <span className="text-xs font-medium text-muted-foreground mb-1.5 block">Rating Breakdown</span>
                       {userRatingProgressData.totalRatings > 0 ? (
                         <>
                           <div className="w-full h-3 bg-muted rounded-full overflow-hidden flex">
