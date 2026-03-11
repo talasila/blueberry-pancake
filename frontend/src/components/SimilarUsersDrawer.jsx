@@ -162,10 +162,10 @@ function SimilarUsersDrawer({
                 <span className="w-8 flex-shrink-0 flex items-center justify-center bg-muted-foreground/20 text-xs font-bold text-muted-foreground">
                   {index + 1}
                 </span>
-                <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2">
+                <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5">
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium truncate block">{user.name || user.email}</span>
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-sm font-medium truncate block leading-tight">{user.name || user.email}</span>
+                    <span className="text-[10px] text-muted-foreground leading-tight">
                       {commonItemsCount} common
                     </span>
                   </div>
