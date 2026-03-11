@@ -1,7 +1,7 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { RefreshCw, Copy, Check, Trash2, Edit2, X, AlertTriangle, Download, Search, Filter, ChevronDown, ChevronUp, ChevronRight, Palette, LayoutList, Star, ToggleLeft, KeyRound, ShieldCheck, Users } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { Button } from '@/components/ui/button';
@@ -114,7 +114,6 @@ function EventAdminPage({ onOpenAdminGuide }) {
   // Drawer state
   const [openDrawer, setOpenDrawer] = useState(null);
   const [stateHelpExpanded, setStateHelpExpanded] = useState(false);
-  const isHandlingPopStateRef = useRef(false); // Prevent infinite loops when handling popstate
   const [itemsTab, setItemsTab] = useState('configuration'); // 'configuration' or 'assignment'
   
   // Item assignment state (for Items Management drawer)
@@ -197,35 +196,14 @@ function EventAdminPage({ onOpenAdminGuide }) {
     if (onOpenAdminGuide) onOpenAdminGuide();
   }, [onOpenAdminGuide]);
 
-  // Handle browser back/forward navigation (popstate) to sync drawer state
+  // Handle browser back/forward navigation (popstate) — always close all drawers
   useEffect(() => {
-    const handlePopState = (event) => {
-      if (isHandlingPopStateRef.current) return;
-      
-      isHandlingPopStateRef.current = true;
-      
-      // If history state has drawer info, open that drawer
-      if (event.state?.drawer) {
-        const { drawer } = event.state;
-        setOpenDrawer(null);
-        
-        // Open the drawer from history state
-        setTimeout(() => {
-          setOpenDrawer(drawer);
-          isHandlingPopStateRef.current = false;
-        }, 10);
-      } else {
-        // No drawer in history state - close drawer
-        setOpenDrawer(null);
-        isHandlingPopStateRef.current = false;
-      }
+    const handlePopState = () => {
+      setOpenDrawer(null);
     };
     
     window.addEventListener('popstate', handlePopState);
-    
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   // Update event when context or polling updates

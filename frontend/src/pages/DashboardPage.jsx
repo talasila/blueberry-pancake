@@ -1,5 +1,5 @@
 import { useParams } from 'react-router-dom';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { RefreshCw } from 'lucide-react';
@@ -31,7 +31,6 @@ function DashboardPage() {
   const [error, setError] = useState(null);
   const [openItemDetailsItemId, setOpenItemDetailsItemId] = useState(null);
   const [openUserDetailsEmail, setOpenUserDetailsEmail] = useState(null);
-  const isHandlingPopStateRef = useRef(false);
 
   const loadDashboardData = useCallback(async (showLoading = true) => {
     if (!eventId) {
@@ -69,41 +68,15 @@ function DashboardPage() {
     loadDashboardData();
   }, [loadDashboardData]);
 
+  // Handle browser back/forward navigation (popstate) — always close all drawers
   useEffect(() => {
-    const handlePopState = (popEvent) => {
-      if (isHandlingPopStateRef.current) return;
-      
-      isHandlingPopStateRef.current = true;
-      
-      if (popEvent.state?.drawer) {
-        const { drawer, itemId, userEmail: stateUserEmail } = popEvent.state;
-        
-        // Close all drawers first
-        setOpenItemDetailsItemId(null);
-        setOpenUserDetailsEmail(null);
-        
-        // Open the drawer from history state
-        setTimeout(() => {
-          if (drawer === 'item' && itemId) {
-            setOpenItemDetailsItemId(itemId);
-          } else if (drawer === 'user' && stateUserEmail) {
-            setOpenUserDetailsEmail(stateUserEmail);
-          }
-          isHandlingPopStateRef.current = false;
-        }, 10);
-      } else {
-        // No drawer in history state - close all drawers
-        setOpenItemDetailsItemId(null);
-        setOpenUserDetailsEmail(null);
-        isHandlingPopStateRef.current = false;
-      }
+    const handlePopState = () => {
+      setOpenItemDetailsItemId(null);
+      setOpenUserDetailsEmail(null);
     };
     
     window.addEventListener('popstate', handlePopState);
-    
-    return () => {
-      window.removeEventListener('popstate', handlePopState);
-    };
+    return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
   const handleRefresh = async () => {
