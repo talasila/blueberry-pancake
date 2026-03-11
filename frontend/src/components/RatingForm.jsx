@@ -276,17 +276,19 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
                 style={isSelected ? { backgroundColor: 'rgba(255,255,255,0.15)' } : {}}
               >
                 <span
-                  className="w-4 h-4 rounded-full border-2 transition-all duration-150"
+                  className="w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] font-bold transition-all duration-150"
                   style={
                     isSelected
-                      ? { backgroundColor: option.color, borderColor: 'white' }
+                      ? { backgroundColor: option.color, borderColor: 'white', color: 'white' }
                       : { backgroundColor: 'white', borderColor: option.color }
                   }
-                />
+                >
+                  {option.value}
+                </span>
               </span>
               <span className="flex items-center px-3 py-2">
                 <span className="font-medium text-sm">
-                  {option.value} &ndash; {option.label}
+                  {option.label}
                 </span>
               </span>
             </button>
