@@ -17,6 +17,7 @@ class ApiClient {
     this.csrfToken = null;
     this._csrfFetchPromise = null;
     this._loadSession();
+    this._initVisibilityListener();
   }
 
   _loadSession() {
@@ -50,6 +51,37 @@ class ApiClient {
     } catch {
       return null;
     }
+  }
+
+  /**
+   * When the tab regains focus, silently refresh if the session has expired.
+   * If refresh fails, dispatch session-expired so the UI can prompt re-auth.
+   */
+  _initVisibilityListener() {
+    if (typeof document === 'undefined') return;
+
+    this._onVisibilityChange = async () => {
+      if (document.visibilityState !== 'visible') return;
+
+      // Re-read localStorage — another tab or code path may have updated it
+      this._loadSession();
+      if (!this.userSession) return;
+
+      // Capture before isAuthenticated() potentially clears the session
+      const { authMethod = null, email = null } = this.userSession;
+
+      if (this.isAuthenticated()) return; // token still valid
+
+      const refreshed = await this.refreshToken();
+      if (!refreshed && typeof window !== 'undefined') {
+        this.setUserSession(null);
+        window.dispatchEvent(new CustomEvent('session-expired', {
+          detail: { authMethod, email },
+        }));
+      }
+    };
+
+    document.addEventListener('visibilitychange', this._onVisibilityChange);
   }
 
   /**
@@ -299,29 +331,22 @@ class ApiClient {
 
       // Handle 401 Unauthorized - attempt token refresh
       if (response.status === 401 && !isRetry) {
-        // Try to refresh the token
         const refreshed = await this.refreshToken();
         
         if (refreshed) {
-          // Retry the original request
           return this.request(endpoint, options, true);
         }
         
-        // Refresh failed - clear session and handle redirect
+        // Refresh failed — notify UI so it can show a re-auth prompt
+        const expiredAuthMethod = this.userSession?.authMethod || null;
+        const expiredEmail = this.userSession?.email || null;
+        const eventId = this.getEventIdFromUrl(endpoint);
         this.setUserSession(null);
         
-        // Don't redirect for event pages - they can use PIN authentication
-        // Only redirect to landing page for other protected endpoints
         if (typeof window !== 'undefined') {
-          const currentPath = window.location.pathname;
-          const isOnEventPage = currentPath.startsWith('/event/');
-          
-          // Never redirect if we're on an event page (which can use PIN authentication)
-          // Only redirect to landing page for other protected endpoints
-          if (!isOnEventPage) {
-            window.location.href = '/';
-          }
-          // If on event page, let the component handle the redirect to PIN entry
+          window.dispatchEvent(new CustomEvent('session-expired', {
+            detail: { authMethod: expiredAuthMethod, email: expiredEmail, eventId },
+          }));
         }
       }
 

@@ -27,6 +27,7 @@ import { isUserAdmin } from './utils/adminCheck.js';
 import GuideDrawer from './components/guide/GuideDrawer';
 import AdminGuideDrawer from './components/guide/AdminGuideDrawer';
 import MembershipRevokedDialog from './components/MembershipRevokedDialog';
+import SessionExpiredDialog from './components/SessionExpiredDialog';
 import EventThemeProvider from './components/EventThemeProvider';
 
 /**
@@ -268,6 +269,7 @@ function App() {
       <AppLayout />
       <Toaster />
       <MembershipRevokedDialog />
+      <SessionExpiredDialog />
     </Router>
   );
 }
