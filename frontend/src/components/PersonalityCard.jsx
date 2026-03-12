@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import * as icons from 'lucide-react';
 import { getPersonalityDisplay } from '@/utils/personalityContent';
 
 const PARTICLE_COUNT = 6;
@@ -30,9 +31,10 @@ function ConfettiParticles() {
 
 /**
  * PersonalityCard
- * Themed card showing a tasting personality emoji, name, humorous quote,
+ * Themed card showing a tasting personality icon, name, humorous quote,
  * and optional "Previously" shift indicator. Features an accent-colored
- * left border, personality-specific emoji, and a one-time confetti burst.
+ * left border, monochrome Lucide icon in a tinted circle on the right,
+ * and a one-time confetti burst.
  *
  * When eventId is provided the selected quote index is persisted to
  * localStorage so the same quote is shown for the duration of the event.
@@ -97,6 +99,8 @@ function PersonalityCard({ personalityId, templateVars = {}, previousPersonality
     ? isPossessive ? `${ownerName} tasting personality` : `${ownerName}\u2019s tasting personality`
     : null;
 
+  const IconComponent = icons[display.icon] || icons.HelpCircle;
+
   return (
     <section
       aria-label={ownerLabel || 'Tasting personality'}
@@ -108,15 +112,21 @@ function PersonalityCard({ personalityId, templateVars = {}, previousPersonality
     >
       {showConfetti && <ConfettiParticles />}
 
+      <div
+        className="absolute top-3 right-3 h-10 w-10 rounded-full flex items-center justify-center"
+        style={{ backgroundColor: 'color-mix(in oklch, var(--event-accent) 12%, var(--background))' }}
+        aria-hidden="true"
+        data-testid="personality-icon"
+      >
+        <IconComponent className="h-5 w-5" style={{ color: 'var(--event-accent)' }} />
+      </div>
+
       {ownerLabel && (
         <span className="text-[10px] uppercase tracking-wide text-muted-foreground/70 font-medium block mb-1">
           {ownerLabel}
         </span>
       )}
-      <strong className="text-sm font-semibold flex items-center gap-1.5">
-        <span className="text-base leading-none" role="img" aria-hidden="true">{display.emoji}</span>
-        {display.name}
-      </strong>
+      <strong className="text-sm font-semibold">{display.name}</strong>
       {display.quote && (
         <p className="text-xs text-muted-foreground mt-1 italic leading-relaxed">
           &ldquo;{display.quote}&rdquo;

@@ -7,7 +7,7 @@
 const PERSONALITY_CONTENT = {
   'broken-record': {
     name: 'The Broken Record',
-    emoji: '🔁',
+    icon: 'Repeat',
     quotes: [
       'You gave everything a {n}. Either every {item} was identical, or you made up your mind before you got here.',
       'A {n} for you, a {n} for you — everybody gets a {n}! Commitment to consistency.',
@@ -23,7 +23,7 @@ const PERSONALITY_CONTENT = {
   },
   'love-hate-critic': {
     name: 'The Love-Hate Critic',
-    emoji: '⚖️',
+    icon: 'Contrast',
     quotes: [
       'It\'s a 1 or a {max} with you. No middle ground. You\'d be terrifying on a jury.',
       'You don\'t do "fine." Things are either legendary or a crime. There is no in-between.',
@@ -39,7 +39,7 @@ const PERSONALITY_CONTENT = {
   },
   'speedrun': {
     name: 'The Speedrun',
-    emoji: '⚡',
+    icon: 'Zap',
     quotes: [
       'You rated {count} {items} in {minutes} minutes. The grapes didn\'t get a fair trial.',
       'Blink and you missed them. Or maybe you didn\'t blink. Either way: speed record.',
@@ -55,7 +55,7 @@ const PERSONALITY_CONTENT = {
   },
   'golden-retriever': {
     name: 'The Golden Retriever',
-    emoji: '🐕',
+    icon: 'Heart',
     quotes: [
       'Everything\'s amazing and you love everyone. Are you always like this, or is it the {items}?',
       'Your average rating is {avg}. You\'re not tasting, you\'re cheerleading. And honestly? The {items} appreciate it.',
@@ -71,7 +71,7 @@ const PERSONALITY_CONTENT = {
   },
   'simon-cowell': {
     name: 'The Simon Cowell',
-    emoji: '🎤',
+    icon: 'ThumbsDown',
     quotes: [
       'Your average rating is {avg}. The {items} didn\'t audition for this kind of judgment.',
       'Tough crowd. Population: you.',
@@ -87,7 +87,7 @@ const PERSONALITY_CONTENT = {
   },
   'novelist': {
     name: 'The Novelist',
-    emoji: '📝',
+    icon: 'PenTool',
     quotes: [
       'Your tasting notes have more words than most people\'s wedding vows. The {items} are flattered.',
       'You didn\'t just taste — you wrote a memoir. Each {item} got its own chapter.',
@@ -103,7 +103,7 @@ const PERSONALITY_CONTENT = {
   },
   'rollercoaster': {
     name: 'The Rollercoaster',
-    emoji: '🎢',
+    icon: 'TrendingUpDown',
     quotes: [
       'Your ratings went {preview}. Are you tasting {items} or having an emotional journey?',
       'Up, down, up, down. Your palate has range. Or commitment issues. Hard to tell.',
@@ -119,7 +119,7 @@ const PERSONALITY_CONTENT = {
   },
   'diplomat': {
     name: 'The Diplomat',
-    emoji: '🕊️',
+    icon: 'Scale',
     quotes: [
       'You refuse to commit to strong opinions. Every {item} is a "yeah, it\'s fine." You must be great at workplace feedback.',
       'Playing it safe with a side of "no comment." The Switzerland of tasters.',
@@ -135,7 +135,7 @@ const PERSONALITY_CONTENT = {
   },
   'ghost': {
     name: 'The Ghost',
-    emoji: '👻',
+    icon: 'EyeOff',
     quotes: [
       'Not a single note. The strong, silent type. The {items} will never know how you really feel.',
       'You said everything you needed to say with a number. Words are overrated anyway.',
@@ -151,7 +151,7 @@ const PERSONALITY_CONTENT = {
   },
   'philosopher': {
     name: 'The Philosopher',
-    emoji: '🧐',
+    icon: 'BrainCircuit',
     quotes: [
       'You took your sweet time. {minutes} minutes across {count} {items}. Each one got the respect it deserved.',
       'Deliberate. Thoughtful. Some might say slow. We say "thorough."',
@@ -167,7 +167,7 @@ const PERSONALITY_CONTENT = {
   },
   'explorer': {
     name: 'The Explorer',
-    emoji: '🧭',
+    icon: 'Compass',
     quotes: [
       'A little of everything. You gave the {items} a fair shot across the board. Responsible. Balanced. Boringly admirable.',
       'No extreme patterns. No hot takes. Just honest, well-considered ratings. How refreshingly normal.',
@@ -194,22 +194,22 @@ function interpolate(template, vars) {
  * @param {string} personalityId
  * @param {object} templateVars - Token values for interpolation
  * @param {number} [quoteIndex] - Explicit index into the quote pool (clamped)
- * @returns {{ name: string, emoji: string, quote: string, quoteIndex: number } | null}
+ * @returns {{ name: string, icon: string, quote: string, quoteIndex: number } | null}
  */
 export function getPersonalityDisplay(personalityId, templateVars = {}, quoteIndex) {
   const entry = PERSONALITY_CONTENT[personalityId];
   if (!entry) return null;
 
-  const { name, emoji, quotes } = entry;
+  const { name, icon, quotes } = entry;
   if (!quotes || quotes.length === 0) {
-    return { name, emoji: emoji || '', quote: '', quoteIndex: -1 };
+    return { name, icon: icon || '', quote: '', quoteIndex: -1 };
   }
 
   const idx = quoteIndex !== undefined
     ? Math.max(0, Math.min(quoteIndex, quotes.length - 1))
     : Math.floor(Math.random() * quotes.length);
   const rawQuote = quotes[idx];
-  return { name, emoji: emoji || '', quote: interpolate(rawQuote, templateVars), quoteIndex: idx };
+  return { name, icon: icon || '', quote: interpolate(rawQuote, templateVars), quoteIndex: idx };
 }
 
 /**

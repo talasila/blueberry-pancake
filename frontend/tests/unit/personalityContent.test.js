@@ -9,13 +9,13 @@ vi.mock('../../src/utils/personalityContent.js', async (importOriginal) => {
   const getDisplay = (personalityId, templateVars = {}, quoteIndex) => {
     const entry = contentWithEmpty[personalityId];
     if (!entry) return null;
-    const { name, emoji, quotes } = entry;
-    if (!quotes || quotes.length === 0) return { name, emoji: emoji || '', quote: '', quoteIndex: -1 };
+    const { name, icon, quotes } = entry;
+    if (!quotes || quotes.length === 0) return { name, icon: icon || '', quote: '', quoteIndex: -1 };
     const idx = quoteIndex !== undefined
       ? Math.max(0, Math.min(quoteIndex, quotes.length - 1))
       : Math.floor(Math.random() * quotes.length);
     const rawQuote = quotes[idx];
-    return { name, emoji: emoji || '', quote: mod.interpolate(rawQuote, templateVars), quoteIndex: idx };
+    return { name, icon: icon || '', quote: mod.interpolate(rawQuote, templateVars), quoteIndex: idx };
   };
   return { ...mod, getPersonalityDisplay: getDisplay };
 });
@@ -61,15 +61,15 @@ describe('personalityContent', () => {
       );
     });
 
-    it('each personality has a name string, emoji, and quotes array with 3-10 entries', () => {
+    it('each personality has a name string, icon (Lucide name), and quotes array with 3-10 entries', () => {
       PERSONALITY_IDS.forEach((id) => {
         const entry = PERSONALITY_CONTENT[id];
         expect(entry).toHaveProperty('name');
         expect(typeof entry.name).toBe('string');
         expect(entry.name.length).toBeGreaterThan(0);
-        expect(entry).toHaveProperty('emoji');
-        expect(typeof entry.emoji).toBe('string');
-        expect(entry.emoji.length).toBeGreaterThan(0);
+        expect(entry).toHaveProperty('icon');
+        expect(typeof entry.icon).toBe('string');
+        expect(entry.icon.length).toBeGreaterThan(0);
         expect(entry).toHaveProperty('quotes');
         expect(Array.isArray(entry.quotes)).toBe(true);
         expect(entry.quotes.length).toBeGreaterThanOrEqual(3);
@@ -114,17 +114,17 @@ describe('personalityContent', () => {
   });
 
   describe('getPersonalityDisplay', () => {
-    it('returns object with name, emoji, and quote for valid ID', () => {
+    it('returns object with name, icon, and quote for valid ID', () => {
       const result = getPersonalityDisplay('broken-record');
       expect(result).not.toBeNull();
       expect(result).toHaveProperty('name');
-      expect(result).toHaveProperty('emoji');
+      expect(result).toHaveProperty('icon');
       expect(result).toHaveProperty('quote');
       expect(typeof result.name).toBe('string');
-      expect(typeof result.emoji).toBe('string');
+      expect(typeof result.icon).toBe('string');
       expect(typeof result.quote).toBe('string');
       expect(result.name).toBe('The Broken Record');
-      expect(result.emoji).toBe('🔁');
+      expect(result.icon).toBe('Repeat');
     });
 
     it('returns null for unknown ID', () => {
@@ -133,7 +133,7 @@ describe('personalityContent', () => {
 
     it('returns { name, quote: "" } when quotes array is empty (graceful degradation)', () => {
       const result = getPersonalityDisplay('__empty');
-      expect(result).toEqual({ name: 'Empty Test', emoji: '', quote: '', quoteIndex: -1 });
+      expect(result).toEqual({ name: 'Empty Test', icon: '', quote: '', quoteIndex: -1 });
     });
 
     it('returns the same quote when called with the same quoteIndex', () => {

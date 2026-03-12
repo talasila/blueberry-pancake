@@ -28,7 +28,7 @@ describe('PersonalityCard', () => {
   it('renders name and quote', () => {
     getPersonalityDisplay.mockReturnValue({
       name: 'The Golden Retriever',
-      emoji: '🐕',
+      icon: 'Heart',
       quote: 'Everything is amazing.',
       quoteIndex: 0,
     });
@@ -40,7 +40,7 @@ describe('PersonalityCard', () => {
   it('shows "Previously" line when previousPersonality is passed', () => {
     getPersonalityDisplay.mockReturnValue({
       name: 'The Golden Retriever',
-      emoji: '🐕',
+      icon: 'Heart',
       quote: 'Everything is amazing.',
       quoteIndex: 0,
     });
@@ -53,7 +53,7 @@ describe('PersonalityCard', () => {
   it('does not show "Previously" line when previousPersonality is null', () => {
     getPersonalityDisplay.mockReturnValue({
       name: 'The Golden Retriever',
-      emoji: '🐕',
+      icon: 'Heart',
       quote: 'Everything is amazing.',
       quoteIndex: 0,
     });
@@ -70,7 +70,7 @@ describe('PersonalityCard', () => {
   it('shows name but no quote paragraph when quote is empty', () => {
     getPersonalityDisplay.mockReturnValue({
       name: 'The Ghost',
-      emoji: '👻',
+      icon: 'EyeOff',
       quote: '',
       quoteIndex: -1,
     });
@@ -82,7 +82,7 @@ describe('PersonalityCard', () => {
   it('has section with aria-label for accessibility', () => {
     getPersonalityDisplay.mockReturnValue({
       name: 'The Golden Retriever',
-      emoji: '🐕',
+      icon: 'Heart',
       quote: 'Everything is amazing.',
       quoteIndex: 0,
     });
@@ -93,7 +93,7 @@ describe('PersonalityCard', () => {
   it('name uses strong element', () => {
     getPersonalityDisplay.mockReturnValue({
       name: 'The Golden Retriever',
-      emoji: '🐕',
+      icon: 'Heart',
       quote: 'Everything is amazing.',
       quoteIndex: 0,
     });
@@ -101,21 +101,21 @@ describe('PersonalityCard', () => {
     expect(screen.getByText('The Golden Retriever').tagName).toBe('STRONG');
   });
 
-  it('renders emoji next to name', () => {
+  it('renders icon in a tinted circle', () => {
     getPersonalityDisplay.mockReturnValue({
       name: 'The Golden Retriever',
-      emoji: '🐕',
+      icon: 'Heart',
       quote: 'Everything is amazing.',
       quoteIndex: 0,
     });
     render(<PersonalityCard personalityId="golden-retriever" />);
-    expect(screen.getByText('🐕')).toBeInTheDocument();
+    expect(screen.getByTestId('personality-icon')).toBeInTheDocument();
   });
 
   it('shows owner attribution when ownerName is provided', () => {
     getPersonalityDisplay.mockReturnValue({
       name: 'The Simon Cowell',
-      emoji: '🎤',
+      icon: 'ThumbsDown',
       quote: 'Tough crowd.',
       quoteIndex: 0,
     });
@@ -127,7 +127,7 @@ describe('PersonalityCard', () => {
   it('uses possessive form without apostrophe-s for "Your"', () => {
     getPersonalityDisplay.mockReturnValue({
       name: 'The Golden Retriever',
-      emoji: '🐕',
+      icon: 'Heart',
       quote: 'Everything is amazing.',
       quoteIndex: 0,
     });
@@ -139,7 +139,7 @@ describe('PersonalityCard', () => {
   it('does not show owner attribution when ownerName is null', () => {
     getPersonalityDisplay.mockReturnValue({
       name: 'The Simon Cowell',
-      emoji: '🎤',
+      icon: 'ThumbsDown',
       quote: 'Tough crowd.',
       quoteIndex: 0,
     });
@@ -152,7 +152,7 @@ describe('PersonalityCard', () => {
     it('stores quoteIndex in localStorage when eventId is provided', () => {
       getPersonalityDisplay.mockReturnValue({
         name: 'The Golden Retriever',
-        emoji: '🐕',
+        icon: 'Heart',
         quote: 'Everything is amazing.',
         quoteIndex: 3,
       });
@@ -167,7 +167,7 @@ describe('PersonalityCard', () => {
       localStorageMock.getItem.mockReturnValueOnce('5');
       getPersonalityDisplay.mockReturnValue({
         name: 'The Golden Retriever',
-        emoji: '🐕',
+        icon: 'Heart',
         quote: 'Stored quote.',
         quoteIndex: 5,
       });
@@ -179,7 +179,7 @@ describe('PersonalityCard', () => {
       localStorageMock.getItem.mockReturnValueOnce('2');
       getPersonalityDisplay.mockReturnValue({
         name: 'The Golden Retriever',
-        emoji: '🐕',
+        icon: 'Heart',
         quote: 'Stored quote.',
         quoteIndex: 2,
       });
@@ -190,7 +190,7 @@ describe('PersonalityCard', () => {
     it('does not use localStorage when eventId is not provided', () => {
       getPersonalityDisplay.mockReturnValue({
         name: 'The Golden Retriever',
-        emoji: '🐕',
+        icon: 'Heart',
         quote: 'Random quote.',
         quoteIndex: 7,
       });
@@ -202,7 +202,7 @@ describe('PersonalityCard', () => {
     it('uses a new localStorage key when personalityId changes (shift)', () => {
       getPersonalityDisplay.mockReturnValue({
         name: 'The Simon Cowell',
-        emoji: '🎤',
+        icon: 'ThumbsDown',
         quote: 'Tough crowd.',
         quoteIndex: 1,
       });
@@ -217,7 +217,7 @@ describe('PersonalityCard', () => {
       localStorageMock.setItem.mockClear();
       getPersonalityDisplay.mockReturnValue({
         name: 'The Rollercoaster',
-        emoji: '🎢',
+        icon: 'TrendingUpDown',
         quote: 'Plot twists.',
         quoteIndex: 4,
       });
