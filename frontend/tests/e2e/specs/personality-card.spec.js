@@ -144,6 +144,45 @@ test.describe('Tasting Personality Card', () => {
   });
 
   // ───────────────────────────────────────────
+  // Sticky quote (localStorage persistence)
+  // ───────────────────────────────────────────
+
+  test('personality quote is the same across multiple drawer opens', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
+    await setupEvent(eventId);
+
+    const userEmail = 'sticky@example.com';
+    const userToken = await getUserToken(eventId, userEmail, pin);
+    await submitRatings(eventId, userToken, RATINGS_AT_THRESHOLD);
+
+    await loginAsUserToEvent(page, eventId, userEmail, pin);
+
+    const progressBtn = page.getByRole('button', { name: /my progress/i });
+    await expect(progressBtn).toBeVisible({ timeout: 10000 });
+
+    // First open — capture the quote
+    await progressBtn.click();
+    const drawer = page.locator('[role="dialog"]');
+    await expect(drawer).toBeVisible({ timeout: 5000 });
+    const quoteEl = drawer.locator('[aria-label*="tasting personality" i] .italic');
+    await expect(quoteEl).toBeVisible({ timeout: 5000 });
+    const firstQuote = await quoteEl.textContent();
+
+    // Close drawer via its close button
+    await drawer.getByRole('button', { name: /close user details/i }).click();
+    await expect(drawer).toHaveAttribute('aria-hidden', 'true', { timeout: 5000 });
+
+    // Second open — quote must be identical
+    await progressBtn.click();
+    await expect(drawer).toHaveAttribute('aria-hidden', 'false', { timeout: 5000 });
+    const secondQuoteEl = drawer.locator('[aria-label*="tasting personality" i] .italic');
+    await expect(secondQuoteEl).toBeVisible({ timeout: 5000 });
+    const secondQuote = await secondQuoteEl.textContent();
+
+    expect(firstQuote).toBe(secondQuote);
+  });
+
+  // ───────────────────────────────────────────
   // Dashboard Summary tab
   // ───────────────────────────────────────────
 
@@ -162,7 +201,7 @@ test.describe('Tasting Personality Card', () => {
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await expect(page.locator('main')).toBeVisible({ timeout: 10000 });
 
-    await expect(page.getByText(/tasting personalities/i)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: /tasting personalities/i })).toBeVisible({ timeout: 10000 });
     await expect(page.getByText(new RegExp(userEmail.split('@')[0], 'i'))).toBeVisible({ timeout: 5000 });
   });
 });

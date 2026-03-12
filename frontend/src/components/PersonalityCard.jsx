@@ -3,6 +3,10 @@ import { getPersonalityDisplay } from '@/utils/personalityContent';
 
 const PARTICLE_COUNT = 6;
 
+function getStorageKey(eventId, personalityId) {
+  return `personality-quote-${eventId}-${personalityId}`;
+}
+
 function ConfettiParticles() {
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-lg" aria-hidden="true">
@@ -30,24 +34,46 @@ function ConfettiParticles() {
  * and optional "Previously" shift indicator. Features an accent-colored
  * left border, personality-specific emoji, and a one-time confetti burst.
  *
- * The display (including randomly selected quote) is "sticky" — it only
- * re-selects when personalityId changes, not on polling-driven re-renders.
+ * When eventId is provided the selected quote index is persisted to
+ * localStorage so the same quote is shown for the duration of the event.
+ * A personality shift naturally produces a new storage key, so a fresh
+ * random quote is selected for the new personality.
  *
  * @param {object} props
  * @param {string} props.personalityId - Personality type ID (e.g., "simon-cowell")
  * @param {object} props.templateVars - Token values for quote interpolation
  * @param {string|null} [props.previousPersonality] - Previous personality display name for shift line
  * @param {string|null} [props.ownerName] - When set, shows "{name}'s tasting personality" attribution above the name
+ * @param {string|null} [props.eventId] - Event ID for localStorage-based sticky quote selection
  */
-function PersonalityCard({ personalityId, templateVars = {}, previousPersonality = null, ownerName = null }) {
+function PersonalityCard({ personalityId, templateVars = {}, previousPersonality = null, ownerName = null, eventId = null }) {
   const displayRef = useRef(null);
   const trackedIdRef = useRef(null);
 
   if (personalityId !== trackedIdRef.current) {
     trackedIdRef.current = personalityId;
-    displayRef.current = personalityId
-      ? getPersonalityDisplay(personalityId, templateVars)
-      : null;
+
+    if (!personalityId) {
+      displayRef.current = null;
+    } else {
+      let storedIndex;
+      if (eventId) {
+        const key = getStorageKey(eventId, personalityId);
+        const stored = localStorage.getItem(key);
+        if (stored !== null) {
+          storedIndex = parseInt(stored, 10);
+          if (isNaN(storedIndex)) storedIndex = undefined;
+        }
+      }
+
+      const result = getPersonalityDisplay(personalityId, templateVars, storedIndex);
+
+      if (result && eventId && storedIndex === undefined) {
+        localStorage.setItem(getStorageKey(eventId, personalityId), String(result.quoteIndex));
+      }
+
+      displayRef.current = result;
+    }
   }
 
   const display = displayRef.current;

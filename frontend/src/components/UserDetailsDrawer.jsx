@@ -411,6 +411,7 @@ function UserDetailsDrawer({
                     templateVars={personalityTemplateVars}
                     previousPersonality={previousPersonalityName}
                     ownerName="Your"
+                    eventId={eventId}
                   />
                 )}
 

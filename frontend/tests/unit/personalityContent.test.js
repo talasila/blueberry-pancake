@@ -6,13 +6,16 @@ vi.mock('../../src/utils/personalityContent.js', async (importOriginal) => {
     ...mod.PERSONALITY_CONTENT,
     __empty: { name: 'Empty Test', quotes: [] },
   };
-  const getDisplay = (personalityId, templateVars = {}) => {
+  const getDisplay = (personalityId, templateVars = {}, quoteIndex) => {
     const entry = contentWithEmpty[personalityId];
     if (!entry) return null;
     const { name, emoji, quotes } = entry;
-    if (!quotes || quotes.length === 0) return { name, emoji: emoji || '', quote: '' };
-    const rawQuote = quotes[Math.floor(Math.random() * quotes.length)];
-    return { name, emoji: emoji || '', quote: mod.interpolate(rawQuote, templateVars) };
+    if (!quotes || quotes.length === 0) return { name, emoji: emoji || '', quote: '', quoteIndex: -1 };
+    const idx = quoteIndex !== undefined
+      ? Math.max(0, Math.min(quoteIndex, quotes.length - 1))
+      : Math.floor(Math.random() * quotes.length);
+    const rawQuote = quotes[idx];
+    return { name, emoji: emoji || '', quote: mod.interpolate(rawQuote, templateVars), quoteIndex: idx };
   };
   return { ...mod, getPersonalityDisplay: getDisplay };
 });
@@ -58,7 +61,7 @@ describe('personalityContent', () => {
       );
     });
 
-    it('each personality has a name string, emoji, and quotes array with 3-5 entries', () => {
+    it('each personality has a name string, emoji, and quotes array with 3-10 entries', () => {
       PERSONALITY_IDS.forEach((id) => {
         const entry = PERSONALITY_CONTENT[id];
         expect(entry).toHaveProperty('name');
@@ -70,7 +73,7 @@ describe('personalityContent', () => {
         expect(entry).toHaveProperty('quotes');
         expect(Array.isArray(entry.quotes)).toBe(true);
         expect(entry.quotes.length).toBeGreaterThanOrEqual(3);
-        expect(entry.quotes.length).toBeLessThanOrEqual(5);
+        expect(entry.quotes.length).toBeLessThanOrEqual(10);
       });
     });
   });
@@ -130,7 +133,36 @@ describe('personalityContent', () => {
 
     it('returns { name, quote: "" } when quotes array is empty (graceful degradation)', () => {
       const result = getPersonalityDisplay('__empty');
-      expect(result).toEqual({ name: 'Empty Test', emoji: '', quote: '' });
+      expect(result).toEqual({ name: 'Empty Test', emoji: '', quote: '', quoteIndex: -1 });
+    });
+
+    it('returns the same quote when called with the same quoteIndex', () => {
+      const a = getPersonalityDisplay('broken-record', ALL_TEMPLATE_VARS, 0);
+      const b = getPersonalityDisplay('broken-record', ALL_TEMPLATE_VARS, 0);
+      expect(a.quote).toBe(b.quote);
+      expect(a.quoteIndex).toBe(0);
+    });
+
+    it('returns different quotes for different quoteIndex values', () => {
+      const a = getPersonalityDisplay('broken-record', ALL_TEMPLATE_VARS, 0);
+      const b = getPersonalityDisplay('broken-record', ALL_TEMPLATE_VARS, 1);
+      expect(a.quote).not.toBe(b.quote);
+    });
+
+    it('clamps quoteIndex to valid range', () => {
+      const tooHigh = getPersonalityDisplay('broken-record', ALL_TEMPLATE_VARS, 999);
+      const lastIdx = PERSONALITY_CONTENT['broken-record'].quotes.length - 1;
+      expect(tooHigh.quoteIndex).toBe(lastIdx);
+
+      const tooLow = getPersonalityDisplay('broken-record', ALL_TEMPLATE_VARS, -5);
+      expect(tooLow.quoteIndex).toBe(0);
+    });
+
+    it('returns a quoteIndex when called without explicit index', () => {
+      const result = getPersonalityDisplay('golden-retriever', ALL_TEMPLATE_VARS);
+      expect(typeof result.quoteIndex).toBe('number');
+      expect(result.quoteIndex).toBeGreaterThanOrEqual(0);
+      expect(result.quoteIndex).toBeLessThan(PERSONALITY_CONTENT['golden-retriever'].quotes.length);
     });
   });
 

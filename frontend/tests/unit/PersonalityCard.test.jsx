@@ -7,9 +7,22 @@ vi.mock('../../src/utils/personalityContent.js', () => ({
   getPersonalityDisplay: vi.fn(),
 }));
 
+const localStorageMock = (() => {
+  let store = {};
+  return {
+    getItem: vi.fn((key) => store[key] ?? null),
+    setItem: vi.fn((key, value) => { store[key] = String(value); }),
+    removeItem: vi.fn((key) => { delete store[key]; }),
+    clear: vi.fn(() => { store = {}; }),
+    get _store() { return store; },
+  };
+})();
+Object.defineProperty(window, 'localStorage', { value: localStorageMock });
+
 describe('PersonalityCard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorageMock.clear();
   });
 
   it('renders name and quote', () => {
@@ -17,6 +30,7 @@ describe('PersonalityCard', () => {
       name: 'The Golden Retriever',
       emoji: '🐕',
       quote: 'Everything is amazing.',
+      quoteIndex: 0,
     });
     render(<PersonalityCard personalityId="golden-retriever" />);
     expect(screen.getByText('The Golden Retriever')).toBeInTheDocument();
@@ -28,6 +42,7 @@ describe('PersonalityCard', () => {
       name: 'The Golden Retriever',
       emoji: '🐕',
       quote: 'Everything is amazing.',
+      quoteIndex: 0,
     });
     render(
       <PersonalityCard personalityId="golden-retriever" previousPersonality="The Simon Cowell" />
@@ -40,6 +55,7 @@ describe('PersonalityCard', () => {
       name: 'The Golden Retriever',
       emoji: '🐕',
       quote: 'Everything is amazing.',
+      quoteIndex: 0,
     });
     render(<PersonalityCard personalityId="golden-retriever" previousPersonality={null} />);
     expect(screen.queryByText(/Previously:/)).not.toBeInTheDocument();
@@ -56,6 +72,7 @@ describe('PersonalityCard', () => {
       name: 'The Ghost',
       emoji: '👻',
       quote: '',
+      quoteIndex: -1,
     });
     const { container } = render(<PersonalityCard personalityId="ghost" />);
     expect(screen.getByText('The Ghost')).toBeInTheDocument();
@@ -67,6 +84,7 @@ describe('PersonalityCard', () => {
       name: 'The Golden Retriever',
       emoji: '🐕',
       quote: 'Everything is amazing.',
+      quoteIndex: 0,
     });
     render(<PersonalityCard personalityId="golden-retriever" />);
     expect(screen.getByRole('region', { name: /tasting personality/i })).toBeInTheDocument();
@@ -77,6 +95,7 @@ describe('PersonalityCard', () => {
       name: 'The Golden Retriever',
       emoji: '🐕',
       quote: 'Everything is amazing.',
+      quoteIndex: 0,
     });
     render(<PersonalityCard personalityId="golden-retriever" />);
     expect(screen.getByText('The Golden Retriever').tagName).toBe('STRONG');
@@ -87,6 +106,7 @@ describe('PersonalityCard', () => {
       name: 'The Golden Retriever',
       emoji: '🐕',
       quote: 'Everything is amazing.',
+      quoteIndex: 0,
     });
     render(<PersonalityCard personalityId="golden-retriever" />);
     expect(screen.getByText('🐕')).toBeInTheDocument();
@@ -97,6 +117,7 @@ describe('PersonalityCard', () => {
       name: 'The Simon Cowell',
       emoji: '🎤',
       quote: 'Tough crowd.',
+      quoteIndex: 0,
     });
     render(<PersonalityCard personalityId="simon-cowell" ownerName="Sarah" />);
     expect(screen.getByText(/Sarah.s tasting personality/i)).toBeInTheDocument();
@@ -108,6 +129,7 @@ describe('PersonalityCard', () => {
       name: 'The Golden Retriever',
       emoji: '🐕',
       quote: 'Everything is amazing.',
+      quoteIndex: 0,
     });
     render(<PersonalityCard personalityId="golden-retriever" ownerName="Your" />);
     expect(screen.getByText(/Your tasting personality/i)).toBeInTheDocument();
@@ -119,9 +141,93 @@ describe('PersonalityCard', () => {
       name: 'The Simon Cowell',
       emoji: '🎤',
       quote: 'Tough crowd.',
+      quoteIndex: 0,
     });
     render(<PersonalityCard personalityId="simon-cowell" />);
     expect(screen.queryByText(/tasting personality$/i)).not.toBeInTheDocument();
     expect(screen.getByRole('region', { name: 'Tasting personality' })).toBeInTheDocument();
+  });
+
+  describe('localStorage sticky quote', () => {
+    it('stores quoteIndex in localStorage when eventId is provided', () => {
+      getPersonalityDisplay.mockReturnValue({
+        name: 'The Golden Retriever',
+        emoji: '🐕',
+        quote: 'Everything is amazing.',
+        quoteIndex: 3,
+      });
+      render(<PersonalityCard personalityId="golden-retriever" eventId="evt-1" />);
+      expect(localStorageMock.setItem).toHaveBeenCalledWith(
+        'personality-quote-evt-1-golden-retriever',
+        '3'
+      );
+    });
+
+    it('reads stored quoteIndex from localStorage and passes it to getPersonalityDisplay', () => {
+      localStorageMock.getItem.mockReturnValueOnce('5');
+      getPersonalityDisplay.mockReturnValue({
+        name: 'The Golden Retriever',
+        emoji: '🐕',
+        quote: 'Stored quote.',
+        quoteIndex: 5,
+      });
+      render(<PersonalityCard personalityId="golden-retriever" eventId="evt-1" />);
+      expect(getPersonalityDisplay).toHaveBeenCalledWith('golden-retriever', {}, 5);
+    });
+
+    it('does not write to localStorage when stored index already exists', () => {
+      localStorageMock.getItem.mockReturnValueOnce('2');
+      getPersonalityDisplay.mockReturnValue({
+        name: 'The Golden Retriever',
+        emoji: '🐕',
+        quote: 'Stored quote.',
+        quoteIndex: 2,
+      });
+      render(<PersonalityCard personalityId="golden-retriever" eventId="evt-1" />);
+      expect(localStorageMock.setItem).not.toHaveBeenCalled();
+    });
+
+    it('does not use localStorage when eventId is not provided', () => {
+      getPersonalityDisplay.mockReturnValue({
+        name: 'The Golden Retriever',
+        emoji: '🐕',
+        quote: 'Random quote.',
+        quoteIndex: 7,
+      });
+      render(<PersonalityCard personalityId="golden-retriever" />);
+      expect(localStorageMock.getItem).not.toHaveBeenCalled();
+      expect(localStorageMock.setItem).not.toHaveBeenCalled();
+    });
+
+    it('uses a new localStorage key when personalityId changes (shift)', () => {
+      getPersonalityDisplay.mockReturnValue({
+        name: 'The Simon Cowell',
+        emoji: '🎤',
+        quote: 'Tough crowd.',
+        quoteIndex: 1,
+      });
+      const { rerender } = render(
+        <PersonalityCard personalityId="simon-cowell" eventId="evt-2" />
+      );
+      expect(localStorageMock.setItem).toHaveBeenCalledWith(
+        'personality-quote-evt-2-simon-cowell',
+        '1'
+      );
+
+      localStorageMock.setItem.mockClear();
+      getPersonalityDisplay.mockReturnValue({
+        name: 'The Rollercoaster',
+        emoji: '🎢',
+        quote: 'Plot twists.',
+        quoteIndex: 4,
+      });
+      rerender(
+        <PersonalityCard personalityId="rollercoaster" eventId="evt-2" />
+      );
+      expect(localStorageMock.setItem).toHaveBeenCalledWith(
+        'personality-quote-evt-2-rollercoaster',
+        '4'
+      );
+    });
   });
 });
