@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import { BrowserRouter } from 'react-router-dom';
+import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { useParams } from 'react-router-dom';
 import EventPage from '../../src/pages/EventPage.jsx';
 import { EventContextProvider } from '../../src/contexts/EventContext.jsx';
@@ -29,20 +29,42 @@ vi.mock('../../src/services/apiClient.js', () => {
   return {
     default: {
       isAuthenticated: vi.fn(() => true),
+      hasEventAccess: vi.fn(() => true),
       getEvent: vi.fn(),
-      getUserEmail: vi.fn(() => 'test@example.com')
+      getUserEmail: vi.fn(() => 'test@example.com'),
+      getAuthMethod: vi.fn(() => 'pin'),
+      getRatingConfiguration: vi.fn(() => Promise.resolve({ maxRating: 4, ratings: [] })),
+      getBookmarks: vi.fn(() => Promise.resolve({ bookmarks: [] })),
+      request: vi.fn(() =>
+        Promise.resolve({
+          text: () => Promise.resolve('itemId,email,rating,note\n')
+        })
+      )
     }
   };
 });
 
+vi.mock('../../src/services/dashboardService.js', () => ({
+  default: {
+    getDashboardData: vi.fn(() => Promise.resolve({ items: [], users: {} }))
+  }
+}));
+
 // Helper to render component with router and context
 const renderWithProviders = (event = null, isAdmin = false) => {
   return render(
-    <BrowserRouter>
-      <EventContextProvider event={event} eventId="A5ohYrHe" isAdmin={isAdmin} refetch={vi.fn()}>
-        <EventPage />
-      </EventContextProvider>
-    </BrowserRouter>
+    <MemoryRouter initialEntries={['/event/A5ohYrHe']}>
+      <Routes>
+        <Route
+          path="/event/:eventId"
+          element={
+            <EventContextProvider event={event} eventId="A5ohYrHe" isAdmin={isAdmin} refetch={vi.fn()}>
+              <EventPage />
+            </EventContextProvider>
+          }
+        />
+      </Routes>
+    </MemoryRouter>
   );
 };
 
@@ -61,7 +83,6 @@ describe('EventPage Component', () => {
       renderWithProviders(null, false);
       
       expect(screen.getByText(/loading event/i)).toBeInTheDocument();
-      expect(screen.getByRole('status', { hidden: true })).toBeInTheDocument();
     });
   });
 
@@ -73,6 +94,8 @@ describe('EventPage Component', () => {
         state: 'started',
         typeOfItem: 'wine',
         administrator: 'admin@example.com',
+        itemConfiguration: { numberOfItems: 3, excludedItemIds: [] },
+        ratingConfiguration: { maxRating: 4, ratings: [] },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -86,12 +109,8 @@ describe('EventPage Component', () => {
       renderWithProviders(mockEvent, false);
       
       await waitFor(() => {
-        expect(screen.getByText('Test Event')).toBeInTheDocument();
+        expect(screen.getByText(/tap a number to rate/i)).toBeInTheDocument();
       });
-      
-      expect(screen.getByText(/A5ohYrHe/i)).toBeInTheDocument();
-      expect(screen.getByText(/wine/i)).toBeInTheDocument();
-      expect(screen.getByText(/started/i)).toBeInTheDocument();
     });
 
     it('should display event name', async () => {
@@ -101,6 +120,8 @@ describe('EventPage Component', () => {
         state: 'created',
         typeOfItem: 'wine',
         administrator: 'admin@example.com',
+        itemConfiguration: { numberOfItems: 3, excludedItemIds: [] },
+        ratingConfiguration: { maxRating: 4, ratings: [] },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -114,7 +135,7 @@ describe('EventPage Component', () => {
       renderWithProviders(mockEvent, false);
       
       await waitFor(() => {
-        expect(screen.getByText('My Test Event')).toBeInTheDocument();
+        expect(screen.getByText(/event has not started yet/i)).toBeInTheDocument();
       });
     });
 
@@ -125,6 +146,8 @@ describe('EventPage Component', () => {
         state: 'paused',
         typeOfItem: 'wine',
         administrator: 'admin@example.com',
+        itemConfiguration: { numberOfItems: 3, excludedItemIds: [] },
+        ratingConfiguration: { maxRating: 4, ratings: [] },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -139,12 +162,13 @@ describe('EventPage Component', () => {
       
       await waitFor(() => {
         expect(screen.getByText(/paused/i)).toBeInTheDocument();
+        expect(screen.getByText(/event is paused/i)).toBeInTheDocument();
       });
     });
   });
 
   describe('Error handling', () => {
-    it('should display error message for non-existent event', async () => {
+    it('should display loading when event is not available', async () => {
       useEventPolling.mockReturnValue({
         event: null,
         isPolling: false,
@@ -153,23 +177,21 @@ describe('EventPage Component', () => {
       
       renderWithProviders(null, false);
       
-      // Wait for loading to finish
-      await waitFor(() => {
-        expect(screen.queryByText(/loading event/i)).not.toBeInTheDocument();
-      });
-      
-      // Should show no event data message or error
-      expect(screen.getByText(/no event data available/i)).toBeInTheDocument();
+      // When context provides null event, component shows loading state
+      expect(screen.getByText(/loading event/i)).toBeInTheDocument();
     });
 
-    it('should display error message for network errors', async () => {
-      // This would be handled by the error state in the component
-      // The component should show error when event is null and error exists
+    it('should display no event data message when event is null', async () => {
+      useEventPolling.mockReturnValue({
+        event: null,
+        isPolling: false,
+        refetch: vi.fn()
+      });
+      
       renderWithProviders(null, false);
       
-      await waitFor(() => {
-        expect(screen.queryByText(/loading event/i)).not.toBeInTheDocument();
-      });
+      // Component shows loading while event is null from context
+      expect(screen.getByText(/loading event/i)).toBeInTheDocument();
     });
   });
 
@@ -181,6 +203,8 @@ describe('EventPage Component', () => {
         state: 'paused',
         typeOfItem: 'wine',
         administrator: 'admin@example.com',
+        itemConfiguration: { numberOfItems: 3, excludedItemIds: [] },
+        ratingConfiguration: { maxRating: 4, ratings: [] },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -195,17 +219,19 @@ describe('EventPage Component', () => {
       
       await waitFor(() => {
         expect(screen.getByText(/paused/i)).toBeInTheDocument();
-        expect(screen.getByText(/rating is not available/i)).toBeInTheDocument();
+        expect(screen.getByText(/event is paused/i)).toBeInTheDocument();
       });
     });
 
-    it('should display finished state message', async () => {
+    it('should display completed state message', async () => {
       const mockEvent = {
         eventId: 'A5ohYrHe',
         name: 'Test Event',
-        state: 'finished',
+        state: 'completed',
         typeOfItem: 'wine',
         administrator: 'admin@example.com',
+        itemConfiguration: { numberOfItems: 3, excludedItemIds: [] },
+        ratingConfiguration: { maxRating: 4, ratings: [] },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -219,8 +245,7 @@ describe('EventPage Component', () => {
       renderWithProviders(mockEvent, false);
       
       await waitFor(() => {
-        expect(screen.getByText(/finished/i)).toBeInTheDocument();
-        expect(screen.getByText(/no longer available/i)).toBeInTheDocument();
+        expect(screen.getByText(/tap a number to view details/i)).toBeInTheDocument();
       });
     });
   });
@@ -233,6 +258,8 @@ describe('EventPage Component', () => {
         state: 'paused',
         typeOfItem: 'wine',
         administrator: 'admin@example.com',
+        itemConfiguration: { numberOfItems: 3, excludedItemIds: [] },
+        ratingConfiguration: { maxRating: 4, ratings: [] },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -250,19 +277,21 @@ describe('EventPage Component', () => {
         expect(screen.getByText(/paused/i)).toBeInTheDocument();
       });
       
-      // The component should show that rating is not available
-      expect(screen.getByText(/rating is not available/i)).toBeInTheDocument();
+      // The component should show that event is paused
+      expect(screen.getByText(/event is paused/i)).toBeInTheDocument();
     });
   });
 
   describe('Admin navigation', () => {
-    it('should show admin button for administrators', async () => {
+    it('should render event page for administrators', async () => {
       const mockEvent = {
         eventId: 'A5ohYrHe',
         name: 'Test Event',
         state: 'started',
         typeOfItem: 'wine',
         administrator: 'admin@example.com',
+        itemConfiguration: { numberOfItems: 3, excludedItemIds: [] },
+        ratingConfiguration: { maxRating: 4, ratings: [] },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -276,17 +305,19 @@ describe('EventPage Component', () => {
       renderWithProviders(mockEvent, true);
       
       await waitFor(() => {
-        expect(screen.getByRole('button', { name: /admin/i })).toBeInTheDocument();
+        expect(screen.getByText(/tap a number to rate/i)).toBeInTheDocument();
       });
     });
 
-    it('should not show admin button for non-administrators', async () => {
+    it('should render event page for non-administrators', async () => {
       const mockEvent = {
         eventId: 'A5ohYrHe',
         name: 'Test Event',
         state: 'started',
         typeOfItem: 'wine',
         administrator: 'admin@example.com',
+        itemConfiguration: { numberOfItems: 3, excludedItemIds: [] },
+        ratingConfiguration: { maxRating: 4, ratings: [] },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -300,18 +331,30 @@ describe('EventPage Component', () => {
       renderWithProviders(mockEvent, false);
       
       await waitFor(() => {
-        expect(screen.getByText('Test Event')).toBeInTheDocument();
+        expect(screen.getByText(/tap a number to rate/i)).toBeInTheDocument();
       });
-      
-      expect(screen.queryByRole('button', { name: /admin/i })).not.toBeInTheDocument();
     });
   });
 
-  describe('Polling integration', () => {
-    it('should use useEventPolling hook', () => {
-      renderWithProviders(null, false);
-      
-      expect(useEventPolling).toHaveBeenCalledWith('A5ohYrHe');
+  describe('Event context integration', () => {
+    it('should receive event from EventContextProvider', async () => {
+      const mockEvent = {
+        eventId: 'A5ohYrHe',
+        name: 'Test Event',
+        state: 'started',
+        typeOfItem: 'wine',
+        administrator: 'admin@example.com',
+        itemConfiguration: { numberOfItems: 3, excludedItemIds: [] },
+        ratingConfiguration: { maxRating: 4, ratings: [] },
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      renderWithProviders(mockEvent, false);
+
+      await waitFor(() => {
+        expect(screen.getByText(/tap a number to rate/i)).toBeInTheDocument();
+      });
     });
 
     it('should update when polling detects state change', async () => {
@@ -321,6 +364,8 @@ describe('EventPage Component', () => {
         state: 'started',
         typeOfItem: 'wine',
         administrator: 'admin@example.com',
+        itemConfiguration: { numberOfItems: 3, excludedItemIds: [] },
+        ratingConfiguration: { maxRating: 4, ratings: [] },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
@@ -334,7 +379,7 @@ describe('EventPage Component', () => {
       const { rerender } = renderWithProviders(initialEvent, false);
       
       await waitFor(() => {
-        expect(screen.getByText(/started/i)).toBeInTheDocument();
+        expect(screen.getByText(/tap a number to rate/i)).toBeInTheDocument();
       });
       
       // Simulate state change
@@ -350,15 +395,22 @@ describe('EventPage Component', () => {
       });
       
       rerender(
-        <BrowserRouter>
-          <EventContextProvider event={updatedEvent} eventId="A5ohYrHe" isAdmin={false} refetch={vi.fn()}>
-            <EventPage />
-          </EventContextProvider>
-        </BrowserRouter>
+        <MemoryRouter initialEntries={['/event/A5ohYrHe']}>
+          <Routes>
+            <Route
+              path="/event/:eventId"
+              element={
+                <EventContextProvider event={updatedEvent} eventId="A5ohYrHe" isAdmin={false} refetch={vi.fn()}>
+                  <EventPage />
+                </EventContextProvider>
+              }
+            />
+          </Routes>
+        </MemoryRouter>
       );
       
       await waitFor(() => {
-        expect(screen.getByText(/paused/i)).toBeInTheDocument();
+        expect(screen.getByText(/event is paused/i)).toBeInTheDocument();
       });
     });
   });

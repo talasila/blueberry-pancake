@@ -18,7 +18,8 @@ vi.mock('react-router-dom', async () => {
 vi.mock('../../src/services/apiClient.js', () => {
   return {
     default: {
-      getEvent: vi.fn()
+      getEvent: vi.fn(),
+      isAuthenticated: vi.fn(() => true)
     }
   };
 });

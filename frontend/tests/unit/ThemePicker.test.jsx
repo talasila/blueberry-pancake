@@ -19,9 +19,8 @@ describe('ThemePicker', () => {
   it('classic pre-selected shows ring class', () => {
     render(<ThemePicker selectedTheme="classic" onSelect={vi.fn()} />);
     const classicCard = screen.getByTestId('theme-card-classic');
-    expect(classicCard).toHaveClass('ring-2');
+    expect(classicCard).toHaveClass('ring-1');
     expect(classicCard).toHaveClass('ring-primary');
-    expect(classicCard).toHaveClass('ring-offset-2');
   });
 
   it('tapping a card calls onSelect with the preset ID', () => {

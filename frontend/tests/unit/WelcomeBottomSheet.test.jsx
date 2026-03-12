@@ -141,10 +141,10 @@ describe('WelcomeBottomSheet', () => {
 
   // ---- Guide link ----
 
-  it('renders "Show me the setup guide" link', () => {
+  it('renders "Setup guide" link', () => {
     render(<WelcomeBottomSheet {...defaultProps} />);
     expect(screen.getByTestId('welcome-open-guide')).toHaveTextContent(
-      'Show me the setup guide'
+      'Setup guide'
     );
   });
 

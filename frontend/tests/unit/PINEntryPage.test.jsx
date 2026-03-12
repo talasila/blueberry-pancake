@@ -26,6 +26,23 @@ vi.mock('../../src/utils/bookmarkStorage', () => ({
   clearAllBookmarks: vi.fn(),
 }));
 
+vi.mock('../../src/hooks/useTurnstile.js', () => ({
+  default: vi.fn(() => ({
+    token: 'mock-turnstile-token',
+    isLoading: false,
+    error: null,
+    resetWidget: vi.fn(),
+    containerRef: { current: null }
+  })),
+  useTurnstile: vi.fn(() => ({
+    token: 'mock-turnstile-token',
+    isLoading: false,
+    error: null,
+    resetWidget: vi.fn(),
+    containerRef: { current: null }
+  }))
+}));
+
 const sessionStorageMock = (() => {
   let store = {};
   return {
@@ -158,29 +175,32 @@ describe('PINEntryPage', () => {
     });
 
     it('shows success message and navigates on successful verification', async () => {
-      vi.useFakeTimers();
-      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
-      apiClient.verifyPIN.mockResolvedValue({
-        sessionId: 'test-session-id',
-        user: { email: 'user@example.com', exp: 9999999999 },
-      });
-      renderComponent();
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      try {
+        sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
+        apiClient.verifyPIN.mockResolvedValue({
+          sessionId: 'test-session-id',
+          user: { email: 'user@example.com', exp: 9999999999 },
+        });
+        renderComponent();
 
-      await waitFor(() => {
-        expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
-      });
+        await waitFor(() => {
+          expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
+        });
 
-      fireEvent.change(screen.getByPlaceholderText(/Enter 6-digit PIN/i), { target: { value: '123456' } });
-      fireEvent.submit(screen.getByRole('button', { name: /Access Event/i }).closest('form'));
+        fireEvent.change(screen.getByPlaceholderText(/Enter 6-digit PIN/i), { target: { value: '123456' } });
+        fireEvent.submit(screen.getByRole('button', { name: /Access Event/i }).closest('form'));
 
-      await waitFor(() => {
-        expect(screen.getByText(/PIN verified successfully/i)).toBeInTheDocument();
-      });
+        await waitFor(() => {
+          expect(screen.getByText(/PIN verified successfully/i)).toBeInTheDocument();
+        });
 
-      vi.advanceTimersByTime(1100);
+        vi.advanceTimersByTime(1100);
 
-      expect(mockNavigate).toHaveBeenCalledWith('/event/A5ohYrHe', { replace: true });
-      vi.useRealTimers();
+        expect(mockNavigate).toHaveBeenCalledWith('/event/A5ohYrHe', { state: { guestJustLoggedIn: true }, replace: true });
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 

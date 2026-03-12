@@ -3,6 +3,12 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import LandingPage from '../../src/pages/LandingPage.jsx';
 
+vi.mock('../../src/services/apiClient.js', () => ({
+  default: {
+    isAuthenticated: vi.fn(() => false)
+  }
+}));
+
 // Helper to render component with router
 const renderWithRouter = (component) => {
   return render(<BrowserRouter>{component}</BrowserRouter>);
@@ -117,16 +123,16 @@ describe('LandingPage Component - User Story 3', () => {
     vi.clearAllMocks();
   });
 
-  describe('Sign In Button Rendering', () => {
-    it('should render Sign in button', () => {
+  describe('My Events Button Rendering', () => {
+    it('should render My events button', () => {
       renderWithRouter(<LandingPage />);
       
-      const signInButton = screen.getByRole('button', { name: /sign in/i });
-      expect(signInButton).toBeInTheDocument();
+      const myEventsButton = screen.getByRole('button', { name: /my events/i });
+      expect(myEventsButton).toBeInTheDocument();
     });
   });
 
-  describe('Sign In Button Interaction', () => {
+  describe('My Events Button Interaction', () => {
     it('should provide visual feedback when clicked without triggering navigation', () => {
       const originalLocation = window.location;
       delete window.location;
@@ -134,9 +140,9 @@ describe('LandingPage Component - User Story 3', () => {
 
       renderWithRouter(<LandingPage />);
       
-      const signInButton = screen.getByRole('button', { name: /sign in/i });
+      const myEventsButton = screen.getByRole('button', { name: /my events/i });
       
-      fireEvent.click(signInButton);
+      fireEvent.click(myEventsButton);
       
       expect(window.location.assign).not.toHaveBeenCalled();
       expect(window.location.replace).not.toHaveBeenCalled();

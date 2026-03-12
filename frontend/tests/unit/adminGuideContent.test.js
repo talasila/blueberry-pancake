@@ -3,8 +3,8 @@ import * as icons from 'lucide-react';
 import { adminGuideContent } from '../../src/data/adminGuideContent';
 
 const EXPECTED_COUNTS = {
-  created: 7,
-  started: 4,
+  created: 8,
+  started: 5,
   paused: 3,
   completed: 4,
 };
@@ -48,8 +48,8 @@ describe('adminGuideContent', () => {
     expect(new Set(allIds).size).toBe(allIds.length);
   });
 
-  it('total step count is 18', () => {
+  it('total step count is 20', () => {
     const total = Object.values(adminGuideContent).flat().length;
-    expect(total).toBe(18);
+    expect(total).toBe(20);
   });
 });
