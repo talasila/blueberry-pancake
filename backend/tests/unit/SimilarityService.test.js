@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import similarityService from '../../src/services/SimilarityService.js';
 import ratingService from '../../src/services/RatingService.js';
 import eventService from '../../src/services/EventService.js';
-import cacheService from '../../src/cache/CacheService.js';
+import dataRepository from '../../src/data/DynamoDBRepository.js';
 
 // Mock dependencies
 vi.mock('../../src/services/RatingService.js', () => ({
@@ -19,17 +19,27 @@ vi.mock('../../src/services/EventService.js', () => ({
   }
 }));
 
-vi.mock('../../src/cache/CacheService.js', () => ({
+vi.mock('../../src/data/DynamoDBRepository.js', () => ({
   default: {
-    get: vi.fn(),
-    set: vi.fn(),
-    del: vi.fn()
+    getSimilarUsersCache: vi.fn().mockResolvedValue(null),
+    setSimilarUsersCache: vi.fn().mockResolvedValue(true)
+  }
+}));
+
+vi.mock('../../src/logging/Logger.js', () => ({
+  default: {
+    debug: vi.fn().mockResolvedValue(undefined),
+    info: vi.fn().mockResolvedValue(undefined),
+    warn: vi.fn().mockResolvedValue(undefined),
+    error: vi.fn().mockResolvedValue(undefined)
   }
 }));
 
 describe('SimilarityService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    dataRepository.getSimilarUsersCache.mockResolvedValue(null);
+    dataRepository.setSimilarUsersCache.mockResolvedValue(true);
   });
 
   describe('findSimilarUsers', () => {
@@ -78,7 +88,6 @@ describe('SimilarityService', () => {
       const result = await similarityService.findSimilarUsers(eventId, currentUserEmail);
       expect(result.length).toBeGreaterThan(0);
       expect(result[0].email).toBe('similar@example.com');
-      // MAE-based similarity with confidence weighting - identical ratings give high but not perfect score
       expect(result[0].similarityScore).toBeGreaterThan(0.8);
       expect(result[0].commonItemsCount).toBe(3);
     });
@@ -145,7 +154,6 @@ describe('SimilarityService', () => {
       ]);
 
       const result = await similarityService.findSimilarUsers(eventId, currentUserEmail);
-      // Both have same similarity and common items count, should be sorted alphabetically
       if (result.length >= 2) {
         expect(result[0].email.localeCompare(result[1].email)).toBeLessThanOrEqual(0);
       }
@@ -165,21 +173,18 @@ describe('SimilarityService', () => {
       ]);
 
       const result = await similarityService.findSimilarUsers(eventId, currentUserEmail);
-      // MAE-based similarity doesn't require variance (unlike Pearson correlation)
-      // User with constant ratings should be included
       expect(result.find(u => u.email === 'constant@example.com')).toBeDefined();
     });
 
     it('should use cache when available', async () => {
       const eventId = 'testEvent';
       const currentUserEmail = 'user@example.com';
-      const cacheKey = `similarUsers:${eventId}:${currentUserEmail}`;
       
       const cachedResult = [
         { email: 'cached@example.com', similarityScore: 0.9, commonItemsCount: 5 }
       ];
       
-      cacheService.get.mockReturnValue(cachedResult);
+      dataRepository.getSimilarUsersCache.mockResolvedValue({ similarUsers: cachedResult });
 
       const result = await similarityService.findSimilarUsers(eventId, currentUserEmail);
       expect(result).toEqual(cachedResult);
@@ -189,9 +194,7 @@ describe('SimilarityService', () => {
     it('should cache results after calculation', async () => {
       const eventId = 'testEvent';
       const currentUserEmail = 'user@example.com';
-      const cacheKey = `similarUsers:${eventId}:${currentUserEmail}`;
       
-      cacheService.get.mockReturnValue(undefined);
       ratingService.getRatings.mockResolvedValue([
         { email: 'user@example.com', itemId: 1, rating: 4 },
         { email: 'user@example.com', itemId: 2, rating: 5 },
@@ -202,7 +205,9 @@ describe('SimilarityService', () => {
       ]);
 
       await similarityService.findSimilarUsers(eventId, currentUserEmail);
-      expect(cacheService.set).toHaveBeenCalledWith(cacheKey, expect.any(Array), 30);
+      expect(dataRepository.setSimilarUsersCache).toHaveBeenCalledWith(
+        eventId, currentUserEmail, { similarUsers: expect.any(Array) }, 30
+      );
     });
 
     it('should include common items in response', async () => {
@@ -253,18 +258,14 @@ describe('SimilarityService', () => {
       const eventId = 'testEvent';
       const currentUserEmail = 'user@example.com';
       
-      // Create users with identical similarity scores but different common items counts
-      // User must have item 4 for userB to have more common items
       ratingService.getRatings.mockResolvedValue([
         { email: 'user@example.com', itemId: 1, rating: 4 },
         { email: 'user@example.com', itemId: 2, rating: 5 },
         { email: 'user@example.com', itemId: 3, rating: 3 },
         { email: 'user@example.com', itemId: 4, rating: 4 },
-        // User A: 3 common items, perfect match
         { email: 'usera@example.com', itemId: 1, rating: 4 },
         { email: 'usera@example.com', itemId: 2, rating: 5 },
         { email: 'usera@example.com', itemId: 3, rating: 3 },
-        // User B: 4 common items, perfect match (should rank higher due to confidence boost)
         { email: 'userb@example.com', itemId: 1, rating: 4 },
         { email: 'userb@example.com', itemId: 2, rating: 5 },
         { email: 'userb@example.com', itemId: 3, rating: 3 },
@@ -272,7 +273,6 @@ describe('SimilarityService', () => {
       ]);
 
       const result = await similarityService.findSimilarUsers(eventId, currentUserEmail);
-      // User B should rank higher due to more common items (confidence boost)
       expect(result[0].email).toBe('userb@example.com');
       expect(result[0].commonItemsCount).toBe(4);
     });

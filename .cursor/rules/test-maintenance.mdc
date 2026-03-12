@@ -1,0 +1,35 @@
+---
+description: Enforce unit test updates whenever source code changes
+alwaysApply: true
+---
+
+# Test Maintenance Rule
+
+When modifying any source file under `frontend/src/` or `backend/src/`, you MUST check for and update corresponding unit tests.
+
+## Requirements
+
+1. **Before finishing any code change**, search for existing test files that cover the modified code:
+   - `frontend/tests/unit/` for frontend source changes
+   - `backend/tests/unit/` for backend source changes
+   - Match by component/service/hook name (e.g., `EventPage.jsx` → `EventPage.test.jsx`)
+
+2. **If a test file exists**, verify your changes don't break it:
+   - New/renamed imports in source → update mocks in tests
+   - Changed function signatures (sync → async, new params) → update test calls
+   - Changed return shapes → update assertions
+   - Renamed/removed UI elements → update selectors and text matchers
+   - Deleted modules → remove stale imports and mocks from tests
+
+3. **Run the relevant tests** after making changes to confirm they pass:
+   - Frontend: `npx vitest run tests/unit/<TestFile>.test.{js,jsx}` (from `frontend/`)
+   - Backend: `npx vitest run tests/unit/<TestFile>.test.js` (from `backend/`)
+
+4. **If you delete or rename a source file**, delete or rename its test file too.
+
+## Common Pitfalls
+
+- Mocking a module path that no longer exists (e.g., `CacheService.js` after migration to DynamoDB)
+- Calling an async method without `await` in tests after converting sync → async
+- Asserting on UI text/labels/class names that were changed during refactoring
+- Test file using `.js` extension but containing JSX syntax (must be `.jsx`)

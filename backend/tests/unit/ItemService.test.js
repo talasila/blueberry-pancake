@@ -1,15 +1,14 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import itemService from '../../src/services/ItemService.js';
-import dataRepository from '../../src/data/FileDataRepository.js';
+import dataRepository from '../../src/data/DynamoDBRepository.js';
 import eventService from '../../src/services/EventService.js';
 import { validateEventId } from '../../src/utils/validators.js';
-import cacheService from '../../src/cache/CacheService.js';
 import loggerService from '../../src/logging/Logger.js';
 
 // Mock dependencies
-vi.mock('../../src/data/FileDataRepository.js', () => ({
+vi.mock('../../src/data/DynamoDBRepository.js', () => ({
   default: {
-    writeEventConfig: vi.fn()
+    writeEventConfig: vi.fn().mockResolvedValue(true)
   }
 }));
 
@@ -21,18 +20,6 @@ vi.mock('../../src/services/EventService.js', () => ({
   default: {
     getEvent: vi.fn(),
     isAdministrator: vi.fn()
-  }
-}));
-
-vi.mock('../../src/cache/CacheService.js', () => ({
-  default: {
-    del: vi.fn(),
-    get: vi.fn(),
-    set: vi.fn(),
-    setDirty: vi.fn(),
-    setWithPersist: vi.fn().mockResolvedValue(true),
-    ensureEventConfigLoaded: vi.fn(),
-    ensureRatingsLoaded: vi.fn()
   }
 }));
 
@@ -353,7 +340,7 @@ describe('ItemService', () => {
       };
 
       eventService.getEvent.mockResolvedValue(mockEvent);
-      cacheService.setWithPersist.mockResolvedValue(true);
+      dataRepository.writeEventConfig.mockResolvedValue(true);
 
       const itemData = {
         name: 'Test Item',
@@ -370,7 +357,7 @@ describe('ItemService', () => {
       expect(result.ownerEmail).toBe('user@example.com');
       expect(result).toHaveProperty('registeredAt');
       expect(result.itemId).toBeNull();
-      expect(cacheService.setWithPersist).toHaveBeenCalled();
+      expect(dataRepository.writeEventConfig).toHaveBeenCalled();
     });
 
     it('should initialize items array if it does not exist', async () => {
@@ -381,7 +368,7 @@ describe('ItemService', () => {
       };
 
       eventService.getEvent.mockResolvedValue(mockEvent);
-      cacheService.setWithPersist.mockResolvedValue(true);
+      dataRepository.writeEventConfig.mockResolvedValue(true);
 
       const itemData = { name: 'Test Item' };
       await itemService.registerItem('A5ohYrHe', itemData, 'user@example.com');
@@ -453,12 +440,12 @@ describe('ItemService', () => {
       };
 
       eventService.getEvent.mockResolvedValue(mockEvent);
-      cacheService.setWithPersist.mockResolvedValue(true);
+      dataRepository.writeEventConfig.mockResolvedValue(true);
 
       const result = await itemService.registerItem('A5ohYrHe', { name: 'Test' }, 'user@example.com');
 
       expect(result).toHaveProperty('id');
-      expect(cacheService.setWithPersist).toHaveBeenCalled();
+      expect(dataRepository.writeEventConfig).toHaveBeenCalled();
     });
 
     it('should generate unique item ID', async () => {
@@ -470,7 +457,7 @@ describe('ItemService', () => {
       };
 
       eventService.getEvent.mockResolvedValue(mockEvent);
-      cacheService.setWithPersist.mockResolvedValue(true);
+      dataRepository.writeEventConfig.mockResolvedValue(true);
 
       const item1 = await itemService.registerItem('A5ohYrHe', { name: 'Item 1' }, 'user@example.com');
       const item2 = await itemService.registerItem('A5ohYrHe', { name: 'Item 2' }, 'user@example.com');
@@ -489,7 +476,7 @@ describe('ItemService', () => {
       };
 
       eventService.getEvent.mockResolvedValue(mockEvent);
-      cacheService.setWithPersist.mockResolvedValue(true);
+      dataRepository.writeEventConfig.mockResolvedValue(true);
 
       const result = await itemService.registerItem('A5ohYrHe', { name: 'Test' }, 'User@Example.com');
 
@@ -600,12 +587,12 @@ describe('ItemService', () => {
 
       eventService.getEvent.mockResolvedValue(mockEvent);
       eventService.isAdministrator.mockReturnValue(true);
-      cacheService.setWithPersist.mockResolvedValue(true);
+      dataRepository.writeEventConfig.mockResolvedValue(true);
 
       const result = await itemService.assignItemId('A5ohYrHe', 'item1', 5, 'admin@example.com');
 
       expect(result.itemId).toBe(5);
-      expect(cacheService.setWithPersist).toHaveBeenCalled();
+      expect(dataRepository.writeEventConfig).toHaveBeenCalled();
     });
 
     it('should throw error when event is not in paused state', async () => {
@@ -712,7 +699,7 @@ describe('ItemService', () => {
       };
 
       eventService.getEvent.mockResolvedValue(mockEvent);
-      cacheService.setWithPersist.mockResolvedValue(true);
+      dataRepository.writeEventConfig.mockResolvedValue(true);
 
       const result = await itemService.updateItem('A5ohYrHe', 'item1', {
         name: 'Updated Item',
@@ -723,7 +710,7 @@ describe('ItemService', () => {
       expect(result.name).toBe('Updated Item');
       expect(result.price).toBe(60);
       expect(result.description).toBe('New description');
-      expect(cacheService.setWithPersist).toHaveBeenCalled();
+      expect(dataRepository.writeEventConfig).toHaveBeenCalled();
     });
 
     it('should throw error when user is not owner', async () => {
@@ -776,13 +763,13 @@ describe('ItemService', () => {
       };
 
       eventService.getEvent.mockResolvedValue(mockEvent);
-      cacheService.setWithPersist.mockResolvedValue(true);
+      dataRepository.writeEventConfig.mockResolvedValue(true);
 
       const result = await itemService.deleteItem('A5ohYrHe', 'item1', 'user@example.com');
 
       expect(result.message).toBe('Item deleted successfully');
       expect(mockEvent.items).toHaveLength(0);
-      expect(cacheService.setWithPersist).toHaveBeenCalled();
+      expect(dataRepository.writeEventConfig).toHaveBeenCalled();
     });
 
     it('should handle itemId reassignment when item with assigned itemId is deleted', async () => {
@@ -796,7 +783,7 @@ describe('ItemService', () => {
       };
 
       eventService.getEvent.mockResolvedValue(mockEvent);
-      cacheService.setWithPersist.mockResolvedValue(true);
+      dataRepository.writeEventConfig.mockResolvedValue(true);
 
       await itemService.deleteItem('A5ohYrHe', 'item1', 'user@example.com');
 

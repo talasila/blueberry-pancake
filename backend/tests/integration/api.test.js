@@ -16,7 +16,7 @@ describe('API Integration Tests', () => {
 
     expect(response.body).toHaveProperty('status', 'ok');
     expect(response.body).toHaveProperty('timestamp');
-    expect(response.body).toHaveProperty('cache');
+    expect(response.body).toHaveProperty('storage');
   });
 
   it('should return CSRF token when XSRF is enabled', async () => {

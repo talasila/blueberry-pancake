@@ -1,41 +1,38 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import otpService from '../../src/services/OTPService.js';
-import cacheService from '../../src/cache/CacheService.js';
 
-// Mock cache service
-vi.mock('../../src/cache/CacheService.js', () => {
-  const mockCache = new Map();
-  return {
-    default: {
-      initialize: vi.fn(),
-      set: vi.fn((key, value, ttl) => {
-        mockCache.set(key, value);
-        return true;
-      }),
-      get: vi.fn((key) => {
-        return mockCache.get(key);
-      }),
-      del: vi.fn((key) => {
-        return mockCache.delete(key) ? 1 : 0;
-      })
-    }
-  };
-});
+vi.mock('../../src/data/DynamoDBRepository.js', () => ({
+  default: {
+    setOTP: vi.fn(),
+    getOTP: vi.fn(),
+    deleteOTP: vi.fn(),
+    incrementOTPAttempts: vi.fn()
+  }
+}));
+
+vi.mock('../../src/logging/Logger.js', () => ({
+  default: {
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn()
+  }
+}));
+
+vi.mock('../../src/utils/environment.js', () => ({
+  isDevelopment: vi.fn(() => true),
+  isTest: vi.fn(() => true),
+  isProduction: vi.fn(() => false)
+}));
+
+import otpService from '../../src/services/OTPService.js';
+import dataRepository from '../../src/data/DynamoDBRepository.js';
+import { isDevelopment, isTest } from '../../src/utils/environment.js';
 
 describe('OTPService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Clear mock cache
-    const mockCache = new Map();
-    cacheService.get.mockImplementation((key) => mockCache.get(key));
-    cacheService.set.mockImplementation((key, value) => {
-      mockCache.set(key, value);
-      return true;
-    });
-    cacheService.del.mockImplementation((key) => {
-      return mockCache.delete(key) ? 1 : 0;
-    });
-    delete process.env.NODE_ENV;
+    isDevelopment.mockReturnValue(true);
+    isTest.mockReturnValue(true);
   });
 
   describe('generateOTP', () => {
@@ -48,100 +45,111 @@ describe('OTPService', () => {
     it('should generate different OTPs on multiple calls', () => {
       const otp1 = otpService.generateOTP();
       const otp2 = otpService.generateOTP();
-      // Very unlikely to be the same
       expect(otp1).not.toBe(otp2);
     });
   });
 
   describe('storeOTP', () => {
-    it('should store OTP for email', () => {
-      const result = otpService.storeOTP('test@example.com', '123456');
+    it('should store OTP for email', async () => {
+      dataRepository.setOTP.mockResolvedValue(undefined);
+
+      const result = await otpService.storeOTP('test@example.com', '123456');
       expect(result).toBe(true);
+      expect(dataRepository.setOTP).toHaveBeenCalledWith('test@example.com', '123456', 600);
     });
 
-    it('should invalidate existing OTP when storing new one', () => {
-      otpService.storeOTP('test@example.com', '111111');
-      const data1 = otpService.getOTPData('test@example.com');
-      expect(data1.code).toBe('111111');
+    it('should invalidate existing OTP when storing new one', async () => {
+      dataRepository.setOTP.mockResolvedValue(undefined);
 
-      otpService.storeOTP('test@example.com', '222222');
-      const data2 = otpService.getOTPData('test@example.com');
-      expect(data2.code).toBe('222222');
+      await otpService.storeOTP('test@example.com', '111111');
+      expect(dataRepository.setOTP).toHaveBeenCalledWith('test@example.com', '111111', 600);
+
+      await otpService.storeOTP('test@example.com', '222222');
+      expect(dataRepository.setOTP).toHaveBeenCalledWith('test@example.com', '222222', 600);
+      expect(dataRepository.setOTP).toHaveBeenCalledTimes(2);
     });
 
-    it('should return false for invalid input', () => {
-      expect(otpService.storeOTP(null, '123456')).toBe(false);
-      expect(otpService.storeOTP('test@example.com', null)).toBe(false);
+    it('should return false for invalid input', async () => {
+      expect(await otpService.storeOTP(null, '123456')).toBe(false);
+      expect(await otpService.storeOTP('test@example.com', null)).toBe(false);
     });
   });
 
   describe('validateOTP', () => {
-    beforeEach(() => {
-      // Set up valid OTP
-      const now = Date.now();
-      cacheService.set('otp:test@example.com', {
-        code: '123456',
+    it('should validate correct OTP', async () => {
+      isDevelopment.mockReturnValue(false);
+      isTest.mockReturnValue(false);
+      dataRepository.getOTP.mockResolvedValue({
+        code: '654321',
         email: 'test@example.com',
-        createdAt: now,
-        expiresAt: now + 10 * 60 * 1000
+        attempts: 0
       });
-    });
 
-    it('should validate correct OTP', () => {
-      const result = otpService.validateOTP('test@example.com', '123456');
+      const result = await otpService.validateOTP('test@example.com', '654321');
       expect(result.valid).toBe(true);
     });
 
-    it('should reject incorrect OTP', () => {
-      const result = otpService.validateOTP('test@example.com', '999999');
+    it('should reject incorrect OTP', async () => {
+      isDevelopment.mockReturnValue(false);
+      isTest.mockReturnValue(false);
+      dataRepository.getOTP.mockResolvedValue({
+        code: '654321',
+        email: 'test@example.com',
+        attempts: 0
+      });
+      dataRepository.incrementOTPAttempts.mockResolvedValue(undefined);
+
+      const result = await otpService.validateOTP('test@example.com', '999999');
       expect(result.valid).toBe(false);
       expect(result.error).toContain('Invalid');
     });
 
-    it('should reject expired OTP', () => {
-      // Set expired OTP - use a different code to avoid '123456' dev bypass
-      const pastTime = Date.now() - 11 * 60 * 1000;
-      cacheService.set('otp:expired@example.com', {
-        code: '654321',
-        email: 'expired@example.com',
-        createdAt: pastTime,
-        expiresAt: pastTime + 10 * 60 * 1000
-      });
+    it('should reject expired OTP', async () => {
+      isDevelopment.mockReturnValue(false);
+      isTest.mockReturnValue(false);
+      dataRepository.getOTP.mockResolvedValue(null);
 
-      const result = otpService.validateOTP('expired@example.com', '654321');
+      const result = await otpService.validateOTP('expired@example.com', '654321');
       expect(result.valid).toBe(false);
-      expect(result.expired).toBe(true);
+      expect(result.error).toContain('expired');
     });
 
-    it('should reject non-6-digit OTP', () => {
-      const result = otpService.validateOTP('test@example.com', '12345');
+    it('should reject non-6-digit OTP', async () => {
+      const result = await otpService.validateOTP('test@example.com', '12345');
       expect(result.valid).toBe(false);
       expect(result.error).toContain('6 digits');
     });
 
-    it('should accept test OTP in non-production environment', () => {
-      process.env.NODE_ENV = 'development';
-      const result = otpService.validateOTP('test@example.com', '123456');
+    it('should accept test OTP in non-production environment', async () => {
+      isDevelopment.mockReturnValue(true);
+      isTest.mockReturnValue(true);
+
+      const result = await otpService.validateOTP('test@example.com', '123456');
       expect(result.valid).toBe(true);
       expect(result.bypass).toBe(true);
     });
 
-    it('should reject test OTP in production', () => {
-      process.env.NODE_ENV = 'production';
-      const result = otpService.validateOTP('test@example.com', '123456');
-      // Should validate against stored OTP, not bypass
-      expect(result.valid).toBe(true); // This would be true if stored OTP matches
+    it('should reject test OTP in production', async () => {
+      isDevelopment.mockReturnValue(false);
+      isTest.mockReturnValue(false);
+      dataRepository.getOTP.mockResolvedValue({
+        code: '123456',
+        email: 'test@example.com',
+        attempts: 0
+      });
+
+      const result = await otpService.validateOTP('test@example.com', '123456');
+      expect(result.valid).toBe(true);
     });
   });
 
   describe('invalidateOTP', () => {
-    it('should invalidate OTP for email', () => {
-      otpService.storeOTP('test@example.com', '123456');
-      expect(otpService.getOTPData('test@example.com')).not.toBeNull();
-      
-      const result = otpService.invalidateOTP('test@example.com');
+    it('should invalidate OTP for email', async () => {
+      dataRepository.deleteOTP.mockResolvedValue(undefined);
+
+      const result = await otpService.invalidateOTP('test@example.com');
       expect(result).toBe(true);
-      expect(otpService.getOTPData('test@example.com')).toBeNull();
+      expect(dataRepository.deleteOTP).toHaveBeenCalledWith('test@example.com');
     });
   });
 });
