@@ -1,6 +1,6 @@
 import { useEventContext } from '@/contexts/EventContext';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import apiClient from '@/services/apiClient';
 import { ratingService } from '@/services/ratingService';
 import dashboardService from '@/services/dashboardService';
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Users, BarChart3 } from 'lucide-react';
 import { useItemTerminology } from '@/utils/itemTerminology';
 import { calculateUserRatingProgress } from '@/utils/ratingProgress';
+import { deriveItemRaterCounts } from '@/utils/participationCounts';
 import GuestWelcomeBottomSheet from '@/components/GuestWelcomeBottomSheet';
 
 /**
@@ -56,6 +57,7 @@ function EventPage() {
   const [ratingConfig, setRatingConfig] = useState(null);
   const [userEmail, setUserEmail] = useState(null);
   const [ratingsLoading, setRatingsLoading] = useState(false);
+  const [itemRaterCounts, setItemRaterCounts] = useState({});
   const [dashboardData, setDashboardData] = useState(null);
   const ratingConfigFetchedRef = useRef(null);
 
@@ -100,6 +102,7 @@ function EventPage() {
       setEvent(contextEvent);
       setIsLoading(false);
       setError(null);
+      if (contextEvent.state === 'started') loadRatings();
     }
   }, [contextEvent]);
 
@@ -197,24 +200,37 @@ function EventPage() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  const ratingsLoadedOnceRef = useRef(false);
+
   // Load user's ratings (T082 - with loading state)
   const loadRatings = () => {
     if (eventId && hasAuth && redirectCheckedForEventRef.current === eventId && userEmail) {
-      setRatingsLoading(true);
+      const isInitialLoad = !ratingsLoadedOnceRef.current;
+      if (isInitialLoad) setRatingsLoading(true);
+
       ratingService.getRatings(eventId)
         .then(allRatings => {
-          // Filter to current user's ratings by email
+          ratingsLoadedOnceRef.current = true;
+          setItemRaterCounts(prev => {
+            const next = deriveItemRaterCounts(allRatings);
+            const keys = Object.keys(next);
+            if (keys.length === Object.keys(prev).length && keys.every(k => prev[k] === next[k])) return prev;
+            return next;
+          });
           const userRatings = allRatings.filter(
             r => r.email && r.email.toLowerCase() === userEmail.toLowerCase()
           );
-          setRatings(userRatings);
+          setRatings(prev => {
+            if (prev.length === userRatings.length && prev.every((r, i) => r.itemId === userRatings[i].itemId && r.rating === userRatings[i].rating)) return prev;
+            return userRatings;
+          });
         })
         .catch(err => {
           console.error('Error loading ratings:', err);
           setRatings([]);
         })
         .finally(() => {
-          setRatingsLoading(false);
+          if (isInitialLoad) setRatingsLoading(false);
         });
     }
   };
@@ -349,7 +365,7 @@ function EventPage() {
   };
 
   // Handle item button click - open drawer
-  const handleItemClick = (itemId) => {
+  const handleItemClick = useCallback((itemId) => {
     if (isSimilarUsersDrawerOpen) {
       setIsSimilarUsersDrawerOpen(false);
     }
@@ -380,7 +396,7 @@ function EventPage() {
       setOpenItemDetailsItemId(null);
     }
     setError(null);
-  };
+  }, [event?.state, isSimilarUsersDrawerOpen, openItemDetailsItemId, openDrawerItemId]);
 
   // Handle drawer close - use history.back() to go back in history
   const handleDrawerClose = () => {
@@ -587,7 +603,10 @@ function EventPage() {
                       ratingColor={getRatingColor(itemId)}
                       isBookmarked={bookmarks.includes(itemId)}
                       isWinner={event?.state === 'completed' && winnerItemIds.has(itemId)}
-                      onClick={() => handleItemClick(itemId)}
+                      onClick={handleItemClick}
+                      ratedCount={itemRaterCounts[itemId] || 0}
+                      totalParticipants={event?.users ? Object.keys(event.users).length : 0}
+                      showRing={event?.state === 'started'}
                     />
                   ))}
                 </div>
@@ -768,6 +787,8 @@ function EventPage() {
           ratingConfig={ratingConfig}
           eventType={event?.typeOfItem}
           noteSuggestionsEnabled={ratingConfig?.noteSuggestionsEnabled}
+          ratedCount={event?.state === 'started' && openDrawerItemId ? (itemRaterCounts[openDrawerItemId] || 0) : undefined}
+          totalParticipants={event?.state === 'started' && event?.users ? Object.keys(event.users).length : undefined}
         />
       )}
 

@@ -21,6 +21,8 @@ import { useItemTerminology } from '@/utils/itemTerminology';
  * @param {object} props.ratingConfig - Rating configuration (maxRating, ratings array)
  * @param {string} props.eventType - Type of event (e.g., "wine")
  * @param {boolean} props.noteSuggestionsEnabled - Whether note suggestions are enabled
+ * @param {number} [props.ratedCount] - Number of unique raters for this item
+ * @param {number} [props.totalParticipants] - Total participants in the event
  */
 function RatingDrawer({ 
   isOpen, 
@@ -31,7 +33,9 @@ function RatingDrawer({
   existingRating,
   ratingConfig,
   eventType,
-  noteSuggestionsEnabled
+  noteSuggestionsEnabled,
+  ratedCount,
+  totalParticipants
 }) {
   const { event } = useEventContext();
   const { singular } = useItemTerminology(event);
@@ -156,11 +160,18 @@ function RatingDrawer({
         aria-hidden={!isOpen}
       >
         <div className="flex flex-col h-full max-h-[90vh]">
-          {/* Header with title, bookmark button, and close button */}
+          {/* Header with title, participation count, bookmark button, and close button */}
           <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0 rounded-t-lg" style={{ backgroundColor: 'var(--event-header-bg)' }}>
-            <h2 id="drawer-title" className="text-base font-semibold">
-              {eventState === 'started' ? `Rate ${singular} ${itemId}` : `${singular} ${itemId}`}
-            </h2>
+            <div>
+              <h2 id="drawer-title" className="text-base font-semibold">
+                {eventState === 'started' ? `Rate ${singular} ${itemId}` : `${singular} ${itemId}`}
+              </h2>
+              {eventState === 'started' && totalParticipants > 0 && ratedCount !== undefined && (
+                <p className="text-xs text-muted-foreground">
+                  {ratedCount} of {totalParticipants} guests rated this {singular.toLowerCase()}
+                </p>
+              )}
+            </div>
             <div className="flex items-center gap-2">
               {eventState === 'started' && (
                 <Button
@@ -188,7 +199,7 @@ function RatingDrawer({
               </Button>
             </div>
           </div>
-          
+
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-4">
             {content}

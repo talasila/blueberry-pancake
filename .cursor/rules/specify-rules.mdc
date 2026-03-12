@@ -114,6 +114,8 @@ JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 - N/A — no new persistent data. Trigger uses ephemeral `location.state` from React Router. (025-guest-registration-nudge)
 - Node.js 20+ (backend), React 19.2 JSX (frontend) + Express, @aws-sdk/client-dynamodb, @aws-sdk/lib-dynamodb, nanoid (backend); React, react-router-dom 7.10, Tailwind CSS 4, Radix UI, lucide-react, class-variance-authority, clsx, tailwind-merge (frontend) (026-event-theme-presets)
 - DynamoDB single-table design — events stored as `PK=EVENT#{eventId}, SK=CONFIG` (026-event-theme-presets)
+- JavaScript (Node.js 22 / ES Modules), React 19 + React 19, Vite 6, Tailwind CSS 4, Radix UI, Lucide icons (027-participation-ring)
+- N/A (no new backend storage; data derived from existing DynamoDB-backed API responses) (027-participation-ring)
 
 ## Recent Changes
 - 001-root-admin: Added Node.js 22+, JavaScript ES2020+ + Express 5, React 19, Vite, Tailwind CSS 4, Radix UI
