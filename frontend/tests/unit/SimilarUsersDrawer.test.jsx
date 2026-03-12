@@ -25,6 +25,13 @@ vi.mock('../../src/utils/itemTerminology.js', () => ({
   }))
 }));
 
+vi.mock('../../src/utils/personalityContent.js', () => ({
+  getPersonalityName: vi.fn((id) => {
+    const names = { 'golden-retriever': 'The Golden Retriever', 'simon-cowell': 'The Simon Cowell' };
+    return names[id] || null;
+  }),
+}));
+
 describe('SimilarUsersDrawer Component', () => {
   const mockOnClose = vi.fn();
   const defaultProps = {
@@ -279,6 +286,68 @@ describe('SimilarUsersDrawer Component', () => {
       await waitFor(() => {
         expect(screen.getByText('Alice Smith')).toBeInTheDocument();
       });
+    });
+  });
+
+  describe('Personality integration', () => {
+    it('personality subtitle shown when present', async () => {
+      const mockSimilarUsers = [
+        {
+          email: 'alice@example.com',
+          name: 'Alice Smith',
+          similarityScore: 0.87,
+          commonItemsCount: 5,
+          personality: 'golden-retriever',
+          commonItems: []
+        }
+      ];
+
+      getSimilarUsers.mockResolvedValue({
+        similarUsers: mockSimilarUsers,
+        currentUserEmail: 'user@example.com',
+        eventId: 'testEvent'
+      });
+
+      render(
+        <BrowserRouter>
+          <SimilarUsersDrawer {...defaultProps} />
+        </BrowserRouter>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('The Golden Retriever · 5 common')).toBeInTheDocument();
+      });
+    });
+
+    it('personality subtitle hidden when null', async () => {
+      const mockSimilarUsers = [
+        {
+          email: 'bob@example.com',
+          name: null,
+          similarityScore: 0.72,
+          commonItemsCount: 4,
+          personality: null,
+          commonItems: []
+        }
+      ];
+
+      getSimilarUsers.mockResolvedValue({
+        similarUsers: mockSimilarUsers,
+        currentUserEmail: 'user@example.com',
+        eventId: 'testEvent'
+      });
+
+      render(
+        <BrowserRouter>
+          <SimilarUsersDrawer {...defaultProps} />
+        </BrowserRouter>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('bob@example.com')).toBeInTheDocument();
+      });
+      expect(screen.getByText('4 common')).toBeInTheDocument();
+      expect(screen.queryByText(/The Golden Retriever/)).not.toBeInTheDocument();
     });
   });
 

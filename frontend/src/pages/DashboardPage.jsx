@@ -12,6 +12,7 @@ import UserDetailsDrawer from '@/components/UserDetailsDrawer';
 import dashboardService from '@/services/dashboardService';
 import { useEventContext } from '@/contexts/EventContext';
 import { useItemTerminology } from '@/utils/itemTerminology';
+import { getPersonalityName } from '@/utils/personalityContent';
 
 /**
  * DashboardPage Component
@@ -238,6 +239,32 @@ function DashboardPage() {
               />
             )}
           </div>
+
+          {/* Tasting Personalities section */}
+          {(() => {
+            const qualifying = (dashboardData?.userSummaries || []).filter(u => u.personality);
+            if (qualifying.length === 0) return null;
+            return (
+              <div className="mt-6">
+                <h3 className="text-sm font-semibold mb-3">Tasting Personalities</h3>
+                <div className="space-y-1">
+                  {qualifying.map((user) => (
+                    <button
+                      key={user.email}
+                      onClick={() => {
+                        setOpenUserDetailsEmail(user.email);
+                        history.pushState({ drawer: 'user', userEmail: user.email }, '', window.location.pathname);
+                      }}
+                      className="w-full flex items-center justify-between rounded-lg px-3 py-2 bg-muted/40 text-left active:scale-[0.98] transition-all duration-150"
+                    >
+                      <span className="text-sm font-medium truncate">{user.name || user.email}</span>
+                      <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">{getPersonalityName(user.personality)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
         </TabsContent>
         
         {/* Tab 2: Item Ratings */}

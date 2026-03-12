@@ -2,6 +2,7 @@ import ratingService from './RatingService.js';
 import dataRepository from '../data/DynamoDBRepository.js';
 import eventService from './EventService.js';
 import { calculateMeanAbsoluteError, maeToSimilarityScore } from '../utils/meanAbsoluteError.js';
+import { detectPersonality } from './PersonalityService.js';
 import loggerService from '../logging/Logger.js';
 import { normalizeEmail as normalizeEmailUtil } from '../utils/emailUtils.js';
 
@@ -96,15 +97,26 @@ class SimilarityService {
           return diff === 1; // Exactly 1 point difference
         }).length;
 
+        // Compute personality for wine events
+        let personality = null;
+        if (event.typeOfItem === 'wine') {
+          const normalizedEmail = this.normalizeEmail(email);
+          const rawUserRatings = allRatings.filter(
+            r => this.normalizeEmail(r.email) === normalizedEmail
+          );
+          personality = this._derivePersonality(rawUserRatings, event);
+        }
+
         similarUsers.push({
           email,
           name: null, // Will be populated from event config if available
           similarityScore,
-          mae, // Mean Absolute Error (for display purposes)
+          mae,
           commonItemsCount: commonItems.length,
           perfectMatches,
           closeMatches,
-          commonItems: commonItemsForResponse
+          commonItems: commonItemsForResponse,
+          personality,
         });
       }
 
@@ -225,6 +237,63 @@ class SimilarityService {
     });
 
     return commonItems;
+  }
+
+  /**
+   * Derive personality detection input from raw rating records and call detectPersonality.
+   * @param {Array<object>} rawRatings - Raw rating objects for a single user
+   * @param {object} event - Event object with itemConfiguration and ratingConfiguration
+   * @returns {string|null} Personality type ID or null
+   */
+  _derivePersonality(rawRatings, event) {
+    if (!rawRatings || rawRatings.length === 0) return null;
+
+    const maxRating = event.ratingConfiguration?.maxRating || 4;
+    const itemConfig = event.itemConfiguration || {};
+    const totalItems = (itemConfig.numberOfItems || 0) - (itemConfig.excludedItemIds || []).length;
+
+    const ratingValues = [];
+    const distribution = {};
+    for (let v = 1; v <= maxRating; v++) distribution[v] = 0;
+
+    let noteCount = 0;
+    const noteLengths = [];
+    const timestamps = [];
+
+    const sortedRatings = [...rawRatings].sort((a, b) => {
+      const at = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const bt = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return at - bt;
+    });
+
+    for (const r of sortedRatings) {
+      const val = parseInt(r.rating, 10);
+      if (isNaN(val)) continue;
+      ratingValues.push(val);
+      distribution[val] = (distribution[val] || 0) + 1;
+      if (r.note && r.note.trim()) {
+        noteCount++;
+        noteLengths.push(r.note.trim().length);
+      }
+      if (r.timestamp) timestamps.push(r.timestamp);
+    }
+
+    if (ratingValues.length === 0) return null;
+
+    const avg = ratingValues.reduce((s, v) => s + v, 0) / ratingValues.length;
+
+    return detectPersonality({
+      ratings: ratingValues,
+      ratingDistribution: distribution,
+      averageRating: avg,
+      totalRatings: ratingValues.length,
+      totalItems,
+      maxRating,
+      noteCount,
+      noteLengths,
+      earliestTimestamp: timestamps[0] || null,
+      latestTimestamp: timestamps[timestamps.length - 1] || null,
+    });
   }
 
   /**

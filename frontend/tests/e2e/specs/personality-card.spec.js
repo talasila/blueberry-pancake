@@ -1,0 +1,168 @@
+/**
+ * Tasting Personality Card E2E Tests
+ *
+ * Verifies that the personality card renders correctly across all three
+ * surfaces: My Progress drawer, Similar Users detail view, and Dashboard
+ * Summary tab. Also covers the threshold gate and dot-badge notification.
+ */
+
+import { test, expect } from './fixtures.js';
+import {
+  addAdminToEvent,
+  setAuthToken,
+  getUserToken,
+  submitRating,
+  startEvent,
+  changeEventState,
+  configureItems,
+  loginAsUserToEvent,
+  BASE_URL,
+} from './helpers.js';
+
+const ITEMS_COUNT = 8;
+const RATINGS_BELOW_THRESHOLD = 3;
+const RATINGS_AT_THRESHOLD = 4;
+
+/**
+ * Submit N identical ratings (value 4) for a user via API.
+ * Starts from itemId 1 up to N.
+ */
+async function submitRatings(eventId, token, count, ratingValue = 4) {
+  for (let i = 1; i <= count; i++) {
+    const result = await submitRating(eventId, token, i, ratingValue);
+    if (!result.ok) throw new Error(`Failed to submit rating for item ${i}: ${JSON.stringify(result.data)}`);
+  }
+}
+
+/**
+ * Set up a started event with configured items. Returns admin token.
+ */
+async function setupEvent(eventId) {
+  const adminEmail = 'admin@example.com';
+  const token = await addAdminToEvent(eventId, adminEmail);
+  const cfg = await configureItems(eventId, token, ITEMS_COUNT);
+  if (!cfg.ok) throw new Error(`Failed to configure items: ${cfg.data}`);
+  await startEvent(eventId, token);
+  return token;
+}
+
+test.describe('Tasting Personality Card', () => {
+
+  // ───────────────────────────────────────────
+  // My Progress drawer
+  // ───────────────────────────────────────────
+
+  test('personality card does NOT appear before rating threshold', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
+    await setupEvent(eventId);
+
+    const userEmail = 'early@example.com';
+    const userToken = await getUserToken(eventId, userEmail, pin);
+    await submitRatings(eventId, userToken, RATINGS_BELOW_THRESHOLD);
+
+    await loginAsUserToEvent(page, eventId, userEmail, pin);
+
+    const progressBtn = page.getByRole('button', { name: /my progress/i });
+    await expect(progressBtn).toBeVisible({ timeout: 10000 });
+    await progressBtn.click();
+
+    const drawer = page.locator('[role="dialog"]');
+    await expect(drawer).toBeVisible({ timeout: 5000 });
+
+    await expect(drawer.getByText(/tasting personality/i)).not.toBeVisible({ timeout: 3000 });
+  });
+
+  test('personality card appears in My Progress after reaching threshold', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
+    await setupEvent(eventId);
+
+    const userEmail = 'threshold@example.com';
+    const userToken = await getUserToken(eventId, userEmail, pin);
+    await submitRatings(eventId, userToken, RATINGS_AT_THRESHOLD);
+
+    await loginAsUserToEvent(page, eventId, userEmail, pin);
+
+    const progressBtn = page.getByRole('button', { name: /my progress/i });
+    await expect(progressBtn).toBeVisible({ timeout: 10000 });
+    await progressBtn.click();
+
+    const drawer = page.locator('[role="dialog"]');
+    await expect(drawer).toBeVisible({ timeout: 5000 });
+
+    const card = drawer.locator('[aria-label*="tasting personality" i]');
+    await expect(card).toBeVisible({ timeout: 5000 });
+    await expect(card.getByText(/your tasting personality/i)).toBeVisible();
+  });
+
+  // ───────────────────────────────────────────
+  // Dot-badge notification
+  // ───────────────────────────────────────────
+
+  test('dot badge appears on My Progress button when personality becomes available', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
+    await setupEvent(eventId);
+
+    const userEmail = 'badgeuser@example.com';
+    const userToken = await getUserToken(eventId, userEmail, pin);
+    await submitRatings(eventId, userToken, RATINGS_AT_THRESHOLD);
+
+    await loginAsUserToEvent(page, eventId, userEmail, pin);
+
+    const progressBtn = page.getByRole('button', { name: /my progress/i });
+    await expect(progressBtn).toBeVisible({ timeout: 10000 });
+
+    const badge = progressBtn.locator('[data-testid="personality-badge"]');
+    await expect(badge).toBeVisible({ timeout: 5000 });
+  });
+
+  // ───────────────────────────────────────────
+  // Similar Users list subtitle
+  // ───────────────────────────────────────────
+
+  test('personality name shows as subtitle in Similar Users list', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
+    await setupEvent(eventId);
+
+    const currentEmail = 'current@example.com';
+    const currentToken = await getUserToken(eventId, currentEmail, pin);
+    await submitRatings(eventId, currentToken, RATINGS_AT_THRESHOLD);
+
+    const otherEmail = 'other@example.com';
+    const otherToken = await getUserToken(eventId, otherEmail, pin);
+    await submitRatings(eventId, otherToken, RATINGS_AT_THRESHOLD);
+
+    await loginAsUserToEvent(page, eventId, currentEmail, pin);
+
+    const similarBtn = page.getByRole('button', { name: /similar tastes/i });
+    await expect(similarBtn).toBeVisible({ timeout: 10000 });
+    await similarBtn.click();
+
+    const otherUserBtn = page.getByRole('button', { name: new RegExp(otherEmail, 'i') });
+    await expect(otherUserBtn).toBeVisible({ timeout: 10000 });
+
+    await expect(otherUserBtn.getByText(/The \w+/)).toBeVisible({ timeout: 5000 });
+  });
+
+  // ───────────────────────────────────────────
+  // Dashboard Summary tab
+  // ───────────────────────────────────────────
+
+  test('Tasting Personalities section appears on Dashboard Summary tab', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
+    const adminToken = await setupEvent(eventId);
+
+    const userEmail = 'dashuser@example.com';
+    const userToken = await getUserToken(eventId, userEmail, pin);
+    await submitRatings(eventId, userToken, RATINGS_AT_THRESHOLD);
+
+    await changeEventState(eventId, 'completed', 'started', adminToken);
+
+    const adminEmail = 'admin@example.com';
+    await setAuthToken(page, adminToken, adminEmail);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
+    await expect(page.locator('main')).toBeVisible({ timeout: 10000 });
+
+    await expect(page.getByText(/tasting personalities/i)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(new RegExp(userEmail.split('@')[0], 'i'))).toBeVisible({ timeout: 5000 });
+  });
+});

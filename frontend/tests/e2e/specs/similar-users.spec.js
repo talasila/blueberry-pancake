@@ -374,7 +374,7 @@ test.describe('Similar Users Discovery', () => {
     await expect(detailHeading).toBeVisible({ timeout: 5000 });
     
     // Check for the per-item comparison help text
-    const helpText = page.getByText(/the big dot on the center line is your rating/i);
+    const helpText = page.getByText(/the big dot in the middle is your rating/i);
     await expect(helpText).toBeVisible({ timeout: 5000 });
     
     // Check that comparison rows are rendered (item IDs visible in gray handles)

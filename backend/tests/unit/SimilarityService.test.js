@@ -3,6 +3,7 @@ import similarityService from '../../src/services/SimilarityService.js';
 import ratingService from '../../src/services/RatingService.js';
 import eventService from '../../src/services/EventService.js';
 import dataRepository from '../../src/data/DynamoDBRepository.js';
+import { detectPersonality } from '../../src/services/PersonalityService.js';
 
 // Mock dependencies
 vi.mock('../../src/services/RatingService.js', () => ({
@@ -33,6 +34,10 @@ vi.mock('../../src/logging/Logger.js', () => ({
     warn: vi.fn().mockResolvedValue(undefined),
     error: vi.fn().mockResolvedValue(undefined)
   }
+}));
+
+vi.mock('../../src/services/PersonalityService.js', () => ({
+  detectPersonality: vi.fn()
 }));
 
 describe('SimilarityService', () => {
@@ -309,6 +314,88 @@ describe('SimilarityService', () => {
 
       const commonItems = similarityService.getCommonItems(user1Ratings, user2Ratings);
       expect(commonItems).toEqual([]);
+    });
+  });
+
+  describe('personality integration', () => {
+    it('personality field present in similar user response for wine events', async () => {
+      const eventId = 'testEvent';
+      const currentUserEmail = 'user@example.com';
+
+      eventService.getEvent.mockResolvedValue({
+        ratingConfiguration: { maxRating: 4 },
+        typeOfItem: 'wine',
+        itemConfiguration: { numberOfItems: 8, excludedItemIds: [] }
+      });
+
+      ratingService.getRatings.mockResolvedValue([
+        { email: 'user@example.com', itemId: 1, rating: 4 },
+        { email: 'user@example.com', itemId: 2, rating: 5 },
+        { email: 'user@example.com', itemId: 3, rating: 3 },
+        { email: 'similar@example.com', itemId: 1, rating: 4 },
+        { email: 'similar@example.com', itemId: 2, rating: 5 },
+        { email: 'similar@example.com', itemId: 3, rating: 3 }
+      ]);
+
+      detectPersonality.mockReturnValue('golden-retriever');
+
+      const result = await similarityService.findSimilarUsers(eventId, currentUserEmail);
+
+      expect(result.length).toBeGreaterThan(0);
+      expect(result[0].personality).toBe('golden-retriever');
+    });
+
+    it('personality is null for non-qualifying users', async () => {
+      const eventId = 'testEvent';
+      const currentUserEmail = 'user@example.com';
+
+      eventService.getEvent.mockResolvedValue({
+        ratingConfiguration: { maxRating: 4 },
+        typeOfItem: 'wine',
+        itemConfiguration: { numberOfItems: 8, excludedItemIds: [] }
+      });
+
+      ratingService.getRatings.mockResolvedValue([
+        { email: 'user@example.com', itemId: 1, rating: 4 },
+        { email: 'user@example.com', itemId: 2, rating: 5 },
+        { email: 'user@example.com', itemId: 3, rating: 3 },
+        { email: 'similar@example.com', itemId: 1, rating: 4 },
+        { email: 'similar@example.com', itemId: 2, rating: 5 },
+        { email: 'similar@example.com', itemId: 3, rating: 3 }
+      ]);
+
+      detectPersonality.mockReturnValue(null);
+
+      const result = await similarityService.findSimilarUsers(eventId, currentUserEmail);
+
+      expect(result.length).toBeGreaterThan(0);
+      expect(result[0].personality).toBeNull();
+    });
+
+    it('personality is null for non-wine events', async () => {
+      const eventId = 'testEvent';
+      const currentUserEmail = 'user@example.com';
+
+      eventService.getEvent.mockResolvedValue({
+        ratingConfiguration: { maxRating: 4 },
+        typeOfItem: 'beer',
+        itemConfiguration: { numberOfItems: 8, excludedItemIds: [] }
+      });
+
+      ratingService.getRatings.mockResolvedValue([
+        { email: 'user@example.com', itemId: 1, rating: 4 },
+        { email: 'user@example.com', itemId: 2, rating: 5 },
+        { email: 'user@example.com', itemId: 3, rating: 3 },
+        { email: 'similar@example.com', itemId: 1, rating: 4 },
+        { email: 'similar@example.com', itemId: 2, rating: 5 },
+        { email: 'similar@example.com', itemId: 3, rating: 3 }
+      ]);
+
+      const result = await similarityService.findSimilarUsers(eventId, currentUserEmail);
+
+      expect(result.length).toBeGreaterThan(0);
+      expect(result[0].personality).toBeNull();
+      expect(detectPersonality).not.toHaveBeenCalled();
     });
   });
 });

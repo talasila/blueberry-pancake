@@ -7,6 +7,10 @@ import { useEventContext } from '@/contexts/EventContext';
 import apiClient from '@/services/apiClient';
 import { loadBookmarksFromServer, getBookmarks } from '@/utils/bookmarkStorage';
 import { calculateUserRatingProgress } from '@/utils/ratingProgress';
+import { detectPersonality } from '@/utils/personalityDetection';
+import { getPersonalityName } from '@/utils/personalityContent';
+import { useItemTerminology } from '@/utils/itemTerminology';
+import PersonalityCard from '@/components/PersonalityCard';
 
 /**
  * UserDetailsDrawer Component
@@ -30,6 +34,7 @@ function UserDetailsDrawer({
   availableItemIds = []
 }) {
   const { event } = useEventContext();
+  const { singularLower: itemSingular, pluralLower: itemPlural } = useItemTerminology(event);
   const [isAnimating, setIsAnimating] = useState(false);
   const hasBeenOpenedRef = useRef(false);
   const [ratings, setRatings] = useState([]);
@@ -169,6 +174,89 @@ function UserDetailsDrawer({
     () => calculateUserRatingProgress(ratings, itemIds, ratingConfiguration?.maxRating || 4),
     [ratings, itemIds, ratingConfiguration]
   );
+
+  // Personality detection (current user, wine events, active states only)
+  const isWineEvent = event?.typeOfItem === 'wine';
+  const isActiveState = ['started', 'paused', 'completed'].includes(event?.state);
+
+  const personalityId = useMemo(() => {
+    if (!isWineEvent || !isActiveState || !isCurrentUser || ratings.length === 0) return null;
+
+    const sortedByTime = [...ratings].sort((a, b) => {
+      const at = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const bt = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return at - bt;
+    });
+
+    const maxRating = ratingConfiguration?.maxRating || 4;
+    const ratingValues = sortedByTime.map(r => parseInt(r.rating, 10)).filter(v => !isNaN(v));
+    const distribution = {};
+    for (let v = 1; v <= maxRating; v++) distribution[v] = 0;
+    ratingValues.forEach(v => { distribution[v] = (distribution[v] || 0) + 1; });
+
+    const avg = ratingValues.reduce((s, v) => s + v, 0) / ratingValues.length;
+    const notesWithContent = ratings.filter(r => r.note && r.note.trim());
+    const timestamps = sortedByTime.map(r => r.timestamp).filter(Boolean);
+
+    return detectPersonality({
+      ratings: ratingValues,
+      ratingDistribution: distribution,
+      averageRating: avg,
+      totalRatings: ratingValues.length,
+      totalItems: itemIds.length,
+      maxRating,
+      noteCount: notesWithContent.length,
+      noteLengths: notesWithContent.map(r => r.note.trim().length),
+      earliestTimestamp: timestamps[0] || null,
+      latestTimestamp: timestamps[timestamps.length - 1] || null,
+    });
+  }, [ratings, itemIds, ratingConfiguration, isWineEvent, isActiveState, isCurrentUser]);
+
+  // Shift detection via sessionStorage
+  const previousPersonalityName = useMemo(() => {
+    if (!personalityId || !eventId) return null;
+    const key = `personality-${eventId}`;
+    const stored = sessionStorage.getItem(key);
+    sessionStorage.setItem(key, personalityId);
+    if (stored && stored !== personalityId) {
+      return getPersonalityName(stored);
+    }
+    return null;
+  }, [personalityId, eventId]);
+
+  // Template vars for quote interpolation
+  const personalityTemplateVars = useMemo(() => {
+    if (!personalityId || ratings.length === 0) return {};
+    const ratingValues = ratings.map(r => parseInt(r.rating, 10)).filter(v => !isNaN(v));
+    const avg = ratingValues.reduce((s, v) => s + v, 0) / ratingValues.length;
+
+    const distribution = {};
+    ratingValues.forEach(v => { distribution[v] = (distribution[v] || 0) + 1; });
+    const dominantValue = Object.entries(distribution).sort((a, b) => b[1] - a[1])[0]?.[0];
+
+    const sortedByTime = [...ratings].sort((a, b) => {
+      const at = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const bt = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return at - bt;
+    });
+    const timestamps = sortedByTime.map(r => r.timestamp).filter(Boolean);
+    let minutes = '';
+    if (timestamps.length >= 2) {
+      const span = (new Date(timestamps[timestamps.length - 1]) - new Date(timestamps[0])) / 60000;
+      minutes = Math.round(span).toString();
+    }
+
+    return {
+      n: dominantValue || '',
+      max: String(ratingConfiguration?.maxRating || 4),
+      count: String(ratingValues.length),
+      minutes,
+      avg: avg.toFixed(1),
+      preview: ratingValues.slice(0, 5).join(', '),
+      item: itemSingular,
+      items: itemPlural,
+    };
+  }, [personalityId, ratings, ratingConfiguration, itemSingular, itemPlural]);
 
   // Get user display name
   const getUserDisplayName = () => {
@@ -316,6 +404,16 @@ function UserDetailsDrawer({
               </div>
             ) : (
               <div className="space-y-6">
+                {/* Personality Card */}
+                {personalityId && (
+                  <PersonalityCard
+                    personalityId={personalityId}
+                    templateVars={personalityTemplateVars}
+                    previousPersonality={previousPersonalityName}
+                    ownerName="Your"
+                  />
+                )}
+
                 {/* Rating Visualizations */}
                 {userRatingProgressData && (
                   <div className="space-y-5">

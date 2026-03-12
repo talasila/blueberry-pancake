@@ -17,6 +17,7 @@ import { Users, BarChart3 } from 'lucide-react';
 import { useItemTerminology } from '@/utils/itemTerminology';
 import { calculateUserRatingProgress } from '@/utils/ratingProgress';
 import { deriveItemRaterCounts } from '@/utils/participationCounts';
+import { getMinimumThreshold } from '@/utils/personalityDetection';
 import GuestWelcomeBottomSheet from '@/components/GuestWelcomeBottomSheet';
 
 /**
@@ -460,6 +461,7 @@ function EventPage() {
     if (isSimilarUsersDrawerOpen) {
       setIsSimilarUsersDrawerOpen(false);
     }
+    handleMyProgressClickOriginal();
     setTimeout(() => {
       setIsUserDetailsDrawerOpen(true);
       setDrawerHistory({ drawer: 'user', userEmail });
@@ -481,6 +483,24 @@ function EventPage() {
     () => calculateUserRatingProgress(ratings, availableItemIds, ratingConfig?.maxRating || 4),
     [ratings, availableItemIds, ratingConfig]
   );
+
+  // Personality dot badge logic
+  const showPersonalityBadge = useMemo(() => {
+    if (event?.typeOfItem !== 'wine') return false;
+    if (!['started', 'paused', 'completed'].includes(event?.state)) return false;
+    if (availableItemIds.length === 0 || ratings.length === 0) return false;
+    const threshold = getMinimumThreshold(availableItemIds.length);
+    if (ratings.length < threshold) return false;
+    const badgeKey = `personality-badge-${eventId}`;
+    return !sessionStorage.getItem(badgeKey);
+  }, [event?.typeOfItem, event?.state, availableItemIds, ratings, eventId]);
+
+  // Clear badge when My Progress drawer opens
+  const handleMyProgressClickOriginal = useCallback(() => {
+    if (eventId) {
+      sessionStorage.setItem(`personality-badge-${eventId}`, 'shown');
+    }
+  }, [eventId]);
 
   // Check if user has rated at least 3 items (for button visibility)
   // ratings state already contains only the current user's ratings (filtered in loadRatings)
@@ -688,6 +708,13 @@ function EventPage() {
                     <BarChart3 className="h-4 w-4" />
                     <span>My Progress</span>
                   </div>
+                  {showPersonalityBadge && (
+                    <span
+                      className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary z-20"
+                      data-testid="personality-badge"
+                      aria-label="New personality available"
+                    />
+                  )}
                 </Button>
               )}
             </div>
@@ -752,6 +779,13 @@ function EventPage() {
                   <BarChart3 className="h-4 w-4" />
                   <span>My Progress</span>
                 </div>
+                {showPersonalityBadge && (
+                  <span
+                    className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary z-20"
+                    data-testid="personality-badge"
+                    aria-label="New personality available"
+                  />
+                )}
               </Button>
             </div>
           )}

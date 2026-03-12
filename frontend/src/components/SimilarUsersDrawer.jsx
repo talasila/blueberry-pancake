@@ -6,6 +6,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import { getSimilarUsers } from '@/services/similarUsersService.js';
 import { useItemTerminology } from '@/utils/itemTerminology';
 import { useEventContext } from '@/contexts/EventContext';
+import { getPersonalityName } from '@/utils/personalityContent';
 
 /**
  * SimilarUsersDrawer Component
@@ -162,11 +163,11 @@ function SimilarUsersDrawer({
                 <span className="w-8 flex-shrink-0 flex items-center justify-center bg-muted-foreground/20 text-xs font-bold text-muted-foreground">
                   {index + 1}
                 </span>
-                <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5">
+                  <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5">
                   <div className="flex-1 min-w-0">
                     <span className="text-sm font-medium truncate block leading-tight">{user.name || user.email}</span>
                     <span className="text-[10px] text-muted-foreground leading-tight">
-                      {commonItemsCount} common
+                      {user.personality ? `${getPersonalityName(user.personality)} · ` : ''}{commonItemsCount} common
                     </span>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
@@ -305,7 +306,7 @@ function SimilarUsersDrawer({
               {detailsUserRef.current?.commonItems && detailsUserRef.current.commonItems.length > 0 ? (
                 <div className="space-y-5">
                   <p className="text-xs text-muted-foreground">
-                    Each row is a {singular.toLowerCase()} you both rated. The big dot on the center line is your rating. The small dot is theirs — the further apart, the more you disagreed.
+                    Each row is a {singular.toLowerCase()} you both rated. The big dot in the middle is your rating. The small dot is {detailsUserRef.current.name || detailsUserRef.current.email}&rsquo;s rating — the further apart, the more you disagreed.
                   </p>
                   <div className="space-y-1.5">
                     {sortItemsById(detailsUserRef.current.commonItems).map((item, itemIndex) => {

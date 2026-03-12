@@ -2,6 +2,7 @@ import eventService from './EventService.js';
 import ratingService from './RatingService.js';
 import dataRepository from '../data/DynamoDBRepository.js';
 import { calculateWeightedAverage } from '../utils/bayesianAverage.js';
+import { detectPersonality } from './PersonalityService.js';
 import loggerService from '../logging/Logger.js';
 
 /**
@@ -307,15 +308,16 @@ class DashboardService {
       }
 
       // Get all ratings in order (sorted by timestamp, oldest to newest for sparkline)
-      const sortedRatings = [...userRatings]
+      const sortedUserRatings = [...userRatings]
         .sort((a, b) => {
-          // Sort by timestamp (oldest to newest)
           const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
           const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
           if (isNaN(aTime)) return 1;
           if (isNaN(bTime)) return -1;
-          return aTime - bTime; // Ascending order (oldest first)
-        })
+          return aTime - bTime;
+        });
+
+      const sortedRatings = sortedUserRatings
         .map(rating => {
           const ratingValue = parseInt(rating.rating, 10);
           return isNaN(ratingValue) ? null : ratingValue;
@@ -331,6 +333,38 @@ class DashboardService {
         ).length;
       }
 
+      // Personality detection fields
+      let noteCount = 0;
+      const noteLengths = [];
+      const timestamps = sortedUserRatings
+        .map(r => r.timestamp)
+        .filter(Boolean);
+
+      for (const r of userRatings) {
+        if (r.note && r.note.trim()) {
+          noteCount++;
+          noteLengths.push(r.note.trim().length);
+        }
+      }
+
+      // Personality detection (wine events only)
+      let personality = null;
+      if (event.typeOfItem === 'wine' && sortedRatings.length > 0) {
+        const avg = sortedRatings.reduce((s, v) => s + v, 0) / sortedRatings.length;
+        personality = detectPersonality({
+          ratings: sortedRatings,
+          ratingDistribution,
+          averageRating: avg,
+          totalRatings: sortedRatings.length,
+          totalItems,
+          maxRating,
+          noteCount,
+          noteLengths,
+          earliestTimestamp: timestamps[0] || null,
+          latestTimestamp: timestamps[timestamps.length - 1] || null,
+        });
+      }
+
       summaries.push({
         email,
         name: userName,
@@ -339,7 +373,9 @@ class DashboardService {
         averageRating,
         ratings: sortedRatings,
         ratingDistribution,
-        totalRatings: userRatings.length
+        totalRatings: userRatings.length,
+        noteCount,
+        personality,
       });
     }
 
