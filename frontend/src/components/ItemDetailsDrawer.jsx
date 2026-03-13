@@ -6,6 +6,7 @@ import Message from '@/components/Message';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import ProgressBar from '@/components/ProgressBar';
 import RatingDistribution from '@/components/RatingDistribution';
+import ListCard from '@/components/ListCard';
 import itemService from '@/services/itemService';
 import { ratingService } from '@/services/ratingService';
 import dashboardService from '@/services/dashboardService';
@@ -37,7 +38,7 @@ function ItemDetailsDrawer({
   isAdmin = false
 }) {
   const { event } = useEventContext();
-  const { singular } = useItemTerminology(event);
+  const { singular, singularLower } = useItemTerminology(event);
   const hasBeenOpenedRef = useRef(false);
   const [isAnimating, setIsAnimating] = useState(false);
   const [item, setItem] = useState(null);
@@ -128,12 +129,7 @@ function ItemDetailsDrawer({
       setItem(itemData);
     } catch (err) {
       console.error('Error fetching item details:', err);
-      // If item not found, don't set error - we'll still show the drawer with available info
-      if (err.message && err.message.includes('not found')) {
-        setItem(null); // Explicitly set to null to indicate no item registered
-      } else {
-        setError(err.message || 'Failed to load item details');
-      }
+      setError(err.message || 'Failed to load item details');
     } finally {
       setIsLoading(false);
     }
@@ -274,33 +270,46 @@ function ItemDetailsDrawer({
     return rank + 1; // 1-based ranking
   }, [cachedDashboardData, itemId]);
 
-  // Get all comments (ratings with notes) sorted with user's comment first
-  const comments = useMemo(() => {
-    if (!ratings.length) return [];
-    
-    const commentsWithData = ratings
-      .filter(r => r.note && r.note.trim())
-      .map(rating => {
-        const userData = event?.users?.[rating.email];
-        return {
-          ...rating,
-          userName: userData?.name || null
-        };
-      });
+  const [ratingSortColumn, setRatingSortColumn] = useState('rating');
+  const [ratingSortDirection, setRatingSortDirection] = useState('desc');
 
-    // Sort: user's comment first, then others by timestamp (newest first)
-    const normalizedUserEmail = userEmail?.trim().toLowerCase();
-    return commentsWithData.sort((a, b) => {
-      const aIsUser = a.email?.trim().toLowerCase() === normalizedUserEmail;
-      const bIsUser = b.email?.trim().toLowerCase() === normalizedUserEmail;
-      
-      if (aIsUser && !bIsUser) return -1;
-      if (!aIsUser && bIsUser) return 1;
-      
-      // Both same type, sort by timestamp (newest first)
-      return new Date(b.timestamp) - new Date(a.timestamp);
+  const handleRatingSort = (column) => {
+    if (ratingSortColumn === column) {
+      setRatingSortDirection(ratingSortDirection === 'asc' ? 'desc' : 'asc');
+    } else {
+      setRatingSortColumn(column);
+      setRatingSortDirection('asc');
+    }
+  };
+
+  const sortedItemRatings = useMemo(() => {
+    if (!ratings.length) return [];
+
+    const enriched = ratings.map(rating => {
+      const userData = event?.users?.[rating.email];
+      const name = userData?.name || rating.email?.split('@')[0] || rating.email;
+      return { ...rating, userName: name };
     });
-  }, [ratings, event, userEmail]);
+
+    return [...enriched].sort((a, b) => {
+      let aVal, bVal;
+      switch (ratingSortColumn) {
+        case 'name':
+          aVal = (a.userName || '').toLowerCase();
+          bVal = (b.userName || '').toLowerCase();
+          break;
+        case 'rating':
+          aVal = a.rating ?? 0;
+          bVal = b.rating ?? 0;
+          break;
+        default:
+          return 0;
+      }
+      if (aVal < bVal) return ratingSortDirection === 'asc' ? -1 : 1;
+      if (aVal > bVal) return ratingSortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [ratings, event, ratingSortColumn, ratingSortDirection]);
 
   // Don't render if event is not completed AND user is not an admin
   if (eventState !== 'completed' && !isAdmin) {
@@ -335,9 +344,26 @@ function ItemDetailsDrawer({
         <div className="flex flex-col h-full max-h-[75vh]">
           {/* Header with title and close button */}
           <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0 rounded-t-lg" style={{ backgroundColor: 'var(--event-header-bg)' }}>
-            <h2 id="item-details-title" className="text-base font-semibold">
-              {item ? `${singular} ${item.itemId} Details` : `${singular} ${itemId} Details`}
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 id="item-details-title" className="text-base font-semibold">
+                {item ? `${singular} ${item.itemId} Details` : `${singular} ${itemId} Details`}
+              </h2>
+              {itemRank !== null && itemRank <= 3 && (
+                <Badge 
+                  variant="default" 
+                  className={`text-[10px] px-1.5 py-0 font-semibold whitespace-nowrap flex-shrink-0 flex items-center gap-0.5 ${
+                    itemRank === 1
+                      ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-950 border-yellow-600 shadow-sm dark:from-yellow-500 dark:to-yellow-600 dark:text-yellow-50 dark:border-yellow-700 hover:from-yellow-400 hover:to-yellow-500 hover:text-yellow-950 dark:hover:from-yellow-500 dark:hover:to-yellow-600 dark:hover:text-yellow-50'
+                      : itemRank === 2
+                      ? 'bg-slate-300 text-slate-800 border-slate-400 dark:bg-slate-500 dark:text-slate-50 dark:border-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500'
+                      : 'bg-amber-700 text-amber-50 border-amber-800 dark:bg-amber-800 dark:text-amber-50 dark:border-amber-900 hover:bg-amber-700 dark:hover:bg-amber-800'
+                  }`}
+                >
+                  {itemRank === 1 && <Medal className="h-2.5 w-2.5" />}
+                  #{itemRank}
+                </Badge>
+              )}
+            </div>
             <Button
               variant="ghost"
               size="icon"
@@ -358,73 +384,47 @@ function ItemDetailsDrawer({
             ) : error ? (
               <Message type="error">{error}</Message>
             ) : (
-              <div className="space-y-4">
-                {/* Bottle Details Container */}
-                <div className="p-3 border rounded-md bg-muted/30">
-                  <div className="space-y-3">
-                    {/* Header with ranking badge */}
-                    <div className="flex items-start justify-between gap-3">
-                      {item ? (
-                        <>
-                          {/* Name with price - name prominent, price de-emphasized */}
-                          <div className="flex-1 min-w-0 flex items-baseline gap-2 flex-wrap">
-                            <p className="text-lg font-semibold break-words">{item.name}</p>
-                            {item.price !== null && item.price !== undefined && (
-                              <span className="text-sm text-muted-foreground whitespace-nowrap">
-                                (${typeof item.price === 'number' ? item.price.toFixed(2) : item.price})
-                              </span>
-                            )}
-                          </div>
-                        </>
-                      ) : (
-                        <div className="flex-1">
-                          <p className="text-sm text-muted-foreground">No item registered for this ID</p>
-                        </div>
-                      )}
-                      {itemRank !== null && (
-                        <Badge 
-                          variant="default" 
-                          className={`text-sm font-semibold whitespace-nowrap flex-shrink-0 flex items-center gap-1 ${
-                            itemRank === 1
-                              ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-yellow-950 border-yellow-600 shadow-md dark:from-yellow-500 dark:to-yellow-600 dark:text-yellow-50 dark:border-yellow-700 hover:from-yellow-400 hover:to-yellow-500 hover:text-yellow-950 hover:border-yellow-600 dark:hover:from-yellow-500 dark:hover:to-yellow-600 dark:hover:text-yellow-50 dark:hover:border-yellow-700'
-                              : itemRank === 2
-                              ? 'bg-slate-300 text-slate-800 border-slate-400 dark:bg-slate-500 dark:text-slate-50 dark:border-slate-600 hover:bg-slate-300 hover:text-slate-800 hover:border-slate-400 dark:hover:bg-slate-500 dark:hover:text-slate-50 dark:hover:border-slate-600'
-                              : itemRank === 3
-                              ? 'bg-amber-700 text-amber-50 border-amber-800 dark:bg-amber-800 dark:text-amber-50 dark:border-amber-900 hover:bg-amber-700 hover:text-amber-50 hover:border-amber-800 dark:hover:bg-amber-800 dark:hover:text-amber-50 dark:hover:border-amber-900'
-                              : 'bg-gray-100 text-gray-700 border-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 hover:bg-gray-100 hover:text-gray-700 hover:border-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-300 dark:hover:border-gray-600'
-                          }`}
-                        >
-                          {itemRank === 1 && <Medal className="h-3 w-3" />}
-                          Ranked #{itemRank}
-                        </Badge>
+              <div className="space-y-6">
+                {/* Bottle Details */}
+                {item ? (
+                  <section
+                    className="rounded-lg border-l-4 px-4 py-3 space-y-2"
+                    style={{
+                      borderLeftColor: 'var(--event-accent)',
+                      backgroundColor: 'color-mix(in oklch, var(--event-accent) 8%, var(--background))',
+                    }}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-sm font-semibold break-words leading-snug">{item.name}</span>
+                      {item.price !== null && item.price !== undefined && (
+                        <span className="text-[10px] font-medium text-muted-foreground bg-muted rounded-full px-2 py-0.5 whitespace-nowrap flex-shrink-0">
+                          ${typeof item.price === 'number' ? item.price.toFixed(2) : item.price}
+                        </span>
                       )}
                     </div>
-
-                    {/* Owner - show name if available, otherwise email (only if item exists) */}
-                    {item && (
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">
-                          {event?.users && event.users[item.ownerEmail]?.name
-                            ? `${event.users[item.ownerEmail].name} (${item.ownerEmail})`
-                            : item.ownerEmail}
-                        </span>
-                      </div>
+                    <span className="text-[10px] text-muted-foreground block">
+                      {event?.users && event.users[item.ownerEmail]?.name
+                        ? `${event.users[item.ownerEmail].name} · ${item.ownerEmail}`
+                        : item.ownerEmail}
+                    </span>
+                    {item.description && (
+                      <p className="text-[10px] text-muted-foreground/70 whitespace-pre-wrap border-t border-muted-foreground/10 pt-2 mt-1 leading-relaxed">{item.description}</p>
                     )}
-
-                    {/* Description - if available (only if item exists) */}
-                    {item?.description && (
-                      <div className="pt-2 border-t">
-                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{item.description}</p>
-                      </div>
-                    )}
+                  </section>
+                ) : (
+                  <div className="space-y-1">
+                    <span className="text-xs font-medium">No {singularLower} registered or assigned</span>
+                    <p className="text-[10px] text-muted-foreground leading-relaxed">
+                      Registration or assignment has not been done for this {singularLower} ID yet. A guest first registers their {singularLower} from the event page, then an admin assigns it to this ID. Until that mapping is done, details won't appear here.
+                    </p>
                   </div>
-                </div>
+                )}
 
                 {/* Ratings Distribution */}
-                <div className="pt-3">
-                  <div className="text-sm font-bold text-muted-foreground mb-2">
+                <div>
+                  <span className="text-xs font-medium text-muted-foreground mb-1.5 block">
                     Ratings Distribution
-                  </div>
+                  </span>
                   {isLoadingRatings ? (
                     <div className="flex justify-center py-2">
                       <LoadingSpinner />
@@ -460,114 +460,121 @@ function ItemDetailsDrawer({
 
                       {/* Progress Bar */}
                       {totalUsers > 0 && (
-                        <div className="w-full [&>div]:h-2">
-                          <ProgressBar percentage={ratingProgression} />
-                        </div>
+                        <ProgressBar percentage={ratingProgression} />
                       )}
 
-                      {/* Enhanced distribution with inline counts */}
                       {totalRatings > 0 ? (
-                        <div className="w-full">
-                          <div className="w-full h-5 bg-muted rounded-full overflow-hidden flex relative">
+                        <>
+                          <div className="w-full h-3 bg-muted rounded-full overflow-hidden flex">
                             {ratingConfiguration
+                              .slice()
                               .sort((a, b) => a.value - b.value)
-                              .map((rating) => {
-                                const count = ratingDistribution[rating.value] || 0;
-                                const percentage = count > 0 ? (count / totalRatings) * 100 : 0;
-                                
+                              .map((rc) => {
+                                const count = ratingDistribution[rc.value] || 0;
                                 if (count === 0) return null;
-                                
+                                const pct = (count / totalRatings) * 100;
                                 return (
                                   <div
-                                    key={rating.value}
-                                    className="h-full relative group"
+                                    key={rc.value}
+                                    className="h-full transition-all duration-300"
                                     style={{
-                                      width: `${percentage}%`,
-                                      backgroundColor: rating.color,
-                                      minWidth: percentage > 0 ? '2px' : '0'
+                                      width: `${pct}%`,
+                                      backgroundColor: rc.color,
+                                      minWidth: '3px'
                                     }}
-                                    title={`Rating ${rating.value}: ${count} ${count === 1 ? 'rating' : 'ratings'} (${percentage.toFixed(1)}%)`}
-                                  >
-                                    {/* Show count on larger segments */}
-                                    {percentage >= 8 && (
-                                      <div className="absolute inset-0 flex items-center justify-center">
-                                        <span className="text-[10px] font-semibold text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">
-                                          {count}
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
+                                  />
                                 );
                               })}
                           </div>
-                          {/* Compact count summary below bar */}
-                          <div className="flex items-center justify-between mt-1 text-[10px] text-muted-foreground">
-                            <span>Total: {totalRatings}</span>
-                            <div className="flex gap-2">
-                              {ratingConfiguration
-                                .sort((a, b) => a.value - b.value)
-                                .filter(rating => (ratingDistribution[rating.value] || 0) > 0)
-                                .map(rating => {
-                                  const count = ratingDistribution[rating.value] || 0;
-                                  return (
-                                    <span key={rating.value}>
-                                      <span
-                                        className="inline-block w-1.5 h-1.5 rounded-full mr-0.5"
-                                        style={{ backgroundColor: rating.color }}
-                                      />
+                          <div className="flex gap-2 mt-1.5">
+                            {ratingConfiguration
+                              .slice()
+                              .sort((a, b) => a.value - b.value)
+                              .map((rc) => {
+                                const count = ratingDistribution[rc.value] || 0;
+                                return (
+                                  <span key={rc.value} className="flex items-center gap-1">
+                                    <span
+                                      className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
+                                      style={{ backgroundColor: rc.color, opacity: count > 0 ? 1 : 0.35 }}
+                                    >
+                                      {rc.value}
+                                    </span>
+                                    <span className={`text-xs tabular-nums ${count > 0 ? 'text-foreground' : 'text-muted-foreground/40'}`}>
                                       {count}
                                     </span>
-                                  );
-                                })}
-                            </div>
+                                  </span>
+                                );
+                              })}
                           </div>
-                        </div>
+                        </>
                       ) : (
-                        <div className="w-full h-5 bg-muted rounded-full">
-                          <div className="text-xs text-muted-foreground mt-1 text-center">No ratings</div>
-                        </div>
+                        <div className="text-xs text-muted-foreground text-center py-2">No ratings yet</div>
                       )}
                     </div>
                   )}
                 </div>
 
-                {/* Comments Section */}
-                {comments.length > 0 && (
-                  <div className="pt-3 border-t">
-                    <div className="text-sm font-bold text-muted-foreground mb-2">
-                      Comments
-                    </div>
-                    <div className="space-y-3">
-                      {comments.map((comment, index) => {
-                        const isCurrentUser = userEmail && comment.email?.trim().toLowerCase() === userEmail.trim().toLowerCase();
-                        const ratingColor = ratingConfiguration.find(r => r.value === comment.rating)?.color || '#6B7280';
-                        
+                {/* Individual Ratings */}
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-medium text-muted-foreground">Ratings</span>
+                    {sortedItemRatings.length > 1 && (
+                      <div className="flex gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleRatingSort('name')}
+                          className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${ratingSortColumn === 'name' ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
+                        >
+                          Name{ratingSortColumn === 'name' ? (ratingSortDirection === 'asc' ? '↑' : '↓') : ''}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRatingSort('rating')}
+                          className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${ratingSortColumn === 'rating' ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
+                        >
+                          Rating{ratingSortColumn === 'rating' ? (ratingSortDirection === 'asc' ? '↑' : '↓') : ''}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {sortedItemRatings.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">No ratings yet</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {sortedItemRatings.map((rating, index) => {
+                        const ratingValue = parseInt(rating.rating, 10);
+                        const ratingColor = ratingConfiguration.find(r => r.value === ratingValue)?.color || '#6B7280';
+                        const hasNote = rating.note && rating.note.trim();
+                        const isCurrentUser = userEmail && rating.email?.trim().toLowerCase() === userEmail?.trim().toLowerCase();
+
                         return (
-                          <div
-                            key={`${comment.email}-${comment.timestamp}`}
-                            className={`${isCurrentUser ? 'bg-muted/30' : ''}`}
+                          <ListCard
+                            key={`${rating.email}-${rating.timestamp}-${index}`}
                           >
-                            <div className="flex items-center gap-2 mb-1">
+                            <div className="flex items-center gap-2 px-3 py-2">
+                              <div className="flex-1 min-w-0">
+                                <span className="text-xs font-medium">
+                                  {rating.userName}
+                                  {isCurrentUser && <span className="text-muted-foreground ml-1">(You)</span>}
+                                </span>
+                                {hasNote && (
+                                  <p className="text-xs text-muted-foreground whitespace-pre-wrap mt-0.5">{rating.note}</p>
+                                )}
+                              </div>
                               <div
-                                className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0"
+                                className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-white"
                                 style={{ backgroundColor: ratingColor }}
                               >
-                                {comment.rating}
+                                {ratingValue}
                               </div>
-                              <span className="text-xs font-medium">
-                                {comment.userName || comment.email}
-                                {isCurrentUser && <span className="text-muted-foreground ml-1">(You)</span>}
-                              </span>
                             </div>
-                            <p className="text-xs text-foreground whitespace-pre-wrap ml-7">
-                              {comment.note}
-                            </p>
-                          </div>
+                          </ListCard>
                         );
                       })}
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
           </div>

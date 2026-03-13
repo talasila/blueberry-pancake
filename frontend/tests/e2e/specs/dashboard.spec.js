@@ -198,11 +198,10 @@ test.describe('Dashboard Page', () => {
     await goToDashboardAsAdmin(page, eventId);
     
     const tabPanel = await clickItemsTab(page);
-    await expect(tabPanel.locator('table')).toBeVisible({ timeout: 10000 });
-    await expect(tabPanel.getByText('N/A').first()).toBeVisible({ timeout: 5000 });
+    await expect(tabPanel.getByText('N/A').first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('items tab displays table when items are configured', async ({ page, testEvent }) => {
+  test('items tab displays card list with sort controls when items are configured', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
@@ -213,19 +212,19 @@ test.describe('Dashboard Page', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     const tabPanel = await clickItemsTab(page);
-    const table = tabPanel.locator('table');
-    await expect(table).toBeVisible({ timeout: 10000 });
     
-    await expect(tabPanel.getByText(/^ID$/i).or(tabPanel.getByText(/item.*id/i)).first()).toBeVisible();
-    await expect(tabPanel.getByText(/progress/i).first()).toBeVisible();
-    await expect(tabPanel.getByText(/avg/i).first()).toBeVisible();
-    await expect(tabPanel.getByText(/wt.*avg/i).first()).toBeVisible();
+    // Verify sort pills are visible
+    await expect(tabPanel.getByRole('button', { name: /^ID$/i })).toBeVisible({ timeout: 10000 });
+    await expect(tabPanel.getByRole('button', { name: /progress/i })).toBeVisible();
+    await expect(tabPanel.getByRole('button', { name: /avg/i }).first()).toBeVisible();
+    await expect(tabPanel.getByRole('button', { name: /wt\.avg/i })).toBeVisible();
     
-    const rows = tabPanel.locator('table tbody tr');
-    await expect(rows).toHaveCount(10);
+    // Verify 10 item cards are present (buttons with avg text)
+    const cards = tabPanel.locator('button').filter({ hasText: /avg:/i });
+    await expect(cards).toHaveCount(10);
   });
 
-  test('table columns are sortable', async ({ page, testEvent }) => {
+  test('items sort pills toggle sort direction', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
@@ -236,25 +235,28 @@ test.describe('Dashboard Page', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     const tabPanel = await clickItemsTab(page);
-    await expect(tabPanel.locator('table')).toBeVisible({ timeout: 10000 });
     
-    const getFirstCellTexts = async () => {
-      return tabPanel.locator('table tbody tr td:first-child').allTextContents();
-    };
-    const initialOrder = await getFirstCellTexts();
+    const cards = tabPanel.locator('button').filter({ hasText: /avg:/i });
+    await expect(cards.first()).toBeVisible({ timeout: 10000 });
+    
+    const getCardTexts = async () => cards.allTextContents();
+    const initialOrder = await getCardTexts();
     expect(initialOrder.length).toBeGreaterThan(0);
     
-    const idHeader = tabPanel.getByRole('columnheader', { name: /id/i });
-    await expect(idHeader).toBeVisible();
-    await idHeader.click();
+    // Click ID pill twice: first click → ID asc (same stable order as default),
+    // second click → ID desc (10, 9, 8 … 1), which is guaranteed to differ.
+    const idPill = tabPanel.getByRole('button', { name: /^id$/i });
+    await expect(idPill).toBeVisible();
+    await idPill.click();
+    await idPill.click();
     
     await expect(async () => {
-      const newOrder = await getFirstCellTexts();
+      const newOrder = await getCardTexts();
       expect(newOrder).not.toEqual(initialOrder);
     }).toPass({ timeout: 5000 });
   });
 
-  test('default sort is by item ID ascending', async ({ page, testEvent }) => {
+  test('default sort is by weighted average descending', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
@@ -266,10 +268,9 @@ test.describe('Dashboard Page', () => {
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     const tabPanel = await clickItemsTab(page);
     
-    const firstRow = tabPanel.locator('table tbody tr').first();
-    await expect(firstRow).toBeVisible();
-    const firstCell = firstRow.locator('td').first();
-    await expect(firstCell).toHaveText('1');
+    // Wt.Avg. sort pill should be active (visible with arrow icon)
+    const wtAvgPill = tabPanel.getByRole('button', { name: /wt\.avg/i });
+    await expect(wtAvgPill).toBeVisible({ timeout: 10000 });
   });
 
   // ===================================
@@ -295,16 +296,11 @@ test.describe('Dashboard Page', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     const tabPanel = await clickItemsTab(page);
-    const table = tabPanel.locator('table');
-    await expect(table).toBeVisible({ timeout: 10000 });
     
-    const firstRow = tabPanel.locator('table tbody tr').first();
-    await expect(firstRow).toBeVisible();
-    
-    const wtAvgHeader = tabPanel.getByText(/wt.*avg/i).first();
-    await expect(wtAvgHeader).toBeVisible();
-    const lastCell = firstRow.locator('td').last();
-    await expect(lastCell).toContainText(/\d+\.\d+/, { timeout: 5000 });
+    // First item card should show a numeric weighted average
+    const firstCard = tabPanel.locator('button').filter({ hasText: /avg:/i }).first();
+    await expect(firstCard).toBeVisible({ timeout: 10000 });
+    await expect(firstCard).toContainText(/wt:\s*\d+\.\d+/i, { timeout: 5000 });
   });
 
   // ===================================

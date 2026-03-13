@@ -479,7 +479,7 @@ function UserDetailsDrawer({
                           <div className="w-full h-3 bg-muted rounded-full overflow-hidden flex">
                             {ratingConfiguration?.ratings
                               ?.slice()
-                              .sort((a, b) => b.value - a.value)
+                              .sort((a, b) => a.value - b.value)
                               .map((rc) => {
                                 const count = sortedRatings.filter(
                                   r => parseInt(r.rating, 10) === rc.value
@@ -503,7 +503,7 @@ function UserDetailsDrawer({
                           <div className="flex gap-2 mt-1.5">
                             {ratingConfiguration?.ratings
                               ?.slice()
-                              .sort((a, b) => b.value - a.value)
+                              .sort((a, b) => a.value - b.value)
                               .map((rc) => {
                                 const count = sortedRatings.filter(
                                   r => parseInt(r.rating, 10) === rc.value

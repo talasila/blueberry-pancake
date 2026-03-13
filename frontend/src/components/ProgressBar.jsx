@@ -6,14 +6,14 @@
  * Includes aria-label for accessibility.
  * 
  * @param {number} percentage - Percentage value (0-100)
+ * @param {string} [barHeight='h-2'] - Tailwind height class for the bar
  */
-function ProgressBar({ percentage }) {
-  // Clamp percentage between 0 and 100
+function ProgressBar({ percentage, barHeight = 'h-2' }) {
   const clampedPercentage = Math.max(0, Math.min(100, percentage || 0));
 
   return (
     <div
-      className="w-full h-1 bg-muted rounded-full overflow-hidden"
+      className={`w-full ${barHeight} bg-muted rounded-full overflow-hidden`}
       role="progressbar"
       aria-valuenow={clampedPercentage}
       aria-valuemin={0}

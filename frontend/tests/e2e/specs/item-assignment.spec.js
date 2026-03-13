@@ -501,7 +501,7 @@ test.describe('Item Details Integration', () => {
     
     // Should show "No item registered" message - scope to the drawer to avoid matching event name
     const drawer = page.locator('[role="dialog"]');
-    const noItemMessage = drawer.getByText('No item registered for this ID');
+    const noItemMessage = drawer.getByText(/no .+ registered or assigned/i);
     await expect(noItemMessage).toBeVisible({ timeout: 10000 });
   });
 
@@ -529,10 +529,10 @@ test.describe('Item Details Integration', () => {
     const bottlesTab = page.getByRole('tab', { name: /bottles|items/i });
     await bottlesTab.click();
     
-    // Find and click on item ID 2 in the table
-    const table = page.locator('table');
-    const itemCell = table.getByRole('cell', { name: '2', exact: true }).first();
-    await itemCell.click();
+    // Find and click on item ID 2 card in the items list
+    const itemCard = page.locator('button').filter({ hasText: /avg:/i }).filter({ hasText: '2' }).first();
+    await expect(itemCard).toBeVisible({ timeout: 10000 });
+    await itemCard.click();
     
     // Should show the registered item name
     const itemName = page.getByText('Admin Preview Wine');
@@ -572,10 +572,10 @@ test.describe('Item Details Integration', () => {
     const bottlesTab = page.getByRole('tab', { name: /bottles|items/i });
     await bottlesTab.click();
     
-    // Find and click on item ID 3 in the ratings table
-    const table = page.locator('table');
-    const itemCell = table.getByRole('cell', { name: '3', exact: true }).first();
-    await itemCell.click();
+    // Find and click on item ID 3 card in the items list
+    const itemCard = page.locator('button').filter({ hasText: /avg:/i }).filter({ hasText: '3' }).first();
+    await expect(itemCard).toBeVisible({ timeout: 10000 });
+    await itemCard.click();
     
     // Should show the registered item name
     const itemName = page.getByText('Dashboard Access Wine');

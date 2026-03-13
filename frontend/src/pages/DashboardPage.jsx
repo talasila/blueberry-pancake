@@ -25,7 +25,7 @@ import { useItemTerminology } from '@/utils/itemTerminology';
 function DashboardPage() {
   const { eventId } = useParams();
   const { event, isAdmin } = useEventContext();
-  const { singular, plural, pluralLower } = useItemTerminology(event);
+  const { singular, singularLower, plural, pluralLower } = useItemTerminology(event);
   const [dashboardData, setDashboardData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -243,11 +243,9 @@ function DashboardPage() {
         
         {/* Tab 2: Item Ratings */}
         <TabsContent value="items">
-          <div className="text-sm text-muted-foreground mb-4 p-3 bg-muted/50 border border-border rounded-md space-y-1">
-            <div><strong>Progress:</strong> Percentage of users who have rated this item.</div>
-            <div><strong>Avg.:</strong> Arithmetic mean of all ratings.</div>
-            <div><strong>Wt. Avg.:</strong> Bayesian weighted average that accounts for items with fewer ratings.</div>
-          </div>
+          <p className="text-[10px] text-muted-foreground mb-2 px-1 leading-relaxed">
+            {plural} are ranked by weighted average (<strong>Wt</strong>), which adjusts scores for {pluralLower} with fewer ratings — giving a fairer ranking than a simple average (<strong>Avg</strong>). The top bar shows rating progress; the color bar shows the distribution of ratings. Tap any {singularLower} for details.
+          </p>
           <ItemRatingsTable 
             itemSummaries={dashboardData?.itemSummaries || []}
             ratingConfiguration={dashboardData?.ratingConfiguration?.ratings || []}

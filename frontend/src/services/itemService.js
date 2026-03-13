@@ -54,8 +54,7 @@ export const itemService = {
     }
 
     try {
-      const response = await apiClient.get(`/events/${eventId}/items/by-item-id/${itemId}`);
-      return response;
+      return await apiClient.get(`/events/${eventId}/items/by-item-id/${itemId}`, { expectedStatuses: [404] });
     } catch (error) {
       console.error('Error getting item by item ID:', error);
       throw error;

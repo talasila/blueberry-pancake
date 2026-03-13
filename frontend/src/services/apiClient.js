@@ -262,14 +262,15 @@ class ApiClient {
    * @returns {Promise<Response>} Fetch response
    */
   async request(endpoint, options = {}, isRetry = false) {
+    const { expectedStatuses, ...fetchOptions } = options;
     const url = `${API_BASE_URL}${endpoint}`;
     const headers = {
       'Content-Type': 'application/json',
-      ...options.headers,
+      ...fetchOptions.headers,
     };
 
     // Add CSRF token for state-changing requests
-    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(options.method?.toUpperCase())) {
+    if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(fetchOptions.method?.toUpperCase())) {
       if (!this.csrfToken) {
         await this.fetchCSRFToken();
       }
@@ -280,9 +281,9 @@ class ApiClient {
 
     try {
       const response = await fetch(url, {
-        ...options,
+        ...fetchOptions,
         headers,
-        credentials: 'include', // Include cookies for httpOnly JWT and CSRF
+        credentials: 'include',
       });
 
       // Handle 403 Forbidden - Event access denied or CSRF issues
@@ -292,10 +293,8 @@ class ApiClient {
         
         // Check if this is a CSRF token error and retry once
         if (!isRetry && errorMessage.toLowerCase().includes('csrf')) {
-          // Clear cached CSRF token and fetch a new one
           this.csrfToken = null;
           await this.fetchCSRFToken();
-          // Retry the request once with new CSRF token
           return this.request(endpoint, options, true);
         }
         
@@ -350,10 +349,13 @@ class ApiClient {
         }
       }
 
-      // Handle errors
+      // Return null for caller-declared expected statuses (e.g. 404 when item may not exist)
+      if (!response.ok && expectedStatuses?.includes(response.status)) {
+        return null;
+      }
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'An unexpected error occurred. Please try again later.' }));
-        // Extract user-friendly error message
         const errorMessage = errorData.error || errorData.message || `An error occurred (${response.status}). Please try again.`;
         throw new Error(errorMessage);
       }
@@ -379,6 +381,7 @@ class ApiClient {
    */
   async get(endpoint, options = {}) {
     const response = await this.request(endpoint, { ...options, method: 'GET' });
+    if (response === null) return null;
     const jsonData = await response.json();
     return jsonData;
   }
