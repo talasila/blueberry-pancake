@@ -19,6 +19,7 @@ import { calculateUserRatingProgress } from '@/utils/ratingProgress';
 import { deriveItemRaterCounts } from '@/utils/participationCounts';
 import { getMinimumThreshold } from '@/utils/personalityDetection';
 import GuestWelcomeBottomSheet from '@/components/GuestWelcomeBottomSheet';
+import PersonalityRevealSheet from '@/components/PersonalityRevealSheet';
 
 /**
  * EventPage Component
@@ -60,6 +61,9 @@ function EventPage() {
   const [ratingsLoading, setRatingsLoading] = useState(false);
   const [itemRaterCounts, setItemRaterCounts] = useState({});
   const [dashboardData, setDashboardData] = useState(null);
+  const [showPersonalityReveal, setShowPersonalityReveal] = useState(false);
+  const [pendingRevealCheck, setPendingRevealCheck] = useState(false);
+  const hadPersonalityBeforeDrawerRef = useRef(false);
   const ratingConfigFetchedRef = useRef(null);
 
   // Redirect to PIN entry if no authentication - must happen immediately
@@ -370,7 +374,12 @@ function EventPage() {
     if (isSimilarUsersDrawerOpen) {
       setIsSimilarUsersDrawerOpen(false);
     }
-    
+
+    if (event?.state !== 'completed' && event?.typeOfItem === 'wine' && availableItemIds.length > 0) {
+      const threshold = getMinimumThreshold(availableItemIds.length);
+      hadPersonalityBeforeDrawerRef.current = ratings.length >= threshold;
+    }
+
     if (event?.state === 'completed') {
       if (openItemDetailsItemId && openItemDetailsItemId !== itemId) {
         setOpenItemDetailsItemId(null);
@@ -397,16 +406,15 @@ function EventPage() {
       setOpenItemDetailsItemId(null);
     }
     setError(null);
-  }, [event?.state, isSimilarUsersDrawerOpen, openItemDetailsItemId, openDrawerItemId]);
+  }, [event?.state, event?.typeOfItem, isSimilarUsersDrawerOpen, openItemDetailsItemId, openDrawerItemId, availableItemIds, ratings]);
 
-  // Handle drawer close - use history.back() to go back in history
   const handleDrawerClose = () => {
-    // Check if current history state has a drawer
     if (history.state?.drawer) {
       history.back();
     } else {
       setOpenDrawerItemId(null);
     }
+    setPendingRevealCheck(true);
   };
 
   // Handle item details drawer close
@@ -502,8 +510,59 @@ function EventPage() {
     }
   }, [eventId]);
 
-  // Check if user has rated at least 3 items (for button visibility)
-  // ratings state already contains only the current user's ratings (filtered in loadRatings)
+  // Trigger personality reveal sheet once user crosses the personality threshold
+  useEffect(() => {
+    if (!pendingRevealCheck) return;
+    if (openDrawerItemId !== null) return;
+
+    if (hadPersonalityBeforeDrawerRef.current) {
+      setPendingRevealCheck(false);
+      return;
+    }
+
+    if (event?.typeOfItem !== 'wine' || !['started', 'paused'].includes(event?.state)) {
+      setPendingRevealCheck(false);
+      return;
+    }
+
+    if (availableItemIds.length === 0) {
+      setPendingRevealCheck(false);
+      return;
+    }
+
+    const threshold = getMinimumThreshold(availableItemIds.length);
+    if (ratings.length < threshold) return;
+
+    setPendingRevealCheck(false);
+
+    const revealKey = `personality-reveal-${eventId}`;
+    if (localStorage.getItem(revealKey)) return;
+
+    localStorage.setItem(revealKey, 'shown');
+    setTimeout(() => setShowPersonalityReveal(true), 500);
+  }, [pendingRevealCheck, ratings, openDrawerItemId, event?.typeOfItem, event?.state, availableItemIds, eventId]);
+
+  useEffect(() => {
+    if (!pendingRevealCheck) return;
+    const timer = setTimeout(() => setPendingRevealCheck(false), 10_000);
+    return () => clearTimeout(timer);
+  }, [pendingRevealCheck]);
+
+  const handlePersonalityRevealDismiss = () => {
+    setShowPersonalityReveal(false);
+  };
+
+  const handlePersonalityReveal = () => {
+    setShowPersonalityReveal(false);
+    if (eventId) {
+      sessionStorage.setItem(`personality-badge-${eventId}`, 'shown');
+    }
+    setTimeout(() => {
+      setIsUserDetailsDrawerOpen(true);
+      setDrawerHistory({ drawer: 'user', userEmail });
+    }, 400);
+  };
+
   const hasMinimumRatings = () => {
     return ratings.length >= 3;
   };
@@ -846,6 +905,12 @@ function EventPage() {
           event={event}
         />
       )}
+
+      <PersonalityRevealSheet
+        isOpen={showPersonalityReveal}
+        onDismiss={handlePersonalityRevealDismiss}
+        onReveal={handlePersonalityReveal}
+      />
     </RatingErrorBoundary>
   );
 }
