@@ -1,121 +1,86 @@
 import { useState } from 'react';
-import { ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { ArrowUp, ArrowDown } from 'lucide-react';
 import UserRatingProgress from './UserRatingProgress';
-import { useEventContext } from '@/contexts/EventContext';
-import { useItemTerminology } from '@/utils/itemTerminology';
+import ListCard from './ListCard';
+import { getPersonalityName } from '@/utils/personalityContent';
 
 /**
  * UserRatingsTable Component
- * 
- * Displays a sortable table of user ratings with columns:
- * - User: Name with email below (trimmed)
- * - Progress: Two charts showing bottles rated and rating distribution
- * - Sparkline: Bar chart showing all ratings in order
- * 
- * Default sort: Email ascending
- * All columns are sortable (ascending/descending)
- * Rows are clickable to open user details drawer
- * 
+ *
+ * Displays a sortable card list of user ratings. Each card shows:
+ * - User name with average rating right-aligned
+ * - Email (trimmed) with optional tasting personality
+ * - Rating timeline bar (chronological progress)
+ * - Rating distribution bar
+ *
+ * Sort options: Name, # Rated, Avg. Rating (pill-style toggle buttons)
+ * Cards are clickable to open user details drawer.
+ *
  * @param {object} props
  * @param {Array} props.userSummaries - Array of user summary objects
  * @param {Array} props.ratingConfiguration - Rating configuration array
- * @param {function} props.onRowClick - Callback when a row is clicked, receives user email
+ * @param {function} props.onRowClick - Callback when a card is clicked, receives user email
  */
 function UserRatingsTable({ userSummaries = [], ratingConfiguration = [], onRowClick }) {
-  const { event } = useEventContext();
-  const { pluralLower } = useItemTerminology(event);
   const [sortColumn, setSortColumn] = useState('email');
   const [sortDirection, setSortDirection] = useState('asc');
 
-  // Handle column header click
   const handleSort = (column) => {
     if (sortColumn === column) {
-      // Toggle direction if clicking same column
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
-      // Set new column and default to ascending
       setSortColumn(column);
       setSortDirection('asc');
     }
   };
 
-  // Sort users based on current sort column and direction
   const sortedUsers = [...userSummaries].sort((a, b) => {
     let aValue, bValue;
 
     switch (sortColumn) {
       case 'email':
-        aValue = a.email || '';
-        bValue = b.email || '';
-        break;
-      case 'name':
-        aValue = a.name || '';
-        bValue = b.name || '';
-        // If names are equal, sort by email
-        if (aValue === bValue) {
-          aValue = a.email || '';
-          bValue = b.email || '';
-        }
+        aValue = (a.name || a.email || '').toLowerCase();
+        bValue = (b.name || b.email || '').toLowerCase();
         break;
       case 'numberOfBottlesRated':
         aValue = a.numberOfBottlesRated || 0;
         bValue = b.numberOfBottlesRated || 0;
         break;
-      case 'ratingProgression':
-        aValue = a.ratingProgression || 0;
-        bValue = b.ratingProgression || 0;
-        break;
       case 'averageRating':
-        aValue = a.averageRating ?? -1; // null values go to end
+        aValue = a.averageRating ?? -1;
         bValue = b.averageRating ?? -1;
         break;
       default:
         return 0;
     }
 
-    // Handle null values (sort to end)
     if (aValue === null || aValue === undefined) return 1;
     if (bValue === null || bValue === undefined) return -1;
 
-    // Compare values
     if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
     if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
     return 0;
   });
 
-  // Render sort icon
-  const renderSortIcon = (column) => {
-    if (sortColumn !== column) {
-      return <ArrowUpDown className="h-4 w-4 ml-1 text-muted-foreground" />;
-    }
-    return sortDirection === 'asc' 
-      ? <ArrowUp className="h-4 w-4 ml-1" />
-      : <ArrowDown className="h-4 w-4 ml-1" />;
-  };
-
-  // Format number to 2 decimal places or show "N/A"
-  const formatValue = (value) => {
-    if (value === null || value === undefined) {
-      return 'N/A';
-    }
+  const formatAvg = (value) => {
+    if (value === null || value === undefined) return 'N/A';
     return typeof value === 'number' ? value.toFixed(2) : value;
   };
 
-  // Trim email for display (show first part before @)
   const trimEmail = (email) => {
     if (!email) return '';
-    const parts = email.split('@');
-    return parts[0] || email;
+    return email.split('@')[0] || email;
   };
 
-  // Derive name from email if name is not specified
   const getUserDisplayName = (user) => {
-    if (user.name) {
-      return user.name;
-    }
-    // Derive from email by dropping @domain
-    return trimEmail(user.email) || 'Unnamed User';
+    return user.name || trimEmail(user.email) || 'Unnamed User';
   };
+
+  const sortOptions = [
+    { key: 'email', label: 'Name' },
+    { key: 'numberOfBottlesRated', label: '# Rated' },
+    { key: 'averageRating', label: 'Avg. Rating' },
+  ];
 
   if (userSummaries.length === 0) {
     return (
@@ -126,79 +91,82 @@ function UserRatingsTable({ userSummaries = [], ratingConfiguration = [], onRowC
   }
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-sm">
-        <thead>
-          <tr className="border-b">
-            <th
-              className="text-left p-2 font-medium cursor-pointer hover:bg-muted/50 text-sm"
-              onClick={() => handleSort('email')}
-            >
-              <div className="flex items-center">
-                User
-                {renderSortIcon('email')}
-              </div>
-            </th>
-            <th
-              className="text-left p-2 font-medium cursor-pointer hover:bg-muted/50 text-sm"
-              onClick={() => handleSort('ratingProgression')}
-            >
-              <div className="flex items-center">
-                Progress
-                {renderSortIcon('ratingProgression')}
-              </div>
-            </th>
-            <th
-              className="text-center p-2 font-medium cursor-pointer hover:bg-muted/50 text-sm"
-              onClick={() => handleSort('averageRating')}
-            >
-              <div className="flex items-center justify-center">
-                Avg. Rating
-                {renderSortIcon('averageRating')}
-              </div>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {sortedUsers.map((user) => {
+    <div>
+      {/* Sort pills */}
+      <div className="flex items-center justify-end pt-2 mb-3">
+        <div className="flex items-center gap-1.5">
+          <span className="text-[10px] text-muted-foreground mr-1">Sort:</span>
+          {sortOptions.map(({ key, label }) => {
+            const isActive = sortColumn === key;
             return (
-              <tr 
-                key={user.email} 
-                className={`border-b hover:bg-muted/50 ${onRowClick ? 'cursor-pointer' : ''}`}
-                onClick={() => onRowClick && onRowClick(user.email)}
+              <button
+                key={key}
+                type="button"
+                onClick={() => handleSort(key)}
+                className={`text-[10px] px-1.5 py-0.5 rounded transition-colors ${
+                  isActive
+                    ? 'bg-muted font-medium text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
               >
-                <td className="p-2 text-sm">
-                  <div className="flex flex-col">
-                    <span className="font-medium">
-                      {getUserDisplayName(user)}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {trimEmail(user.email)}
-                    </span>
-                  </div>
-                </td>
-                <td className="p-2">
-                  <div className="w-full max-w-xs">
-                    <UserRatingProgress
-                      ratingProgression={user.ratingProgression || 0}
-                      ratingDistribution={user.ratingDistribution || {}}
-                      ratings={user.ratings || []}
-                      ratingConfiguration={ratingConfiguration}
-                      totalRatings={user.totalRatings || 0}
-                    />
-                  </div>
-                </td>
-                <td className="p-2 text-sm text-center">
-                  {formatValue(user.averageRating)}
-                </td>
-              </tr>
+                {label}
+                {isActive && (
+                  sortDirection === 'asc'
+                    ? <ArrowUp className="inline h-3 w-3 ml-0.5" />
+                    : <ArrowDown className="inline h-3 w-3 ml-0.5" />
+                )}
+              </button>
             );
           })}
-        </tbody>
-      </table>
+        </div>
+      </div>
+
+      {/* User cards */}
+      <div className="space-y-2">
+        {sortedUsers.map((user) => (
+          <ListCard
+            key={user.email}
+            as="button"
+            type="button"
+            onClick={() => onRowClick && onRowClick(user.email)}
+            className="w-full text-left active:scale-[0.99] transition-all duration-150 hover:bg-muted/60"
+          >
+            <div className="px-3 py-2">
+              {/* Row 1: Name + Avg rating */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium truncate">
+                  {getUserDisplayName(user)}
+                </span>
+                <span className="text-xs text-muted-foreground flex-shrink-0 ml-2 tabular-nums">
+                  Avg: {formatAvg(user.averageRating)}
+                </span>
+              </div>
+
+              {/* Row 2: Email · Personality */}
+              <div className="text-[10px] text-muted-foreground mt-0.5">
+                <span>{trimEmail(user.email)}</span>
+                {user.personality && (
+                  <span className="italic"> · {getPersonalityName(user.personality)}</span>
+                )}
+              </div>
+
+              {/* Row 3–4: Rating bars */}
+              <div className="mt-1.5">
+                <UserRatingProgress
+                  ratingProgression={user.ratingProgression || 0}
+                  ratingDistribution={user.ratingDistribution || {}}
+                  ratings={user.ratings || []}
+                  ratingConfiguration={ratingConfiguration}
+                  totalRatings={user.totalRatings || 0}
+                  barHeight="h-2"
+                />
+              </div>
+            </div>
+          </ListCard>
+        ))}
+      </div>
     </div>
   );
 }
 
 export default UserRatingsTable;
-

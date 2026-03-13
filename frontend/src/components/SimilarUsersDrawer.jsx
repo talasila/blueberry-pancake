@@ -7,6 +7,7 @@ import { getSimilarUsers } from '@/services/similarUsersService.js';
 import { useItemTerminology } from '@/utils/itemTerminology';
 import { useEventContext } from '@/contexts/EventContext';
 import { getPersonalityName } from '@/utils/personalityContent';
+import ListCard from '@/components/ListCard';
 
 /**
  * SimilarUsersDrawer Component
@@ -121,13 +122,12 @@ function SimilarUsersDrawer({
         <p className="mt-4 text-xs text-muted-foreground">Running compatibility scanner...</p>
         <div className="mt-6 w-full space-y-1.5 animate-pulse">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="flex items-stretch rounded-lg overflow-hidden bg-muted/40">
-              <span className="w-8 flex-shrink-0 bg-muted-foreground/20" />
-              <div className="flex-1 px-3 py-2.5 space-y-1.5">
+            <ListCard key={i} handle={<span className="invisible">0</span>}>
+              <div className="px-3 py-2.5 space-y-1.5">
                 <div className="h-3 bg-muted rounded w-1/3" />
                 <div className="h-2.5 bg-muted rounded w-1/4" />
               </div>
-            </div>
+            </ListCard>
           ))}
         </div>
       </div>
@@ -155,15 +155,14 @@ function SimilarUsersDrawer({
             const commonItemsCount = user.commonItemsCount || (user.commonItems ? user.commonItems.length : 0);
             
             return (
-              <button
+              <ListCard
                 key={user.email || index}
+                as="button"
+                handle={index + 1}
                 onClick={() => handleUserClick(user)}
-                className="w-full flex items-stretch rounded-lg overflow-hidden bg-muted/40 text-left active:scale-[0.98] transition-all duration-150"
+                className="w-full text-left active:scale-[0.98] transition-all duration-150"
               >
-                <span className="w-8 flex-shrink-0 flex items-center justify-center bg-muted-foreground/20 text-xs font-bold text-muted-foreground">
-                  {index + 1}
-                </span>
-                  <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-1.5">
+                  <div className="flex items-center gap-2 px-3 py-1.5">
                   <div className="flex-1 min-w-0">
                     <span className="text-sm font-medium truncate block leading-tight">{user.name || user.email}</span>
                     <span className="text-[10px] text-muted-foreground leading-tight">
@@ -196,7 +195,7 @@ function SimilarUsersDrawer({
                     })}
                   </div>
                 </div>
-              </button>
+              </ListCard>
             );
           })}
         </div>
@@ -316,14 +315,11 @@ function SimilarUsersDrawer({
                       const offsetPx = diff * 22;
 
                       return (
-                        <div
+                        <ListCard
                           key={itemIndex}
-                          className="flex items-stretch rounded-lg overflow-hidden bg-muted/40"
+                          handle={item.itemId}
                         >
-                          <span className="w-8 flex-shrink-0 flex items-center justify-center bg-muted-foreground/20 text-xs font-bold text-muted-foreground">
-                            {item.itemId}
-                          </span>
-                          <div className="flex-1 flex items-center justify-center py-2 relative">
+                          <div className="flex items-center justify-center py-2 relative">
                             <div className="absolute left-1/2 top-0 bottom-0 w-px bg-muted-foreground/15" />
                             <div
                               className="w-4 h-4 rounded-full z-10 flex items-center justify-center"
@@ -347,7 +343,7 @@ function SimilarUsersDrawer({
                               />
                             )}
                           </div>
-                        </div>
+                        </ListCard>
                       );
                     })}
                   </div>

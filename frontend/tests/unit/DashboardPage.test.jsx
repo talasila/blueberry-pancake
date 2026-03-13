@@ -83,7 +83,7 @@ const DASHBOARD_WITH_PERSONALITIES = {
   ratingConfiguration: { ratings: [] }
 };
 
-describe('DashboardPage – Tasting Personalities section', () => {
+describe('DashboardPage – Summary tab no longer shows Tasting Personalities', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useEventContext.mockReturnValue({
@@ -92,30 +92,8 @@ describe('DashboardPage – Tasting Personalities section', () => {
     });
   });
 
-  it('shows Tasting Personalities section with qualifying participants', async () => {
+  it('does not render a Tasting Personalities section when users have personalities', async () => {
     dashboardService.getDashboardData.mockResolvedValue(DASHBOARD_WITH_PERSONALITIES);
-
-    renderDashboard();
-
-    await waitFor(() => {
-      expect(screen.getByText('Tasting Personalities')).toBeInTheDocument();
-    });
-
-    expect(screen.getByText('Sarah')).toBeInTheDocument();
-    expect(screen.getByText('The Golden Retriever')).toBeInTheDocument();
-    expect(screen.getByText('Mike')).toBeInTheDocument();
-    expect(screen.getByText('The Simon Cowell')).toBeInTheDocument();
-  });
-
-  it('hides section when no participants qualify', async () => {
-    const dataWithNullPersonalities = {
-      ...DASHBOARD_WITH_PERSONALITIES,
-      userSummaries: DASHBOARD_WITH_PERSONALITIES.userSummaries.map((u) => ({
-        ...u,
-        personality: null
-      }))
-    };
-    dashboardService.getDashboardData.mockResolvedValue(dataWithNullPersonalities);
 
     renderDashboard();
 
@@ -126,64 +104,7 @@ describe('DashboardPage – Tasting Personalities section', () => {
     expect(screen.queryByText('Tasting Personalities')).not.toBeInTheDocument();
   });
 
-  it('only shows qualifying participants (filters out null personality)', async () => {
-    const mixedData = {
-      ...DASHBOARD_WITH_PERSONALITIES,
-      userSummaries: [
-        {
-          email: 'sarah@test.com',
-          name: 'Sarah',
-          personality: 'golden-retriever',
-          numberOfBottlesRated: 5,
-          ratingProgression: 62.5,
-          averageRating: 3.5,
-          ratings: [3, 4, 3, 4, 4],
-          ratingDistribution: { 1: 0, 2: 0, 3: 2, 4: 3 },
-          totalRatings: 5,
-          noteCount: 0
-        },
-        {
-          email: 'jane@test.com',
-          name: 'Jane',
-          personality: null,
-          numberOfBottlesRated: 3,
-          ratingProgression: 37.5,
-          averageRating: 2.5,
-          ratings: [2, 3, 2],
-          ratingDistribution: { 1: 0, 2: 2, 3: 1, 4: 0 },
-          totalRatings: 3,
-          noteCount: 0
-        },
-        {
-          email: 'mike@test.com',
-          name: 'Mike',
-          personality: 'rollercoaster',
-          numberOfBottlesRated: 4,
-          ratingProgression: 50,
-          averageRating: 2.5,
-          ratings: [1, 4, 2, 4],
-          ratingDistribution: { 1: 1, 2: 1, 3: 0, 4: 2 },
-          totalRatings: 4,
-          noteCount: 0
-        }
-      ]
-    };
-    dashboardService.getDashboardData.mockResolvedValue(mixedData);
-
-    renderDashboard();
-
-    await waitFor(() => {
-      expect(screen.getByText('Tasting Personalities')).toBeInTheDocument();
-    });
-
-    expect(screen.getByText('Sarah')).toBeInTheDocument();
-    expect(screen.getByText('Mike')).toBeInTheDocument();
-    expect(screen.getByText('The Golden Retriever')).toBeInTheDocument();
-    expect(screen.getByText('The Rollercoaster')).toBeInTheDocument();
-    expect(screen.queryByText('Jane')).not.toBeInTheDocument();
-  });
-
-  it('hides section for non-wine events (personality null from backend)', async () => {
+  it('does not render a Tasting Personalities section for non-wine events', async () => {
     useEventContext.mockReturnValue({
       event: { typeOfItem: 'beer', state: 'completed' },
       isAdmin: false

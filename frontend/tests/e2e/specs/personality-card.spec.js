@@ -186,7 +186,7 @@ test.describe('Tasting Personality Card', () => {
   // Dashboard Summary tab
   // ───────────────────────────────────────────
 
-  test('Tasting Personalities section appears on Dashboard Summary tab', async ({ page, testEvent }) => {
+  test('Personality appears on user card in Dashboard Users tab', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminToken = await setupEvent(eventId);
 
@@ -201,7 +201,13 @@ test.describe('Tasting Personality Card', () => {
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await expect(page.locator('main')).toBeVisible({ timeout: 10000 });
 
-    await expect(page.getByRole('heading', { name: /tasting personalities/i })).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText(new RegExp(userEmail.split('@')[0], 'i'))).toBeVisible({ timeout: 5000 });
+    // Click Users tab
+    const usersTab = page.getByRole('tab', { name: /users/i });
+    await usersTab.click();
+
+    // Verify the user card shows the username and a personality
+    const userCard = page.locator('button').filter({ hasText: new RegExp(userEmail.split('@')[0], 'i') });
+    await expect(userCard.first()).toBeVisible({ timeout: 10000 });
+    await expect(userCard.first()).toContainText(/·/, { timeout: 5000 });
   });
 });

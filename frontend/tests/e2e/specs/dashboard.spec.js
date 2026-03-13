@@ -311,7 +311,7 @@ test.describe('Dashboard Page', () => {
   // User Story 6 - User Ratings Table
   // ===================================
 
-  test('users tab displays table with correct columns when users have ratings', async ({ page, testEvent }) => {
+  test('users tab displays card list with sort controls when users have ratings', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
@@ -329,15 +329,17 @@ test.describe('Dashboard Page', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     const tabPanel = await clickUsersTab(page);
-    const table = tabPanel.locator('table');
-    await expect(table).toBeVisible({ timeout: 10000 });
     
-    await expect(tabPanel.getByText(/^user$/i).first()).toBeVisible();
-    await expect(tabPanel.getByText(/progress/i).first()).toBeVisible();
-    await expect(tabPanel.getByText(/avg.*rating/i).first()).toBeVisible();
+    // Verify sort pills are visible
+    await expect(tabPanel.getByRole('button', { name: /name/i })).toBeVisible({ timeout: 10000 });
+    await expect(tabPanel.getByRole('button', { name: /# rated/i })).toBeVisible();
+    await expect(tabPanel.getByRole('button', { name: /avg\. rating/i })).toBeVisible();
+    
+    // Verify at least one user card is visible with avg rating text
+    await expect(tabPanel.getByText(/avg:/i).first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('users table displays multiple users with different rating counts', async ({ page, testEvent }) => {
+  test('users tab displays multiple users with different rating counts', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
@@ -362,29 +364,19 @@ test.describe('Dashboard Page', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     const tabPanel = await clickUsersTab(page);
-    const table = tabPanel.locator('table');
-    await expect(table).toBeVisible({ timeout: 10000 });
     
     await expect(tabPanel.getByText(/alice/i).first()).toBeVisible({ timeout: 10000 });
     await expect(tabPanel.getByText(/bob/i).first()).toBeVisible({ timeout: 10000 });
     
-    const rows = tabPanel.locator('table tbody tr');
-    await expect(async () => {
-      const rowCount = await rows.count();
-      expect(rowCount).toBeGreaterThanOrEqual(2);
-    }).toPass({ timeout: 10000 });
-    
-    // Verify the two users have different progress values (5/5 vs 2/5).
-    // Strip email from row text to compare only the data columns, since the
-    // mobile layout may render cells differently than desktop.
-    const aliceRow = tabPanel.locator('table tbody tr').filter({ hasText: /alice/i });
-    const bobRow = tabPanel.locator('table tbody tr').filter({ hasText: /bob/i });
-    const aliceText = (await aliceRow.first().textContent()).replace(/alice@example\.com/gi, '').trim();
-    const bobText = (await bobRow.first().textContent()).replace(/bob@example\.com/gi, '').trim();
+    // Verify both user cards are present with different avg ratings
+    const aliceCard = tabPanel.locator('button').filter({ hasText: /alice/i }).first();
+    const bobCard = tabPanel.locator('button').filter({ hasText: /bob/i }).first();
+    const aliceText = await aliceCard.textContent();
+    const bobText = await bobCard.textContent();
     expect(aliceText).not.toBe(bobText);
   });
 
-  test('users table columns are sortable', async ({ page, testEvent }) => {
+  test('users sort pills toggle sort direction', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
@@ -404,32 +396,30 @@ test.describe('Dashboard Page', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     const tabPanel = await clickUsersTab(page);
-    const table = tabPanel.locator('table');
-    await expect(table).toBeVisible({ timeout: 10000 });
-    await expect(tabPanel.locator('table tbody tr')).not.toHaveCount(0, { timeout: 10000 });
     
-    const userHeader = tabPanel.getByRole('columnheader', { name: /user/i });
-    await expect(userHeader).toBeVisible();
-    await userHeader.click();
+    const namePill = tabPanel.getByRole('button', { name: /name/i });
+    await expect(namePill).toBeVisible({ timeout: 10000 });
     
-    const getFirstCellTexts = async () => {
-      return tabPanel.locator('table tbody tr td:first-child').allTextContents();
+    // Get card order after default sort
+    const getCardTexts = async () => {
+      const cards = tabPanel.locator('button').filter({ hasText: /avg:/i });
+      return cards.allTextContents();
     };
     
-    // Brief wait for React to apply the sort from the first click
-    await expect(tabPanel.locator('table tbody tr')).not.toHaveCount(0, { timeout: 5000 });
-    const afterFirstSort = await getFirstCellTexts();
+    await expect(tabPanel.getByText(/avg:/i).first()).toBeVisible({ timeout: 10000 });
+    const afterFirstSort = await getCardTexts();
 
-    await userHeader.click();
+    // Click name pill to toggle sort direction
+    await namePill.click();
 
-    // Second click toggles sort direction — order must change
+    // Order must change after toggling
     await expect(async () => {
-      const afterSecondSort = await getFirstCellTexts();
+      const afterSecondSort = await getCardTexts();
       expect(afterSecondSort).not.toEqual(afterFirstSort);
     }).toPass({ timeout: 5000 });
   });
 
-  test('users table default sort is by email ascending', async ({ page, testEvent }) => {
+  test('users default sort is by name ascending', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
@@ -449,16 +439,17 @@ test.describe('Dashboard Page', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     const tabPanel = await clickUsersTab(page);
-    const table = tabPanel.locator('table');
-    await expect(table).toBeVisible({ timeout: 10000 });
-    await expect(tabPanel.locator('table tbody tr')).not.toHaveCount(0, { timeout: 10000 });
     
-    // admin@example.com sorts before anna@example.com
-    const firstRow = tabPanel.locator('table tbody tr').first();
-    await expect(firstRow).toContainText(/admin/i, { timeout: 10000 });
+    // Wait for user cards to render
+    const cards = tabPanel.locator('button').filter({ hasText: /avg:/i });
+    await expect(cards.first()).toBeVisible({ timeout: 10000 });
     
-    const secondRow = tabPanel.locator('table tbody tr').nth(1);
-    await expect(secondRow).toContainText(/anna/i, { timeout: 10000 });
+    // admin sorts before anna, anna before zack (name ascending)
+    const firstCard = cards.first();
+    await expect(firstCard).toContainText(/admin/i, { timeout: 10000 });
+    
+    const secondCard = cards.nth(1);
+    await expect(secondCard).toContainText(/anna/i, { timeout: 10000 });
   });
 
   test('clicking user row opens user details drawer', async ({ page, testEvent }) => {
@@ -486,10 +477,10 @@ test.describe('Dashboard Page', () => {
     const usersTab = page.getByRole('tab', { name: /users/i });
     await usersTab.click();
     
-    // Wait for the testuser row to appear in the users table
-    const userRow = page.locator('table tbody tr').filter({ hasText: /testuser/i });
-    await expect(userRow.first()).toBeVisible({ timeout: 10000 });
-    await userRow.first().click();
+    // Wait for the testuser card to appear in the users list
+    const userCard = page.locator('button').filter({ hasText: /testuser/i });
+    await expect(userCard.first()).toBeVisible({ timeout: 10000 });
+    await userCard.first().click();
     
     // Verify a drawer/dialog opened with user-related content (not a bottle details drawer)
     await expect(async () => {

@@ -11,6 +11,7 @@ import { detectPersonality } from '@/utils/personalityDetection';
 import { getPersonalityName } from '@/utils/personalityContent';
 import { useItemTerminology } from '@/utils/itemTerminology';
 import PersonalityCard from '@/components/PersonalityCard';
+import ListCard from '@/components/ListCard';
 
 /**
  * UserDetailsDrawer Component
@@ -573,14 +574,11 @@ function UserDetailsDrawer({
                         const isBookmarked = isCurrentUser && bookmarks.includes(rating.itemId);
 
                         return (
-                          <div
+                          <ListCard
                             key={`${rating.itemId}-${rating.timestamp}-${index}`}
-                            className="flex items-stretch rounded-lg overflow-hidden bg-muted/40"
+                            handle={rating.itemId}
                           >
-                            <span className="w-8 flex-shrink-0 flex items-center justify-center bg-muted-foreground/20 text-xs font-bold text-muted-foreground">
-                              {rating.itemId}
-                            </span>
-                            <div className="flex-1 min-w-0 flex items-center gap-2 px-3 py-2">
+                            <div className="flex items-center gap-2 px-3 py-2">
                               <div className="flex-1 min-w-0">
                                 {hasNote ? (
                                   <p className="text-xs text-muted-foreground whitespace-pre-wrap">{rating.note}</p>
@@ -598,7 +596,7 @@ function UserDetailsDrawer({
                                 {ratingValue}
                               </div>
                             </div>
-                          </div>
+                          </ListCard>
                         );
                       })}
                     </div>

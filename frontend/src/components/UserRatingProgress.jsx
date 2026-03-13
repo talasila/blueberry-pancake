@@ -16,20 +16,22 @@ import RatingDistribution from './RatingDistribution';
  * @param {Array<number>} props.ratings - Array of rating values sorted chronologically (oldest to newest) for history visualization
  * @param {Array} props.ratingConfiguration - Array of rating config objects with value, label, and color
  * @param {number} props.totalRatings - Total number of ratings
+ * @param {string} [props.barHeight='h-2'] - Tailwind height class for the progress bar
  */
 function UserRatingProgress({
   ratingProgression = 0,
   ratingDistribution = {},
   ratings = [],
   ratingConfiguration = [],
-  totalRatings = 0
+  totalRatings = 0,
+  barHeight = 'h-2'
 }) {
   return (
     <div className="w-full space-y-2">
       {/* Combined Progress and History Bar */}
       {totalRatings > 0 ? (
         <div
-          className="w-full h-2 bg-muted rounded-full overflow-hidden relative"
+          className={`w-full ${barHeight} bg-muted rounded-full overflow-hidden relative`}
           role="progressbar"
           aria-valuenow={ratingProgression}
           aria-valuemin={0}
@@ -64,7 +66,7 @@ function UserRatingProgress({
         </div>
       ) : (
         <div
-          className="w-full h-2 bg-muted rounded-full"
+          className={`w-full ${barHeight} bg-muted rounded-full`}
           role="progressbar"
           aria-valuenow={0}
           aria-valuemin={0}
@@ -76,6 +78,7 @@ function UserRatingProgress({
         ratingDistribution={ratingDistribution}
         ratingConfiguration={ratingConfiguration}
         totalRatings={totalRatings}
+        barHeight={barHeight}
       />
     </div>
   );

@@ -7,11 +7,12 @@
  * @param {object} ratingDistribution - Object with rating values as keys and counts as values (e.g., {1: 5, 2: 3, 3: 8, 4: 2})
  * @param {Array} ratingConfiguration - Array of rating config objects with value, label, and color
  * @param {number} totalRatings - Total number of ratings for this item
+ * @param {string} [barHeight='h-2'] - Tailwind height class for the distribution bar
  */
-function RatingDistribution({ ratingDistribution = {}, ratingConfiguration = [], totalRatings = 0 }) {
+function RatingDistribution({ ratingDistribution = {}, ratingConfiguration = [], totalRatings = 0, barHeight = 'h-2' }) {
   if (!ratingDistribution || totalRatings === 0) {
     return (
-      <div className="w-full h-2 bg-muted rounded-full" />
+      <div className={`w-full ${barHeight} bg-muted rounded-full`} />
     );
   }
 
@@ -51,14 +52,14 @@ function RatingDistribution({ ratingDistribution = {}, ratingConfiguration = [],
 
   if (segments.length === 0) {
     return (
-      <div className="w-full h-2 bg-muted rounded-full" />
+      <div className={`w-full ${barHeight} bg-muted rounded-full`} />
     );
   }
 
   return (
     <div className="w-full">
       {/* Distribution bar */}
-      <div className="w-full h-2 bg-muted rounded-full overflow-hidden flex">
+      <div className={`w-full ${barHeight} bg-muted rounded-full overflow-hidden flex`}>
         {segments.map((segment, index) => (
           <div
             key={segment.ratingValue}
