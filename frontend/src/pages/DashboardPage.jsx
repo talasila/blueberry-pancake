@@ -206,7 +206,7 @@ function DashboardPage() {
             {dashboardData.mostControversial && (
               <StatisticsCard
                 title="Most Controversial"
-                value={`${dashboardData.mostControversial.itemId}`}
+                value={`#${dashboardData.mostControversial.itemId}`}
                 onClick={() => {
                   if (event?.state === 'completed' || isAdmin) {
                     setOpenItemDetailsItemId(dashboardData.mostControversial.itemId);
@@ -224,7 +224,7 @@ function DashboardPage() {
             {dashboardData.leastControversial && (
               <StatisticsCard
                 title="Least Controversial"
-                value={`${dashboardData.leastControversial.itemId}`}
+                value={`#${dashboardData.leastControversial.itemId}`}
                 onClick={() => {
                   if (event?.state === 'completed' || isAdmin) {
                     setOpenItemDetailsItemId(dashboardData.leastControversial.itemId);
