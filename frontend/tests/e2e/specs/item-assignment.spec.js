@@ -233,89 +233,85 @@ test.describe('Item Assignment', () => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
-    // Register an item first (event is in created state)
+
     await registerItemViaAPI(eventId, { name: 'Test Wine' }, token);
-    
+
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    // Open Bottles drawer
+
     await openBottlesDrawer(page);
-    
-    // Switch to Assignment tab
     await switchToAssignmentTab(page);
-    
-    // Assignment dropdown should NOT be visible (not in paused state)
-    // Look for the assignment select or a message indicating assignment is not available
-    // Scope to drawer to avoid matching event name
+
     const drawer = page.locator('[role="dialog"]');
-    const assignmentMessage = drawer.getByText(/ID assignment is only available/i);
-    await expect(assignmentMessage).toBeVisible();
+    const instruction = drawer.locator('[data-testid="instruction-text"]');
+    await expect(instruction).toContainText(/start and then pause/i);
+
+    const button1 = drawer.locator('[data-testid="assignment-button-1"]');
+    await expect(button1).toBeVisible();
+    await expect(button1).toBeDisabled();
   });
 
   test('assignment controls not available when event is "started"', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
-    // Register an item first
+
     await registerItemViaAPI(eventId, { name: 'Test Wine' }, token);
-    
-    // Start event
+
     expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
-    
+
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    // Open Bottles drawer
+
     await openBottlesDrawer(page);
-    
-    // Switch to Assignment tab
     await switchToAssignmentTab(page);
-    
-    // Assignment should not be available message - scope to drawer
+
     const drawer = page.locator('[role="dialog"]');
-    const assignmentMessage = drawer.getByText(/ID assignment is only available/i);
-    await expect(assignmentMessage).toBeVisible();
+    const instruction = drawer.locator('[data-testid="instruction-text"]');
+    await expect(instruction).toContainText(/pause the event to begin assignment/i);
+
+    const button1 = drawer.locator('[data-testid="assignment-button-1"]');
+    await expect(button1).toBeVisible();
+    await expect(button1).toBeDisabled();
   });
 
   test('can assign item ID when event is "paused"', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
-    // Register an item first
-    await registerItemViaAPI(eventId, { 
+
+    await registerItemViaAPI(eventId, {
       name: 'Chateau Test 2019',
       price: '50',
       description: 'A fine test wine'
     }, token);
-    
-    // Start then pause event
+
     expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
     expect((await changeEventState(eventId, 'paused', 'started', token)).ok).toBe(true);
-    
+
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    // Open Bottles drawer
+
     await openBottlesDrawer(page);
-    
-    // Switch to Assignment tab
     await switchToAssignmentTab(page);
-    
-    // Find and click the item card to expand it (assignment dropdown only shows when expanded)
-    await page.getByText('Chateau Test 2019').click();
-    
+
     const drawer = page.locator('[role="dialog"]');
-    const assignSelect = drawer.locator('select').filter({ hasText: /Select ID|Clear assignment/ });
-    await assignSelect.waitFor({ state: 'visible', timeout: 5000 });
-    
-    await assignSelect.selectOption('1');
-    
-    // Verify assignment was successful - check for success toast or visual indicator
-    const successToast = page.getByText(/assigned successfully|assignment.*success/i);
+
+    // Tap unassigned number button to open the bottom sheet picker
+    const button1 = drawer.locator('[data-testid="assignment-button-1"]');
+    await expect(button1).toBeEnabled({ timeout: 5000 });
+    await button1.click();
+
+    // Bottom sheet should appear with the registered bottle
+    const sheet = page.locator('[data-testid="bottom-sheet"]');
+    await expect(sheet).toBeVisible({ timeout: 5000 });
+    await expect(sheet.getByText('Chateau Test 2019')).toBeVisible();
+
+    // Tap the bottle to assign it
+    await sheet.getByText('Chateau Test 2019').click();
+
+    // Verify success toast
+    const successToast = page.getByText(/assigned successfully/i);
     await expect(successToast).toBeVisible({ timeout: 10000 });
   });
 
@@ -323,36 +319,37 @@ test.describe('Item Assignment', () => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
-    // Register an item
-    const registeredItem = await registerItemViaAPI(eventId, { 
+
+    const registeredItem = await registerItemViaAPI(eventId, {
       name: 'Clearable Wine'
     }, token);
-    
-    // Start, pause, and assign via API
+
     expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
     expect((await changeEventState(eventId, 'paused', 'started', token)).ok).toBe(true);
     await assignItemIdViaAPI(eventId, registeredItem.id, 5, token);
-    
+
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    // Open Bottles drawer and go to Assignment tab
+
     await openBottlesDrawer(page);
     await switchToAssignmentTab(page);
-    
-    // Find and click the item card to expand it
-    await page.getByText('Clearable Wine').click();
-    
+
     const drawer = page.locator('[role="dialog"]');
-    const assignSelect = drawer.locator('select').filter({ hasText: /Clear assignment/ });
-    await assignSelect.waitFor({ state: 'visible', timeout: 5000 });
-    await expect(assignSelect).toHaveValue('5');
-    
-    await assignSelect.selectOption('');
-    
-    // Verify clear was successful
-    const clearToast = page.getByText(/cleared|assignment.*removed/i);
+
+    // Tap the assigned number button to open review sheet
+    const button5 = drawer.locator('[data-testid="assignment-button-5"]');
+    await expect(button5).toBeEnabled({ timeout: 5000 });
+    await button5.click();
+
+    // Bottom sheet should show the assigned bottle with Clear option
+    const sheet = page.locator('[data-testid="bottom-sheet"]');
+    await expect(sheet).toBeVisible({ timeout: 5000 });
+    await expect(sheet.getByText('Clearable Wine', { exact: true })).toBeVisible();
+
+    // Clear the assignment
+    await sheet.locator('[data-testid="clear-assignment-btn"]').click();
+
+    const clearToast = page.getByText(/cleared/i);
     await expect(clearToast).toBeVisible({ timeout: 10000 });
   });
 
@@ -360,74 +357,77 @@ test.describe('Item Assignment', () => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
-    // Register an item
-    const registeredItem = await registerItemViaAPI(eventId, { 
+
+    const registeredItem = await registerItemViaAPI(eventId, {
       name: 'Reassignable Wine'
     }, token);
-    
-    // Start, pause, and assign to ID 3
+
     expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
     expect((await changeEventState(eventId, 'paused', 'started', token)).ok).toBe(true);
     await assignItemIdViaAPI(eventId, registeredItem.id, 3, token);
-    
+
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    // Open Bottles drawer and go to Assignment tab
+
     await openBottlesDrawer(page);
     await switchToAssignmentTab(page);
-    
-    // Find and click the item card to expand it
-    await page.getByText('Reassignable Wine').click();
-    
+
     const drawer = page.locator('[role="dialog"]');
-    const assignSelect = drawer.locator('select').filter({ hasText: /Clear assignment/ });
-    await assignSelect.waitFor({ state: 'visible', timeout: 5000 });
-    await expect(assignSelect).toHaveValue('3');
-    
-    // Reassign to ID 7
-    await assignSelect.selectOption('7');
-    
-    // Verify success
-    const successToast = page.getByText(/assigned successfully|ID 7/i);
+
+    // Step 1: Clear the current assignment on #3
+    const button3 = drawer.locator('[data-testid="assignment-button-3"]');
+    await expect(button3).toBeEnabled({ timeout: 5000 });
+    await button3.click();
+
+    const sheet = page.locator('[data-testid="bottom-sheet"]');
+    await expect(sheet).toBeVisible({ timeout: 5000 });
+    await sheet.locator('[data-testid="clear-assignment-btn"]').click();
+
+    await expect(page.getByText(/cleared/i)).toBeVisible({ timeout: 10000 });
+
+    // Step 2: Assign the bottle to a different number (#7)
+    const button7 = drawer.locator('[data-testid="assignment-button-7"]');
+    await expect(button7).toBeEnabled({ timeout: 5000 });
+    await button7.click();
+
+    await expect(sheet).toBeVisible({ timeout: 5000 });
+    await expect(sheet.getByText('Reassignable Wine', { exact: true })).toBeVisible();
+    await sheet.getByText('Reassignable Wine', { exact: true }).click();
+
+    const successToast = page.getByText(/assigned successfully/i);
     await expect(successToast).toBeVisible({ timeout: 10000 });
-    
-    // Dropdown should now show 7
-    await expect(assignSelect).toHaveValue('7');
   });
 
   test('available IDs exclude already-assigned IDs', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
-    // Register two items
+
     const item1 = await registerItemViaAPI(eventId, { name: 'Wine One' }, token);
     await registerItemViaAPI(eventId, { name: 'Wine Two' }, token);
-    
-    // Start, pause, and assign item1 to ID 5
+
     expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
     expect((await changeEventState(eventId, 'paused', 'started', token)).ok).toBe(true);
     await assignItemIdViaAPI(eventId, item1.id, 5, token);
-    
+
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    // Open Bottles drawer and go to Assignment tab
+
     await openBottlesDrawer(page);
     await switchToAssignmentTab(page);
-    
-    // Find and click Wine Two card to expand it
-    await page.getByText('Wine Two').click();
-    
+
     const drawer = page.locator('[role="dialog"]');
-    const assignSelect = drawer.locator('select').filter({ hasText: /Select ID/ });
-    await assignSelect.waitFor({ state: 'visible', timeout: 5000 });
-    
-    // Check that option 5 is NOT present (it's assigned to Wine One)
-    const option5 = assignSelect.locator('option[value="5"]');
-    await expect(option5).toHaveCount(0);
+
+    // Tap an unassigned number to open the bottom sheet picker
+    const button1 = drawer.locator('[data-testid="assignment-button-1"]');
+    await expect(button1).toBeEnabled({ timeout: 5000 });
+    await button1.click();
+
+    // Bottom sheet should only show Wine Two (Wine One is already assigned to #5)
+    const sheet = page.locator('[data-testid="bottom-sheet"]');
+    await expect(sheet).toBeVisible({ timeout: 5000 });
+    await expect(sheet.getByText('Wine Two')).toBeVisible();
+    await expect(sheet.getByText('Wine One')).not.toBeVisible();
   });
 });
 
