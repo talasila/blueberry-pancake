@@ -65,25 +65,25 @@ describe('AssignmentView', () => {
       );
     });
 
-    it('shows instructional text for started state', () => {
+    it('shows instructional text for started state with paused hint', () => {
       render(<AssignmentView {...defaultProps} event={makeEvent({ state: 'started' })} />);
-      expect(screen.getByTestId('instruction-text')).toHaveTextContent(
-        'Pause the event to begin assignment',
-      );
+      const el = screen.getByTestId('instruction-text');
+      expect(el).toHaveTextContent(/Match each numbered bottle/);
+      expect(el).toHaveTextContent(/Assignment is only available when the event is paused/);
     });
 
-    it('shows instructional text for created state', () => {
+    it('shows instructional text for created state with paused hint', () => {
       render(<AssignmentView {...defaultProps} event={makeEvent({ state: 'created' })} />);
-      expect(screen.getByTestId('instruction-text')).toHaveTextContent(
-        'Start and then pause the event to begin assignment',
-      );
+      const el = screen.getByTestId('instruction-text');
+      expect(el).toHaveTextContent(/Match each numbered bottle/);
+      expect(el).toHaveTextContent(/Assignment is only available when the event is paused/);
     });
 
     it('shows instructional text for completed state', () => {
       render(<AssignmentView {...defaultProps} event={makeEvent({ state: 'completed' })} />);
-      expect(screen.getByTestId('instruction-text')).toHaveTextContent(
-        'Assignment is not available after the event is completed',
-      );
+      const el = screen.getByTestId('instruction-text');
+      expect(el).toHaveTextContent(/Match each numbered bottle/);
+      expect(el).toHaveTextContent(/Assignment is not available after the event is completed/);
     });
 
     it('disables grid when event is not paused', () => {

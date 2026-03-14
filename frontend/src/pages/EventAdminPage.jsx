@@ -1,7 +1,7 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { RefreshCw, Copy, Check, Trash2, Edit2, X, AlertTriangle, Download, Search, ChevronDown, ChevronUp, ChevronRight, Palette, LayoutList, Star, ToggleLeft, KeyRound, ShieldCheck, Users } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import Message from '@/components/Message';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import SideDrawer from '@/components/SideDrawer';
+import { cn } from '@/lib/utils';
 import { isValidEmailFormat, clearSuccessMessage, downloadCSV } from '@/utils/helpers';
 import { calculateWeightedAverage } from '@/utils/bayesianAverage';
 import { useItemTerminology } from '@/utils/itemTerminology';
@@ -24,6 +25,7 @@ import DeleteAllUsersDialog from '@/components/DeleteAllUsersDialog';
 import DeleteUserDialog from '@/components/DeleteUserDialog';
 import { toast } from 'sonner';
 import AssignmentView from '@/components/AssignmentView';
+import ListCard from '@/components/ListCard';
 import WelcomeBottomSheet from '@/components/WelcomeBottomSheet';
 import ThemePicker from '@/components/ThemePicker';
 import { getPreset } from '@/utils/themePresets';
@@ -85,11 +87,8 @@ function EventAdminPage({ onOpenAdminGuide }) {
   const [transitionError, setTransitionError] = useState('');
   const [transitionSuccess, setTransitionSuccess] = useState('');
   const [numberOfItems, setNumberOfItems] = useState(20);
-  const [excludedItemIdsInput, setExcludedItemIdsInput] = useState('');
+  const [excludedItemIds, setExcludedItemIds] = useState([]);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
-  const [configError, setConfigError] = useState('');
-  const [configSuccess, setConfigSuccess] = useState('');
-  const [configWarning, setConfigWarning] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
@@ -295,7 +294,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
         const config = await apiClient.getItemConfiguration(eventId);
         if (cancelled) return;
         setNumberOfItems(config.numberOfItems);
-        setExcludedItemIdsInput((config.excludedItemIds || []).join(', '));
+        setExcludedItemIds(config.excludedItemIds || []);
       } catch (error) {
         if (!cancelled) {
           console.error('Failed to fetch item configuration:', error);
@@ -378,23 +377,21 @@ function EventAdminPage({ onOpenAdminGuide }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maxRating]);
 
-  // Handle save item configuration
-  const handleSaveItemConfiguration = async () => {
+  // Handle save item configuration (called automatically on changes)
+  const saveItemConfigRef = useRef(null);
+  const handleSaveItemConfiguration = useCallback(async (count, excluded) => {
+    const parsed = parseInt(count, 10);
+    if (isNaN(parsed) || parsed < 1 || parsed > 100) return;
+
     setIsSavingConfig(true);
-    setConfigError('');
-    setConfigSuccess('');
-    setConfigWarning('');
-
     try {
-      const configToSave = {
-        numberOfItems: parseInt(numberOfItems, 10),
-        excludedItemIds: excludedItemIdsInput
-      };
+      const result = await apiClient.updateItemConfiguration(eventId, {
+        numberOfItems: parsed,
+        excludedItemIds: excluded,
+      });
 
-      const result = await apiClient.updateItemConfiguration(eventId, configToSave);
-      
       setNumberOfItems(result.numberOfItems);
-      setExcludedItemIdsInput((result.excludedItemIds || []).join(', '));
+      setExcludedItemIds(result.excludedItemIds || []);
       setEvent(prev => prev ? {
         ...prev,
         itemConfiguration: {
@@ -403,19 +400,44 @@ function EventAdminPage({ onOpenAdminGuide }) {
           excludedItemIds: result.excludedItemIds || []
         }
       } : prev);
-      
+
       if (result.warning) {
-        setConfigWarning(result.warning);
+        toast.warning(result.warning);
+      } else {
+        toast.success(`${itemTerminology.singular} configuration saved`);
       }
-      
-      setConfigSuccess(`${itemTerminology.singular} configuration saved successfully`);
-      clearSuccessMessage(setConfigSuccess);
     } catch (error) {
-      setConfigError(error.message || `Failed to save ${itemTerminology.singularLower} configuration`);
+      toast.error(error.message || `Failed to save ${itemTerminology.singularLower} configuration`);
     } finally {
       setIsSavingConfig(false);
     }
-  };
+  }, [eventId, itemTerminology]);
+
+  const debouncedSaveConfig = useCallback((count) => {
+    if (saveItemConfigRef.current) clearTimeout(saveItemConfigRef.current);
+    saveItemConfigRef.current = setTimeout(() => {
+      const parsed = parseInt(count, 10);
+      if (isNaN(parsed) || parsed < 1 || parsed > 100) return;
+      setExcludedItemIds(prev => {
+        const kept = prev.filter(id => id <= parsed);
+        handleSaveItemConfiguration(parsed, kept);
+        return kept;
+      });
+    }, 800);
+  }, [handleSaveItemConfiguration]);
+
+  const handleNumberOfItemsChange = useCallback((value) => {
+    setNumberOfItems(value);
+    debouncedSaveConfig(value);
+  }, [debouncedSaveConfig]);
+
+  const handleToggleExcludedId = useCallback((id) => {
+    const next = excludedItemIds.includes(id)
+      ? excludedItemIds.filter(x => x !== id)
+      : [...excludedItemIds, id].sort((a, b) => a - b);
+    setExcludedItemIds(next);
+    handleSaveItemConfiguration(numberOfItems, next);
+  }, [excludedItemIds, numberOfItems, handleSaveItemConfiguration]);
 
   // Validate label for a rating
   const validateLabel = (value, label) => {
@@ -1733,7 +1755,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
                   <LayoutList className="h-4 w-4" />
                   <span className="font-semibold">{itemTerminology.plural}</span>
                   <Badge variant="outline" className="text-xs">
-                    {numberOfItems} total
+                    {parseInt(numberOfItems, 10) - excludedItemIds.length} total
                   </Badge>
                   <Badge variant="outline" className="text-xs">
                     {itemsSummary.total} registered
@@ -1939,73 +1961,99 @@ function EventAdminPage({ onOpenAdminGuide }) {
 
           {/* Configuration Tab */}
           <TabsContent value="configuration" className="space-y-4">
-            <div className="text-sm text-muted-foreground font-normal">
-              Configure the number of {itemTerminology.pluralLower} and specify which {itemTerminology.singularLower} IDs to exclude from the event
-            </div>
-            {/* Number of items input */}
-            <div>
-              <label className="text-sm font-medium">Number of {itemTerminology.plural}</label>
-              <Input
-                type="number"
-                min="1"
-                value={numberOfItems}
-                onChange={(e) => {
-                  setNumberOfItems(e.target.value);
-                  setConfigError('');
-                }}
-                disabled={isSavingConfig}
-                className="mt-1"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                {itemTerminology.plural} will be numbered from 1 to {numberOfItems || 20} (default: 20, max: 100)
-              </p>
-            </div>
+            {(() => {
+              const isEditable = event?.state === 'created' || event?.state === 'started';
+              const count = parseInt(numberOfItems, 10);
+              const validCount = !isNaN(count) && count >= 1;
+              const ids = validCount ? Array.from({ length: Math.min(count, 100) }, (_, i) => i + 1) : [];
+              const activeCount = ids.length - excludedItemIds.length;
 
-            {/* Excluded item IDs input */}
-            <div>
-              <label className="text-sm font-medium">Excluded {itemTerminology.singular} IDs</label>
-              <Input
-                type="text"
-                placeholder="5,10,15"
-                value={excludedItemIdsInput}
-                onChange={(e) => {
-                  setExcludedItemIdsInput(e.target.value);
-                  setConfigError('');
-                }}
-                disabled={isSavingConfig}
-                className="mt-1"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Comma-separated list of {itemTerminology.singularLower} IDs to exclude (e.g., "5,10,15")
-              </p>
-            </div>
-
-            {/* Messages */}
-            {configError && (
-              <Message type="error">{configError}</Message>
-            )}
-            {configWarning && (
-              <Message type="warning">{configWarning}</Message>
-            )}
-            {configSuccess && (
-              <Message type="success">{configSuccess}</Message>
-            )}
-
-            {/* Save button */}
-            <Button
-              onClick={handleSaveItemConfiguration}
-              disabled={isSavingConfig || !numberOfItems}
-              className="w-full"
-            >
-              {isSavingConfig ? (
+              return (
                 <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Saving...
+                  <p className="text-sm text-muted-foreground">
+                    Set the highest number you want to assign to a {itemTerminology.singularLower} — your numbers will go from 1 up to that value.
+                    Then mark any that aren't in use so they won't appear on the rating screen.
+                    {' '}<span className="font-semibold text-foreground">You can adjust both until the event is paused.</span> Changes save automatically.
+                  </p>
+
+                  {!isEditable && (
+                    <Message type="info">
+                      Configuration is locked while the event is {event?.state}.
+                    </Message>
+                  )}
+
+                  {/* Total IDs input */}
+                  <div>
+                    <label className="text-sm font-medium">Highest Number</label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={numberOfItems}
+                      onChange={(e) => handleNumberOfItemsChange(e.target.value)}
+                      disabled={isSavingConfig || !isEditable}
+                      className="mt-1"
+                      data-testid="number-of-items-input"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Max: 100
+                    </p>
+                  </div>
+
+                  {/* Tap-to-toggle grid */}
+                  {validCount && (
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-sm font-medium">Mark unused numbers</label>
+                        {excludedItemIds.length > 0 && (
+                          <span className="text-xs text-muted-foreground">
+                            {activeCount} active · {excludedItemIds.length} unused
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        {isEditable
+                          ? "Tap to toggle. Unused numbers won't appear on the rating screen."
+                          : "Dimmed numbers are not in use and won't appear on the rating screen."}
+                      </p>
+                      <div className="flex flex-wrap gap-1.5" data-testid="config-grid-preview">
+                        {ids.map(id => {
+                          const isExcluded = excludedItemIds.includes(id);
+                          return (
+                            <button
+                              key={id}
+                              type="button"
+                              onClick={() => isEditable && handleToggleExcludedId(id)}
+                              disabled={!isEditable || isSavingConfig}
+                              className={cn(
+                                'w-9 h-9 rounded-full text-xs font-medium transition-all',
+                                'flex items-center justify-center',
+                                isExcluded
+                                  ? 'bg-muted text-muted-foreground/40 line-through'
+                                  : 'bg-primary/10 text-primary',
+                                isEditable && !isExcluded && 'hover:bg-primary/20',
+                                isEditable && isExcluded && 'hover:bg-muted-foreground/10',
+                                !isEditable && 'cursor-default opacity-60',
+                              )}
+                              data-testid={`config-grid-${id}`}
+                            >
+                              {id}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {isSavingConfig && (
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <RefreshCw className="h-3 w-3 animate-spin" />
+                      Saving…
+                    </div>
+                  )}
                 </>
-              ) : (
-                'Save Configuration'
-              )}
-            </Button>
+              );
+            })()}
           </TabsContent>
 
           {/* Assignment Tab */}
@@ -2510,35 +2558,37 @@ function EventAdminPage({ onOpenAdminGuide }) {
                 <p className="text-sm text-muted-foreground">No administrators found</p>
               ) : (
                 Object.entries(administrators).map(([email, data]) => (
-                  <div key={email} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 p-3 border rounded-lg">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="font-medium break-words">{email}</span>
-                        {data.owner && (
-                          <Badge variant="outline" className="flex-shrink-0">Owner</Badge>
-                        )}
+                  <ListCard key={email}>
+                    <div className="flex items-start justify-between gap-3 px-3 py-2.5">
+                      <div className="flex-1 min-w-0 space-y-0.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium truncate">{email}</span>
+                          {data.owner && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">Owner</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Added {new Date(data.assignedAt).toLocaleDateString()}
+                        </p>
                       </div>
-                      <p className="text-sm text-muted-foreground mt-1">
-                        Added {new Date(data.assignedAt).toLocaleDateString()}
-                      </p>
+                      {!data.owner && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            if (window.confirm(`Are you sure you want to remove ${email} as an administrator?`)) {
+                              handleDeleteAdministrator(email);
+                            }
+                          }}
+                          disabled={isDeletingAdmin}
+                          aria-label={`Delete administrator ${email}`}
+                          className="shrink-0 h-8 w-8"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
-                    {!data.owner && (
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => {
-                          if (window.confirm(`Are you sure you want to remove ${email} as an administrator?`)) {
-                            handleDeleteAdministrator(email);
-                          }
-                        }}
-                        disabled={isDeletingAdmin}
-                        aria-label={`Delete administrator ${email}`}
-                        className="self-start sm:self-center flex-shrink-0"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
+                  </ListCard>
                 ))
               )}
             </div>
@@ -2675,53 +2725,53 @@ function EventAdminPage({ onOpenAdminGuide }) {
                 ) : (
                   <div className="space-y-2">
                     {displayGuests.map((guest) => (
-                      <div
-                        key={guest.email}
-                        className="flex items-start justify-between gap-3 p-3 border rounded-lg"
-                      >
-                        <div className="flex-1 min-w-0 space-y-1">
-                          <div className="flex items-center gap-2">
-                            {guest.name ? (
-                              <span className="font-semibold truncate">{guest.name}</span>
-                            ) : (
-                              <span className="font-semibold truncate">{guest.email}</span>
+                      <ListCard key={guest.email}>
+                        <div className="flex items-start justify-between gap-3 px-3 py-2.5">
+                          <div className="flex-1 min-w-0 space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium truncate">
+                                {guest.name || guest.email}
+                              </span>
+                              {guest.isOwner && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">Owner</Badge>
+                              )}
+                              {guest.isAdministrator && !guest.isOwner && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">Admin</Badge>
+                              )}
+                            </div>
+                            {guest.name && (
+                              <p className="text-xs text-muted-foreground truncate">{guest.email}</p>
                             )}
-                            {guest.isOwner && (
-                              <Badge variant="outline">Owner</Badge>
-                            )}
-                            {guest.isAdministrator && !guest.isOwner && (
-                              <Badge variant="outline">Admin</Badge>
-                            )}
+                            <p className="text-xs text-muted-foreground">
+                              Joined {guest.registeredAt
+                                ? new Date(guest.registeredAt).toLocaleDateString()
+                                : 'Unknown'}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {guest.itemsCount === 0
+                                ? `No registered ${itemTerminology.pluralLower}`
+                                : <>Registered {guest.itemsCount} {guest.itemsCount === 1
+                                    ? itemTerminology.singularLower
+                                    : itemTerminology.pluralLower}
+                                  {guest.itemNames.length > 0 && (
+                                    <>: {guest.itemNames.join(', ')}</>
+                                  )}</>
+                              }
+                            </p>
                           </div>
-                          {guest.name && (
-                            <p className="text-sm text-muted-foreground">{guest.email}</p>
+                          {!guest.isOwner && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleOpenDeleteUserDialog(guest.email, guest.name, guest.isAdministrator)}
+                              disabled={isRefreshingGuests}
+                              className="shrink-0 h-8 w-8"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
                           )}
-                          <p className="text-sm text-muted-foreground">
-                            Registered: {guest.registeredAt
-                              ? new Date(guest.registeredAt).toLocaleDateString()
-                              : 'Unknown'}
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            {guest.itemsCount} {guest.itemsCount === 1
-                              ? itemTerminology.singularLower
-                              : itemTerminology.pluralLower}
-                            {guest.itemNames.length > 0 && (
-                              <>{': '}{guest.itemNames.join(', ')}</>
-                            )}
-                          </p>
                         </div>
-                        {!guest.isOwner && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => handleOpenDeleteUserDialog(guest.email, guest.name, guest.isAdministrator)}
-                            disabled={isRefreshingGuests}
-                            className="shrink-0"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
+                      </ListCard>
                     ))}
                   </div>
                 )}

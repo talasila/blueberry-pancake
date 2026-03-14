@@ -176,7 +176,7 @@ test.describe('Delete Individual User (via Guests drawer)', () => {
     const drawer = await openGuestsDrawer(page);
     
     // Click delete on the user row
-    const userRow = drawer.locator('.border.rounded-lg', { hasText: userEmail });
+    const userRow = drawer.locator('.rounded-lg', { hasText: userEmail });
     await userRow.getByRole('button').click();
     
     // Confirm deletion
@@ -206,7 +206,7 @@ test.describe('Delete Individual User (via Guests drawer)', () => {
     const drawer = await openGuestsDrawer(page);
     
     // Click delete on the admin row
-    const adminRow = drawer.locator('.border.rounded-lg', { hasText: adminEmail });
+    const adminRow = drawer.locator('.rounded-lg', { hasText: adminEmail });
     await adminRow.getByRole('button').click();
     
     // Confirm deletion

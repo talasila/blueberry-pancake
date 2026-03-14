@@ -238,9 +238,10 @@ test.describe('Guests – Search and Filter (US2)', () => {
     const drawer = await openGuestsDrawer(page);
 
     const searchInput = drawer.getByPlaceholder(/search/i);
+    await expect(searchInput).toBeEditable({ timeout: 5000 });
     await searchInput.fill('zzzznonexistent');
 
-    await expect(drawer.getByText(/no guests match/i)).toBeVisible();
+    await expect(drawer.getByText(/no guests match/i)).toBeVisible({ timeout: 10000 });
   });
 
   test('clearing search restores full list', async ({ page, testEvent }) => {
@@ -285,11 +286,11 @@ test.describe('Guests – Delete Individual Guest (US3)', () => {
     const drawer = await openGuestsDrawer(page);
 
     // Owner row should not have a delete button — find the row with the exact "Owner" badge
-    const ownerRow = drawer.locator('.border.rounded-lg', { has: page.getByText('Owner', { exact: true }) });
+    const ownerRow = drawer.locator('.rounded-lg', { has: page.getByText('Owner', { exact: true }) });
     await expect(ownerRow.getByRole('button')).toHaveCount(0);
 
     // Regular user row should have the trash button
-    const userRow = drawer.locator('.border.rounded-lg', { hasText: 'user1@example.com' });
+    const userRow = drawer.locator('.rounded-lg', { hasText: 'user1@example.com' });
     await expect(userRow.getByRole('button')).toBeVisible();
   });
 
@@ -307,7 +308,7 @@ test.describe('Guests – Delete Individual Guest (US3)', () => {
     await expect(drawer.getByText('doomed@example.com')).toBeVisible();
 
     // Click delete on the user row
-    const userRow = drawer.locator('.border.rounded-lg', { hasText: 'doomed@example.com' });
+    const userRow = drawer.locator('.rounded-lg', { hasText: 'doomed@example.com' });
     await userRow.getByRole('button').click();
 
     // Confirm deletion
@@ -329,7 +330,7 @@ test.describe('Guests – Delete Individual Guest (US3)', () => {
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     const drawer = await openGuestsDrawer(page);
 
-    const userRow = drawer.locator('.border.rounded-lg', { hasText: 'safe@example.com' });
+    const userRow = drawer.locator('.rounded-lg', { hasText: 'safe@example.com' });
     await userRow.getByRole('button').click();
 
     // Cancel the dialog
@@ -362,7 +363,7 @@ test.describe('Guests – Delete Individual Guest (US3)', () => {
     await expect(drawer.getByText('bob@example.com')).not.toBeVisible();
 
     // Delete alice
-    const userRow = drawer.locator('.border.rounded-lg', { hasText: 'alice@example.com' });
+    const userRow = drawer.locator('.rounded-lg', { hasText: 'alice@example.com' });
     await userRow.getByRole('button').click();
     await confirmDeletion(page, 'DELETE USER');
 

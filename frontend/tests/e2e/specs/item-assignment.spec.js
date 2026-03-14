@@ -244,7 +244,8 @@ test.describe('Item Assignment', () => {
 
     const drawer = page.locator('[role="dialog"]');
     const instruction = drawer.locator('[data-testid="instruction-text"]');
-    await expect(instruction).toContainText(/start and then pause/i);
+    await expect(instruction).toContainText(/Match each numbered/i);
+    await expect(instruction).toContainText(/only available when the event is paused/i);
 
     const button1 = drawer.locator('[data-testid="assignment-button-1"]');
     await expect(button1).toBeVisible();
@@ -268,7 +269,8 @@ test.describe('Item Assignment', () => {
 
     const drawer = page.locator('[role="dialog"]');
     const instruction = drawer.locator('[data-testid="instruction-text"]');
-    await expect(instruction).toContainText(/pause the event to begin assignment/i);
+    await expect(instruction).toContainText(/Match each numbered/i);
+    await expect(instruction).toContainText(/only available when the event is paused/i);
 
     const button1 = drawer.locator('[data-testid="assignment-button-1"]');
     await expect(button1).toBeVisible();

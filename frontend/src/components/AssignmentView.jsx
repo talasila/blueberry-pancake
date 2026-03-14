@@ -161,20 +161,21 @@ export default function AssignmentView({
   }, [onPauseEvent]);
 
   // --- Instructional text based on event state ---
+  const baseDescription = `Match each numbered ${singularLower} to the real ${singularLower} that guests registered. Tap a number below to assign it.`;
   const instructionText = useMemo(() => {
     switch (event?.state) {
       case 'paused':
-        return `Match each numbered ${singularLower} to the real ${singularLower} that guests registered. Tap a number below to assign it.`;
+        return baseDescription;
       case 'started':
-        return 'Pause the event to begin assignment.';
+        return `${baseDescription} Assignment is only available when the event is paused.`;
       case 'created':
-        return 'Start and then pause the event to begin assignment.';
+        return `${baseDescription} Assignment is only available when the event is paused.`;
       case 'completed':
-        return 'Assignment is not available after the event is completed.';
+        return `${baseDescription} Assignment is not available after the event is completed.`;
       default:
         return '';
     }
-  }, [event?.state, singularLower]);
+  }, [event?.state, baseDescription]);
 
   // --- Progress text ---
   const progressText = useMemo(() => {
@@ -207,7 +208,7 @@ export default function AssignmentView({
   return (
     <div className="space-y-4">
       {/* Instructional text */}
-      <p className="text-xs text-muted-foreground" data-testid="instruction-text">
+      <p className="text-sm text-muted-foreground" data-testid="instruction-text">
         {instructionText}
       </p>
 
