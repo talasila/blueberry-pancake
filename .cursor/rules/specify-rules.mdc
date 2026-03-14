@@ -120,6 +120,8 @@ JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 - No new DynamoDB entities. Personality is computed at query time from existing rating records. (028-tasting-personality)
 - JavaScript (ES2022+) / React 19.2 + React 19, React Router 7, Radix UI primitives, class-variance-authority, lucide-react, sonner (toasts) (029-assignment-redesign)
 - N/A (frontend-only; backend uses DynamoDB — no changes) (029-assignment-redesign)
+- JavaScript (ES2022+), React 19.2 + react-router-dom 7.10, sonner 2.0, lucide-react 0.556, Radix UI primitives, Tailwind CSS 4, class-variance-authority, clsx, tailwind-merge (030-my-bottles-sheet)
+- Backend API (REST) — no frontend storage changes (030-my-bottles-sheet)
 
 ## Recent Changes
 - 001-root-admin: Added Node.js 22+, JavaScript ES2020+ + Express 5, React 19, Vite, Tailwind CSS 4, Radix UI
