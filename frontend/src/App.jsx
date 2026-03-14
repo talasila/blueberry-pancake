@@ -28,6 +28,33 @@ import AdminGuideDrawer from './components/guide/AdminGuideDrawer';
 import MembershipRevokedDialog from './components/MembershipRevokedDialog';
 import SessionExpiredDialog from './components/SessionExpiredDialog';
 import EventThemeProvider from './components/EventThemeProvider';
+import MyBottlesSheet from './components/MyBottlesSheet';
+import { useEventContext } from './contexts/EventContext';
+
+/**
+ * Hosts the MyBottlesSheet at the app level so it opens from any event route
+ * (EventPage, EventAdminPage, DashboardPage, etc.) via the shared
+ * CustomEvent('openMyBottles') mechanism.
+ */
+function MyBottlesSheetHost() {
+  const { event, eventId } = useEventContext();
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setIsOpen(true);
+    window.addEventListener('openMyBottles', handler);
+    return () => window.removeEventListener('openMyBottles', handler);
+  }, []);
+
+  return (
+    <MyBottlesSheet
+      isOpen={isOpen}
+      onClose={() => setIsOpen(false)}
+      event={event}
+      eventId={eventId}
+    />
+  );
+}
 
 /**
  * AppLayout Component
@@ -187,6 +214,7 @@ function AppLayout() {
       </main>
       {!isAdminRoute && !isSystemRoute && <GuideDrawer isOpen={guideOpen} onClose={closeGuide} />}
       {isAdminRoute && <AdminGuideDrawer isOpen={adminGuideOpen} onClose={closeAdminGuide} />}
+      {isEventRoute && eventId && <MyBottlesSheetHost />}
     </div>
   );
 

@@ -20,7 +20,6 @@ import { deriveItemRaterCounts } from '@/utils/participationCounts';
 import { getMinimumThreshold } from '@/utils/personalityDetection';
 import GuestWelcomeBottomSheet from '@/components/GuestWelcomeBottomSheet';
 import PersonalityRevealSheet from '@/components/PersonalityRevealSheet';
-import MyBottlesSheet from '@/components/MyBottlesSheet';
 import itemService from '@/services/itemService';
 
 /**
@@ -47,7 +46,6 @@ function EventPage() {
 
   const [showGuestWelcome, setShowGuestWelcome] = useState(false);
   const hasCheckedGuestWelcomeRef = useRef(false);
-  const [isMyBottlesOpen, setIsMyBottlesOpen] = useState(false);
   const [userItemCount, setUserItemCount] = useState(0);
   
   const [event, setEvent] = useState(contextEvent);
@@ -129,13 +127,6 @@ function EventPage() {
       setShowGuestWelcome(true);
     }
   }, [contextEvent, isAdmin, location.state]);
-
-  // Listen for "My Bottles" menu item in Header (communicated via custom event)
-  useEffect(() => {
-    const handler = () => setIsMyBottlesOpen(true);
-    window.addEventListener('openMyBottles', handler);
-    return () => window.removeEventListener('openMyBottles', handler);
-  }, []);
 
   // Fetch user item count for contextual CTA on the guest welcome sheet
   useEffect(() => {
@@ -507,7 +498,7 @@ function EventPage() {
   const handleGuestWelcomeRegister = () => {
     setShowGuestWelcome(false);
     window.history.replaceState({}, document.title);
-    setIsMyBottlesOpen(true);
+    window.dispatchEvent(new CustomEvent('openMyBottles'));
   };
 
   const userRatingProgressData = useMemo(
@@ -677,7 +668,7 @@ function EventPage() {
                       <Button
                         variant="link"
                         className="text-sm px-0"
-                        onClick={() => setIsMyBottlesOpen(true)}
+                        onClick={() => window.dispatchEvent(new CustomEvent('openMyBottles'))}
                         data-testid="guest-inline-register-btn"
                       >
                         Register My {singular}
@@ -929,14 +920,6 @@ function EventPage() {
           hasItems={userItemCount > 0}
         />
       )}
-
-      {/* My Bottles Sheet */}
-      <MyBottlesSheet
-        isOpen={isMyBottlesOpen}
-        onClose={() => setIsMyBottlesOpen(false)}
-        event={event}
-        eventId={eventId}
-      />
 
       <PersonalityRevealSheet
         isOpen={showPersonalityReveal}
