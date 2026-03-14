@@ -137,7 +137,7 @@ test.describe('My Events', () => {
       await expect(myEventsItem).not.toBeVisible();
 
       // Other menu items should still be present
-      await expect(page.locator('[role="menu"]').getByText('Profile')).toBeVisible();
+      await expect(page.locator('[data-testid="menu-my-bottles"]')).toBeVisible();
       await expect(page.locator('[role="menu"]').getByText('Logout')).toBeVisible();
     } finally {
       await deleteTestEvent(eventId);
@@ -269,7 +269,7 @@ test.describe('Standalone Page Logout Icon', () => {
 
       await hamburgerMenu.click();
       await expect(page.getByText('Logout')).toBeVisible({ timeout: 3000 });
-      await expect(page.getByText('Profile')).toBeVisible();
+      await expect(page.locator('[data-testid="menu-my-bottles"]')).toBeVisible();
     } finally {
       await deleteTestEvent(eventId);
     }

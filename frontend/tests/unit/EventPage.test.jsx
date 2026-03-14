@@ -50,6 +50,15 @@ vi.mock('../../src/services/dashboardService.js', () => ({
   }
 }));
 
+vi.mock('../../src/services/itemService.js', () => ({
+  default: {
+    getItems: vi.fn(() => Promise.resolve([])),
+    registerItem: vi.fn(),
+    updateItem: vi.fn(),
+    deleteItem: vi.fn(),
+  }
+}));
+
 // Helper to render component with router and context
 const renderWithProviders = (event = null, isAdmin = false) => {
   return render(

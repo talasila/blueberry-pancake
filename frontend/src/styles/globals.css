@@ -187,6 +187,13 @@
   }
 }
 
+/* Sonner action-button override — sonner's own selector is (0,3,0);
+   using (0,4,0) here so the event theme's primary color wins. */
+[data-sonner-toaster] [data-sonner-toast][data-styled='true'] [data-button] {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
 @layer utilities {
   @keyframes caret-blink {
     0%, 100% {

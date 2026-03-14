@@ -1,8 +1,9 @@
-import { Menu, User, BarChart3, Settings, LogOut, ArrowLeft, HelpCircle, BookOpen, List, Sun, Moon } from 'lucide-react';
+import { Menu, BottleWine, Package, BarChart3, Settings, LogOut, ArrowLeft, HelpCircle, BookOpen, List, Sun, Moon } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useMemo, useState, useEffect } from 'react';
 import Logo from './Logo.jsx';
 import { useEventContext } from '@/contexts/EventContext';
+import { useItemTerminology } from '@/utils/itemTerminology';
 import apiClient from '@/services/apiClient';
 import DropdownMenu, { DropdownMenuItem } from './DropdownMenu';
 import { clearAllBookmarks } from '@/utils/bookmarkStorage';
@@ -26,6 +27,7 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { event, eventId, isAdmin } = useEventContext();
+  const { plural } = useItemTerminology(event);
   const [authState, setAuthState] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
@@ -88,15 +90,6 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
     };
   }, [location.pathname]); // isEventRoute and pathEventId are derived from location.pathname
 
-  // Determine profile link path
-  const profilePath = useMemo(() => {
-    if (isEventRoute && pathEventId) {
-      return `/event/${pathEventId}/profile`;
-    }
-    // For non-event routes, use a general profile path
-    // This could be expanded later for global user profiles
-    return '/profile';
-  }, [isEventRoute, pathEventId]);
 
   // Check if dashboard is available
   const isDashboardAvailable = useMemo(() => {
@@ -120,9 +113,9 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
     }
   };
 
-  const handleProfileClick = () => {
+  const handleMyBottlesClick = () => {
     setIsMenuOpen(false);
-    navigate(profilePath);
+    window.dispatchEvent(new CustomEvent('openMyBottles'));
   };
 
   const handleDashboardClick = () => {
@@ -322,10 +315,11 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
               )}
               
               <DropdownMenuItem
-                onClick={handleProfileClick}
-                icon={<User className="h-4 w-4" />}
+                onClick={handleMyBottlesClick}
+                icon={event?.typeOfItem === 'wine' ? <BottleWine className="h-4 w-4" /> : <Package className="h-4 w-4" />}
+                data-testid="menu-my-bottles"
               >
-                Profile
+                My {plural}
               </DropdownMenuItem>
               
               {isDashboardAvailable && pathEventId && (

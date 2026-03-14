@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, cleanup } from '@testing-library/react';
 import EventThemeProvider from '../../src/components/EventThemeProvider.jsx';
 import { useEventContext } from '@/contexts/EventContext';
 
@@ -11,6 +11,11 @@ describe('EventThemeProvider', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     document.documentElement.classList.remove('dark');
+  });
+
+  afterEach(() => {
+    cleanup();
+    document.documentElement.removeAttribute('style');
   });
 
   it('renders children', () => {
@@ -60,5 +65,30 @@ describe('EventThemeProvider', () => {
     );
     const wrapper = container.firstChild;
     expect(wrapper).toHaveAttribute('data-event-theme', 'garden');
+  });
+
+  it('mirrors CSS vars onto document.documentElement for portals', () => {
+    useEventContext.mockReturnValue({ event: { theme: 'cellar' } });
+    render(
+      <EventThemeProvider>
+        <span>Child</span>
+      </EventThemeProvider>
+    );
+    const rootStyle = document.documentElement.style;
+    expect(rootStyle.getPropertyValue('--event-accent')).toBe('oklch(0.45 0.15 15)');
+    expect(rootStyle.getPropertyValue('--primary')).toBe('oklch(0.45 0.15 15)');
+  });
+
+  it('cleans up root CSS vars on unmount', () => {
+    useEventContext.mockReturnValue({ event: { theme: 'cellar' } });
+    const { unmount } = render(
+      <EventThemeProvider>
+        <span>Child</span>
+      </EventThemeProvider>
+    );
+    expect(document.documentElement.style.getPropertyValue('--event-accent')).toBe('oklch(0.45 0.15 15)');
+
+    unmount();
+    expect(document.documentElement.style.getPropertyValue('--event-accent')).toBe('');
   });
 });

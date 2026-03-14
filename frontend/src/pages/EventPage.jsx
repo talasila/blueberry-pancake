@@ -20,6 +20,8 @@ import { deriveItemRaterCounts } from '@/utils/participationCounts';
 import { getMinimumThreshold } from '@/utils/personalityDetection';
 import GuestWelcomeBottomSheet from '@/components/GuestWelcomeBottomSheet';
 import PersonalityRevealSheet from '@/components/PersonalityRevealSheet';
+import MyBottlesSheet from '@/components/MyBottlesSheet';
+import itemService from '@/services/itemService';
 
 /**
  * EventPage Component
@@ -45,6 +47,8 @@ function EventPage() {
 
   const [showGuestWelcome, setShowGuestWelcome] = useState(false);
   const hasCheckedGuestWelcomeRef = useRef(false);
+  const [isMyBottlesOpen, setIsMyBottlesOpen] = useState(false);
+  const [userItemCount, setUserItemCount] = useState(0);
   
   const [event, setEvent] = useState(contextEvent);
   const [isLoading, setIsLoading] = useState(!contextEvent);
@@ -125,6 +129,25 @@ function EventPage() {
       setShowGuestWelcome(true);
     }
   }, [contextEvent, isAdmin, location.state]);
+
+  // Listen for "My Bottles" menu item in Header (communicated via custom event)
+  useEffect(() => {
+    const handler = () => setIsMyBottlesOpen(true);
+    window.addEventListener('openMyBottles', handler);
+    return () => window.removeEventListener('openMyBottles', handler);
+  }, []);
+
+  // Fetch user item count for contextual CTA on the guest welcome sheet
+  useEffect(() => {
+    if (!eventId || isAdmin) return;
+    const state = contextEvent?.state;
+    if (state !== 'created' && state !== 'started') return;
+    let cancelled = false;
+    itemService.getItems(eventId, true)
+      .then((items) => { if (!cancelled) setUserItemCount((items || []).length); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [eventId, isAdmin, contextEvent?.state]);
 
   // Generate available item IDs based on itemConfiguration
   useEffect(() => {
@@ -484,7 +507,7 @@ function EventPage() {
   const handleGuestWelcomeRegister = () => {
     setShowGuestWelcome(false);
     window.history.replaceState({}, document.title);
-    navigate(`/event/${eventId}/profile`);
+    setIsMyBottlesOpen(true);
   };
 
   const userRatingProgressData = useMemo(
@@ -654,7 +677,7 @@ function EventPage() {
                       <Button
                         variant="link"
                         className="text-sm px-0"
-                        onClick={() => navigate(`/event/${eventId}/profile`)}
+                        onClick={() => setIsMyBottlesOpen(true)}
                         data-testid="guest-inline-register-btn"
                       >
                         Register My {singular}
@@ -903,8 +926,17 @@ function EventPage() {
           onDismiss={handleGuestWelcomeDismiss}
           onRegister={handleGuestWelcomeRegister}
           event={event}
+          hasItems={userItemCount > 0}
         />
       )}
+
+      {/* My Bottles Sheet */}
+      <MyBottlesSheet
+        isOpen={isMyBottlesOpen}
+        onClose={() => setIsMyBottlesOpen(false)}
+        event={event}
+        eventId={eventId}
+      />
 
       <PersonalityRevealSheet
         isOpen={showPersonalityReveal}

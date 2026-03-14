@@ -14,11 +14,12 @@ export default function GuestWelcomeBottomSheet({
   onDismiss,
   onRegister,
   event,
+  hasItems = false,
 }) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const previousOverflowRef = useRef('');
-  const { singular, singularLower } = useItemTerminology(event);
+  const { singular, singularLower, plural } = useItemTerminology(event);
 
   useEffect(() => {
     if (isOpen) {
@@ -141,7 +142,7 @@ export default function GuestWelcomeBottomSheet({
               onClick={onRegister}
               data-testid="guest-welcome-register-btn"
             >
-              Register My {singular}
+              {hasItems ? `View My ${plural}` : `Register My ${singular}`}
             </Button>
             <button
               type="button"

@@ -25,6 +25,7 @@ import {
   enterAndSubmitPIN,
   changeEventState,
   openBottlesDrawer,
+  dismissGuestWelcomeSheet,
 } from './helpers.js';
 
 /**
@@ -70,11 +71,15 @@ async function assignItemIdViaAPI(eventId, itemId, itemIdToAssign, token) {
 }
 
 /**
- * Helper: Navigate to Profile page and wait for it to load
+ * Helper: Open the My Bottles sheet from the hamburger menu
  */
-async function navigateToProfilePage(page, eventId) {
-  await page.goto(`${BASE_URL}/event/${eventId}/profile`);
-  await page.getByRole('heading', { name: /profile/i }).waitFor({ state: 'visible', timeout: 10000 });
+async function openMyBottlesSheet(page) {
+  await dismissGuestWelcomeSheet(page);
+  await page.locator('[aria-label="Open menu"]').click();
+  await page.locator('[data-testid="menu-my-bottles"]').click();
+  const sheet = page.locator('[data-testid="my-bottles-sheet"]');
+  await expect(sheet).toBeVisible({ timeout: 5000 });
+  return sheet;
 }
 
 /**
@@ -98,128 +103,88 @@ test.describe('Item Registration', () => {
 
   test('can register item when event is in "created" state', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
-    // Access event as regular user
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
     await enterAndSubmitPIN(page, pin);
-    
-    // Navigate to profile page
-    await navigateToProfilePage(page, eventId);
-    
-    // Look for "Add Bottle" button (event context must load first)
-    const addButton = page.getByRole('button', { name: /add bottle/i });
+
+    await page.waitForURL(new RegExp(`/event/${eventId}$`), { timeout: 10000 });
+    const sheet = await openMyBottlesSheet(page);
+
+    const addButton = sheet.getByRole('button', { name: /add bottle/i });
     await expect(addButton).toBeVisible({ timeout: 10000 });
     await addButton.click();
-    
-    // Fill in item form
-    const nameInput = page.locator('input#itemName');
-    await nameInput.waitFor({ state: 'visible', timeout: 5000 });
-    await nameInput.fill('Test Wine 2020');
-    
-    const priceInput = page.locator('input#itemPrice');
-    await priceInput.fill('$45.00');
-    
-    const descriptionInput = page.locator('textarea#itemDescription');
-    await descriptionInput.fill('A lovely test wine');
-    
-    // Submit the form
-    const registerButton = page.getByRole('button', { name: /register bottle/i });
-    await registerButton.click();
-    
-    // Verify item appears in the list
-    await expect(page.getByText('Test Wine 2020')).toBeVisible({ timeout: 10000 });
+
+    await sheet.locator('#item-name').fill('Test Wine 2020');
+    await sheet.locator('#item-price').fill('$45.00');
+    await sheet.locator('#item-description').fill('A lovely test wine');
+
+    await sheet.getByRole('button', { name: /add bottle/i }).click();
+    await expect(sheet.getByText('Test Wine 2020')).toBeVisible({ timeout: 10000 });
   });
 
   test('can register item when event is in "started" state', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
-    // Start event via API
+
     expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
-    
-    // Access event as regular user
+
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
     await enterAndSubmitPIN(page, pin);
-    
-    // Navigate to profile page
-    await navigateToProfilePage(page, eventId);
-    
-    // Look for "Add Bottle" button - should be visible in started state
-    const addButton = page.getByRole('button', { name: /add bottle/i });
+
+    await page.waitForURL(new RegExp(`/event/${eventId}$`), { timeout: 10000 });
+    const sheet = await openMyBottlesSheet(page);
+
+    const addButton = sheet.getByRole('button', { name: /add bottle/i });
     await expect(addButton).toBeVisible({ timeout: 10000 });
     await addButton.click();
-    
-    // Fill in item form
-    const nameInput = page.locator('input#itemName');
-    await nameInput.waitFor({ state: 'visible', timeout: 5000 });
-    await nameInput.fill('Started State Wine');
-    
-    // Submit the form
-    const registerButton = page.getByRole('button', { name: /register bottle/i });
-    await registerButton.click();
-    
-    // Verify item appears in the list
-    await expect(page.getByText('Started State Wine')).toBeVisible({ timeout: 10000 });
+
+    await sheet.locator('#item-name').fill('Started State Wine');
+    await sheet.getByRole('button', { name: /add bottle/i }).click();
+    await expect(sheet.getByText('Started State Wine')).toBeVisible({ timeout: 10000 });
   });
 
   test('cannot register item when event is in "paused" state', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
-    // Start then pause event via API
+
     expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
     expect((await changeEventState(eventId, 'paused', 'started', token)).ok).toBe(true);
-    
-    // Access event as regular user
+
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
     await enterAndSubmitPIN(page, pin);
-    
-    // Navigate to profile page
-    await navigateToProfilePage(page, eventId);
-    
-    // Should see a warning message about registration not available (wait for event context to load)
-    const main = page.locator('main');
-    const warningMessage = main.getByText(/registration.*only available|not available/i);
-    await expect(warningMessage).toBeVisible({ timeout: 10000 });
 
-    // "Add Bottle" button should NOT be visible in paused state
-    const addButton = page.getByRole('button', { name: /add bottle/i });
-    await expect(addButton).not.toBeVisible();
+    await page.waitForURL(new RegExp(`/event/${eventId}$`), { timeout: 10000 });
+    const sheet = await openMyBottlesSheet(page);
+
+    await expect(sheet.getByText(/registration is closed/i)).toBeVisible({ timeout: 10000 });
+    await expect(sheet.getByRole('button', { name: /add bottle/i })).not.toBeVisible();
   });
 
   test('cannot register item when event is in "completed" state', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
-    // Start then complete event via API
+
     expect((await changeEventState(eventId, 'started', 'created', token)).ok).toBe(true);
     expect((await changeEventState(eventId, 'completed', 'started', token)).ok).toBe(true);
-    
-    // Access event as regular user
+
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${eventId}`);
     await submitEmail(page, 'user@example.com');
     await enterAndSubmitPIN(page, pin);
-    
-    // Navigate to profile page
-    await navigateToProfilePage(page, eventId);
-    
-    // Should see a warning message about registration not available (wait for event context to load)
-    const main = page.locator('main');
-    const warningMessage = main.getByText(/registration.*only available|not available/i);
-    await expect(warningMessage).toBeVisible({ timeout: 10000 });
 
-    // "Add Bottle" button should NOT be visible in completed state
-    const addButton = page.getByRole('button', { name: /add bottle/i });
-    await expect(addButton).not.toBeVisible();
+    await page.waitForURL(new RegExp(`/event/${eventId}$`), { timeout: 10000 });
+    const sheet = await openMyBottlesSheet(page);
+
+    await expect(sheet.getByText(/event has ended/i)).toBeVisible({ timeout: 10000 });
+    await expect(sheet.getByRole('button', { name: /add bottle/i })).not.toBeVisible();
   });
 });
 

@@ -9,7 +9,6 @@ import EventAdminPage from './pages/EventAdminPage.jsx';
 import EmailEntryPage from './pages/EmailEntryPage.jsx';
 import PINEntryPage from './pages/PINEntryPage.jsx';
 import EventOTPEntryPage from './pages/EventOTPEntryPage.jsx';
-import ProfilePage from './pages/ProfilePage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import ItemAssignmentPage from './pages/ItemAssignmentPage.jsx';
 import SystemPage from './pages/SystemPage.jsx';
@@ -172,14 +171,6 @@ function AppLayout() {
                   </AdminRoute>
                 </PINProvider>
               </ProtectedRoute>
-            } 
-          />
-          <Route 
-            path="/event/:eventId/profile" 
-            element={
-              <PINProvider>
-                <ProfilePage />
-              </PINProvider>
             } 
           />
           <Route 

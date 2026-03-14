@@ -65,6 +65,24 @@ describe('GuestWelcomeBottomSheet', () => {
     expect(screen.getByTestId('guest-welcome-register-btn')).toHaveTextContent('Register My Item');
   });
 
+  // ---- Contextual CTA text ----
+
+  it('shows "View My Bottles" when hasItems is true (wine event)', () => {
+    render(<GuestWelcomeBottomSheet {...defaultProps} hasItems />);
+    expect(screen.getByTestId('guest-welcome-register-btn')).toHaveTextContent('View My Bottles');
+  });
+
+  it('shows "Register My Bottle" when hasItems is false (wine event)', () => {
+    render(<GuestWelcomeBottomSheet {...defaultProps} hasItems={false} />);
+    expect(screen.getByTestId('guest-welcome-register-btn')).toHaveTextContent('Register My Bottle');
+  });
+
+  it('shows "View My Items" when hasItems is true (generic event)', () => {
+    const event = makeEvent({ typeOfItem: 'generic' });
+    render(<GuestWelcomeBottomSheet {...defaultProps} event={event} hasItems />);
+    expect(screen.getByTestId('guest-welcome-register-btn')).toHaveTextContent('View My Items');
+  });
+
   // ---- "Why register?" section ----
 
   it('displays the "Why register?" section', () => {

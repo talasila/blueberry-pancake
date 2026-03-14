@@ -49,16 +49,19 @@ test.describe('Guest Registration Nudge', () => {
     await expect(sheet).toBeVisible({ timeout: 5000 });
   });
 
-  test('"Register" button navigates to profile page', async ({ page, testEvent }) => {
+  test('"Register" button opens My Bottles sheet', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     await loginAsUserToEvent(page, eventId, 'guest@example.com', pin, NO_AUTO_DISMISS);
 
-    const sheet = page.locator('[data-testid="guest-welcome-bottom-sheet"]');
-    await expect(sheet).toBeVisible({ timeout: 5000 });
+    const welcomeSheet = page.locator('[data-testid="guest-welcome-bottom-sheet"]');
+    await expect(welcomeSheet).toBeVisible({ timeout: 5000 });
 
     await page.locator('[data-testid="guest-welcome-register-btn"]').click();
-    await expect(page).toHaveURL(new RegExp(`/event/${eventId}/profile`), { timeout: 5000 });
-    await expect(sheet).not.toBeVisible();
+    await expect(welcomeSheet).not.toBeVisible({ timeout: 3000 });
+
+    const myBottlesSheet = page.locator('[data-testid="my-bottles-sheet"]');
+    await expect(myBottlesSheet).toBeVisible({ timeout: 5000 });
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
   });
 
   test('"Skip for now" dismisses the sheet', async ({ page, testEvent }) => {
@@ -111,7 +114,7 @@ test.describe('Guest Registration Nudge', () => {
     await expect(inlinePrompt).toContainText('Brought a');
   });
 
-  test('inline prompt "Register" button navigates to profile', async ({ page, testEvent }) => {
+  test('inline prompt "Register" button opens My Bottles sheet', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     await loginAsUserToEvent(page, eventId, 'guest@example.com', pin);
 
@@ -119,7 +122,9 @@ test.describe('Guest Registration Nudge', () => {
     await expect(registerBtn).toBeVisible({ timeout: 5000 });
     await registerBtn.click();
 
-    await expect(page).toHaveURL(new RegExp(`/event/${eventId}/profile`), { timeout: 5000 });
+    const myBottlesSheet = page.locator('[data-testid="my-bottles-sheet"]');
+    await expect(myBottlesSheet).toBeVisible({ timeout: 5000 });
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
   });
 
   test('inline prompt NOT visible in started state', async ({ page, testEvent }) => {

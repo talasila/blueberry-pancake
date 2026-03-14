@@ -82,7 +82,7 @@ test.describe('PIN-based Event Access', () => {
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
     
     // Navigate away and back
-    await page.goto(`${BASE_URL}/event/${eventId}/profile`);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await page.goto(`${BASE_URL}/event/${eventId}`);
     
     // Should not see PIN entry screen (session persists)

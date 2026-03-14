@@ -110,7 +110,7 @@ function DropdownMenu({ isOpen, onClose, trigger, children, align = 'right' }) {
  * @param {React.ReactNode} props.icon - Optional icon
  * @param {boolean} props.disabled - Whether item is disabled
  */
-export function DropdownMenuItem({ onClick, children, icon, disabled = false }) {
+export function DropdownMenuItem({ onClick, children, icon, disabled = false, ...rest }) {
   const handleClick = () => {
     if (!disabled && onClick) {
       onClick();
@@ -130,6 +130,7 @@ export function DropdownMenuItem({ onClick, children, icon, disabled = false }) 
         text-left
       `}
       role="menuitem"
+      {...rest}
     >
       {icon && <span className="flex-shrink-0">{icon}</span>}
       <span className="flex-1">{children}</span>
