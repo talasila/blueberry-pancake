@@ -129,6 +129,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
   const [deleteUserSuccess, setDeleteUserSuccess] = useState('');
   // Guests drawer state
   const [guestSearchQuery, setGuestSearchQuery] = useState('');
+  const [guestRegistrationFilter, setGuestRegistrationFilter] = useState('all'); // 'all' | 'registered' | 'unregistered'
   const [isRefreshingGuests, setIsRefreshingGuests] = useState(false);
   
   // Export data state
@@ -975,16 +976,21 @@ function EventAdminPage({ onOpenAdminGuide }) {
   }, [openDrawer === 'guests']);
 
   const filteredGuests = useMemo(() => {
-    const allGuests = getAllUsersWithStats();
-    if (!guestSearchQuery.trim()) return allGuests;
+    let guests = getAllUsersWithStats();
+    if (guestRegistrationFilter === 'registered') {
+      guests = guests.filter(g => g.itemsCount > 0);
+    } else if (guestRegistrationFilter === 'unregistered') {
+      guests = guests.filter(g => g.itemsCount === 0);
+    }
+    if (!guestSearchQuery.trim()) return guests;
     const query = guestSearchQuery.trim().toLowerCase();
-    return allGuests.filter(guest => {
+    return guests.filter(guest => {
       if (guest.name?.toLowerCase().includes(query)) return true;
       if (guest.email.toLowerCase().includes(query)) return true;
       if (guest.itemNames.some(name => name.toLowerCase().includes(query))) return true;
       return false;
     });
-  }, [event?.users, items, administrators, guestSearchQuery]);
+  }, [event?.users, items, administrators, guestSearchQuery, guestRegistrationFilter]);
 
   // Handle export ratings data
   const handleExportRatings = async () => {
@@ -1572,93 +1578,65 @@ function EventAdminPage({ onOpenAdminGuide }) {
     history.pushState({ drawer }, '', window.location.pathname);
   };
 
-  const themeBadge = (
-    <Badge variant="outline" className="text-xs flex items-center gap-1.5">
-      <span
-        className="inline-block w-2.5 h-2.5 rounded-full border border-black/10"
-        style={{ backgroundColor: getPreset(pendingTheme || event?.theme).light.accent }}
-      />
-      <span
-        className="inline-block w-2.5 h-2.5 rounded-full border border-black/10"
-        style={{ backgroundColor: getPreset(pendingTheme || event?.theme).light.headerBg }}
-      />
-      {getPreset(pendingTheme || event?.theme).name}
-    </Badge>
-  );
-
-  const ratingsBadge = ratings.length > 0 ? (
-    <div className="flex items-center gap-1">
-      {ratings.map((rating) => (
-        <div
-          key={rating.value}
-          className="w-4 h-4 rounded-full border border-gray-300"
-          style={{ backgroundColor: rating.color }}
-          title={`Rating ${rating.value}: ${rating.label}`}
-        />
-      ))}
-    </div>
-  ) : null;
-
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-4">
       <div className="max-w-md mx-auto w-full">
         <div className="space-y-6">
-          {/* Header: title + share + editable name */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <h4 className="text-xl font-semibold">Settings</h4>
-              <Button
-                onClick={handleCopyEventLink}
-                variant="ghost"
-                size="sm"
-                className="h-8 gap-1.5 text-muted-foreground"
-              >
-                {linkCopied ? (
-                  <>
-                    <Check className="h-3.5 w-3.5 text-green-600" />
-                    <span className="text-xs text-green-600 font-medium">Copied!</span>
-                  </>
-                ) : (
-                  <>
-                    <Share2 className="h-3.5 w-3.5" />
-                    <span className="text-xs">Share</span>
-                  </>
-                )}
-              </Button>
-            </div>
-            <Input
-              value={editedName}
-              onChange={(e) => handleNameChange(e.target.value)}
-              onBlur={handleNameBlur}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') e.target.blur();
-                if (e.key === 'Escape') {
-                  if (saveNameRef.current) clearTimeout(saveNameRef.current);
-                  setEditedName(event.name);
-                  e.target.blur();
-                }
-              }}
-              disabled={isSavingName}
-              maxLength={100}
-              className="font-medium"
-              aria-label="Event name"
-            />
-            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
-              {nameSaved ? (
-                <>
-                  <Check className="h-3 w-3 text-green-600" />
-                  <span className="text-green-600">Saved</span>
-                </>
-              ) : isSavingName ? (
-                'Saving\u2026'
-              ) : (
-                'Changes save automatically'
+          {/* Header: inline-editable event name + share */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <Input
+                value={editedName}
+                onChange={(e) => handleNameChange(e.target.value)}
+                onBlur={handleNameBlur}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.target.blur();
+                  if (e.key === 'Escape') {
+                    if (saveNameRef.current) clearTimeout(saveNameRef.current);
+                    setEditedName(event.name);
+                    e.target.blur();
+                  }
+                }}
+                disabled={isSavingName}
+                maxLength={100}
+                className="text-base font-semibold border-transparent bg-transparent px-0 h-auto py-0 focus-visible:border-input focus-visible:bg-background focus-visible:px-3 focus-visible:py-1.5 transition-all truncate"
+                aria-label="Event name"
+              />
+              {(nameSaved || isSavingName) && (
+                <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                  {nameSaved ? (
+                    <>
+                      <Check className="h-3 w-3 text-green-600" />
+                      <span className="text-green-600">Saved</span>
+                    </>
+                  ) : (
+                    'Saving\u2026'
+                  )}
+                </p>
               )}
-            </p>
+            </div>
+            <Button
+              onClick={handleCopyEventLink}
+              variant="ghost"
+              size="sm"
+              className="h-8 gap-1.5 text-muted-foreground shrink-0 mt-0.5"
+            >
+              {linkCopied ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-green-600" />
+                  <span className="text-xs text-green-600 font-medium">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="h-3.5 w-3.5" />
+                  <span className="text-xs">Share</span>
+                </>
+              )}
+            </Button>
           </div>
 
           {/* Event Progress Stepper */}
-          <div className="rounded-xl border bg-card px-4 py-3">
+          <div className="rounded-xl border-2 border-primary/30 ring-1 ring-primary/10 bg-card px-4 py-3">
             <EventProgressStepper
               event={event}
               isTransitioning={isTransitioning}
@@ -1666,65 +1644,51 @@ function EventAdminPage({ onOpenAdminGuide }) {
             />
           </div>
 
-          {/* Event Setup */}
-          <section>
-            <h5 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 px-0.5">Event Setup</h5>
-            <div className="w-full">
-              <SettingsRow
-                icon={<Palette className="h-4 w-4" />}
-                label="Mood"
-                badge={themeBadge}
-                onClick={() => openDrawerWithHistory('theme')}
-              />
-              <SettingsRow
-                icon={<LayoutList className="h-4 w-4" />}
-                label={itemTerminology.plural}
-                badge={
-                  <>
-                    <Badge variant="outline" className="text-xs">{parseInt(numberOfItems, 10) - excludedItemIds.length} total</Badge>
-                    <Badge variant="outline" className="text-xs">{itemsSummary.total} registered</Badge>
-                  </>
-                }
-                onClick={() => openDrawerWithHistory('items')}
-              />
-              <SettingsRow
-                icon={<Star className="h-4 w-4" />}
-                label="Ratings"
-                badge={ratingsBadge}
-                onClick={() => openDrawerWithHistory('ratings-configuration')}
-              />
-            </div>
-          </section>
+          {/* Settings rows */}
+          <div className="w-full border-t">
+            <SettingsRow
+              icon={<Palette className="h-4 w-4" />}
+              label="Mood"
+              badge={event.theme ? <Badge variant="outline" className="text-xs">{getPreset(event.theme).name}</Badge> : null}
+              onClick={() => openDrawerWithHistory('theme')}
+            />
+            <SettingsRow
+              icon={<LayoutList className="h-4 w-4" />}
+              label={itemTerminology.plural}
+              badge={
+                <>
+                  <Badge variant="outline" className="text-xs">{parseInt(numberOfItems, 10) - excludedItemIds.length} for rating</Badge>
+                  <Badge variant="outline" className="text-xs">{itemsSummary.total} registered</Badge>
+                </>
+              }
+              onClick={() => openDrawerWithHistory('items')}
+            />
+            <SettingsRow
+              icon={<Star className="h-4 w-4" />}
+              label="Ratings"
+              onClick={() => openDrawerWithHistory('ratings-configuration')}
+            />
 
-          {/* Access & People */}
-          <section>
-            <h5 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 px-0.5">Access &amp; People</h5>
-            <div className="w-full">
-              <SettingsRow
-                icon={<KeyRound className="h-4 w-4" />}
-                label="PIN"
-                badge={event.pin ? <Badge variant="outline" className="font-mono text-xs">{event.pin}</Badge> : null}
-                onClick={() => openDrawerWithHistory('pin')}
-              />
-              <SettingsRow
-                icon={<ShieldCheck className="h-4 w-4" />}
-                label="Administrators"
-                onClick={() => openDrawerWithHistory('administrators')}
-              />
-              <SettingsRow
-                icon={<Users className="h-4 w-4" />}
-                label="Guests"
-                badge={<Badge variant="outline">{getNonAdminUserCount()} registered</Badge>}
-                onClick={() => openDrawerWithHistory('guests')}
-              />
-            </div>
-          </section>
+            <SettingsRow
+              icon={<KeyRound className="h-4 w-4" />}
+              label="PIN"
+              badge={event.pin ? <Badge variant="outline" className="font-mono text-xs">{event.pin}</Badge> : null}
+              onClick={() => openDrawerWithHistory('pin')}
+            />
+            <SettingsRow
+              icon={<Users className="h-4 w-4" />}
+              label="Guests"
+              badge={<Badge variant="outline">{getNonAdminUserCount()} registered</Badge>}
+              onClick={() => openDrawerWithHistory('guests')}
+            />
+            <SettingsRow
+              icon={<ShieldCheck className="h-4 w-4" />}
+              label="Administrators"
+              onClick={() => openDrawerWithHistory('administrators')}
+            />
 
-          {/* Admin Tools */}
-          {isCurrentUserAdministrator() && (
-            <section>
-              <h5 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 px-0.5">Admin Tools</h5>
-              <div className="w-full">
+            {isCurrentUserAdministrator() && (
+              <>
                 <SettingsRow
                   icon={<Download className="h-4 w-4" />}
                   label="Export Data"
@@ -1736,9 +1700,9 @@ function EventAdminPage({ onOpenAdminGuide }) {
                   variant="destructive"
                   onClick={() => openDrawerWithHistory('danger-zone')}
                 />
-              </div>
-            </section>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1911,157 +1875,117 @@ function EventAdminPage({ onOpenAdminGuide }) {
             setOpenDrawer(null);
           }
         }}
-        title="Rating Configuration"
+        title="Ratings"
       >
         <div className="space-y-4">
           <div className="text-sm text-muted-foreground font-normal">
-            Configure how items are rated, including the rating scale, labels, and colors
+            How guests rate each item.
           </div>
           {event?.state !== 'created' && (
             <Message type="info">
-              Rating configuration can only be edited when the event is in "created" state.
+              Ratings can only be edited during Setup.
             </Message>
           )}
-          {/* Max Rating Input */}
+
+          {/* Max Rating — segmented button group */}
           <div>
-            <label className="text-sm font-medium">Maximum Rating</label>
-            <Input
-              type="number"
-              min="2"
-              max="4"
-              value={maxRating}
-              onChange={(e) => {
-                const value = e.target.value;
-                setMaxRating(value);
-                setMaxRatingError('');
-                setRatingConfigError('');
-              }}
-              onBlur={(e) => {
-                const value = parseInt(e.target.value, 10);
-                if (isNaN(value) || value < 2 || value > 4) {
-                  setMaxRatingError('Maximum rating must be between 2 and 4');
-                } else {
-                  setMaxRatingError('');
-                }
-              }}
-              disabled={isSavingRatingConfig || (event?.state !== 'created')}
-              className="mt-1"
-            />
-            {maxRatingError && (
-              <p className="text-xs text-red-600 mt-1">{maxRatingError}</p>
-            )}
-            {!maxRatingError && event?.state === 'created' && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Rating scale will be from 1 (lowest/worst) to {maxRating || 4} (highest/best)
-              </p>
-            )}
+            <label className="text-sm font-medium">Rating Scale</label>
+            <p className="text-xs text-muted-foreground mt-0.5 mb-2">
+              Guests rate from 1 to {maxRating || 4}
+            </p>
+            <div className="flex gap-1">
+              {[2, 3, 4].map((n) => (
+                <Button
+                  key={n}
+                  type="button"
+                  variant={parseInt(maxRating, 10) === n ? 'default' : 'outline'}
+                  size="sm"
+                  className="flex-1"
+                  disabled={isSavingRatingConfig || (event?.state !== 'created')}
+                  onClick={() => {
+                    setMaxRating(n);
+                    setMaxRatingError('');
+                    setRatingConfigError('');
+                  }}
+                >
+                  1–{n}
+                </Button>
+              ))}
+            </div>
           </div>
 
-          {/* Ratings Configuration */}
+          {/* Rating levels — compact rows */}
           {ratings.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">Rating Levels</label>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={handleResetToDefaults}
-                  disabled={isSavingRatingConfig || (event?.state !== 'created')}
-                >
-                  Reset to Defaults
-                </Button>
-              </div>
-              <div className="space-y-3">
-                {ratings.map((rating) => (
-                  <div key={rating.value} className="py-1">
-                    <div className="mb-2">
-                      <span className="text-sm font-medium">Rating {rating.value}</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <div className="flex-1">
-                        <Input
-                          type="text"
-                          value={rating.label}
-                          onChange={(e) => handleLabelChange(rating.value, e.target.value)}
-                          onBlur={(e) => handleLabelBlur(rating.value, e.target.value)}
-                          disabled={isSavingRatingConfig || (event?.state !== 'created')}
-                          maxLength={50}
-                          className="h-9"
-                        />
-                        {labelErrors[rating.value] && (
-                          <p className="text-xs text-red-600 mt-0.5">{labelErrors[rating.value]}</p>
-                        )}
-                        {!labelErrors[rating.value] && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {rating.label.length}/50 characters
-                          </p>
-                        )}
-                      </div>
-                      <div className="relative flex-shrink-0">
-                        <button
-                          type="button"
+            <div className="space-y-2">
+              {ratings.map((rating) => (
+                <div key={rating.value} className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-muted-foreground w-4 text-center shrink-0">{rating.value}</span>
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => toggleColorDropdown(rating.value)}
+                      disabled={isSavingRatingConfig || (event?.state !== 'created')}
+                      className="flex h-8 w-8 items-center justify-center rounded-md border border-input transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <div
+                        className="w-5 h-5 rounded-full border border-black/10 dark:border-white/20"
+                        style={{ backgroundColor: rating.color }}
+                      />
+                    </button>
+                    {openColorDropdowns[rating.value] && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-10"
                           onClick={() => toggleColorDropdown(rating.value)}
-                          disabled={isSavingRatingConfig || (event?.state !== 'created')}
-                          className="flex h-9 w-12 items-center justify-center gap-1 rounded-md border border-input bg-transparent px-1.5 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <div
-                            className="w-5 h-5 rounded border border-gray-300"
-                            style={{ backgroundColor: rating.color }}
-                          />
-                          <svg
-                            className={`h-3 w-3 transition-transform ${openColorDropdowns[rating.value] ? 'rotate-180' : ''}`}
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                          </svg>
-                        </button>
-                        {openColorDropdowns[rating.value] && (
-                          <>
-                            <div
-                              className="fixed inset-0 z-10"
-                              onClick={() => toggleColorDropdown(rating.value)}
-                            />
-                            <div className="absolute z-20 right-0 mt-1 rounded-md border border-input bg-background shadow-lg p-1">
-                              <div className="flex gap-1">
-                                {COLOR_PALETTE.map((colorOption) => (
-                                  <button
-                                    key={colorOption.value}
-                                    type="button"
-                                    onClick={() => handleColorChange(rating.value, colorOption.value)}
-                                    className={`w-8 h-8 rounded border-2 transition-all flex-shrink-0 ${
-                                      rating.color === colorOption.value
-                                        ? 'border-gray-900 scale-110 ring-2 ring-gray-400'
-                                        : 'border-gray-300 hover:border-gray-500'
-                                    }`}
-                                    style={{ backgroundColor: colorOption.value }}
-                                    title={colorOption.label}
-                                  />
-                                ))}
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    {colorErrors[rating.value] && (
-                      <p className="text-xs text-red-600 mt-0.5">{colorErrors[rating.value]}</p>
+                        />
+                        <div className="absolute z-20 left-0 mt-1 rounded-md border border-input bg-background shadow-lg p-1.5">
+                          <div className="flex gap-1">
+                            {COLOR_PALETTE.map((colorOption) => (
+                              <button
+                                key={colorOption.value}
+                                type="button"
+                                onClick={() => handleColorChange(rating.value, colorOption.value)}
+                                className={`w-7 h-7 rounded-full border-2 transition-all shrink-0 ${
+                                  rating.color === colorOption.value
+                                    ? 'border-foreground scale-110 ring-2 ring-primary/40'
+                                    : 'border-transparent hover:border-muted-foreground/50'
+                                }`}
+                                style={{ backgroundColor: colorOption.value }}
+                                title={colorOption.label}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      </>
                     )}
                   </div>
-                ))}
-              </div>
+                  <Input
+                    type="text"
+                    value={rating.label}
+                    onChange={(e) => handleLabelChange(rating.value, e.target.value)}
+                    onBlur={(e) => handleLabelBlur(rating.value, e.target.value)}
+                    disabled={isSavingRatingConfig || (event?.state !== 'created')}
+                    maxLength={50}
+                    className="h-8 flex-1"
+                  />
+                </div>
+              ))}
+              {Object.entries(labelErrors).map(([key, msg]) => msg && (
+                <p key={key} className="text-xs text-red-600">{msg}</p>
+              ))}
+              {Object.entries(colorErrors).map(([key, msg]) => msg && (
+                <p key={key} className="text-xs text-red-600">{msg}</p>
+              ))}
             </div>
           )}
 
-          {/* Note Suggestions Toggle - Only for wine events */}
+          {/* Note Suggestions Toggle — wine events only */}
           {event?.typeOfItem === 'wine' && (
-            <div className="flex items-center justify-between py-3 border-t">
+            <div className="flex items-center justify-between py-2">
               <div className="flex flex-col">
                 <label className="text-sm font-medium">Note Suggestions</label>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Enable contextual note suggestions when rating wine items
+                  Show tasting note hints when rating
                 </p>
               </div>
               <Switch
@@ -2080,21 +2004,32 @@ function EventAdminPage({ onOpenAdminGuide }) {
             <Message type="success">{ratingConfigSuccess}</Message>
           )}
 
-          {/* Save button */}
-          <Button
-            onClick={handleSaveRatingConfiguration}
-            disabled={isSavingRatingConfig || !maxRating || maxRatingError || (event?.state !== 'created')}
-            className="w-full"
-          >
-            {isSavingRatingConfig ? (
-              <>
-                <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              'Save Rating Configuration'
-            )}
-          </Button>
+          {/* Actions */}
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleResetToDefaults}
+              disabled={isSavingRatingConfig || (event?.state !== 'created')}
+              className="flex-1"
+            >
+              Reset
+            </Button>
+            <Button
+              onClick={handleSaveRatingConfiguration}
+              disabled={isSavingRatingConfig || !maxRating || maxRatingError || (event?.state !== 'created')}
+              className="flex-1"
+            >
+              {isSavingRatingConfig ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                'Save'
+              )}
+            </Button>
+          </div>
         </div>
       </SideDrawer>
 
@@ -2337,24 +2272,38 @@ function EventAdminPage({ onOpenAdminGuide }) {
           <div className="text-sm text-muted-foreground font-normal">
             Everyone who has joined the event using the PIN. You can search by name, email, or registered {itemTerminology.singularLower}. Removing a guest deletes all their data including ratings, items, and bookmarks.
           </div>
-          <div className="flex items-center justify-between gap-2">
-            <div className="relative flex-1">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder={`Search by name, email, or ${itemTerminology.singularLower}...`}
-                value={guestSearchQuery}
-                onChange={(e) => setGuestSearchQuery(e.target.value)}
-                className="pl-9"
-              />
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder={`Search by name, email, or ${itemTerminology.singularLower}...`}
+              value={guestSearchQuery}
+              onChange={(e) => setGuestSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex gap-1 flex-1">
+              {['all', 'registered', 'unregistered'].map((filter) => (
+                <Button
+                  key={filter}
+                  variant={guestRegistrationFilter === filter ? 'default' : 'outline'}
+                  size="sm"
+                  className="text-xs h-7 px-2.5"
+                  onClick={() => setGuestRegistrationFilter(filter)}
+                >
+                  {filter === 'all' ? 'All' : filter === 'registered' ? 'Registered' : 'Not registered'}
+                </Button>
+              ))}
             </div>
             <Button
-              variant="outline"
-              size="sm"
+              variant="ghost"
+              size="icon"
               onClick={refreshGuestsData}
               disabled={isRefreshingGuests}
+              className="shrink-0 h-7 w-7"
+              aria-label="Refresh guests"
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshingGuests ? 'animate-spin' : ''}`} />
-              Refresh
+              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingGuests ? 'animate-spin' : ''}`} />
             </Button>
           </div>
 
@@ -2381,14 +2330,14 @@ function EventAdminPage({ onOpenAdminGuide }) {
             return (
               <>
                 <p className="text-sm text-muted-foreground">
-                  {guestSearchQuery.trim()
+                  {(guestSearchQuery.trim() || guestRegistrationFilter !== 'all')
                     ? `Showing ${displayGuests.length} of ${allGuests.length} guests`
                     : `${allGuests.length} guests`}
                 </p>
 
-                {displayGuests.length === 0 && guestSearchQuery.trim() ? (
+                {displayGuests.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">
-                    No guests match your search
+                    {guestSearchQuery.trim() ? 'No guests match your search' : 'No guests match this filter'}
                   </p>
                 ) : (
                   <div className="space-y-2">
@@ -2396,7 +2345,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
                       <ListCard key={guest.email}>
                         <div className="flex items-start justify-between gap-3 px-3 py-2.5">
                           <div className="flex-1 min-w-0 space-y-0.5">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-sm font-medium truncate">
                                 {guest.name || guest.email}
                               </span>
@@ -2406,26 +2355,24 @@ function EventAdminPage({ onOpenAdminGuide }) {
                               {guest.isAdministrator && !guest.isOwner && (
                                 <Badge variant="outline" className="text-[10px] px-1.5 py-0">Admin</Badge>
                               )}
+                              {guest.itemsCount > 0 ? (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-300 text-green-700 dark:border-green-700 dark:text-green-400">
+                                  {guest.itemsCount} {guest.itemsCount === 1 ? itemTerminology.singularLower : itemTerminology.pluralLower}
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400">
+                                  No {itemTerminology.pluralLower}
+                                </Badge>
+                              )}
                             </div>
                             {guest.name && (
                               <p className="text-xs text-muted-foreground truncate">{guest.email}</p>
                             )}
-                            <p className="text-xs text-muted-foreground">
-                              Joined {guest.registeredAt
-                                ? new Date(guest.registeredAt).toLocaleDateString()
-                                : 'Unknown'}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {guest.itemsCount === 0
-                                ? `No registered ${itemTerminology.pluralLower}`
-                                : <>Registered {guest.itemsCount} {guest.itemsCount === 1
-                                    ? itemTerminology.singularLower
-                                    : itemTerminology.pluralLower}
-                                  {guest.itemNames.length > 0 && (
-                                    <>: {guest.itemNames.join(', ')}</>
-                                  )}</>
-                              }
-                            </p>
+                            {guest.itemsCount > 0 && guest.itemNames.length > 0 && (
+                              <p className="text-xs text-muted-foreground truncate">
+                                {guest.itemNames.join(', ')}
+                              </p>
+                            )}
                           </div>
                           {!guest.isOwner && (
                             <Button

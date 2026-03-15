@@ -104,7 +104,6 @@ describe('EventAdminPage Component', () => {
       renderWithProviders(mockEvent);
       
       await waitFor(() => {
-        expect(screen.getByText('Settings')).toBeInTheDocument();
         expect(screen.getByDisplayValue('Test Event')).toBeInTheDocument();
       });
     });
@@ -132,7 +131,6 @@ describe('EventAdminPage Component', () => {
       
       await waitFor(() => {
         expect(screen.getByDisplayValue('My Admin Event')).toBeInTheDocument();
-        expect(screen.getByText('Settings')).toBeInTheDocument();
       });
     });
   });
@@ -176,7 +174,6 @@ describe('EventAdminPage Component', () => {
       
       await waitFor(() => {
         expect(screen.getByDisplayValue('Test Event')).toBeInTheDocument();
-        expect(screen.getByText('Settings')).toBeInTheDocument();
       });
     });
   });
@@ -210,7 +207,7 @@ describe('EventAdminPage Component', () => {
       const { rerender } = renderWithProviders(initialEvent);
       
       await waitFor(() => {
-        expect(screen.getByText('Settings')).toBeInTheDocument();
+        expect(screen.getByDisplayValue('Test Event')).toBeInTheDocument();
       });
       
       // Simulate state change
@@ -317,15 +314,6 @@ describe('EventAdminPage Component', () => {
       });
     });
 
-    it('renders section headers for grouped settings rows', async () => {
-      renderWithProviders(mockEvent);
-
-      await waitFor(() => {
-        expect(screen.getByText('Event Setup')).toBeInTheDocument();
-        expect(screen.getByText('Access & People')).toBeInTheDocument();
-      });
-    });
-
     it('renders an editable event name input', async () => {
       renderWithProviders(mockEvent);
 
@@ -341,14 +329,6 @@ describe('EventAdminPage Component', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Share')).toBeInTheDocument();
-      });
-    });
-
-    it('shows auto-save helper text below the name input', async () => {
-      renderWithProviders(mockEvent);
-
-      await waitFor(() => {
-        expect(screen.getByText('Changes save automatically')).toBeInTheDocument();
       });
     });
 
@@ -368,7 +348,7 @@ describe('EventAdminPage Component', () => {
       renderWithProviders(mockEvent);
 
       await waitFor(() => {
-        expect(screen.getByText('Settings')).toBeInTheDocument();
+        expect(screen.getByDisplayValue('Layout Test Event')).toBeInTheDocument();
       });
       expect(screen.queryByRole('button', { name: /^State/ })).not.toBeInTheDocument();
     });

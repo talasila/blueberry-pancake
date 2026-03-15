@@ -87,7 +87,7 @@ test.describe('Welcome Bottom Sheet', () => {
       await page.locator('[data-testid="welcome-got-it"]').click();
       await expect(sheet).not.toBeVisible({ timeout: 3000 });
 
-      await expect(page.getByText('Settings')).toBeVisible({ timeout: 5000 });
+      await expect(page.getByText('Mood')).toBeVisible({ timeout: 5000 });
     } finally {
       if (eventId) await deleteTestEvent(eventId);
     }
