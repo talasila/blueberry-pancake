@@ -105,7 +105,7 @@ describe('EventAdminPage Component', () => {
       
       await waitFor(() => {
         expect(screen.getByText('Settings')).toBeInTheDocument();
-        expect(screen.getByText('Test Event')).toBeInTheDocument();
+        expect(screen.getByDisplayValue('Test Event')).toBeInTheDocument();
       });
     });
 
@@ -131,7 +131,7 @@ describe('EventAdminPage Component', () => {
       renderWithProviders(mockEvent);
       
       await waitFor(() => {
-        expect(screen.getByText('My Admin Event')).toBeInTheDocument();
+        expect(screen.getByDisplayValue('My Admin Event')).toBeInTheDocument();
         expect(screen.getByText('Settings')).toBeInTheDocument();
       });
     });
@@ -175,7 +175,7 @@ describe('EventAdminPage Component', () => {
       renderWithProviders(mockEvent);
       
       await waitFor(() => {
-        expect(screen.getByText('Test Event')).toBeInTheDocument();
+        expect(screen.getByDisplayValue('Test Event')).toBeInTheDocument();
         expect(screen.getByText('Settings')).toBeInTheDocument();
       });
     });
@@ -293,6 +293,63 @@ describe('EventAdminPage Component', () => {
       renderWithLocationState(fullEvent);
 
       expect(screen.queryByTestId('welcome-bottom-sheet')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('Settings page layout', () => {
+    const mockEvent = {
+      eventId: 'A5ohYrHe',
+      name: 'Layout Test Event',
+      state: 'started',
+      typeOfItem: 'wine',
+      administrator: 'admin@example.com',
+      itemConfiguration: { numberOfItems: 20, excludedItemIds: [] },
+      ratingConfiguration: { maxRating: 4, ratings: [] },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    beforeEach(() => {
+      useEventPolling.mockReturnValue({
+        event: mockEvent,
+        isPolling: false,
+        refetch: vi.fn()
+      });
+    });
+
+    it('renders section headers for grouped settings rows', async () => {
+      renderWithProviders(mockEvent);
+
+      await waitFor(() => {
+        expect(screen.getByText('Event Setup')).toBeInTheDocument();
+        expect(screen.getByText('Access & People')).toBeInTheDocument();
+      });
+    });
+
+    it('renders an editable event name input', async () => {
+      renderWithProviders(mockEvent);
+
+      await waitFor(() => {
+        const input = screen.getByDisplayValue('Layout Test Event');
+        expect(input).toBeInTheDocument();
+        expect(input.tagName).toBe('INPUT');
+      });
+    });
+
+    it('renders a Share button in the header area', async () => {
+      renderWithProviders(mockEvent);
+
+      await waitFor(() => {
+        expect(screen.getByText('Share')).toBeInTheDocument();
+      });
+    });
+
+    it('shows auto-save helper text below the name input', async () => {
+      renderWithProviders(mockEvent);
+
+      await waitFor(() => {
+        expect(screen.getByText('Changes save automatically')).toBeInTheDocument();
+      });
     });
   });
 });

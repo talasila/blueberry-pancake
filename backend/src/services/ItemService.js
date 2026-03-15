@@ -405,8 +405,8 @@ class ItemService {
    * @param {string} eventId - Event identifier
    * @param {number} itemId - Assigned item ID (integer, 1 to numberOfItems)
    * @param {boolean} isAdmin - Whether user is an admin (admins can view at any state)
-   * @returns {Promise<object>} Item object with details
-   * @throws {Error} If event not found, item not found, or state doesn't allow viewing
+   * @returns {Promise<object|null>} Item object, or null if no bottle is assigned to this ID
+   * @throws {Error} If event not found or state doesn't allow viewing
    */
   async getItemByItemId(eventId, itemId, isAdmin = false) {
     // Validate event ID format
@@ -427,13 +427,9 @@ class ItemService {
     // Initialize items array if needed
     this.initializeItemsArray(event);
 
-    // Find item by assigned itemId
+    // Find item by assigned itemId — returns null when no bottle is mapped
     const item = event.items.find(i => i.itemId === itemId);
-    if (!item) {
-      throw new Error(`Item with ID ${itemId} not found`);
-    }
-
-    return item;
+    return item || null;
   }
 
   /**

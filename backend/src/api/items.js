@@ -167,7 +167,7 @@ router.get('/by-item-id/:itemId', async (req, res) => {
     // Get item by assigned itemId (admins can view at any time)
     const item = await itemService.getItemByItemId(eventId, itemIdValidation.value, isAdmin);
 
-    res.json(item);
+    res.json(item ?? { assigned: false, itemId: itemIdValidation.value });
   } catch (error) {
     return handleApiError(res, error, 'retrieve item details');
   }

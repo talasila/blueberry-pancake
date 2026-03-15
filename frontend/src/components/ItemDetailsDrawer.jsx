@@ -126,7 +126,8 @@ function ItemDetailsDrawer({
 
     try {
       const itemData = await itemService.getItemByItemId(eventId, itemId);
-      setItem(itemData);
+      // Backend returns { assigned: false } when no bottle is mapped to this ID
+      setItem(itemData?.assigned === false ? null : itemData);
     } catch (err) {
       console.error('Error fetching item details:', err);
       setError(err.message || 'Failed to load item details');

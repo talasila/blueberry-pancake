@@ -38,6 +38,29 @@ Resources:
         SigningBehavior: always
         SigningProtocol: sigv4
 
+  # CloudFront Function that rewrites SPA paths to /index.html.
+  # Only fires on the default (S3) cache behavior, so API responses are never touched.
+  SpaRewriteFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub "blueberry-pancake-spa-rewrite-${Environment}"
+      AutoPublish: true
+      FunctionConfig:
+        Comment: "Rewrite non-file SPA paths to /index.html for client-side routing"
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+          // If the URI has a file extension (e.g. .js, .css, .png, .json), let it through
+          if (uri.includes('.')) {
+            return request;
+          }
+          // Rewrite everything else to index.html for React Router
+          request.uri = '/index.html';
+          return request;
+        }
+
   FrontendDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -63,6 +86,9 @@ Resources:
           ViewerProtocolPolicy: redirect-to-https
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
           Compress: true
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt SpaRewriteFunction.FunctionARN
         CacheBehaviors:
           # API behavior: no caching, forward all cookies/headers for auth
           - PathPattern: /api/*
@@ -85,13 +111,6 @@ Resources:
             # AllViewerExceptHostHeader — forwards ALL cookies (jwt_token, refresh_token,
             # csrfSecret) and headers (Authorization, X-CSRF-Token) to API Gateway origin
             OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
-        CustomErrorResponses:
-          - ErrorCode: 403
-            ResponseCode: 200
-            ResponsePagePath: /index.html
-          - ErrorCode: 404
-            ResponseCode: 200
-            ResponsePagePath: /index.html
       Tags:
         - Key: Environment
           Value: !Ref Environment

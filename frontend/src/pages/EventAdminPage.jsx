@@ -2,7 +2,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { RefreshCw, Copy, Check, Trash2, Edit2, X, AlertTriangle, Download, Search, ChevronDown, ChevronUp, ChevronRight, Palette, LayoutList, Star, ToggleLeft, KeyRound, ShieldCheck, Users } from 'lucide-react';
+import { RefreshCw, Copy, Check, Trash2, X, AlertTriangle, Download, Search, ChevronDown, ChevronUp, Palette, LayoutList, Star, ToggleLeft, KeyRound, ShieldCheck, Users, Share2 } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,7 @@ import DeleteUserDialog from '@/components/DeleteUserDialog';
 import { toast } from 'sonner';
 import AssignmentView from '@/components/AssignmentView';
 import ListCard from '@/components/ListCard';
+import SettingsRow from '@/components/SettingsRow';
 import WelcomeBottomSheet from '@/components/WelcomeBottomSheet';
 import ThemePicker from '@/components/ThemePicker';
 import { getPreset } from '@/utils/themePresets';
@@ -89,12 +90,11 @@ function EventAdminPage({ onOpenAdminGuide }) {
   const [numberOfItems, setNumberOfItems] = useState(20);
   const [excludedItemIds, setExcludedItemIds] = useState([]);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
-  const [isEditingName, setIsEditingName] = useState(false);
   const [editedName, setEditedName] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
-  const [nameError, setNameError] = useState('');
-  const [nameSuccess, setNameSuccess] = useState('');
+  const [nameSaved, setNameSaved] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const saveNameRef = useRef(null);
   const [maxRating, setMaxRating] = useState(4);
   const [ratings, setRatings] = useState([]);
   const [noteSuggestionsEnabled, setNoteSuggestionsEnabled] = useState(true);
@@ -218,12 +218,12 @@ function EventAdminPage({ onOpenAdminGuide }) {
     }
   }, [event?.theme, pendingTheme]);
 
-  // Initialize edited name when event changes
+  // Keep the local name in sync with server unless the user is mid-save
   useEffect(() => {
-    if (event && !isEditingName) {
+    if (event && !isSavingName) {
       setEditedName(event.name || '');
     }
-  }, [event, isEditingName]);
+  }, [event?.name]);
 
   // Fetch administrators list
   const fetchAdministrators = useCallback(async () => {
@@ -658,51 +658,40 @@ function EventAdminPage({ onOpenAdminGuide }) {
     }
   };
 
-  // Handle start editing name
-  const handleStartEditName = () => {
-    setEditedName(event.name);
-    setIsEditingName(true);
-    setNameError('');
-    setNameSuccess('');
-  };
-
-  // Handle cancel editing name
-  const handleCancelEditName = () => {
-    setEditedName(event.name);
-    setIsEditingName(false);
-    setNameError('');
-    setNameSuccess('');
-  };
-
-  // Handle save event name
-  const handleSaveEventName = async () => {
-    const trimmedName = editedName.trim();
-    if (!trimmedName) {
-      setNameError('Event name is required');
-      return;
-    }
-
-    if (trimmedName.length > 100) {
-      setNameError('Event name must be 100 characters or less');
+  const saveName = useCallback(async (name) => {
+    const trimmed = name.trim();
+    if (!trimmed || trimmed === event?.name) return;
+    if (trimmed.length > 100) {
+      toast.error('Event name must be 100 characters or less');
+      setEditedName(event.name);
       return;
     }
 
     setIsSavingName(true);
-    setNameError('');
-    setNameSuccess('');
-
     try {
-      const updatedEvent = await apiClient.updateEventName(eventId, trimmedName);
+      const updatedEvent = await apiClient.updateEventName(eventId, trimmed);
       setEvent(updatedEvent);
-      setIsEditingName(false);
-      setNameSuccess('Event name updated successfully');
-      clearSuccessMessage(setNameSuccess);
+      setNameSaved(true);
+      setTimeout(() => setNameSaved(false), 2000);
     } catch (error) {
-      setNameError(error.message || 'Failed to update event name. Please try again.');
+      toast.error(error.message || 'Failed to update event name');
+      setEditedName(event.name);
     } finally {
       setIsSavingName(false);
     }
-  };
+  }, [event?.name, eventId]);
+
+  const handleNameChange = useCallback((value) => {
+    setEditedName(value);
+    setNameSaved(false);
+    if (saveNameRef.current) clearTimeout(saveNameRef.current);
+    saveNameRef.current = setTimeout(() => saveName(value), 800);
+  }, [saveName]);
+
+  const handleNameBlur = useCallback(() => {
+    if (saveNameRef.current) clearTimeout(saveNameRef.current);
+    saveName(editedName);
+  }, [editedName, saveName]);
 
   const handleThemeChange = async (newTheme) => {
     setPendingTheme(newTheme);
@@ -1611,306 +1600,175 @@ function EventAdminPage({ onOpenAdminGuide }) {
     );
   }
 
+  const openDrawerWithHistory = (drawer) => {
+    setOpenDrawer(drawer);
+    history.pushState({ drawer }, '', window.location.pathname);
+  };
+
+  const themeBadge = (
+    <Badge variant="outline" className="text-xs flex items-center gap-1.5">
+      <span
+        className="inline-block w-2.5 h-2.5 rounded-full border border-black/10"
+        style={{ backgroundColor: getPreset(pendingTheme || event?.theme).light.accent }}
+      />
+      <span
+        className="inline-block w-2.5 h-2.5 rounded-full border border-black/10"
+        style={{ backgroundColor: getPreset(pendingTheme || event?.theme).light.headerBg }}
+      />
+      {getPreset(pendingTheme || event?.theme).name}
+    </Badge>
+  );
+
+  const ratingsBadge = ratings.length > 0 ? (
+    <div className="flex items-center gap-1">
+      {ratings.map((rating) => (
+        <div
+          key={rating.value}
+          className="w-4 h-4 rounded-full border border-gray-300"
+          style={{ backgroundColor: rating.color }}
+          title={`Rating ${rating.value}: ${rating.label}`}
+        />
+      ))}
+    </div>
+  ) : null;
+
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-4">
       <div className="max-w-md mx-auto w-full">
-        <div className="space-y-4">
+        <div className="space-y-6">
+          {/* Header: title + share + editable name */}
           <div>
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-1">
               <h4 className="text-xl font-semibold">Settings</h4>
-              {/* Share */}
               <Button
                 onClick={handleCopyEventLink}
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="h-8"
+                className="h-8 gap-1.5 text-muted-foreground"
               >
                 {linkCopied ? (
                   <>
-                    <Check className="h-3.5 w-3.5 mr-1.5 text-green-600" />
-                    Link Copied!
+                    <Check className="h-3.5 w-3.5 text-green-600" />
+                    <span className="text-xs text-green-600 font-medium">Copied!</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="h-3.5 w-3.5 mr-1.5" />
-                    Share link
+                    <Share2 className="h-3.5 w-3.5" />
+                    <span className="text-xs">Share</span>
                   </>
                 )}
               </Button>
             </div>
-            <div className="mt-2 space-y-2">
-              {isEditingName ? (
-                <div className="space-y-2">
-                  <Input
-                    type="text"
-                    value={editedName}
-                    onChange={(e) => {
-                      setEditedName(e.target.value);
-                      setNameError('');
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !isSavingName) {
-                        handleSaveEventName();
-                      } else if (e.key === 'Escape') {
-                        handleCancelEditName();
-                      }
-                    }}
-                    disabled={isSavingName}
-                    className="font-medium"
-                    maxLength={100}
-                    autoFocus
-                  />
-                  <div className="flex items-center gap-2">
-                    <Button
-                      onClick={handleSaveEventName}
-                      disabled={isSavingName || !editedName.trim()}
-                      size="sm"
-                    >
-                      {isSavingName ? (
-                        <>
-                          <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <Check className="h-3.5 w-3.5 mr-1.5" />
-                          Save
-                        </>
-                      )}
-                    </Button>
-                    <Button
-                      onClick={handleCancelEditName}
-                      disabled={isSavingName}
-                      variant="ghost"
-                      size="sm"
-                    >
-                      <X className="h-3.5 w-3.5 mr-1.5" />
-                      Cancel
-                    </Button>
-                  </div>
-                  {nameError && (
-                    <Message type="error" className="text-sm">{nameError}</Message>
-                  )}
-                  {nameSuccess && (
-                    <Message type="success" className="text-sm">{nameSuccess}</Message>
-                  )}
-                </div>
+            <Input
+              value={editedName}
+              onChange={(e) => handleNameChange(e.target.value)}
+              onBlur={handleNameBlur}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.target.blur();
+                if (e.key === 'Escape') {
+                  if (saveNameRef.current) clearTimeout(saveNameRef.current);
+                  setEditedName(event.name);
+                  e.target.blur();
+                }
+              }}
+              disabled={isSavingName}
+              maxLength={100}
+              className="font-medium"
+              aria-label="Event name"
+            />
+            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
+              {nameSaved ? (
+                <>
+                  <Check className="h-3 w-3 text-green-600" />
+                  <span className="text-green-600">Saved</span>
+                </>
+              ) : isSavingName ? (
+                'Saving\u2026'
               ) : (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <p className="text-muted-foreground">
-                    <span className="font-medium">{event.name}</span>
-                  </p>
-                  <Button
-                    onClick={handleStartEditName}
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2"
-                    aria-label="Edit event name"
-                  >
-                    <Edit2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
+                'Changes save automatically'
               )}
+            </p>
+          </div>
+
+          {/* Event Setup */}
+          <section>
+            <h5 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 px-0.5">Event Setup</h5>
+            <div className="w-full">
+              <SettingsRow
+                icon={<Palette className="h-4 w-4" />}
+                label="Mood"
+                badge={themeBadge}
+                onClick={() => openDrawerWithHistory('theme')}
+              />
+              <SettingsRow
+                icon={<LayoutList className="h-4 w-4" />}
+                label={itemTerminology.plural}
+                badge={
+                  <>
+                    <Badge variant="outline" className="text-xs">{parseInt(numberOfItems, 10) - excludedItemIds.length} total</Badge>
+                    <Badge variant="outline" className="text-xs">{itemsSummary.total} registered</Badge>
+                  </>
+                }
+                onClick={() => openDrawerWithHistory('items')}
+              />
+              <SettingsRow
+                icon={<Star className="h-4 w-4" />}
+                label="Ratings"
+                badge={ratingsBadge}
+                onClick={() => openDrawerWithHistory('ratings-configuration')}
+              />
+              <SettingsRow
+                icon={<ToggleLeft className="h-4 w-4" />}
+                label="State"
+                badge={<StateBadge state={event.state} />}
+                onClick={() => openDrawerWithHistory('state')}
+              />
             </div>
-          </div>
+          </section>
 
-          {/* Category Cards */}
-          <div className="w-full">
-            {/* Theme Card */}
-            <button
-              onClick={() => setOpenDrawer('theme')}
-              className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
-            >
-              <div className="flex flex-col items-start text-left">
-                <div className="flex items-center gap-2">
-                  <Palette className="h-4 w-4" />
-                  <span className="font-semibold">Mood</span>
-                  <Badge variant="outline" className="text-xs flex items-center gap-1.5">
-                    <span
-                      className="inline-block w-2.5 h-2.5 rounded-full border border-black/10"
-                      style={{ backgroundColor: getPreset(pendingTheme || event?.theme).light.accent }}
-                    />
-                    <span
-                      className="inline-block w-2.5 h-2.5 rounded-full border border-black/10"
-                      style={{ backgroundColor: getPreset(pendingTheme || event?.theme).light.headerBg }}
-                    />
-                    {getPreset(pendingTheme || event?.theme).name}
-                  </Badge>
-                </div>
+          {/* Access & People */}
+          <section>
+            <h5 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 px-0.5">Access &amp; People</h5>
+            <div className="w-full">
+              <SettingsRow
+                icon={<KeyRound className="h-4 w-4" />}
+                label="PIN"
+                badge={event.pin ? <Badge variant="outline" className="font-mono text-xs">{event.pin}</Badge> : null}
+                onClick={() => openDrawerWithHistory('pin')}
+              />
+              <SettingsRow
+                icon={<ShieldCheck className="h-4 w-4" />}
+                label="Administrators"
+                onClick={() => openDrawerWithHistory('administrators')}
+              />
+              <SettingsRow
+                icon={<Users className="h-4 w-4" />}
+                label="Guests"
+                badge={<Badge variant="outline">{getNonAdminUserCount()} registered</Badge>}
+                onClick={() => openDrawerWithHistory('guests')}
+              />
+            </div>
+          </section>
+
+          {/* Admin Tools */}
+          {isCurrentUserAdministrator() && (
+            <section>
+              <h5 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 px-0.5">Admin Tools</h5>
+              <div className="w-full">
+                <SettingsRow
+                  icon={<Download className="h-4 w-4" />}
+                  label="Export Data"
+                  onClick={() => openDrawerWithHistory('export-data')}
+                />
+                <SettingsRow
+                  icon={<AlertTriangle className="h-4 w-4" />}
+                  label="Danger Zone"
+                  variant="destructive"
+                  onClick={() => openDrawerWithHistory('danger-zone')}
+                />
               </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-            </button>
-
-            {/* Items (Configuration & Management) Card */}
-            <button
-              onClick={() => {
-                setOpenDrawer('items');
-                // Add to history for browser back navigation
-                history.pushState({ drawer: 'items' }, '', window.location.pathname);
-              }}
-              className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
-            >
-              <div className="flex flex-col items-start text-left">
-                <div className="flex items-center gap-2">
-                  <LayoutList className="h-4 w-4" />
-                  <span className="font-semibold">{itemTerminology.plural}</span>
-                  <Badge variant="outline" className="text-xs">
-                    {parseInt(numberOfItems, 10) - excludedItemIds.length} total
-                  </Badge>
-                  <Badge variant="outline" className="text-xs">
-                    {itemsSummary.total} registered
-                  </Badge>
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-            </button>
-
-            {/* Ratings Configuration Card */}
-            <button
-              onClick={() => {
-                setOpenDrawer('ratings-configuration');
-                // Add to history for browser back navigation
-                history.pushState({ drawer: 'ratings-configuration' }, '', window.location.pathname);
-              }}
-              className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
-            >
-              <div className="flex flex-col items-start text-left">
-                <div className="flex items-center gap-2">
-                  <Star className="h-4 w-4" />
-                  <span className="font-semibold">Ratings</span>
-                  {ratings.length > 0 && (
-                    <div className="flex items-center gap-1">
-                      {ratings.map((rating) => (
-                        <div
-                          key={rating.value}
-                          className="w-4 h-4 rounded-full border border-gray-300"
-                          style={{ backgroundColor: rating.color }}
-                          title={`Rating ${rating.value}: ${rating.label}`}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-            </button>
-
-            {/* State Management Card */}
-            <button
-              onClick={() => {
-                setOpenDrawer('state');
-                history.pushState({ drawer: 'state' }, '', window.location.pathname);
-              }}
-              className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
-            >
-              <div className="flex flex-col items-start text-left">
-                <div className="flex items-center gap-2">
-                  <ToggleLeft className="h-4 w-4" />
-                  <span className="font-semibold">State</span>
-                  <StateBadge state={event.state} />
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-            </button>
-
-            {/* PIN Management Card */}
-            <button
-              onClick={() => {
-                setOpenDrawer('pin');
-                // Add to history for browser back navigation
-                history.pushState({ drawer: 'pin' }, '', window.location.pathname);
-              }}
-              className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
-            >
-              <div className="flex flex-col items-start text-left">
-                <div className="flex items-center gap-2">
-                  <KeyRound className="h-4 w-4" />
-                  <span className="font-semibold">PIN</span>
-                  {event.pin && (
-                    <Badge variant="outline" className="font-mono text-xs">
-                      {event.pin}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-            </button>
-
-            {/* Administrators Management Card */}
-            <button
-              onClick={() => {
-                setOpenDrawer('administrators');
-                history.pushState({ drawer: 'administrators' }, '', window.location.pathname);
-              }}
-              className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
-            >
-              <div className="flex flex-col items-start text-left">
-                <div className="flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4" />
-                  <span className="font-semibold">Administrators</span>
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-            </button>
-
-            {/* Guests Card */}
-            <button
-              onClick={() => {
-                setOpenDrawer('guests');
-                history.pushState({ drawer: 'guests' }, '', window.location.pathname);
-              }}
-              className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
-            >
-              <div className="flex flex-col items-start text-left">
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  <span className="font-semibold">Guests</span>
-                  <Badge variant="outline">{getNonAdminUserCount()} registered</Badge>
-                </div>
-              </div>
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-            </button>
-
-            {/* Export Data Card */}
-            {isCurrentUserAdministrator() && (
-              <button
-                onClick={() => {
-                  setOpenDrawer('export-data');
-                  // Add to history for browser back navigation
-                  history.pushState({ drawer: 'export-data' }, '', window.location.pathname);
-                }}
-                className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
-              >
-                <div className="flex flex-col items-start text-left">
-                  <div className="flex items-center gap-2">
-                    <Download className="h-4 w-4" />
-                    <span className="font-semibold">Export Data</span>
-                  </div>
-                </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-              </button>
-            )}
-
-            {/* Danger Zone Card */}
-            {isCurrentUserAdministrator() && (
-              <button
-                onClick={() => {
-                  setOpenDrawer('danger-zone');
-                  // Add to history for browser back navigation
-                  history.pushState({ drawer: 'danger-zone' }, '', window.location.pathname);
-                }}
-                className="w-full flex items-center justify-between py-4 border-b hover:bg-muted/50 transition-colors text-left"
-              >
-                <div className="flex flex-col items-start text-left">
-                  <div className="flex items-center gap-2">
-                    <AlertTriangle className="h-4 w-4 text-destructive" />
-                    <span className="font-semibold text-destructive">Danger Zone</span>
-                  </div>
-                </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-              </button>
-            )}
-          </div>
+            </section>
+          )}
         </div>
       </div>
 

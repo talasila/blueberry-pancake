@@ -861,7 +861,7 @@ describe('ItemService', () => {
       expect(result).toEqual(mockEvent.items[0]);
     });
 
-    it('should throw error when item not found', async () => {
+    it('should return null when no bottle is assigned to the item ID', async () => {
       const mockEvent = {
         eventId: 'A5ohYrHe',
         state: 'completed',
@@ -872,9 +872,8 @@ describe('ItemService', () => {
 
       eventService.getEvent.mockResolvedValue(mockEvent);
 
-      await expect(
-        itemService.getItemByItemId('A5ohYrHe', 5)
-      ).rejects.toThrow('Item with ID 5 not found');
+      const result = await itemService.getItemByItemId('A5ohYrHe', 5);
+      expect(result).toBeNull();
     });
   });
 });
