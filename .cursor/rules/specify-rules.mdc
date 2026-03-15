@@ -122,6 +122,8 @@ JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 - N/A (frontend-only; backend uses DynamoDB — no changes) (029-assignment-redesign)
 - JavaScript (ES2022+), React 19.2 + react-router-dom 7.10, sonner 2.0, lucide-react 0.556, Radix UI primitives, Tailwind CSS 4, class-variance-authority, clsx, tailwind-merge (030-my-bottles-sheet)
 - Backend API (REST) — no frontend storage changes (030-my-bottles-sheet)
+- JavaScript (ES2022), React 18, Vite + React, Tailwind CSS, Lucide React, Sonner (toast), shadcn/ui (add AlertDialog) (031-event-progress-stepper)
+- N/A (reads from existing event API via `apiClient`) (031-event-progress-stepper)
 
 ## Recent Changes
 - 001-root-admin: Added Node.js 22+, JavaScript ES2020+ + Express 5, React 19, Vite, Tailwind CSS 4, Radix UI
