@@ -124,6 +124,8 @@ JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 - Backend API (REST) — no frontend storage changes (030-my-bottles-sheet)
 - JavaScript (ES2022), React 18, Vite + React, Tailwind CSS, Lucide React, Sonner (toast), shadcn/ui (add AlertDialog) (031-event-progress-stepper)
 - N/A (reads from existing event API via `apiClient`) (031-event-progress-stepper)
+- JavaScript (ES2022+), React 19, JSX + React 19, Vite 6, Tailwind CSS 4, Radix UI, lucide-react, sonner (toasts), qrcode.react (new) (032-invite-drawer)
+- N/A (no data model changes) (032-invite-drawer)
 
 ## Recent Changes
 - 001-root-admin: Added Node.js 22+, JavaScript ES2020+ + Express 5, React 19, Vite, Tailwind CSS 4, Radix UI
