@@ -1,8 +1,8 @@
 /**
  * Event State Management Tests
- * 
- * Tests the event lifecycle state transitions including
- * start, pause, resume, and complete.
+ *
+ * Tests the event lifecycle state transitions via the inline
+ * EventProgressStepper (no drawer — buttons are on the page).
  */
 
 import { test, expect } from './fixtures.js';
@@ -19,20 +19,20 @@ const BOTTLE_1 = 'button >> text=/^1$/';
 test.describe('Event State Management', () => {
 
   // ===================================
-  // User Story 1 - Start an Event
+  // User Story 1 – Start an Event
   // ===================================
 
   test('new event is in "created" state and regular user cannot rate', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     await loginAsUserToEvent(page, eventId, 'user@example.com', pin);
-    
+
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-    
+
     const notStartedMessage = page.getByText(/event has not started yet/i);
     await expect(notStartedMessage).toBeVisible({ timeout: 5000 });
-    
+
     await page.locator(BOTTLE_1).first().click();
-    
+
     const drawerMessage = page.getByText('This event has not started yet. Rating is not available.');
     await expect(drawerMessage).toBeVisible({ timeout: 5000 });
   });
@@ -41,30 +41,21 @@ test.describe('Event State Management', () => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
+
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    const stateButton = page.getByRole('button', { name: /state.*created/i });
-    await stateButton.scrollIntoViewIfNeeded();
-    await stateButton.click();
-    
-    const startButton = page.getByRole('button', { name: /^start$/i });
+
+    const startButton = page.getByRole('button', { name: 'Start Tasting' });
     await startButton.waitFor({ state: 'visible', timeout: 5000 });
-    await startButton.scrollIntoViewIfNeeded();
-    await startButton.click({ timeout: 5000 });
-    
-    const stateIndicator = page.getByRole('button', { name: /state.*started/i });
-    await expect(stateIndicator).toBeVisible({ timeout: 10000 });
-    
+    await startButton.click();
+
+    await expect(page.getByText(/Guests are rating/)).toBeVisible({ timeout: 10000 });
+
     await loginAsUserToEvent(page, eventId, 'user@example.com', pin);
-    
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-    
     await expect(page.getByText('Tap a number to rate')).toBeVisible({ timeout: 5000 });
-    
+
     await page.locator(BOTTLE_1).first().click();
-    
     await expect(page.getByText(/^Rate /)).toBeVisible({ timeout: 5000 });
   });
 
@@ -72,61 +63,43 @@ test.describe('Event State Management', () => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
+
     const { ok, data } = await changeEventState(eventId, 'started', 'created', token);
     if (!ok) throw new Error(`Failed to start event: ${data}`);
-    
+
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    // Click the State button to expand options
-    const stateButton = page.getByRole('button', { name: /state.*started/i });
-    await stateButton.scrollIntoViewIfNeeded();
-    await stateButton.click();
-    
-    const pauseButton = page.getByRole('button', { name: /^pause$/i });
-    const completeButton = page.getByRole('button', { name: /^(complete|finish)$/i });
-    
-    await expect(pauseButton).toBeVisible({ timeout: 5000 });
-    await expect(completeButton).toBeVisible({ timeout: 5000 });
+
+    await expect(page.getByRole('button', { name: 'Pause for Reveal' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: 'Complete Event' })).toBeVisible({ timeout: 5000 });
   });
 
   // ===================================
-  // User Story 2 - Pause and Resume Event
+  // User Story 2 – Pause and Resume Event
   // ===================================
 
   test('administrator can pause started event and regular user cannot rate', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
+
     const { ok, data } = await changeEventState(eventId, 'started', 'created', token);
     if (!ok) throw new Error(`Failed to start event: ${data}`);
-    
+
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    // Click the State button to expand options
-    const stateButton = page.getByRole('button', { name: /state.*started/i });
-    await stateButton.scrollIntoViewIfNeeded();
-    await stateButton.click();
-    
-    const pauseButton = page.getByRole('button', { name: /^pause$/i });
+
+    const pauseButton = page.getByRole('button', { name: 'Pause for Reveal' });
     await pauseButton.waitFor({ state: 'visible', timeout: 5000 });
-    await pauseButton.scrollIntoViewIfNeeded();
-    await pauseButton.click({ timeout: 5000 });
-    
-    const stateIndicator = page.getByRole('button', { name: /state.*paused/i });
-    await expect(stateIndicator).toBeVisible({ timeout: 10000 });
-    
+    await pauseButton.click();
+
+    await expect(page.getByText(/Assign.*to item numbers/)).toBeVisible({ timeout: 10000 });
+
     await loginAsUserToEvent(page, eventId, 'user@example.com', pin);
-    
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-    
     await expect(page.getByText('Event is paused')).toBeVisible({ timeout: 5000 });
-    
+
     await page.locator(BOTTLE_1).first().click();
-    
     const drawerMessage = page.getByText('This event is currently paused. Rating is not available.');
     await expect(drawerMessage).toBeVisible({ timeout: 5000 });
   });
@@ -135,74 +108,62 @@ test.describe('Event State Management', () => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
+
     const startResult = await changeEventState(eventId, 'started', 'created', token);
     if (!startResult.ok) throw new Error(`Failed to start event: ${startResult.data}`);
-    
+
     const pauseResult = await changeEventState(eventId, 'paused', 'started', token);
     if (!pauseResult.ok) throw new Error(`Failed to pause event: ${pauseResult.data}`);
-    
+
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    const stateButton = page.getByRole('button', { name: /state.*paused/i });
-    await stateButton.scrollIntoViewIfNeeded();
-    await stateButton.click();
-    
-    const resumeButton = page.getByRole('button', { name: /^(start|resume)$/i });
+
+    // Resume is a backward transition — requires confirmation
+    const resumeButton = page.getByRole('button', { name: 'Resume Tasting' });
     await resumeButton.waitFor({ state: 'visible', timeout: 5000 });
-    await resumeButton.scrollIntoViewIfNeeded();
-    await resumeButton.click({ timeout: 5000 });
-    
-    const stateIndicator = page.getByRole('button', { name: /state.*started/i });
-    await expect(stateIndicator).toBeVisible({ timeout: 10000 });
-    
+    await resumeButton.click();
+
+    // Confirm in alert dialog
+    const confirmButton = page.getByRole('button', { name: 'Resume Tasting' }).last();
+    await confirmButton.waitFor({ state: 'visible', timeout: 3000 });
+    await confirmButton.click();
+
+    await expect(page.getByText(/Guests are rating/)).toBeVisible({ timeout: 10000 });
+
     await loginAsUserToEvent(page, eventId, 'user@example.com', pin);
-    
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-    
     await expect(page.getByText('Tap a number to rate')).toBeVisible({ timeout: 5000 });
-    
+
     await page.locator(BOTTLE_1).first().click();
-    
     await expect(page.getByText(/^Rate /)).toBeVisible({ timeout: 5000 });
   });
 
   // ===================================
-  // User Story 3 - Complete an Event
+  // User Story 3 – Complete an Event
   // ===================================
 
   test('administrator can complete started event and regular user can view details', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
+
     const { ok, data } = await changeEventState(eventId, 'started', 'created', token);
     if (!ok) throw new Error(`Failed to start event: ${data}`);
-    
+
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    const stateButton = page.getByRole('button', { name: /state.*started/i });
-    await stateButton.scrollIntoViewIfNeeded();
-    await stateButton.click();
-    
-    const completeButton = page.getByRole('button', { name: /^(complete|finish)$/i });
+
+    const completeButton = page.getByRole('button', { name: 'Complete Event' });
     await completeButton.waitFor({ state: 'visible', timeout: 5000 });
-    await completeButton.scrollIntoViewIfNeeded();
-    await completeButton.click({ timeout: 5000 });
-    
-    const stateIndicator = page.getByRole('button', { name: /state.*(completed|finished)/i });
-    await expect(stateIndicator).toBeVisible({ timeout: 10000 });
-    
+    await completeButton.click();
+
+    await expect(page.getByText(/The event is over/)).toBeVisible({ timeout: 10000 });
+
     await loginAsUserToEvent(page, eventId, 'user@example.com', pin);
-    
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-    
     await expect(page.getByText('Tap a number to view details')).toBeVisible({ timeout: 5000 });
-    
+
     await page.locator(BOTTLE_1).first().click();
-    
     await expect(page.getByRole('heading', { name: /1.*details/i })).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Ratings Distribution')).toBeVisible({ timeout: 5000 });
   });
@@ -211,79 +172,65 @@ test.describe('Event State Management', () => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
+
     const startResult = await changeEventState(eventId, 'started', 'created', token);
     if (!startResult.ok) throw new Error(`Failed to start event: ${startResult.data}`);
-    
+
     const pauseResult = await changeEventState(eventId, 'paused', 'started', token);
     if (!pauseResult.ok) throw new Error(`Failed to pause event: ${pauseResult.data}`);
-    
+
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    const stateButton = page.getByRole('button', { name: /state.*paused/i });
-    await stateButton.scrollIntoViewIfNeeded();
-    await stateButton.click();
-    
-    const completeButton = page.getByRole('button', { name: /^(complete|finish)$/i });
+
+    const completeButton = page.getByRole('button', { name: 'Announce Results' });
     await completeButton.waitFor({ state: 'visible', timeout: 5000 });
-    await completeButton.scrollIntoViewIfNeeded();
-    await completeButton.click({ timeout: 5000 });
-    
-    const stateIndicator = page.getByRole('button', { name: /state.*(completed|finished)/i });
-    await expect(stateIndicator).toBeVisible({ timeout: 10000 });
-    
+    await completeButton.click();
+
+    await expect(page.getByText(/The event is over/)).toBeVisible({ timeout: 10000 });
+
     await loginAsUserToEvent(page, eventId, 'user@example.com', pin);
-    
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-    
     await expect(page.getByText('Tap a number to view details')).toBeVisible({ timeout: 5000 });
-    
+
     await page.locator(BOTTLE_1).first().click();
-    
     await expect(page.getByRole('heading', { name: /1.*details/i })).toBeVisible({ timeout: 5000 });
     await expect(page.getByText('Ratings Distribution')).toBeVisible({ timeout: 5000 });
   });
 
   // ===================================
-  // User Story 4 - Resume Completed Event
+  // User Story 4 – Resume Completed Event
   // ===================================
 
   test('administrator can reopen completed event and regular user can rate', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
+
     const startResult = await changeEventState(eventId, 'started', 'created', token);
     if (!startResult.ok) throw new Error(`Failed to start event: ${startResult.data}`);
-    
+
     const completeResult = await changeEventState(eventId, 'completed', 'started', token);
     if (!completeResult.ok) throw new Error(`Failed to complete event: ${completeResult.data}`);
-    
+
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    // Click the State button to expand options
-    const stateButton = page.getByRole('button', { name: /state.*(completed|finished)/i });
-    await stateButton.scrollIntoViewIfNeeded();
-    await stateButton.click();
-    
-    const reopenButton = page.getByRole('button', { name: /^(start|reopen)$/i });
+
+    // Reopen is a backward transition — requires confirmation
+    const reopenButton = page.getByRole('button', { name: 'Reopen Tasting' });
     await reopenButton.waitFor({ state: 'visible', timeout: 5000 });
-    await reopenButton.scrollIntoViewIfNeeded();
-    await reopenButton.click({ timeout: 5000 });
-    
-    const stateIndicator = page.getByRole('button', { name: /state.*started/i });
-    await expect(stateIndicator).toBeVisible({ timeout: 10000 });
-    
+    await reopenButton.click();
+
+    const confirmButton = page.getByRole('button', { name: 'Reopen Tasting' }).last();
+    await confirmButton.waitFor({ state: 'visible', timeout: 3000 });
+    await confirmButton.click();
+
+    await expect(page.getByText(/Guests are rating/)).toBeVisible({ timeout: 10000 });
+
     await loginAsUserToEvent(page, eventId, 'user@example.com', pin);
-    
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-    
     await expect(page.getByText('Tap a number to rate')).toBeVisible({ timeout: 5000 });
-    
+
     await page.locator(BOTTLE_1).first().click();
-    
     await expect(page.getByText(/^Rate /)).toBeVisible({ timeout: 5000 });
   });
 
@@ -291,89 +238,54 @@ test.describe('Event State Management', () => {
   // Edge Cases
   // ===================================
 
-  test('created state shows only Start button', async ({ page, testEvent }) => {
+  test('created state shows only Start Tasting button', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
+
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    const stateButton = page.getByRole('button', { name: /state.*created/i });
-    await stateButton.scrollIntoViewIfNeeded();
-    await stateButton.click();
-    
-    const startButton = page.getByRole('button', { name: /^start$/i });
-    await expect(startButton).toBeVisible({ timeout: 5000 });
-    
-    const pauseButton = page.getByRole('button', { name: /^pause$/i });
-    const completeButton = page.getByRole('button', { name: /^(complete|finish)$/i });
-    await expect(pauseButton).not.toBeVisible({ timeout: 3000 });
-    await expect(completeButton).not.toBeVisible({ timeout: 3000 });
+
+    await expect(page.getByRole('button', { name: 'Start Tasting' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole('button', { name: 'Pause for Reveal' })).not.toBeVisible({ timeout: 3000 });
+    await expect(page.getByRole('button', { name: 'Complete Event' })).not.toBeVisible({ timeout: 3000 });
   });
 
-  test('state indicator shows current state clearly', async ({ page, testEvent }) => {
+  test('stepper shows current phase label', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
+
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    // Newly created events should specifically show "created" state in the state button
-    const stateButton = page.getByRole('button', { name: /state.*created/i });
-    await expect(stateButton).toBeVisible({ timeout: 5000 });
+
+    const stepper = page.getByRole('list', { name: 'Event progress' });
+    await expect(stepper).toBeVisible({ timeout: 5000 });
+    await expect(stepper.getByText('Setup')).toBeVisible();
+    await expect(stepper.getByText('Tasting')).toBeVisible();
+    await expect(stepper.getByText('Reveal')).toBeVisible();
+    await expect(stepper.getByText('Results')).toBeVisible();
   });
 
-  test('state change is reflected in event page', async ({ page, testEvent }) => {
+  test('state change is reflected in the stepper context', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
-    
-    // Start event
+
     const result = await changeEventState(eventId, 'started', 'created', token);
     if (!result.ok) throw new Error(`Failed to start event: ${result.data}`);
-    
-    // Navigate to admin page where state is displayed explicitly
-    await setAuthToken(page, token, adminEmail);
-    await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    
-    // Admin page shows the state — verify it reads "Started"
-    const stateButton = page.getByRole('button', { name: /state/i });
-    await expect(stateButton).toBeVisible({ timeout: 5000 });
-    await expect(stateButton).toContainText(/started/i, { timeout: 5000 });
-  });
-
-  // ===================================
-  // Start guard-rail (bottle count mismatch)
-  // ===================================
-
-  test('State drawer shows guardrail info when fewer bottles registered than slots and Start works in one click', async ({ page, testEvent }) => {
-    const { eventId, pin } = testEvent;
-    const adminEmail = 'admin@example.com';
-    const token = await addAdminToEvent(eventId, adminEmail);
 
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
 
-    const stateButton = page.getByRole('button', { name: /state.*created/i });
-    await stateButton.scrollIntoViewIfNeeded();
-    await stateButton.click();
-
-    const guardrailInfo = page.getByTestId('event-guardrail-info');
-    await expect(guardrailInfo).toBeVisible({ timeout: 5000 });
-    await expect(guardrailInfo).toContainText(/registered.*available for rating/i);
-    await expect(guardrailInfo).toContainText(/you can start the event/i);
-
-    const startButton = page.getByRole('button', { name: /^start$/i });
-    await startButton.waitFor({ state: 'visible', timeout: 5000 });
-    await startButton.click({ timeout: 5000 });
-
-    const stateIndicator = page.getByRole('button', { name: /state.*started/i });
-    await expect(stateIndicator).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/Guests are rating/)).toBeVisible({ timeout: 5000 });
   });
 
-  test('State drawer Start button remains clickable and starts event in one click with guardrail visible', async ({ page, testEvent }) => {
+  // ===================================
+  // Guardrail notes
+  // ===================================
+
+  test('stepper shows guardrail info when no bottles registered and Start works in one click', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
@@ -381,14 +293,13 @@ test.describe('Event State Management', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
 
-    const stateButton = page.getByRole('button', { name: /state.*created/i });
-    await stateButton.scrollIntoViewIfNeeded();
-    await stateButton.click();
+    await expect(page.getByText(/No.*registered yet/)).toBeVisible({ timeout: 5000 });
 
-    const startButton = page.getByRole('button', { name: /^start$/i });
+    const startButton = page.getByRole('button', { name: 'Start Tasting' });
     await expect(startButton).toBeEnabled({ timeout: 5000 });
-    await startButton.click({ timeout: 5000 });
-    await expect(page.getByRole('button', { name: /state.*started/i })).toBeVisible({ timeout: 10000 });
+    await startButton.click();
+
+    await expect(page.getByText(/Guests are rating/)).toBeVisible({ timeout: 10000 });
   });
 
   test('rating is available immediately after navigating from admin page to event page', async ({ page, testEvent }) => {
@@ -399,20 +310,12 @@ test.describe('Event State Management', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
 
-    // Start the event via admin UI
-    const stateButton = page.getByRole('button', { name: /state.*created/i });
-    await stateButton.scrollIntoViewIfNeeded();
-    await stateButton.click();
-
-    const startButton = page.getByRole('button', { name: /^start$/i });
+    const startButton = page.getByRole('button', { name: 'Start Tasting' });
     await startButton.waitFor({ state: 'visible', timeout: 5000 });
-    await startButton.scrollIntoViewIfNeeded();
-    await startButton.click({ timeout: 5000 });
+    await startButton.click();
 
-    const stateIndicator = page.getByRole('button', { name: /state.*started/i });
-    await expect(stateIndicator).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/Guests are rating/)).toBeVisible({ timeout: 10000 });
 
-    // Navigate to event/rating page via in-app menu (SPA navigation)
     const menuButton = page.getByRole('button', { name: 'Open menu' });
     await menuButton.click();
 
@@ -421,8 +324,6 @@ test.describe('Event State Management', () => {
     await backToEvent.click();
 
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}$`));
-
-    // Rating UI should be available immediately (not after a 30s poll)
     await expect(page.getByText('Tap a number to rate')).toBeVisible({ timeout: 5000 });
 
     await page.locator(BOTTLE_1).first().click();

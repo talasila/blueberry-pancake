@@ -7,7 +7,7 @@ import { useItemTerminology } from '@/utils/itemTerminology';
 import apiClient from '@/services/apiClient';
 import DropdownMenu, { DropdownMenuItem } from './DropdownMenu';
 import { clearAllBookmarks } from '@/utils/bookmarkStorage';
-import { StateIcon } from '@/utils/eventState.jsx';
+import { StateDot } from '@/utils/eventState.jsx';
 import { getPreset } from '@/utils/themePresets';
 
 /**
@@ -229,7 +229,7 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
                   {eventName}
                 </span>
                 {isAdmin && event?.state && (
-                  <StateIcon state={event.state} className="flex-shrink-0" />
+                  <StateDot state={event.state} />
                 )}
               </div>
             )}

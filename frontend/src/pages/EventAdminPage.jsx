@@ -2,7 +2,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { RefreshCw, Copy, Check, Trash2, X, AlertTriangle, Download, Search, ChevronDown, ChevronUp, Palette, LayoutList, Star, ToggleLeft, KeyRound, ShieldCheck, Users, Share2 } from 'lucide-react';
+import { RefreshCw, Copy, Check, Trash2, X, AlertTriangle, Download, Search, Palette, LayoutList, Star, KeyRound, ShieldCheck, Users, Share2 } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -16,7 +16,6 @@ import { cn } from '@/lib/utils';
 import { isValidEmailFormat, clearSuccessMessage, downloadCSV } from '@/utils/helpers';
 import { calculateWeightedAverage } from '@/utils/bayesianAverage';
 import { useItemTerminology } from '@/utils/itemTerminology';
-import { getStateConfig, StateBadge } from '@/utils/eventState.jsx';
 import itemService from '@/services/itemService';
 import { ratingService } from '@/services/ratingService';
 import DeleteEventDialog from '@/components/DeleteEventDialog';
@@ -27,26 +26,10 @@ import { toast } from 'sonner';
 import AssignmentView from '@/components/AssignmentView';
 import ListCard from '@/components/ListCard';
 import SettingsRow from '@/components/SettingsRow';
+import EventProgressStepper from '@/components/EventProgressStepper';
 import WelcomeBottomSheet from '@/components/WelcomeBottomSheet';
 import ThemePicker from '@/components/ThemePicker';
 import { getPreset } from '@/utils/themePresets';
-import { eventStateHelpContent } from '@/data/eventStateHelpContent';
-import { getGapType } from '@/utils/eventGuardrail';
-
-/**
- * Get valid state transitions for a given current state
- * @param {string} currentState - Current event state
- * @returns {string[]} Array of valid target states
- */
-function getValidTransitions(currentState) {
-  const transitions = {
-    created: ['started'],
-    started: ['paused', 'completed'],
-    paused: ['started', 'completed'],
-    completed: ['started', 'paused']
-  };
-  return transitions[currentState] || [];
-}
 
 /**
  * EventAdminPage Component
@@ -85,8 +68,6 @@ function EventAdminPage({ onOpenAdminGuide }) {
   const [deleteAdminError, setDeleteAdminError] = useState('');
   const [deleteAdminSuccess, setDeleteAdminSuccess] = useState('');
   const [isTransitioning, setIsTransitioning] = useState(false);
-  const [transitionError, setTransitionError] = useState('');
-  const [transitionSuccess, setTransitionSuccess] = useState('');
   const [numberOfItems, setNumberOfItems] = useState(20);
   const [excludedItemIds, setExcludedItemIds] = useState([]);
   const [isSavingConfig, setIsSavingConfig] = useState(false);
@@ -113,7 +94,6 @@ function EventAdminPage({ onOpenAdminGuide }) {
   
   // Drawer state
   const [openDrawer, setOpenDrawer] = useState(null);
-  const [stateHelpExpanded, setStateHelpExpanded] = useState(false);
   const [itemsTab, setItemsTab] = useState('configuration'); // 'configuration' or 'assignment'
   
   
@@ -1497,38 +1477,25 @@ function EventAdminPage({ onOpenAdminGuide }) {
     }
   };
 
-  // Handle state transition
   const handleStateTransition = async (newState) => {
     if (!event) return;
 
     setIsTransitioning(true);
-    setTransitionError('');
-    setTransitionSuccess('');
-
     try {
-      const updatedEvent = await apiClient.transitionEventState(
-        eventId,
-        newState,
-        event.state
-      );
+      const updatedEvent = await apiClient.transitionEventState(eventId, newState, event.state);
       setEvent(updatedEvent);
-      setTransitionSuccess(`Event state changed to ${newState} successfully`);
-      clearSuccessMessage(setTransitionSuccess);
+      toast.success('Event state updated');
     } catch (error) {
       if (error.status === 409) {
-        // Optimistic locking conflict - refresh event data
-        setTransitionError('Event state has changed. Refreshing...');
+        toast.error('State changed by another admin. Refreshing…');
         try {
           const refreshedEvent = await apiClient.getEvent(eventId);
           setEvent(refreshedEvent);
-          setTimeout(() => {
-            setTransitionError('Please try again with the updated state.');
-          }, 2000);
-        } catch (refreshError) {
-          setTransitionError('Failed to refresh event. Please reload the page.');
+        } catch {
+          toast.error('Failed to refresh. Please reload the page.');
         }
       } else {
-        setTransitionError(error.message || 'Failed to transition state. Please try again.');
+        toast.error(error.message || 'Failed to transition state. Please try again.');
       }
     } finally {
       setIsTransitioning(false);
@@ -1690,6 +1657,15 @@ function EventAdminPage({ onOpenAdminGuide }) {
             </p>
           </div>
 
+          {/* Event Progress Stepper */}
+          <div className="rounded-xl border bg-card px-4 py-3">
+            <EventProgressStepper
+              event={event}
+              isTransitioning={isTransitioning}
+              onTransition={handleStateTransition}
+            />
+          </div>
+
           {/* Event Setup */}
           <section>
             <h5 className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-1 px-0.5">Event Setup</h5>
@@ -1716,12 +1692,6 @@ function EventAdminPage({ onOpenAdminGuide }) {
                 label="Ratings"
                 badge={ratingsBadge}
                 onClick={() => openDrawerWithHistory('ratings-configuration')}
-              />
-              <SettingsRow
-                icon={<ToggleLeft className="h-4 w-4" />}
-                label="State"
-                badge={<StateBadge state={event.state} />}
-                onClick={() => openDrawerWithHistory('state')}
               />
             </div>
           </section>
@@ -2125,166 +2095,6 @@ function EventAdminPage({ onOpenAdminGuide }) {
               'Save Rating Configuration'
             )}
           </Button>
-        </div>
-      </SideDrawer>
-
-      {/* State Management Drawer */}
-      <SideDrawer
-        isOpen={openDrawer === 'state'}
-        onClose={() => {
-          setStateHelpExpanded(false);
-          // Check if current history state has a drawer that matches the open drawer
-          // Only go back if we're on a drawer state we created
-          if (history.state?.drawer === openDrawer) {
-            history.back();
-          } else {
-            setOpenDrawer(null);
-          }
-        }}
-        title="State"
-      >
-        <div className="space-y-4">
-          <div className="text-sm text-muted-foreground font-normal">
-            Manage the state of this event. The event can be started, paused, or completed.
-          </div>
-          {transitionError && (
-            <Message type="error">{transitionError}</Message>
-          )}
-          {transitionSuccess && (
-            <Message type="success">{transitionSuccess}</Message>
-          )}
-
-          {/* Start guard-rail: info/warning when registered count ≠ rating slots (created or completed only) */}
-          {event && (event.state === 'created' || event.state === 'completed') && (() => {
-            const configSection = `${itemTerminology.plural} configuration`;
-            if (itemsError) {
-              return (
-                <Message type="info" data-testid="event-guardrail-fallback">
-                  Counts unavailable.
-                </Message>
-              );
-            }
-            const numberOfItems = event.itemConfiguration?.numberOfItems ?? 0;
-            const excludedCount = event.itemConfiguration?.excludedItemIds?.length ?? 0;
-            const availableSlots = Math.max(0, numberOfItems - excludedCount);
-            const registeredCount = Array.isArray(items) ? items.length : 0;
-            const gapType = getGapType(registeredCount, availableSlots);
-            if (gapType === 'zero-registrations' || gapType === 'more-slots') {
-              const regLabel = registeredCount === 1 ? itemTerminology.singularLower : itemTerminology.pluralLower;
-              const regVerb = registeredCount === 1 ? 'is' : 'are';
-              return (
-                <Message type="info" data-testid="event-guardrail-info">
-                  {registeredCount} {regLabel} {regVerb} registered while {availableSlots} {availableSlots === 1 ? itemTerminology.singularLower : itemTerminology.pluralLower} {availableSlots === 1 ? 'is' : 'are'} available for rating by guests. You can start the event; {itemTerminology.pluralLower} can be registered later. Only registered {itemTerminology.pluralLower} can be mapped to {itemTerminology.singularLower} IDs when the event is paused. This helps you to make your results announcement more personal (e.g Jim is the winner vs bottle 10 is the winner) and also guests to easily identify a bottle after results are announced.
-                </Message>                
-              );
-            }
-            if (gapType === 'fewer-slots') {
-              const regLabel = registeredCount === 1 ? itemTerminology.singularLower : itemTerminology.pluralLower;
-              const regVerb = registeredCount === 1 ? 'is' : 'are';
-              return (
-                <Message type="warning" data-testid="event-guardrail-warning">
-                  {registeredCount} {regLabel} {regVerb} registered while only {availableSlots} {availableSlots === 1 ? itemTerminology.singularLower : itemTerminology.pluralLower} {availableSlots === 1 ? 'is' : 'are'} available for rating by guests. Adjust the {itemTerminology.singularLower} count in the {configSection} section to match the number of registered {itemTerminology.pluralLower}.
-                </Message>
-              );
-            }
-            return null;
-          })()}
-
-          {/* State Actions */}
-          {(() => {
-            const validTransitions = getValidTransitions(event.state);
-            const stateLabels = { started: 'Start', paused: 'Pause', completed: 'Complete' };
-            const toList = (v) => (Array.isArray(v) ? v : v ? [v] : []);
-
-            if (validTransitions.length === 0) {
-              return (
-                <p className="text-sm text-muted-foreground">
-                  No state transitions available from current state.
-                </p>
-              );
-            }
-
-            return (
-              <div className="space-y-2">
-                {validTransitions.map(transition => {
-                  const config = getStateConfig(transition);
-                  const Icon = config.icon;
-                  const targetBlock = eventStateHelpContent[transition];
-
-                  return (
-                    <div key={transition} className="space-y-1">
-                      <Button
-                        onClick={() => handleStateTransition(transition)}
-                        disabled={isTransitioning}
-                        variant="default"
-                        className="w-full sm:w-auto"
-                      >
-                        {isTransitioning ? (
-                          <>
-                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                            Transitioning...
-                          </>
-                        ) : (
-                          <>
-                            <Icon className="h-4 w-4 mr-2" />
-                            {stateLabels[transition] || transition}
-                          </>
-                        )}
-                      </Button>
-                      <div className="text-xs text-muted-foreground rounded-md bg-muted/50 p-2 space-y-0.5">
-                        <p>Host can: {toList(targetBlock?.adminCan).join('; ')}</p>
-                        {toList(targetBlock?.adminCannot).length > 0 && (
-                          <p>Host cannot: {toList(targetBlock.adminCannot).join('; ')}</p>
-                        )}
-                        <p>Guest can: {toList(targetBlock?.guestCan).join('; ')}</p>
-                        {toList(targetBlock?.guestCannot).length > 0 && (
-                          <p>Guest cannot: {toList(targetBlock.guestCannot).join('; ')}</p>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
-
-          {/* Inline help: what each state means */}
-          <div className="border-t pt-4 mt-4">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
-              onClick={() => setStateHelpExpanded((v) => !v)}
-              aria-expanded={stateHelpExpanded}
-              aria-label="What each state means"
-              data-testid="event-state-help-trigger"
-            >
-              {stateHelpExpanded ? <ChevronUp className="h-4 w-4 shrink-0" /> : <ChevronDown className="h-4 w-4 shrink-0" />}
-              What each state means
-            </Button>
-            {stateHelpExpanded && (
-              <div data-testid="event-state-help-content" className="mt-3 text-sm overflow-hidden min-w-0 text-muted-foreground space-y-3 pb-2">
-                {['created', 'started', 'paused', 'completed'].map((stateKey) => {
-                  const block = eventStateHelpContent[stateKey];
-                  const label = getStateConfig(stateKey).label;
-                  const toList = (v) => (Array.isArray(v) ? v : v ? [v] : []);
-                  return (
-                    <div key={stateKey} className="space-y-1">
-                      <p className="font-medium text-foreground">{label}</p>
-                      <p className="text-xs">Host can: {toList(block.adminCan).join('; ')}</p>
-                      {toList(block.adminCannot).length > 0 && (
-                        <p className="text-xs">Host cannot: {toList(block.adminCannot).join('; ')}</p>
-                      )}
-                      <p className="text-xs">Guest can: {toList(block.guestCan).join('; ')}</p>
-                      {toList(block.guestCannot).length > 0 && (
-                        <p className="text-xs">Guest cannot: {toList(block.guestCannot).join('; ')}</p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
         </div>
       </SideDrawer>
 

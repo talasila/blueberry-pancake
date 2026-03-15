@@ -64,7 +64,7 @@ export const adminGuideContent = {
       id: 'created-8',
       heading: 'Ready to Go!',
       description:
-        'Once everyone has arrived and you\'re ready for the first pour, start the event. Look for the Start Event button in the state management section below.',
+        'Once everyone has arrived and you\'re ready for the first pour, start the event. Use the "Start Tasting" button on the progress stepper above.',
       icon: 'Rocket',
     },
   ],
@@ -101,7 +101,7 @@ export const adminGuideContent = {
       id: 'started-5',
       heading: 'Time to Wrap Up',
       description:
-        'Complete the event when all items have been tasted and rated. Don\'t worry — you can always reopen it later if needed. Look for the Complete Event button in the state management section below.',
+        'Complete the event when all items have been tasted and rated. Don\'t worry — you can always reopen it later if needed. Use the "Complete Event" button on the progress stepper above.',
       icon: 'CheckCircle2',
     },
   ],
@@ -124,7 +124,7 @@ export const adminGuideContent = {
       id: 'paused-3',
       heading: 'Resume or Finish',
       description:
-        'Resume the event to continue tasting, or complete it if you\'re done. Once you resume, assignments will be locked again. Use Resume or Complete in the state management section below.',
+        'Resume the event to continue tasting, or complete it if you\'re done. Once you resume, assignments will be locked again. Use the progress stepper above to resume or complete.',
       icon: 'Play',
     },
   ],
@@ -154,7 +154,7 @@ export const adminGuideContent = {
       id: 'completed-4',
       heading: 'Want to Reopen?',
       description:
-        'You can restart or pause the event again if you need to — maybe a late guest wants to rate, or you want to do another round. Use the state management section below to reopen.',
+        'You can restart or pause the event again if you need to — maybe a late guest wants to rate, or you want to do another round. Use the progress stepper above to reopen.',
       icon: 'RotateCcw',
     },
   ],

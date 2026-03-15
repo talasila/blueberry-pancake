@@ -222,7 +222,7 @@ test.describe('US2: Created state walkthrough', () => {
     await navigateToStep(page, 7);
     const drawer = page.locator('[role="dialog"][aria-label="Admin guide"]');
     await expect(drawer.getByRole('heading', { name: 'Ready to Go!' })).toBeVisible();
-    await expect(drawer.getByText(/^Look for the Start Event button/i)).toBeVisible();
+    await expect(drawer.getByText(/^Use the "Start Tasting" button/i)).toBeVisible();
   });
 
   test('Back button navigates to previous step', async ({ page, testEvent }) => {
@@ -285,7 +285,7 @@ test.describe('US3: Started state walkthrough', () => {
     await openAdminGuide(page);
     await navigateToStep(page, 4);
     const drawer = page.locator('[role="dialog"][aria-label="Admin guide"]');
-    await expect(drawer.getByText(/^Look for the Complete Event button/i)).toBeVisible();
+    await expect(drawer.getByText(/Complete Event.*button.*progress stepper/i)).toBeVisible();
   });
 });
 
@@ -337,7 +337,7 @@ test.describe('US4: Completed state walkthrough', () => {
     await navigateToAdmin(page, eventId);
     await openAdminGuide(page);
     await navigateToStep(page, 3);
-    await expect(page.getByText(/reopen via the state management/i)).toBeVisible();
+    await expect(page.getByText(/reopen via the progress stepper/i)).toBeVisible();
   });
 });
 
@@ -386,7 +386,7 @@ test.describe('US5: Paused state walkthrough', () => {
     await openAdminGuide(page);
     await navigateToStep(page, 2);
     const drawer = page.locator('[role="dialog"][aria-label="Admin guide"]');
-    await expect(drawer.getByText(/^Use Resume or Complete/i)).toBeVisible();
+    await expect(drawer.getByText(/progress stepper.*to resume or complete/i)).toBeVisible();
   });
 });
 

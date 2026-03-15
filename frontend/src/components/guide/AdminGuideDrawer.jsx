@@ -11,20 +11,20 @@ import WalkthroughDrawer from './WalkthroughDrawer';
 
 const STATE_LABELS = {
   created: 'Setup Guide',
-  started: 'Running Guide',
-  paused: 'Paused Guide',
-  completed: 'Completion Guide',
+  started: 'Tasting Guide',
+  paused: 'Reveal Guide',
+  completed: 'Results Guide',
 };
 
 const CTA_MESSAGES = {
   created:
-    'Look for the Start Event button in the state management section below to kick things off.',
+    'Use the "Start Tasting" button on the progress stepper above to kick things off.',
   started:
-    'Look for the Complete Event button in the state management section below when everyone is done.',
+    'Use "Pause for Reveal" or "Complete Event" on the progress stepper above when everyone is done.',
   paused:
-    'Use Resume or Complete in the state management section below when you\'re ready.',
+    'Use "Resume Tasting" or "Announce Results" on the progress stepper above when you\'re ready.',
   completed:
-    'You can reopen via the state management section, or export your data from the admin page.',
+    'You can reopen via the progress stepper, or export your data from the admin page.',
 };
 
 /**

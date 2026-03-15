@@ -234,7 +234,7 @@ describe('EventAdminPage Component', () => {
       );
       
       await waitFor(() => {
-        expect(screen.getByText(/paused/i)).toBeInTheDocument();
+        expect(screen.getByText(/Assign bottles to item numbers/)).toBeInTheDocument();
       });
     });
   });
@@ -350,6 +350,27 @@ describe('EventAdminPage Component', () => {
       await waitFor(() => {
         expect(screen.getByText('Changes save automatically')).toBeInTheDocument();
       });
+    });
+
+    it('renders the event progress stepper', async () => {
+      renderWithProviders(mockEvent);
+
+      await waitFor(() => {
+        expect(screen.getByRole('list', { name: 'Event progress' })).toBeInTheDocument();
+        expect(screen.getByText('Setup')).toBeInTheDocument();
+        expect(screen.getByText('Tasting')).toBeInTheDocument();
+        expect(screen.getByText('Reveal')).toBeInTheDocument();
+        expect(screen.getByText('Results')).toBeInTheDocument();
+      });
+    });
+
+    it('does not render a State settings row', async () => {
+      renderWithProviders(mockEvent);
+
+      await waitFor(() => {
+        expect(screen.getByText('Settings')).toBeInTheDocument();
+      });
+      expect(screen.queryByRole('button', { name: /^State/ })).not.toBeInTheDocument();
     });
   });
 });
