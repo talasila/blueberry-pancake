@@ -2,7 +2,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { RefreshCw, Copy, Check, Trash2, X, AlertTriangle, Download, Search, Palette, LayoutList, Star, ShieldCheck, Users, UserPlus } from 'lucide-react';
+import { RefreshCw, Copy, Check, Trash2, X, AlertTriangle, Download, Search, Palette, LayoutList, Star, ShieldCheck, Users, UserPlus, Share2 } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -2016,7 +2016,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
       >
         <div className="space-y-4">
           <div className="text-sm text-muted-foreground font-normal">
-            How guests join your event.
+            Share the link and PIN below to invite guests. They can scan the QR code or enter the PIN manually.
           </div>
 
           {/* QR Card */}
@@ -2026,10 +2026,10 @@ function EventAdminPage({ onOpenAdminGuide }) {
             onCanvasReady={(el) => { qrCanvasRef.current = el; }}
           />
 
-          {/* Copy / Share buttons */}
-          <div className="flex gap-2">
+          {/* Action buttons */}
+          <div className="space-y-2">
             <Button
-              className="flex-1"
+              className="w-full"
               onClick={async () => {
                 const msg = formatInvitationMessage(
                   event.name,
@@ -2052,7 +2052,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
             {typeof navigator !== 'undefined' && navigator.canShare?.({ text: 'test' }) && (
               <Button
                 variant="outline"
-                className="flex-1"
+                className="w-full"
                 onClick={async () => {
                   const msg = formatInvitationMessage(
                     event.name,
@@ -2068,31 +2068,30 @@ function EventAdminPage({ onOpenAdminGuide }) {
                   }
                 }}
               >
+                <Share2 className="h-4 w-4 mr-2" />
                 Share
               </Button>
             )}
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                if (qrCanvasRef.current) {
+                  downloadQRImage(qrCanvasRef.current, event.name, event.pin);
+                }
+              }}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Download QR
+            </Button>
           </div>
 
-          {/* Download QR */}
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => {
-              if (qrCanvasRef.current) {
-                downloadQRImage(qrCanvasRef.current, event.name, event.pin);
-              }
-            }}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Download QR
-          </Button>
-
           {/* Regenerate PIN */}
-          <div className="border-t pt-4 space-y-3">
+          <div className="pt-6 space-y-3">
             <div>
               <p className="text-sm font-medium">Regenerate PIN</p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Creates a new PIN. Only affects new logins.
+                Creates a new PIN. Only affects new logins — guests already in the event keep access. Previously shared links, printed QR codes, and invitations will have an outdated PIN.
               </p>
             </div>
 
@@ -2124,7 +2123,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
                 }
               }}
               disabled={isRegenerating}
-              variant="ghost"
+              variant="outline"
               className="w-full"
             >
               <RefreshCw className={`h-4 w-4 mr-2 ${isRegenerating ? 'animate-spin' : ''}`} />
