@@ -237,6 +237,8 @@ test.describe('Guests – Search and Filter (US2)', () => {
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     const drawer = await openGuestsDrawer(page);
 
+    await expect(drawer.getByText('user1@example.com')).toBeVisible({ timeout: 10000 });
+
     const searchInput = drawer.getByPlaceholder(/search/i);
     await expect(searchInput).toBeEditable({ timeout: 5000 });
     await searchInput.fill('zzzznonexistent');

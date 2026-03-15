@@ -2,7 +2,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { RefreshCw, Copy, Check, Trash2, X, AlertTriangle, Download, Search, Palette, LayoutList, Star, KeyRound, ShieldCheck, Users, Share2 } from 'lucide-react';
+import { RefreshCw, Copy, Check, Trash2, X, AlertTriangle, Download, Search, Palette, LayoutList, Star, ShieldCheck, Users, UserPlus } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,6 +30,8 @@ import EventProgressStepper from '@/components/EventProgressStepper';
 import WelcomeBottomSheet from '@/components/WelcomeBottomSheet';
 import ThemePicker from '@/components/ThemePicker';
 import { getPreset } from '@/utils/themePresets';
+import InviteQRCard from '@/components/InviteQRCard';
+import { formatInvitationMessage, downloadQRImage } from '@/utils/inviteUtils';
 
 /**
  * EventAdminPage Component
@@ -57,7 +59,8 @@ function EventAdminPage({ onOpenAdminGuide }) {
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [regenerateError, setRegenerateError] = useState('');
   const [regenerateSuccess, setRegenerateSuccess] = useState('');
-  const [copied, setCopied] = useState(false);
+  const [invitationCopied, setInvitationCopied] = useState(false);
+  const qrCanvasRef = useRef(null);
   const [administrators, setAdministrators] = useState({});
   const [isLoadingAdministrators, setIsLoadingAdministrators] = useState(false);
   const [newAdminEmail, setNewAdminEmail] = useState('');
@@ -74,7 +77,6 @@ function EventAdminPage({ onOpenAdminGuide }) {
   const [editedName, setEditedName] = useState('');
   const [isSavingName, setIsSavingName] = useState(false);
   const [nameSaved, setNameSaved] = useState(false);
-  const [linkCopied, setLinkCopied] = useState(false);
   const saveNameRef = useRef(null);
   const [maxRating, setMaxRating] = useState(4);
   const [ratings, setRatings] = useState([]);
@@ -683,18 +685,6 @@ function EventAdminPage({ onOpenAdminGuide }) {
     } catch (error) {
       setPendingTheme(null);
       toast.error(error.message || 'Failed to update theme');
-    }
-  };
-
-  // Handle copy event link
-  const handleCopyEventLink = async () => {
-    const eventUrl = `${window.location.origin}/event/${eventId}`;
-    try {
-      await navigator.clipboard.writeText(eventUrl);
-      setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 2000);
-    } catch {
-      console.warn('Clipboard write failed');
     }
   };
 
@@ -1582,57 +1572,37 @@ function EventAdminPage({ onOpenAdminGuide }) {
     <div className="px-4 sm:px-6 lg:px-8 py-4">
       <div className="max-w-md mx-auto w-full">
         <div className="space-y-6">
-          {/* Header: inline-editable event name + share */}
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <Input
-                value={editedName}
-                onChange={(e) => handleNameChange(e.target.value)}
-                onBlur={handleNameBlur}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') e.target.blur();
-                  if (e.key === 'Escape') {
-                    if (saveNameRef.current) clearTimeout(saveNameRef.current);
-                    setEditedName(event.name);
-                    e.target.blur();
-                  }
-                }}
-                disabled={isSavingName}
-                maxLength={100}
-                className="text-base font-semibold border-transparent bg-transparent px-0 h-auto py-0 focus-visible:border-input focus-visible:bg-background focus-visible:px-3 focus-visible:py-1.5 transition-all truncate"
-                aria-label="Event name"
-              />
-              {(nameSaved || isSavingName) && (
-                <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                  {nameSaved ? (
-                    <>
-                      <Check className="h-3 w-3 text-green-600" />
-                      <span className="text-green-600">Saved</span>
-                    </>
-                  ) : (
-                    'Saving\u2026'
-                  )}
-                </p>
-              )}
-            </div>
-            <Button
-              onClick={handleCopyEventLink}
-              variant="ghost"
-              size="sm"
-              className="h-8 gap-1.5 text-muted-foreground shrink-0 mt-0.5"
-            >
-              {linkCopied ? (
-                <>
-                  <Check className="h-3.5 w-3.5 text-green-600" />
-                  <span className="text-xs text-green-600 font-medium">Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Share2 className="h-3.5 w-3.5" />
-                  <span className="text-xs">Share</span>
-                </>
-              )}
-            </Button>
+          {/* Header: inline-editable event name */}
+          <div>
+            <Input
+              value={editedName}
+              onChange={(e) => handleNameChange(e.target.value)}
+              onBlur={handleNameBlur}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') e.target.blur();
+                if (e.key === 'Escape') {
+                  if (saveNameRef.current) clearTimeout(saveNameRef.current);
+                  setEditedName(event.name);
+                  e.target.blur();
+                }
+              }}
+              disabled={isSavingName}
+              maxLength={100}
+              className="text-base font-semibold border-transparent bg-transparent px-0 h-auto py-0 focus-visible:border-input focus-visible:bg-background focus-visible:px-3 focus-visible:py-1.5 transition-all truncate"
+              aria-label="Event name"
+            />
+            {(nameSaved || isSavingName) && (
+              <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                {nameSaved ? (
+                  <>
+                    <Check className="h-3 w-3 text-green-600" />
+                    <span className="text-green-600">Saved</span>
+                  </>
+                ) : (
+                  'Saving\u2026'
+                )}
+              </p>
+            )}
           </div>
 
           {/* Event Progress Stepper */}
@@ -1646,6 +1616,12 @@ function EventAdminPage({ onOpenAdminGuide }) {
 
           {/* Settings rows */}
           <div className="w-full border-t">
+            <SettingsRow
+              icon={<UserPlus className="h-4 w-4" />}
+              label="Invite"
+              badge={event.pin ? <Badge variant="outline" className="font-mono text-xs">{event.pin}</Badge> : null}
+              onClick={() => openDrawerWithHistory('invite')}
+            />
             <SettingsRow
               icon={<Palette className="h-4 w-4" />}
               label="Mood"
@@ -1667,13 +1643,6 @@ function EventAdminPage({ onOpenAdminGuide }) {
               icon={<Star className="h-4 w-4" />}
               label="Ratings"
               onClick={() => openDrawerWithHistory('ratings-configuration')}
-            />
-
-            <SettingsRow
-              icon={<KeyRound className="h-4 w-4" />}
-              label="PIN"
-              badge={event.pin ? <Badge variant="outline" className="font-mono text-xs">{event.pin}</Badge> : null}
-              onClick={() => openDrawerWithHistory('pin')}
             />
             <SettingsRow
               icon={<Users className="h-4 w-4" />}
@@ -2033,101 +2002,134 @@ function EventAdminPage({ onOpenAdminGuide }) {
         </div>
       </SideDrawer>
 
-      {/* PIN Management Drawer */}
+      {/* Invite Drawer */}
       <SideDrawer
-        isOpen={openDrawer === 'pin'}
+        isOpen={openDrawer === 'invite'}
         onClose={() => {
-          // Check if current history state has a drawer that matches the open drawer
-          // Only go back if we're on a drawer state we created
           if (history.state?.drawer === openDrawer) {
             history.back();
           } else {
             setOpenDrawer(null);
           }
         }}
-        title="PIN"
+        title="Invite"
       >
         <div className="space-y-4">
           <div className="text-sm text-muted-foreground font-normal">
-            Share this PIN with users to grant access to this event
+            How guests join your event.
           </div>
-          {/* PIN Display Section */}
-          {event.pin && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <p className="font-mono text-lg font-semibold">{event.pin}</p>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={async () => {
-                    try {
-                      await navigator.clipboard.writeText(event.pin);
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
-                    } catch { /* clipboard unavailable */ }
-                  }}
-                  className="h-8 w-8 p-0"
-                  aria-label="Copy PIN"
-                >
-                  {copied ? (
-                    <Check className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <Copy className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
-            </div>
-          )}
 
-          <div className="pt-2 space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground mb-4">
-                Regenerate the event PIN to revoke access for all users. Users will need to enter the new PIN to access the event.
-              </p>
-              
-              {regenerateError && (
-                <Message type="error" className="mb-4">
-                  {regenerateError}
-                </Message>
-              )}
+          {/* QR Card */}
+          <InviteQRCard
+            eventUrl={`${window.location.origin}/event/${eventId}`}
+            pin={event.pin}
+            onCanvasReady={(el) => { qrCanvasRef.current = el; }}
+          />
 
-              {regenerateSuccess && (
-                <Message type="success" className="mb-4">
-                  {regenerateSuccess}
-                </Message>
-              )}
-
+          {/* Copy / Share buttons */}
+          <div className="flex gap-2">
+            <Button
+              className="flex-1"
+              onClick={async () => {
+                const msg = formatInvitationMessage(
+                  event.name,
+                  `${window.location.origin}/event/${eventId}`,
+                  event.pin
+                );
+                try {
+                  await navigator.clipboard.writeText(msg);
+                  setInvitationCopied(true);
+                  toast.success('Invitation copied');
+                  setTimeout(() => setInvitationCopied(false), 2000);
+                } catch {
+                  toast.error('Failed to copy invitation');
+                }
+              }}
+            >
+              <Copy className="h-4 w-4 mr-2" />
+              {invitationCopied ? 'Copied!' : 'Copy Invitation'}
+            </Button>
+            {typeof navigator !== 'undefined' && navigator.canShare?.({ text: 'test' }) && (
               <Button
+                variant="outline"
+                className="flex-1"
                 onClick={async () => {
-                  setIsRegenerating(true);
-                  setRegenerateError('');
-                  setRegenerateSuccess('');
-
+                  const msg = formatInvitationMessage(
+                    event.name,
+                    `${window.location.origin}/event/${eventId}`,
+                    event.pin
+                  );
                   try {
-                    const result = await apiClient.regeneratePIN(eventId);
-                    setRegenerateSuccess(`PIN regenerated successfully! New PIN: ${result.pin}`);
-                    
-                    // Update event state with new PIN
-                    setEvent(prev => ({
-                      ...prev,
-                      pin: result.pin,
-                      pinGeneratedAt: result.pinGeneratedAt,
-                      updatedAt: result.pinGeneratedAt
-                    }));
+                    await navigator.share({ text: msg });
                   } catch (err) {
-                    setRegenerateError(err.message || 'Failed to regenerate PIN. Please try again.');
-                  } finally {
-                    setIsRegenerating(false);
+                    if (err.name !== 'AbortError') {
+                      toast.error('Failed to share');
+                    }
                   }
                 }}
-                disabled={isRegenerating}
-                variant="default"
-                className="w-full"
               >
-                <RefreshCw className={`h-4 w-4 mr-2 ${isRegenerating ? 'animate-spin' : ''}`} />
-                {isRegenerating ? 'Regenerating...' : 'Regenerate PIN'}
+                Share
               </Button>
+            )}
+          </div>
+
+          {/* Download QR */}
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              if (qrCanvasRef.current) {
+                downloadQRImage(qrCanvasRef.current, event.name, event.pin);
+              }
+            }}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            Download QR
+          </Button>
+
+          {/* Regenerate PIN */}
+          <div className="border-t pt-4 space-y-3">
+            <div>
+              <p className="text-sm font-medium">Regenerate PIN</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Creates a new PIN. Only affects new logins.
+              </p>
             </div>
+
+            {regenerateError && (
+              <Message type="error">{regenerateError}</Message>
+            )}
+            {regenerateSuccess && (
+              <Message type="success">{regenerateSuccess}</Message>
+            )}
+
+            <Button
+              onClick={async () => {
+                setIsRegenerating(true);
+                setRegenerateError('');
+                setRegenerateSuccess('');
+                try {
+                  const result = await apiClient.regeneratePIN(eventId);
+                  toast.success(`PIN regenerated: ${result.pin}`);
+                  setEvent(prev => ({
+                    ...prev,
+                    pin: result.pin,
+                    pinGeneratedAt: result.pinGeneratedAt,
+                    updatedAt: result.pinGeneratedAt
+                  }));
+                } catch (err) {
+                  setRegenerateError(err.message || 'Failed to regenerate PIN.');
+                } finally {
+                  setIsRegenerating(false);
+                }
+              }}
+              disabled={isRegenerating}
+              variant="ghost"
+              className="w-full"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${isRegenerating ? 'animate-spin' : ''}`} />
+              {isRegenerating ? 'Regenerating...' : 'Regenerate PIN'}
+            </Button>
           </div>
         </div>
       </SideDrawer>

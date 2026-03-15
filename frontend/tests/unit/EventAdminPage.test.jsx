@@ -299,6 +299,7 @@ describe('EventAdminPage Component', () => {
       name: 'Layout Test Event',
       state: 'started',
       typeOfItem: 'wine',
+      pin: 'AB12CD34',
       administrator: 'admin@example.com',
       itemConfiguration: { numberOfItems: 20, excludedItemIds: [] },
       ratingConfiguration: { maxRating: 4, ratings: [] },
@@ -324,12 +325,24 @@ describe('EventAdminPage Component', () => {
       });
     });
 
-    it('renders a Share button in the header area', async () => {
+    it('renders an Invite settings row with PIN badge', async () => {
       renderWithProviders(mockEvent);
 
       await waitFor(() => {
-        expect(screen.getByText('Share')).toBeInTheDocument();
+        const inviteButton = screen.getByText('Invite');
+        expect(inviteButton).toBeInTheDocument();
+        const row = inviteButton.closest('button');
+        expect(row).toHaveTextContent(mockEvent.pin);
       });
+    });
+
+    it('does not render a PIN settings row', async () => {
+      renderWithProviders(mockEvent);
+
+      await waitFor(() => {
+        expect(screen.getByText('Invite')).toBeInTheDocument();
+      });
+      expect(screen.queryByText('PIN')).not.toBeInTheDocument();
     });
 
     it('renders the event progress stepper', async () => {

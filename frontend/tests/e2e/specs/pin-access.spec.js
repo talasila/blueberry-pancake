@@ -191,7 +191,7 @@ test.describe('PIN-based Event Access', () => {
   // User Story 3 - PIN Regeneration
   // ===================================
   
-  test('administrator views current PIN on admin page', async ({ page, testEvent }) => {
+  test('administrator views current PIN on admin page via Invite drawer', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
@@ -199,21 +199,18 @@ test.describe('PIN-based Event Access', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     
-    // Verify we're on the admin page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/admin`));
     
-    // Look for any button with "PIN" text (case insensitive, more flexible)
-    const pinButton = page.getByRole('button', { name: /pin/i });
-    await pinButton.waitFor({ state: 'visible', timeout: 10000 });
-    await pinButton.click();
+    const inviteButton = page.getByRole('button', { name: /invite/i });
+    await inviteButton.waitFor({ state: 'visible', timeout: 10000 });
+    await inviteButton.click();
     
-    // Should see the PIN displayed in the drawer
     const drawer = page.locator('[role="dialog"]');
-    const pinDisplay = drawer.getByText(pin);
+    const pinDisplay = drawer.getByText(new RegExp(pin.split('').join('\\s+')));
     await expect(pinDisplay).toBeVisible();
   });
   
-  test('administrator regenerates PIN', async ({ page, testEvent }) => {
+  test('administrator regenerates PIN via Invite drawer', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
@@ -221,20 +218,19 @@ test.describe('PIN-based Event Access', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     
-    // Open PIN drawer
-    const pinButton = page.getByRole('button', { name: /pin/i });
-    await pinButton.waitFor({ state: 'visible', timeout: 10000 });
-    await pinButton.click();
+    const inviteButton = page.getByRole('button', { name: /invite/i });
+    await inviteButton.waitFor({ state: 'visible', timeout: 10000 });
+    await inviteButton.click();
     
     const regenerateButton = page.getByRole('button', { name: /regenerate pin/i });
     await regenerateButton.waitFor({ state: 'visible', timeout: 5000 });
     await regenerateButton.click();
 
-    // Wait for the drawer to show a new 6-digit PIN that differs from the original
     const drawer = page.locator('[role="dialog"]');
     await expect(async () => {
-      const newPinElement = drawer.getByText(/^\d{6}$/);
-      const newPin = await newPinElement.textContent();
+      const spacedPinElement = drawer.locator('.font-mono.text-2xl');
+      const spacedPin = await spacedPinElement.textContent();
+      const newPin = spacedPin.replace(/\s+/g, '');
       expect(newPin).toHaveLength(6);
       expect(newPin).not.toBe(pin);
     }).toPass({ timeout: 10000 });
