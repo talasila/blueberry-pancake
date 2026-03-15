@@ -43,7 +43,7 @@ export default function InviteQRCard({ eventUrl, pin, onCanvasReady }) {
       )}
 
       {spacedPin ? (
-        <p className="text-2xl font-bold tracking-[0.3em] font-mono text-foreground">
+        <p className="w-[200px] text-center text-lg font-bold tracking-[0.25em] font-mono text-foreground">
           {spacedPin}
         </p>
       ) : (

@@ -2027,9 +2027,9 @@ function EventAdminPage({ onOpenAdminGuide }) {
           />
 
           {/* Action buttons */}
-          <div className="space-y-2">
+          <div className="flex gap-2">
             <Button
-              className="w-full"
+              className="flex-1"
               onClick={async () => {
                 const msg = formatInvitationMessage(
                   event.name,
@@ -2047,12 +2047,12 @@ function EventAdminPage({ onOpenAdminGuide }) {
               }}
             >
               <Copy className="h-4 w-4 mr-2" />
-              {invitationCopied ? 'Copied!' : 'Copy Invitation'}
+              {invitationCopied ? 'Copied!' : 'Copy'}
             </Button>
             {typeof navigator !== 'undefined' && navigator.canShare?.({ text: 'test' }) && (
               <Button
                 variant="outline"
-                className="w-full"
+                className="flex-1"
                 onClick={async () => {
                   const msg = formatInvitationMessage(
                     event.name,
@@ -2074,7 +2074,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
             )}
             <Button
               variant="outline"
-              className="w-full"
+              className="flex-1"
               onClick={() => {
                 if (qrCanvasRef.current) {
                   downloadQRImage(qrCanvasRef.current, event.name, event.pin);
@@ -2082,7 +2082,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
               }}
             >
               <Download className="h-4 w-4 mr-2" />
-              Download QR
+              Save
             </Button>
           </div>
 
