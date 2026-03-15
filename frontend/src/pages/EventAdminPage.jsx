@@ -2074,15 +2074,14 @@ function EventAdminPage({ onOpenAdminGuide }) {
             )}
             <Button
               variant="outline"
-              className="flex-1"
+              size="icon"
               onClick={() => {
                 if (qrCanvasRef.current) {
                   downloadQRImage(qrCanvasRef.current, event.name, event.pin);
                 }
               }}
             >
-              <Download className="h-4 w-4 mr-2" />
-              Save
+              <Download className="h-4 w-4" />
             </Button>
           </div>
 
