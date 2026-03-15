@@ -18,6 +18,7 @@ JWT_SECRET="${JWT_SECRET:-$(aws ssm get-parameter --name /blueberry-pancake/prod
 EMAIL_FROM_ADDRESS="${EMAIL_FROM_ADDRESS:-noreply@blindwinetasting.party}"  # must be verified in Resend
 FRONTEND_DOMAIN="${FRONTEND_DOMAIN:-blindwinetasting.party}"               # custom domain for CORS; use CloudFront domain if unset
 FRONTEND_DOMAIN_WWW="${FRONTEND_DOMAIN_WWW:-www.blindwinetasting.party}"   # optional www variant; empty to exclude
+ACM_CERT_ARN="${ACM_CERT_ARN:-arn:aws:acm:us-east-1:925548217453:certificate/11d22836-929a-4373-b521-703c7bb268c5}"
 CSRF_SECRET="${CSRF_SECRET:-$(openssl rand -base64 32)}"
 TURNSTILE_SECRET_KEY="${TURNSTILE_SECRET_KEY:-$(aws ssm get-parameter --name /blueberry-pancake/prod/turnstile-secret --with-decryption --query Parameter.Value --output text)}"
 TURNSTILE_SITE_KEY="${TURNSTILE_SITE_KEY:-$(aws ssm get-parameter --name /blueberry-pancake/prod/turnstile-site-key --with-decryption --query Parameter.Value --output text)}"
@@ -61,7 +62,12 @@ sam deploy \
   --no-confirm-changeset \
   --no-fail-on-empty-changeset \
   --capabilities CAPABILITY_IAM \
-  --parameter-overrides ApiId="$API_ID" Environment=$ENV
+  --parameter-overrides \
+    ApiId="$API_ID" \
+    Environment=$ENV \
+    DomainName="$FRONTEND_DOMAIN" \
+    DomainNameWww="$FRONTEND_DOMAIN_WWW" \
+    AcmCertificateArn="$ACM_CERT_ARN"
 
 echo ""
 echo "=== 4. Update backend CORS (add CloudFront domain) ==="

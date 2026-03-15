@@ -12,6 +12,22 @@ Parameters:
   ApiId:
     Type: String
     Description: API Gateway HTTP API ID (from backend stack ApiId output)
+  DomainName:
+    Type: String
+    Default: ""
+    Description: Primary custom domain (e.g. blindwinetasting.party). Leave empty to use CloudFront domain only.
+  DomainNameWww:
+    Type: String
+    Default: ""
+    Description: Optional www variant (e.g. www.blindwinetasting.party). Leave empty to exclude.
+  AcmCertificateArn:
+    Type: String
+    Default: ""
+    Description: ACM certificate ARN for custom domain (must be in us-east-1)
+
+Conditions:
+  HasCustomDomain: !Not [!Equals [!Ref DomainName, ""]]
+  HasWwwDomain: !Not [!Equals [!Ref DomainNameWww, ""]]
 
 Resources:
   FrontendBucket:
@@ -46,6 +62,20 @@ Resources:
         DefaultRootObject: index.html
         HttpVersion: http2
         PriceClass: PriceClass_100
+        Aliases: !If
+          - HasCustomDomain
+          - !If
+            - HasWwwDomain
+            - - !Ref DomainName
+              - !Ref DomainNameWww
+            - - !Ref DomainName
+          - !Ref AWS::NoValue
+        ViewerCertificate: !If
+          - HasCustomDomain
+          - AcmCertificateArn: !Ref AcmCertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - !Ref AWS::NoValue
         Origins:
           - Id: S3Origin
             DomainName: !GetAtt FrontendBucket.RegionalDomainName
