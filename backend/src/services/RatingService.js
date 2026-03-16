@@ -1,7 +1,9 @@
 import eventService from './EventService.js';
+import eventConfigService from './EventConfigService.js';
 import dataRepository from '../data/DynamoDBRepository.js';
 import loggerService from '../logging/Logger.js';
 import { normalizeEmail, isValidEmail } from '../utils/emailUtils.js';
+import { getCurrentTimestamp } from '../utils/timestamps.js';
 
 /**
  * RatingService
@@ -82,7 +84,7 @@ class RatingService {
     // Create new rating object
     const newRating = {
       email: normalizedUserEmail,
-      timestamp: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'), // ISO 8601 format
+      timestamp: getCurrentTimestamp({ stripMs: true }), // ISO 8601 format
       itemId: parseInt(itemId, 10),
       rating: parseInt(rating, 10),
       note: (note || '').trim()
@@ -117,7 +119,7 @@ class RatingService {
     }
 
     // Validate itemId
-    const itemConfig = await eventService.getItemConfiguration(eventId);
+    const itemConfig = await eventConfigService.getItemConfiguration(eventId);
     if (!Number.isInteger(itemId) || itemId < 1 || itemId > itemConfig.numberOfItems) {
       throw new Error(`Invalid item ID. Must be between 1 and ${itemConfig.numberOfItems}`);
     }
@@ -127,7 +129,7 @@ class RatingService {
     }
 
     // Validate rating
-    const ratingConfig = await eventService.getRatingConfiguration(eventId);
+    const ratingConfig = await eventConfigService.getRatingConfiguration(eventId);
     if (!Number.isInteger(rating) || rating < 1 || rating > ratingConfig.maxRating) {
       throw new Error(`Rating must be between 1 and ${ratingConfig.maxRating}`);
     }
@@ -159,7 +161,7 @@ class RatingService {
     }
 
     // Validate itemId
-    const itemConfig = await eventService.getItemConfiguration(eventId);
+    const itemConfig = await eventConfigService.getItemConfiguration(eventId);
     if (!Number.isInteger(itemId) || itemId < 1 || itemId > itemConfig.numberOfItems) {
       throw new Error(`Invalid item ID. Must be between 1 and ${itemConfig.numberOfItems}`);
     }

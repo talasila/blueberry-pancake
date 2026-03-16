@@ -80,10 +80,10 @@ test.describe('OTP Authentication', () => {
 
   test('shows error for incorrect OTP', async ({ page }) => {
     await page.goto(`${BASE_URL}/auth`);
-    
+
     const emailInput = page.locator('input[type="email"]');
     await expect(emailInput).toBeVisible({ timeout: 10000 });
-    await emailInput.fill('test@example.com');
+    await emailInput.fill('otp-incorrect-test@example.com');
     
     const requestButton = page.getByRole('button', { name: /request|send|get.*otp|continue/i });
     await expect(requestButton).toBeEnabled({ timeout: 5000 });

@@ -50,16 +50,6 @@ class EmailService {
   }
 
   /**
-   * Validate email address format
-   * Delegates to centralized emailUtils for consistency
-   * @param {string} email - Email address to validate
-   * @returns {boolean} True if valid email format
-   */
-  isValidEmail(email) {
-    return isValidEmailUtil(email);
-  }
-
-  /**
    * Send OTP code via email
    * In development/test environments, skips actual email sending and returns OTP for testing
    * @param {string} email - Recipient email address
@@ -67,7 +57,7 @@ class EmailService {
    * @returns {Promise<{success: boolean, error?: string, otp?: string, devMode?: boolean}>}
    */
   async sendOTP(email, otp) {
-    if (!this.isValidEmail(email)) {
+    if (!isValidEmailUtil(email)) {
       return {
         success: false,
         error: 'Invalid email address format'

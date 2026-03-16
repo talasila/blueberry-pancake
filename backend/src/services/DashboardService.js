@@ -4,6 +4,7 @@ import dataRepository from '../data/DynamoDBRepository.js';
 import { calculateWeightedAverage } from '../utils/bayesianAverage.js';
 import { detectPersonality } from './PersonalityService.js';
 import loggerService from '../logging/Logger.js';
+import { normalizeEmail } from '../utils/emailUtils.js';
 
 /**
  * DashboardService
@@ -173,7 +174,7 @@ class DashboardService {
       const uniqueRaters = new Set();
       itemRatings.forEach(rating => {
         if (rating.email) {
-          uniqueRaters.add(rating.email.trim().toLowerCase());
+          uniqueRaters.add(normalizeEmail(rating.email));
         }
       });
       const numberOfRaters = uniqueRaters.size;
@@ -264,7 +265,7 @@ class DashboardService {
     const ratingsByUser = {};
     ratings.forEach(rating => {
       if (!rating.email) return;
-      const email = rating.email.trim().toLowerCase();
+      const email = normalizeEmail(rating.email);
       if (!ratingsByUser[email]) {
         ratingsByUser[email] = [];
       }

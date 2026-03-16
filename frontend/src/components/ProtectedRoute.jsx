@@ -1,10 +1,11 @@
-import { Navigate, useLocation } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
+import { useCallback } from 'react';
 import apiClient from '@/services/apiClient';
+import RouteGuard from './RouteGuard';
 
 /**
  * ProtectedRoute Component
- * 
+ *
  * Protects routes that require authentication.
  * - Checks for JWT token in localStorage
  * - Redirects to landing page if not authenticated
@@ -12,29 +13,22 @@ import apiClient from '@/services/apiClient';
  */
 function ProtectedRoute({ children }) {
   const location = useLocation();
-  const [isAuthenticated, setIsAuthenticated] = useState(null);
 
-  useEffect(() => {
-    setIsAuthenticated(apiClient.isAuthenticated());
+  const checkPermission = useCallback(() => {
+    const authenticated = apiClient.isAuthenticated();
+    return { allowed: authenticated, redirectTo: '/auth' };
   }, []);
 
-  // Show loading state while checking authentication
-  if (isAuthenticated === null) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
-
-  // Redirect to auth page if not authenticated
-  // Store current location for post-auth redirect
-  if (!isAuthenticated) {
-    return <Navigate to="/auth" state={{ from: location }} replace />;
-  }
-
-  // User is authenticated, render protected content
-  return children;
+  return (
+    <RouteGuard
+      checkPermission={checkPermission}
+      redirectTo="/auth"
+      loadingText="Loading..."
+      navigateState={{ from: location }}
+    >
+      {children}
+    </RouteGuard>
+  );
 }
 
 export default ProtectedRoute;

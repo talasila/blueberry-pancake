@@ -35,6 +35,7 @@ vi.mock('../../src/services/apiClient.js', () => {
       getAuthMethod: vi.fn(() => 'pin'),
       getRatingConfiguration: vi.fn(() => Promise.resolve({ maxRating: 4, ratings: [] })),
       getBookmarks: vi.fn(() => Promise.resolve({ bookmarks: [] })),
+      get: vi.fn(() => Promise.resolve({ items: [], users: {} })),
       request: vi.fn(() =>
         Promise.resolve({
           text: () => Promise.resolve('itemId,email,rating,note\n')
@@ -43,12 +44,6 @@ vi.mock('../../src/services/apiClient.js', () => {
     }
   };
 });
-
-vi.mock('../../src/services/dashboardService.js', () => ({
-  default: {
-    getDashboardData: vi.fn(() => Promise.resolve({ items: [], users: {} }))
-  }
-}));
 
 vi.mock('../../src/services/itemService.js', () => ({
   default: {

@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import eventService from '../../src/services/EventService.js';
+import eventAdminService from '../../src/services/EventAdminService.js';
+import eventConfigService from '../../src/services/EventConfigService.js';
+import eventMemberService from '../../src/services/EventMemberService.js';
 import pinService from '../../src/services/PINService.js';
 import dataRepository from '../../src/data/FileDataRepository.js';
 import cacheService from '../../src/cache/CacheService.js';
@@ -272,7 +275,7 @@ describe('EventService.getEvent', () => {
     });
 
     it('should regenerate PIN for event administrator', async () => {
-      const result = await eventService.regeneratePIN(eventId, administratorEmail);
+      const result = await eventAdminService.regeneratePIN(eventId, administratorEmail);
       
       expect(result).toHaveProperty('pin', '789012');
       expect(result).toHaveProperty('eventId', eventId);
@@ -284,7 +287,7 @@ describe('EventService.getEvent', () => {
 
     it('should reject regeneration from non-administrator', async () => {
       await expect(
-        eventService.regeneratePIN(eventId, 'other@example.com')
+        eventAdminService.regeneratePIN(eventId, 'other@example.com')
       ).rejects.toThrow('Only the event administrator can regenerate PINs');
       
       expect(pinService.generatePIN).not.toHaveBeenCalled();
@@ -293,7 +296,7 @@ describe('EventService.getEvent', () => {
 
     it('should handle case-insensitive email comparison', async () => {
       // Administrator email in different case
-      const result = await eventService.regeneratePIN(eventId, 'ADMIN@EXAMPLE.COM');
+      const result = await eventAdminService.regeneratePIN(eventId, 'ADMIN@EXAMPLE.COM');
       
       expect(result).toHaveProperty('pin');
       expect(DynamoDBRepository.writeEventConfig).toHaveBeenCalled();
@@ -303,13 +306,13 @@ describe('EventService.getEvent', () => {
       DynamoDBRepository.readEventConfig.mockRejectedValue(new Error('Event not found: N0NEX1ST'));
       
       await expect(
-        eventService.regeneratePIN('N0NEX1ST', administratorEmail)
+        eventAdminService.regeneratePIN('N0NEX1ST', administratorEmail)
       ).rejects.toThrow('Event not found: N0NEX1ST');
     });
 
     it('should complete regeneration within 2 seconds (performance test per SC-005)', async () => {
       const startTime = Date.now();
-      await eventService.regeneratePIN(eventId, administratorEmail);
+      await eventAdminService.regeneratePIN(eventId, administratorEmail);
       const duration = Date.now() - startTime;
       
       expect(duration).toBeLessThan(2000); // Must complete within 2 seconds
@@ -618,7 +621,7 @@ describe('EventService.getEvent', () => {
         .mockResolvedValueOnce(mockEvent)
         .mockResolvedValueOnce(updatedEvent);
 
-      const result = await eventService.addAdministrator(eventId, newAdminEmail, requesterEmail);
+      const result = await eventAdminService.addAdministrator(eventId, newAdminEmail, requesterEmail);
 
       expect(result.administrators[newAdminEmail.toLowerCase()]).toBeDefined();
       expect(result.administrators[newAdminEmail.toLowerCase()].owner).toBe(false);
@@ -636,19 +639,19 @@ describe('EventService.getEvent', () => {
       DynamoDBRepository.addAdministratorAtomic.mockResolvedValue({ added: false, alreadyExists: true });
 
       await expect(
-        eventService.addAdministrator(eventId, newAdminEmail, requesterEmail)
+        eventAdminService.addAdministrator(eventId, newAdminEmail, requesterEmail)
       ).rejects.toThrow(/already exists/);
     });
 
     it('should throw error for invalid email format', async () => {
       await expect(
-        eventService.addAdministrator(eventId, 'invalid-email', requesterEmail)
+        eventAdminService.addAdministrator(eventId, 'invalid-email', requesterEmail)
       ).rejects.toThrow('Invalid email address');
     });
 
     it('should throw error for unauthorized requester', async () => {
       await expect(
-        eventService.addAdministrator(eventId, newAdminEmail, 'unauthorized@example.com')
+        eventAdminService.addAdministrator(eventId, newAdminEmail, 'unauthorized@example.com')
       ).rejects.toThrow('Unauthorized');
     });
 
@@ -656,7 +659,7 @@ describe('EventService.getEvent', () => {
       DynamoDBRepository.addAdministratorAtomic.mockResolvedValue({ added: false, alreadyExists: true });
 
       await expect(
-        eventService.addAdministrator(eventId, requesterEmail, requesterEmail)
+        eventAdminService.addAdministrator(eventId, requesterEmail, requesterEmail)
       ).rejects.toThrow(/already exists/);
     });
 
@@ -670,7 +673,7 @@ describe('EventService.getEvent', () => {
         .mockResolvedValueOnce(mockEvent)
         .mockResolvedValueOnce(updatedEvent);
 
-      const result = await eventService.addAdministrator(eventId, 'NEWADMIN@EXAMPLE.COM', requesterEmail);
+      const result = await eventAdminService.addAdministrator(eventId, 'NEWADMIN@EXAMPLE.COM', requesterEmail);
 
       expect(result.administrators['newadmin@example.com']).toBeDefined();
       expect(result.administrators['NEWADMIN@EXAMPLE.COM']).toBeUndefined();
@@ -686,7 +689,7 @@ describe('EventService.getEvent', () => {
         .mockResolvedValueOnce(mockEvent)
         .mockResolvedValueOnce(updatedEvent);
 
-      const result = await eventService.addAdministrator(eventId, newAdminEmail, requesterEmail);
+      const result = await eventAdminService.addAdministrator(eventId, newAdminEmail, requesterEmail);
 
       expect(result.users[newAdminEmail.toLowerCase()]).toBeDefined();
       expect(result.users[newAdminEmail.toLowerCase()].registeredAt).toBeDefined();
@@ -707,7 +710,7 @@ describe('EventService.getEvent', () => {
         .mockResolvedValueOnce(eventWithUser)
         .mockResolvedValueOnce(updatedEvent);
 
-      const result = await eventService.addAdministrator(eventId, newAdminEmail, requesterEmail);
+      const result = await eventAdminService.addAdministrator(eventId, newAdminEmail, requesterEmail);
 
       expect(result.users[newAdminEmail.toLowerCase()].registeredAt).toBe(existingTimestamp);
     });
@@ -752,7 +755,7 @@ describe('EventService.getEvent', () => {
     });
 
     it('should delete administrator successfully', async () => {
-      const result = await eventService.deleteAdministrator(eventId, adminToDelete, requesterEmail);
+      const result = await eventAdminService.deleteAdministrator(eventId, adminToDelete, requesterEmail);
 
       expect(result.administrators[adminToDelete.toLowerCase()]).toBeUndefined();
       expect(result.users[adminToDelete.toLowerCase()]).toBeUndefined();
@@ -762,19 +765,19 @@ describe('EventService.getEvent', () => {
 
     it('should prevent owner deletion', async () => {
       await expect(
-        eventService.deleteAdministrator(eventId, requesterEmail, requesterEmail)
+        eventAdminService.deleteAdministrator(eventId, requesterEmail, requesterEmail)
       ).rejects.toThrow('Cannot delete owner');
     });
 
     it('should throw error for unauthorized requester', async () => {
       await expect(
-        eventService.deleteAdministrator(eventId, adminToDelete, 'unauthorized@example.com')
+        eventAdminService.deleteAdministrator(eventId, adminToDelete, 'unauthorized@example.com')
       ).rejects.toThrow('Unauthorized');
     });
 
     it('should throw error for administrator not found', async () => {
       await expect(
-        eventService.deleteAdministrator(eventId, 'nonexistent@example.com', requesterEmail)
+        eventAdminService.deleteAdministrator(eventId, 'nonexistent@example.com', requesterEmail)
       ).rejects.toThrow(/not found/);
     });
 
@@ -785,19 +788,19 @@ describe('EventService.getEvent', () => {
 
       // Try to delete owner (should fail because it's the last one)
       await expect(
-        eventService.deleteAdministrator(eventId, requesterEmail, requesterEmail)
+        eventAdminService.deleteAdministrator(eventId, requesterEmail, requesterEmail)
       ).rejects.toThrow('Cannot delete owner');
     });
 
     it('should remove administrator from users section atomically', async () => {
-      const result = await eventService.deleteAdministrator(eventId, adminToDelete, requesterEmail);
+      const result = await eventAdminService.deleteAdministrator(eventId, adminToDelete, requesterEmail);
 
       expect(result.administrators[adminToDelete.toLowerCase()]).toBeUndefined();
       expect(result.users[adminToDelete.toLowerCase()]).toBeUndefined();
     });
 
     it('should normalize email addresses', async () => {
-      const result = await eventService.deleteAdministrator(eventId, 'OTHER@EXAMPLE.COM', requesterEmail);
+      const result = await eventAdminService.deleteAdministrator(eventId, 'OTHER@EXAMPLE.COM', requesterEmail);
 
       expect(result.administrators['other@example.com']).toBeUndefined();
       expect(result.administrators['OTHER@EXAMPLE.COM']).toBeUndefined();
@@ -833,7 +836,7 @@ describe('EventService.getEvent', () => {
     });
 
     it('should return administrators object', async () => {
-      const result = await eventService.getAdministrators(eventId, requesterEmail);
+      const result = await eventAdminService.getAdministrators(eventId, requesterEmail);
 
       expect(result).toBeDefined();
       expect(result[requesterEmail.toLowerCase()]).toBeDefined();
@@ -844,7 +847,7 @@ describe('EventService.getEvent', () => {
 
     it('should throw error for unauthorized requester', async () => {
       await expect(
-        eventService.getAdministrators(eventId, 'unauthorized@example.com')
+        eventAdminService.getAdministrators(eventId, 'unauthorized@example.com')
       ).rejects.toThrow('Unauthorized');
     });
 
@@ -866,7 +869,7 @@ describe('EventService.getEvent', () => {
       // the requester can't be authorized. Let's test the case where we return
       // the administrators object which should contain the requester
       DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
-      const result = await eventService.getAdministrators(eventId, requesterEmail);
+      const result = await eventAdminService.getAdministrators(eventId, requesterEmail);
 
       expect(result).toBeDefined();
       expect(result[requesterEmail]).toBeDefined();
@@ -889,7 +892,7 @@ describe('EventService.getEvent', () => {
       };
       DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
-      const result = await eventService.getItemConfiguration(eventId);
+      const result = await eventConfigService.getItemConfiguration(eventId);
 
       expect(result).toEqual({
         numberOfItems: 20,
@@ -910,7 +913,7 @@ describe('EventService.getEvent', () => {
       };
       DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
-      const result = await eventService.getItemConfiguration(eventId);
+      const result = await eventConfigService.getItemConfiguration(eventId);
 
       expect(result).toEqual({
         numberOfItems: 25,
@@ -937,7 +940,7 @@ describe('EventService.getEvent', () => {
       DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
       await expect(
-        eventService.updateItemConfiguration(eventId, { numberOfItems: 0 }, requesterEmail)
+        eventConfigService.updateItemConfiguration(eventId, { numberOfItems: 0 }, requesterEmail)
       ).rejects.toThrow('Number of items must be an integer between 1 and 100');
     });
 
@@ -950,7 +953,7 @@ describe('EventService.getEvent', () => {
       DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
       await expect(
-        eventService.updateItemConfiguration(eventId, { numberOfItems: 101 }, requesterEmail)
+        eventConfigService.updateItemConfiguration(eventId, { numberOfItems: 101 }, requesterEmail)
       ).rejects.toThrow('Number of items must be an integer between 1 and 100');
     });
 
@@ -963,7 +966,7 @@ describe('EventService.getEvent', () => {
       DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
       await expect(
-        eventService.updateItemConfiguration(eventId, { numberOfItems: 20.5 }, requesterEmail)
+        eventConfigService.updateItemConfiguration(eventId, { numberOfItems: 20.5 }, requesterEmail)
       ).rejects.toThrow('Number of items must be an integer between 1 and 100');
     });
 
@@ -975,7 +978,7 @@ describe('EventService.getEvent', () => {
       };
       DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
-      const result = await eventService.updateItemConfiguration(
+      const result = await eventConfigService.updateItemConfiguration(
         eventId,
         { numberOfItems: 30 },
         requesterEmail
@@ -1004,7 +1007,7 @@ describe('EventService.getEvent', () => {
       };
       DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
-      const result = await eventService.updateItemConfiguration(
+      const result = await eventConfigService.updateItemConfiguration(
         eventId,
         { numberOfItems: 20, excludedItemIds: '5,10,15' },
         requesterEmail
@@ -1037,7 +1040,7 @@ describe('EventService.getEvent', () => {
       };
       DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
-      const result = await eventService.updateItemConfiguration(
+      const result = await eventConfigService.updateItemConfiguration(
         eventId,
         { numberOfItems: 12 },
         requesterEmail
@@ -1097,7 +1100,7 @@ describe('EventService.getEvent', () => {
         .mockResolvedValueOnce(event2)
         .mockResolvedValueOnce(event3);
 
-      const result = await eventService.getEventSummariesByAdministrator(adminEmail);
+      const result = await eventMemberService.getEventSummariesByAdministrator(adminEmail);
 
       expect(result).toHaveLength(2);
       expect(result[0].eventId).toBe('EVT00002');
@@ -1113,7 +1116,7 @@ describe('EventService.getEvent', () => {
     it('should return empty array for admin with no events', async () => {
       DynamoDBRepository.listEvents.mockResolvedValue([]);
 
-      const result = await eventService.getEventSummariesByAdministrator(adminEmail);
+      const result = await eventMemberService.getEventSummariesByAdministrator(adminEmail);
 
       expect(result).toEqual([]);
     });
@@ -1132,7 +1135,7 @@ describe('EventService.getEvent', () => {
         .mockResolvedValueOnce(validEvent)
         .mockResolvedValueOnce(null);
 
-      const result = await eventService.getEventSummariesByAdministrator(adminEmail);
+      const result = await eventMemberService.getEventSummariesByAdministrator(adminEmail);
 
       expect(result).toHaveLength(1);
       expect(result[0].eventId).toBe('EVT00001');
@@ -1142,44 +1145,44 @@ describe('EventService.getEvent', () => {
 
   describe('EventService.normalizeExcludedItemIds', () => {
     it('should parse comma-separated string', () => {
-      const result = eventService.normalizeExcludedItemIds('5,10,15', 20);
+      const result = eventConfigService.normalizeExcludedItemIds('5,10,15', 20);
       expect(result).toEqual([5, 10, 15]);
     });
 
     it('should remove leading zeros', () => {
-      const result = eventService.normalizeExcludedItemIds('05,010,15', 20);
+      const result = eventConfigService.normalizeExcludedItemIds('05,010,15', 20);
       expect(result).toEqual([5, 10, 15]);
     });
 
     it('should trim whitespace', () => {
-      const result = eventService.normalizeExcludedItemIds('5, 10 , 15', 20);
+      const result = eventConfigService.normalizeExcludedItemIds('5, 10 , 15', 20);
       expect(result).toEqual([5, 10, 15]);
     });
 
     it('should remove duplicates', () => {
-      const result = eventService.normalizeExcludedItemIds('5,10,5,15,10', 20);
+      const result = eventConfigService.normalizeExcludedItemIds('5,10,5,15,10', 20);
       expect(result).toEqual([5, 10, 15]);
     });
 
     it('should validate range and throw error for invalid IDs', () => {
       expect(() => {
-        eventService.normalizeExcludedItemIds('5,25,30', 20);
+        eventConfigService.normalizeExcludedItemIds('5,25,30', 20);
       }).toThrow('Invalid item IDs: 25, 30. Must be between 1 and 20');
     });
 
     it('should prevent excluding all items', () => {
       expect(() => {
-        eventService.normalizeExcludedItemIds('1,2,3,4,5', 5);
+        eventConfigService.normalizeExcludedItemIds('1,2,3,4,5', 5);
       }).toThrow('At least one item must be available. Cannot exclude all item IDs');
     });
 
     it('should handle array input', () => {
-      const result = eventService.normalizeExcludedItemIds([5, 10, 15], 20);
+      const result = eventConfigService.normalizeExcludedItemIds([5, 10, 15], 20);
       expect(result).toEqual([5, 10, 15]);
     });
 
     it('should sort results', () => {
-      const result = eventService.normalizeExcludedItemIds('15,5,10', 20);
+      const result = eventConfigService.normalizeExcludedItemIds('15,5,10', 20);
       expect(result).toEqual([5, 10, 15]);
     });
   });
@@ -1270,7 +1273,7 @@ describe('EventService.getEvent', () => {
         };
         DynamoDBRepository.readEventConfig.mockResolvedValue({ ...mockEvent });
 
-        const result = await eventService.updateTheme(eventId, 'cellar', administratorEmail);
+        const result = await eventConfigService.updateTheme(eventId, 'cellar', administratorEmail);
 
         expect(result.theme).toBe('cellar');
         expect(DynamoDBRepository.writeEventConfig).toHaveBeenCalledWith(
@@ -1298,7 +1301,7 @@ describe('EventService.getEvent', () => {
         };
         DynamoDBRepository.readEventConfig.mockResolvedValue({ ...mockEvent });
 
-        const result = await eventService.updateTheme(eventId, 'cellar', administratorEmail);
+        const result = await eventConfigService.updateTheme(eventId, 'cellar', administratorEmail);
 
         expect(result.theme).toBe('cellar');
         expect(DynamoDBRepository.writeEventConfig).toHaveBeenCalled();
@@ -1324,7 +1327,7 @@ describe('EventService.getEvent', () => {
         DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
         await expect(
-          eventService.updateTheme(eventId, 'cellar', administratorEmail)
+          eventConfigService.updateTheme(eventId, 'cellar', administratorEmail)
         ).rejects.toThrow('Theme can only be changed when event is in created or paused state');
 
         expect(DynamoDBRepository.writeEventConfig).not.toHaveBeenCalled();
@@ -1350,7 +1353,7 @@ describe('EventService.getEvent', () => {
         DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
         await expect(
-          eventService.updateTheme(eventId, 'invalid', administratorEmail)
+          eventConfigService.updateTheme(eventId, 'invalid', administratorEmail)
         ).rejects.toThrow(/Invalid theme/);
 
         expect(DynamoDBRepository.writeEventConfig).not.toHaveBeenCalled();
@@ -1376,7 +1379,7 @@ describe('EventService.getEvent', () => {
         DynamoDBRepository.readEventConfig.mockResolvedValue(mockEvent);
 
         await expect(
-          eventService.updateTheme(eventId, 'cellar', 'other@example.com')
+          eventConfigService.updateTheme(eventId, 'cellar', 'other@example.com')
         ).rejects.toThrow('Only administrators can update the theme');
 
         expect(DynamoDBRepository.writeEventConfig).not.toHaveBeenCalled();

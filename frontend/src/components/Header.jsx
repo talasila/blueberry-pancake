@@ -9,10 +9,11 @@ import DropdownMenu, { DropdownMenuItem } from './DropdownMenu';
 import { clearAllBookmarks } from '@/utils/bookmarkStorage';
 import { StateDot } from '@/utils/eventState.jsx';
 import { getPreset } from '@/utils/themePresets';
+import useDarkMode from '@/hooks/useDarkMode';
 
 /**
  * Header Component
- * 
+ *
  * A reusable fixed header component that appears at the top of all pages.
  * Features:
  * - Fixed to the top of the viewport
@@ -20,7 +21,7 @@ import { getPreset } from '@/utils/themePresets';
  * - Bottom border with drop shadow
  * - Logo on the left, event name (when in /event/* routes), profile link on the right (when authenticated)
  * - For /system/* routes: shows logout icon instead of menu (root users)
- * 
+ *
  * @returns {JSX.Element} The header component
  */
 function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
@@ -30,18 +31,7 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
   const { plural } = useItemTerminology(event);
   const [authState, setAuthState] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [isDark, setIsDark] = useState(() => document.documentElement.classList.contains('dark'));
-
-  useEffect(() => {
-    const observer = new MutationObserver(() => {
-      setIsDark(document.documentElement.classList.contains('dark'));
-    });
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class'],
-    });
-    return () => observer.disconnect();
-  }, []);
+  const { isDark, toggleDark } = useDarkMode();
 
   const isEventRoute = location.pathname.startsWith('/event/');
   const isSystemRoute = location.pathname.startsWith('/system');
@@ -77,14 +67,14 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
     };
 
     checkAuth();
-    
+
     // Also check on storage events (when localStorage changes)
     const handleStorageChange = () => {
       checkAuth();
     };
-    
+
     window.addEventListener('storage', handleStorageChange);
-    
+
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
@@ -144,25 +134,23 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
 
   const handleToggleDarkMode = () => {
     setIsMenuOpen(false);
-    const next = !isDark;
-    document.documentElement.classList.toggle('dark', next);
-    localStorage.setItem('theme', next ? 'dark' : 'light');
+    toggleDark();
   };
 
   const handleLogout = async () => {
     setIsMenuOpen(false);
-    
+
     // Clear JWT token (also calls logout endpoint to clear httpOnly cookie)
     await apiClient.clearJWTToken();
-    
+
     // Clear email from sessionStorage for current event if it exists
     if (pathEventId) {
       sessionStorage.removeItem(`event:${pathEventId}:email`);
     }
-    
+
     // Clear all bookmarks from sessionStorage
     clearAllBookmarks();
-    
+
     // Navigate to landing page
     navigate('/', { replace: true });
   };
@@ -171,10 +159,10 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
   const handleRootLogout = async () => {
     // Clear JWT token (also calls logout endpoint to clear httpOnly cookie)
     await apiClient.clearJWTToken();
-    
+
     // Clear all bookmarks from sessionStorage
     clearAllBookmarks();
-    
+
     // Navigate to system login page
     navigate('/system/login', { replace: true });
   };
@@ -195,6 +183,71 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
       navigate('/');
     }
   };
+
+  // Menu items defined as a data array for cleaner rendering
+  // Each item has a visibility function that receives a context object
+  const menuItems = [
+    {
+      key: 'my-events',
+      label: 'My Events',
+      icon: <List className="h-4 w-4" />,
+      onClick: handleMyEventsClick,
+      visible: () => apiClient.getAuthMethod() === 'otp',
+    },
+    {
+      key: 'back-to-event',
+      label: 'Back to Event',
+      icon: <ArrowLeft className="h-4 w-4" />,
+      onClick: handleBackToEventClick,
+      visible: (ctx) => !ctx.isMainEventPage && !!ctx.pathEventId,
+    },
+    {
+      key: 'my-bottles',
+      label: `My ${plural}`,
+      icon: event?.typeOfItem === 'wine' ? <BottleWine className="h-4 w-4" /> : <Package className="h-4 w-4" />,
+      onClick: handleMyBottlesClick,
+      visible: () => true,
+      'data-testid': 'menu-my-bottles',
+    },
+    {
+      key: 'dashboard',
+      label: 'Dashboard',
+      icon: <BarChart3 className="h-4 w-4" />,
+      onClick: handleDashboardClick,
+      visible: (ctx) => ctx.isDashboardAvailable && !!ctx.pathEventId,
+    },
+    {
+      key: 'settings',
+      label: 'Settings',
+      icon: <Settings className="h-4 w-4" />,
+      onClick: handleAdminClick,
+      visible: (ctx) => ctx.isAdmin && !!ctx.pathEventId,
+    },
+    {
+      key: 'guide',
+      label: guideVariant === 'admin' ? 'Admin Guide' : 'Help',
+      icon: guideVariant === 'admin' ? <BookOpen className="h-4 w-4" /> : <HelpCircle className="h-4 w-4" />,
+      onClick: handleGuideClick,
+      visible: (ctx) => !!ctx.guideVariant,
+    },
+    {
+      key: 'dark-mode',
+      label: isDark ? 'Light Mode' : 'Dark Mode',
+      icon: isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />,
+      onClick: handleToggleDarkMode,
+      visible: () => true,
+    },
+    {
+      key: 'logout',
+      label: 'Logout',
+      icon: <LogOut className="h-4 w-4" />,
+      onClick: handleLogout,
+      visible: () => true,
+    },
+  ];
+
+  // Context object passed to visibility checks
+  const menuCtx = { isMainEventPage, pathEventId, isDashboardAvailable, isAdmin, guideVariant };
 
   return (
     <header
@@ -295,75 +348,18 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
                 </div>
               }
             >
-              {apiClient.getAuthMethod() === 'otp' && (
-                <DropdownMenuItem
-                  onClick={handleMyEventsClick}
-                  icon={<List className="h-4 w-4" />}
-                >
-                  My Events
-                </DropdownMenuItem>
-              )}
-
-              {/* Back to Event - show only if not on main event page */}
-              {!isMainEventPage && pathEventId && (
-                <DropdownMenuItem
-                  onClick={handleBackToEventClick}
-                  icon={<ArrowLeft className="h-4 w-4" />}
-                >
-                  Back to Event
-                </DropdownMenuItem>
-              )}
-              
-              <DropdownMenuItem
-                onClick={handleMyBottlesClick}
-                icon={event?.typeOfItem === 'wine' ? <BottleWine className="h-4 w-4" /> : <Package className="h-4 w-4" />}
-                data-testid="menu-my-bottles"
-              >
-                My {plural}
-              </DropdownMenuItem>
-              
-              {isDashboardAvailable && pathEventId && (
-                <DropdownMenuItem
-                  onClick={handleDashboardClick}
-                  icon={<BarChart3 className="h-4 w-4" />}
-                >
-                  Dashboard
-                </DropdownMenuItem>
-              )}
-              
-              {isAdmin && pathEventId && (
-                <DropdownMenuItem
-                  onClick={handleAdminClick}
-                  icon={<Settings className="h-4 w-4" />}
-                >
-                  Settings
-                </DropdownMenuItem>
-              )}
-
-              {guideVariant && (
-                <DropdownMenuItem
-                  onClick={handleGuideClick}
-                  icon={guideVariant === 'admin'
-                    ? <BookOpen className="h-4 w-4" />
-                    : <HelpCircle className="h-4 w-4" />}
-                >
-                  {guideVariant === 'admin' ? 'Admin Guide' : 'Help'}
-                </DropdownMenuItem>
-              )}
-
-              <DropdownMenuItem
-                onClick={handleToggleDarkMode}
-                icon={isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              >
-                {isDark ? 'Light Mode' : 'Dark Mode'}
-              </DropdownMenuItem>
-
-              <DropdownMenuItem
-                onClick={handleLogout}
-                icon={<LogOut className="h-4 w-4" />}
-              >
-                Logout
-              </DropdownMenuItem>
+              {menuItems
+                .filter((item) => item.visible(menuCtx))
+                .map((item) => (
+                  <DropdownMenuItem
+                    key={item.key}
+                    onClick={item.onClick}
+                    icon={item.icon}
+                    data-testid={item['data-testid']}
+                  >
+                    {item.label}
+                  </DropdownMenuItem>
+                ))}
             </DropdownMenu>
           )}
         </div>

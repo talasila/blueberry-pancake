@@ -201,9 +201,9 @@ test.describe('Tasting Personality Card', () => {
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     await expect(page.locator('main')).toBeVisible({ timeout: 10000 });
 
-    // Click Users tab
-    const usersTab = page.getByRole('tab', { name: /users/i });
-    await usersTab.click();
+    // Click People tab
+    const peopleTab = page.getByRole('tab', { name: /people/i });
+    await peopleTab.click();
 
     // Verify the user card shows the username and a personality
     const userCard = page.locator('button').filter({ hasText: new RegExp(userEmail.split('@')[0], 'i') });

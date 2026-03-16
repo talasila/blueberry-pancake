@@ -12,7 +12,7 @@ import ItemRatingsTable from '@/components/ItemRatingsTable';
 import UserRatingsTable from '@/components/UserRatingsTable';
 import ItemDetailsDrawer from '@/components/ItemDetailsDrawer';
 import UserDetailsDrawer from '@/components/UserDetailsDrawer';
-import dashboardService from '@/services/dashboardService';
+import apiClient from '@/services/apiClient';
 import { useEventContext } from '@/contexts/EventContext';
 import { useItemTerminology } from '@/utils/itemTerminology';
 
@@ -51,7 +51,7 @@ function DashboardPage() {
     setError(null);
 
     try {
-      const data = await dashboardService.getDashboardData(eventId);
+      const data = await apiClient.get(`/events/${eventId}/dashboard`);
       setDashboardData(data);
     } catch (err) {
       console.error('Error loading dashboard data:', err);

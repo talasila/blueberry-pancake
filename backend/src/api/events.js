@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import eventService from '../services/EventService.js';
+import eventAdminService from '../services/EventAdminService.js';
+import eventConfigService from '../services/EventConfigService.js';
+import eventMemberService from '../services/EventMemberService.js';
 import pinService from '../services/PINService.js';
 import ratingService from '../services/RatingService.js';
 import rateLimitService from '../services/RateLimitService.js';
@@ -17,8 +20,8 @@ import {
 import requireAuth from '../middleware/requireAuth.js';
 import { isProduction } from '../utils/environment.js';
 import { validateEventId } from '../utils/validators.js';
-import { handleApiError, badRequestError, unauthorizedError, forbiddenError } from '../utils/apiErrorHandler.js';
-import { isValidEmail } from '../utils/emailUtils.js';
+import { handleApiError, badRequestError, unauthorizedError, forbiddenError, formatRateLimitResponse } from '../utils/apiErrorHandler.js';
+import { isValidEmail, normalizeEmail } from '../utils/emailUtils.js';
 import { verifyTurnstile } from '../middleware/turnstileProtection.js';
 
 const router = Router();
@@ -75,7 +78,7 @@ router.get('/mine', requireAuth, async (req, res) => {
       return unauthorizedError(res, 'Authentication required');
     }
 
-    const events = await eventService.getEventSummariesByAdministrator(email);
+    const events = await eventMemberService.getEventSummariesByAdministrator(email);
 
     res.json({ events });
   } catch (error) {
@@ -119,18 +122,11 @@ router.post('/:eventId/verify-pin', async (req, res) => {
 
     // Security check: Prevent administrators from logging in via PIN
     // Administrators MUST use OTP authentication for security
-    try {
-      const event = await eventService.getEvent(eventId);
-      const isAdmin = eventService.isAdministrator(event, email.trim());
-      
-      if (isAdmin) {
-        return unauthorizedError(res, 'Administrators must use OTP authentication. Please use the OTP login flow.');
-      }
-    } catch (error) {
-      if (error.message.includes('not found')) {
-        return res.status(404).json({ error: 'Event not found' });
-      }
-      throw error; // Re-throw other errors to be handled by outer catch
+    const event = await eventService.getEvent(eventId);
+    const isAdmin = eventService.isAdministrator(event, email.trim());
+
+    if (isAdmin) {
+      return unauthorizedError(res, 'Administrators must use OTP authentication. Please use the OTP login flow.');
     }
 
     // Get user agent for session fingerprinting
@@ -156,7 +152,7 @@ router.post('/:eventId/verify-pin', async (req, res) => {
 
     // PIN verified successfully - register user for the event
     try {
-      await eventService.registerUser(eventId, email.trim());
+      await eventMemberService.registerUser(eventId, email.trim());
     } catch (registrationError) {
       // Log registration error but don't fail the PIN verification
       // User can still access the event even if registration fails
@@ -174,20 +170,20 @@ router.post('/:eventId/verify-pin', async (req, res) => {
         // User already authenticated - add this event to their existing token
         try {
           token = addEventToToken(existingToken, eventId);
-          loggerService.info(`Added event ${eventId} to existing JWT for user ${email.trim().toLowerCase()}`);
+          loggerService.info(`Added event ${eventId} to existing JWT for user ${normalizeEmail(email)}`);
         } catch (addError) {
           // If adding fails (token expired, invalid, etc.), create new token
           loggerService.warn(`Failed to add event to existing token, creating new: ${addError.message}`);
-          token = generateToken({ 
-            email: email.trim().toLowerCase(),
+          token = generateToken({
+            email: normalizeEmail(email),
             events: [eventId],
             authMethod: 'pin'
           });
         }
       } else {
         // New authentication - create token with this event
-        token = generateToken({ 
-          email: email.trim().toLowerCase(),
+        token = generateToken({
+          email: normalizeEmail(email),
           events: [eventId],
           authMethod: 'pin'
         });
@@ -196,7 +192,7 @@ router.post('/:eventId/verify-pin', async (req, res) => {
       return handleApiError(res, tokenError, 'generate authentication token');
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(email);
     const refreshToken = await generateRefreshToken(normalizedEmail);
 
     // Set JWT as httpOnly cookie for security
@@ -246,12 +242,7 @@ router.get('/:eventId/check-admin', async (req, res) => {
     // Global rate limit (caps total check-admin requests across all callers)
     const globalResult = await rateLimitService.checkGlobalCheckAdminLimit();
     if (!globalResult.allowed) {
-      const retryAfterSeconds = Math.ceil(globalResult.retryAfter || 0);
-      const retryAfterMinutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
-      return res.status(429).json({
-        error: `Too many requests. Please try again in ${retryAfterMinutes} minute(s).`,
-        retryAfter: retryAfterSeconds
-      });
+      return formatRateLimitResponse(res, globalResult, 'Too many requests');
     }
 
     if (isProduction()) {
@@ -259,11 +250,7 @@ router.get('/:eventId/check-admin', async (req, res) => {
       const ipLimit = await rateLimitService.checkIPLimit(clientIP);
       
       if (!ipLimit.allowed) {
-        const retryMinutes = Math.ceil((ipLimit.retryAfter || 900) / 60);
-        return res.status(429).json({
-          error: `Too many requests. Please try again in ${retryMinutes} minute(s).`,
-          retryAfter: ipLimit.retryAfter
-        });
+        return formatRateLimitResponse(res, ipLimit, 'Too many requests');
       }
     }
 
@@ -336,7 +323,7 @@ router.get('/:eventId/administrators', requireAuth, async (req, res) => {
     }
 
     // Get administrators
-    const administrators = await eventService.getAdministrators(eventId, requesterEmail);
+    const administrators = await eventAdminService.getAdministrators(eventId, requesterEmail);
 
     res.json({ administrators });
   } catch (error) {
@@ -370,7 +357,7 @@ router.post('/:eventId/administrators', requireAuth, async (req, res) => {
     }
 
     // Add administrator
-    const event = await eventService.addAdministrator(eventId, email, requesterEmail);
+    const event = await eventAdminService.addAdministrator(eventId, email, requesterEmail);
 
     res.json({ administrators: event.administrators });
   } catch (error) {
@@ -406,7 +393,7 @@ router.delete('/:eventId/administrators/:email', requireAuth, async (req, res) =
     }
 
     // Delete administrator
-    await eventService.deleteAdministrator(eventId, emailToDelete, requesterEmail);
+    await eventAdminService.deleteAdministrator(eventId, emailToDelete, requesterEmail);
 
     res.json({ success: true });
   } catch (error) {
@@ -435,7 +422,7 @@ router.post('/:eventId/regenerate-pin', requireAuth, async (req, res) => {
     }
 
     // Regenerate PIN
-    const result = await eventService.regeneratePIN(eventId, administratorEmail);
+    const result = await eventAdminService.regeneratePIN(eventId, administratorEmail);
 
     res.json(result);
   } catch (error) {
@@ -609,7 +596,7 @@ router.get('/:eventId/item-configuration', requireAuth, async (req, res) => {
     }
 
     // Get item configuration
-    const config = await eventService.getItemConfiguration(eventId);
+    const config = await eventConfigService.getItemConfiguration(eventId);
 
     res.json(config);
   } catch (error) {
@@ -652,7 +639,7 @@ router.patch('/:eventId/item-configuration', requireAuth, async (req, res) => {
       return unauthorizedError(res, 'Authentication required');
     }
 
-    const result = await eventService.updateItemConfiguration(
+    const result = await eventConfigService.updateItemConfiguration(
       eventIdValidation.eventId,
       { numberOfItems, excludedItemIds },
       requesterEmail
@@ -689,7 +676,7 @@ router.get('/:eventId/rating-configuration', async (req, res) => {
     }
 
     // Get rating configuration
-    const ratingConfig = await eventService.getRatingConfiguration(eventId);
+    const ratingConfig = await eventConfigService.getRatingConfiguration(eventId);
 
     res.json(ratingConfig);
   } catch (error) {
@@ -738,7 +725,7 @@ router.patch('/:eventId/rating-configuration', requireAuth, async (req, res) => 
     }
 
     // Update rating configuration
-    const result = await eventService.updateRatingConfiguration(
+    const result = await eventConfigService.updateRatingConfiguration(
       eventIdValidation.eventId,
       { maxRating, ratings, noteSuggestionsEnabled },
       requesterEmail,
@@ -771,7 +758,7 @@ router.patch('/:eventId/theme', requireAuth, async (req, res) => {
       return unauthorizedError(res, 'Authentication required');
     }
 
-    const updatedEvent = await eventService.updateTheme(
+    const updatedEvent = await eventConfigService.updateTheme(
       eventIdValidation.eventId,
       theme,
       requesterEmail
@@ -806,7 +793,7 @@ router.get('/:eventId/bookmarks', requireAuth, async (req, res) => {
     }
 
     // Get bookmarks for user
-    const bookmarks = await eventService.getUserBookmarks(eventId, userEmail);
+    const bookmarks = await eventConfigService.getUserBookmarks(eventId, userEmail);
 
     res.json({
       eventId,
@@ -841,7 +828,7 @@ router.get('/:eventId/profile', requireAuth, async (req, res) => {
     }
 
     // Get user profile
-    const result = await eventService.getUserProfile(eventId, userEmail);
+    const result = await eventConfigService.getUserProfile(eventId, userEmail);
 
     res.json(result);
   } catch (error) {
@@ -878,7 +865,7 @@ router.put('/:eventId/profile', requireAuth, async (req, res) => {
     }
 
     // Update user name
-    const result = await eventService.updateUserName(eventId, userEmail, name || '');
+    const result = await eventConfigService.updateUserName(eventId, userEmail, name || '');
 
     res.json(result);
   } catch (error) {
@@ -915,7 +902,7 @@ router.put('/:eventId/bookmarks', requireAuth, async (req, res) => {
     }
 
     // Save bookmarks for user
-    const result = await eventService.saveUserBookmarks(eventId, userEmail, bookmarks);
+    const result = await eventConfigService.saveUserBookmarks(eventId, userEmail, bookmarks);
 
     res.json(result);
   } catch (error) {
@@ -975,7 +962,7 @@ router.delete('/:eventId/ratings', requireAuth, async (req, res) => {
     }
 
     // Delete all ratings and bookmarks
-    const result = await eventService.deleteAllRatingsAndBookmarks(eventId, requesterEmail);
+    const result = await eventAdminService.deleteAllRatingsAndBookmarks(eventId, requesterEmail);
 
     res.json(result);
   } catch (error) {
@@ -1013,7 +1000,7 @@ router.delete('/:eventId/users/:email', requireAuth, async (req, res) => {
     }
 
     // Delete user
-    const result = await eventService.deleteUser(eventId, userEmailToDelete, requesterEmail);
+    const result = await eventAdminService.deleteUser(eventId, userEmailToDelete, requesterEmail);
 
     res.json(result);
   } catch (error) {
@@ -1043,7 +1030,7 @@ router.delete('/:eventId/users', requireAuth, async (req, res) => {
     }
 
     // Delete all users
-    const result = await eventService.deleteAllUsers(eventId, requesterEmail);
+    const result = await eventAdminService.deleteAllUsers(eventId, requesterEmail);
 
     res.json(result);
   } catch (error) {

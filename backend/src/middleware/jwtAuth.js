@@ -260,3 +260,25 @@ export async function invalidateRefreshToken(refreshToken) {
 export async function invalidateAllRefreshTokens(email) {
   return dataRepository.deleteRefreshTokensByEmail(email);
 }
+
+/**
+ * Clear both JWT and refresh token cookies from the response
+ * @param {object} res - Express response object
+ */
+export function clearAuthCookies(res) {
+  const isProd = isProduction();
+
+  res.clearCookie(JWT_COOKIE_NAME, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'strict',
+    path: '/',
+  });
+
+  res.clearCookie(REFRESH_COOKIE_NAME, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'strict',
+    path: '/api/auth',
+  });
+}

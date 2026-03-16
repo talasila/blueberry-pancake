@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import loggerService from '../logging/Logger.js';
 import { isProduction } from '../utils/environment.js';
+import { handleApiError } from '../utils/apiErrorHandler.js';
 
 const router = Router();
 
@@ -192,23 +193,7 @@ router.get('/:ratingLevel', async (req, res) => {
     // Return suggestions
     res.json(suggestions);
   } catch (error) {
-    // Log error for debugging
-    loggerService.error(`Failed to get quotes suggestions: ${error.message}`, error).catch(() => {});
-    
-    // Handle file not found
-    if (error.code === 'ENOENT') {
-      loggerService.warn(`Quote file not found: ${error.path || 'unknown'}`).catch(() => {});
-      return res.status(500).json({
-        error: 'Failed to load quotes'
-      });
-    }
-    
-    // Handle other errors
-    const isDevelopment = !isProduction();
-    res.status(500).json({
-      error: 'Failed to load quotes suggestions',
-      ...(isDevelopment && { details: error.message })
-    });
+    return handleApiError(res, error, 'load quotes suggestions');
   }
 });
 

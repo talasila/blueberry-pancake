@@ -1,5 +1,6 @@
 import apiClient from './apiClient.js';
-import { validateEventId, validateItemId } from '../utils/serviceValidation.js';
+import { isValidEventId } from '../utils/eventIdValidation.js';
+import { validateItemId } from '../utils/serviceValidation.js';
 
 /**
  * Item service for frontend
@@ -7,7 +8,7 @@ import { validateEventId, validateItemId } from '../utils/serviceValidation.js';
  */
 export const itemService = {
   async registerItem(eventId, itemData) {
-    validateEventId(eventId);
+    if (!isValidEventId(eventId)) throw new Error('Event ID is required');
 
     try {
       const response = await apiClient.post(`/events/${eventId}/items`, itemData);
@@ -19,7 +20,7 @@ export const itemService = {
   },
 
   async getItems(eventId, ownItemsOnly = false) {
-    validateEventId(eventId);
+    if (!isValidEventId(eventId)) throw new Error('Event ID is required');
 
     try {
       const queryParam = ownItemsOnly ? '?ownItemsOnly=true' : '';
@@ -32,7 +33,7 @@ export const itemService = {
   },
 
   async assignItemId(eventId, itemId, itemIdToAssign) {
-    validateEventId(eventId);
+    if (!isValidEventId(eventId)) throw new Error('Event ID is required');
     validateItemId(itemId);
 
     try {
@@ -47,7 +48,7 @@ export const itemService = {
   },
 
   async getItemByItemId(eventId, itemId) {
-    validateEventId(eventId);
+    if (!isValidEventId(eventId)) throw new Error('Event ID is required');
 
     if (itemId === undefined || itemId === null || isNaN(itemId)) {
       throw new Error('Item ID is required');
@@ -62,7 +63,7 @@ export const itemService = {
   },
 
   async updateItem(eventId, itemId, updates) {
-    validateEventId(eventId);
+    if (!isValidEventId(eventId)) throw new Error('Event ID is required');
     validateItemId(itemId);
 
     try {
@@ -75,7 +76,7 @@ export const itemService = {
   },
 
   async deleteItem(eventId, itemId) {
-    validateEventId(eventId);
+    if (!isValidEventId(eventId)) throw new Error('Event ID is required');
     validateItemId(itemId);
 
     try {

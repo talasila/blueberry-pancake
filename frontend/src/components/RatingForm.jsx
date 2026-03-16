@@ -1,11 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Check, Plus } from 'lucide-react';
 import { ratingService } from '@/services/ratingService';
 import { useParams } from 'react-router-dom';
-import { useQuotes } from '@/hooks/useQuotes';
+import quoteService from '@/services/quoteService';
 import { useEventContext } from '@/contexts/EventContext';
 import { useItemTerminology } from '@/utils/itemTerminology';
+import { retryWithBackoff } from '@/utils/retryWithBackoff';
+import { appendWithCharLimit } from '@/utils/appendWithCharLimit';
 
 /**
  * RatingForm Component
@@ -36,8 +38,10 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
   const timeoutRefs = useRef([]);
   const MAX_RETRIES = 3;
 
-  // Quotes hook for note suggestions
-  const { getSuggestionsForRating } = useQuotes();
+  // Quote service for note suggestions
+  const getSuggestionsForRating = useCallback(async (ratingLevel, maxRating = 4) => {
+    return quoteService.getSuggestionsForRating(ratingLevel, maxRating);
+  }, []);
   const [suggestions, setSuggestions] = useState([]);
   const [loadingSuggestions, setLoadingSuggestions] = useState(false);
   const [usedSuggestionIndices, setUsedSuggestionIndices] = useState(new Set());
@@ -95,59 +99,9 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
     loadSuggestions();
   }, [selectedRating, eventType, noteSuggestionsEnabled, getSuggestionsForRating, maxRating]);
 
-  /**
-   * Append suggestion to note with spacing logic
-   * Adds a space only if existing text doesn't end with whitespace
-   * @param {string} currentNote - Current note text
-   * @param {string} suggestionText - Suggestion text to append
-   * @returns {string} Updated note text
-   */
-  const appendSuggestion = (currentNote, suggestionText) => {
-    if (!suggestionText) return currentNote;
-    
-    const trimmedNote = currentNote.trimEnd();
-    const needsSpace = trimmedNote.length > 0 && !/\s$/.test(trimmedNote);
-    const space = needsSpace ? ' ' : '';
-    
-    return trimmedNote + space + suggestionText;
-  };
-
-  /**
-   * Append suggestion to note with character limit handling
-   * If suggestion would exceed 500 character limit, adds partial text to stay within limit
-   * @param {string} currentNote - Current note text
-   * @param {string} suggestionText - Suggestion text to append
-   * @returns {string} Updated note text (within 500 character limit)
-   */
-  const appendSuggestionWithLimit = (currentNote, suggestionText) => {
-    if (!suggestionText) return currentNote;
-    
-    const MAX_LENGTH = 500;
-    const noteWithSuggestion = appendSuggestion(currentNote, suggestionText);
-    
-    // If within limit, return full text
-    if (noteWithSuggestion.length <= MAX_LENGTH) {
-      return noteWithSuggestion;
-    }
-    
-    // Otherwise, add as much of the suggestion as possible
-    const trimmedNote = currentNote.trimEnd();
-    const needsSpace = trimmedNote.length > 0 && !/\s$/.test(trimmedNote);
-    const space = needsSpace ? ' ' : '';
-    const availableSpace = MAX_LENGTH - (trimmedNote.length + space.length);
-    
-    if (availableSpace > 0) {
-      const partialSuggestion = suggestionText.substring(0, availableSpace);
-      return trimmedNote + space + partialSuggestion;
-    }
-    
-    // If no space available, return current note unchanged
-    return currentNote;
-  };
-
   const handleSuggestionClick = (suggestionText, index) => {
     if (usedSuggestionIndices.has(index)) return;
-    const updatedNote = appendSuggestionWithLimit(note, suggestionText);
+    const updatedNote = appendWithCharLimit(note, suggestionText, 500);
     setNote(updatedNote);
     setUsedSuggestionIndices(prev => new Set(prev).add(index));
   };
@@ -179,62 +133,41 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
     setIsSubmitting(true);
     setError(null);
 
-    const RETRY_DELAY = 1000;
+    try {
+      await retryWithBackoff(
+        async () => {
+          // If there's an existing rating but no selected rating, delete it
+          if (existingRating && !selectedRating) {
+            await ratingService.deleteRating(effectiveEventId, itemId);
+          } else {
+            await ratingService.submitRating(
+              effectiveEventId,
+              itemId,
+              selectedRating,
+              note
+            );
+          }
+        },
+        { maxRetries: MAX_RETRIES, baseDelay: 1000 }
+      );
 
-    const attemptSubmit = async (attemptNumber = 0) => {
-      try {
-        // If there's an existing rating but no selected rating, delete it
-        if (existingRating && !selectedRating) {
-          await ratingService.deleteRating(effectiveEventId, itemId);
-        } else {
-          await ratingService.submitRating(
-            effectiveEventId,
-            itemId,
-            selectedRating,
-            note
-          );
-        }
+      setSuccess(true);
+      setRetryCount(0);
 
-        setSuccess(true);
-        setRetryCount(0);
-        
-        const successTimeout = setTimeout(() => {
-          onClose();
-          window.dispatchEvent(new CustomEvent('ratingSubmitted', { 
-            detail: { eventId: effectiveEventId, itemId } 
-          }));
-        }, 1000);
-        timeoutRefs.current.push(successTimeout);
-      } catch (err) {
-        // Check if error is retryable (network errors, 5xx errors)
-        const isRetryable = 
-          err.message?.includes('Failed to fetch') ||
-          err.message?.includes('network') ||
-          err.message?.includes('timeout') ||
-          (err.status >= 500 && err.status < 600);
-
-        if (isRetryable && attemptNumber < MAX_RETRIES) {
-          // Retry after delay
-          setRetryCount(attemptNumber + 1);
-          const retryTimeout = setTimeout(() => {
-            attemptSubmit(attemptNumber + 1);
-          }, RETRY_DELAY * (attemptNumber + 1));
-          timeoutRefs.current.push(retryTimeout);
-        } else {
-          // Max retries reached or non-retryable error
-          setError(
-            err.message || 
-            (attemptNumber >= MAX_RETRIES 
-              ? 'Failed to submit rating after multiple attempts. Please try again later.'
-              : 'Failed to submit rating. Please try again.')
-          );
-          setIsSubmitting(false);
-          setRetryCount(0);
-        }
-      }
-    };
-
-    attemptSubmit();
+      const successTimeout = setTimeout(() => {
+        onClose();
+        window.dispatchEvent(new CustomEvent('ratingSubmitted', {
+          detail: { eventId: effectiveEventId, itemId }
+        }));
+      }, 1000);
+      timeoutRefs.current.push(successTimeout);
+    } catch (err) {
+      setError(
+        err.message || 'Failed to submit rating. Please try again.'
+      );
+      setIsSubmitting(false);
+      setRetryCount(0);
+    }
   };
 
   if (!ratingConfig) {

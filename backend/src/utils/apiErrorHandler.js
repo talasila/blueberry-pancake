@@ -87,6 +87,22 @@ export function rateLimitError(res, message) {
 }
 
 /**
+ * Format and send a rate-limit 429 response with retry-after information
+ * @param {object} res - Express response object
+ * @param {object} result - Rate-limit check result with retryAfter property (in seconds)
+ * @param {string} [message='Too many requests'] - Custom error message prefix
+ * @returns {object} Express response
+ */
+export function formatRateLimitResponse(res, result, message = 'Too many requests') {
+  const retryAfterSeconds = Math.ceil(result.retryAfter || 0);
+  const retryAfterMinutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
+  return res.status(429).json({
+    error: `${message}. Please try again in ${retryAfterMinutes} minute(s).`,
+    retryAfter: retryAfterSeconds
+  });
+}
+
+/**
  * Send a 500 Internal Server Error response
  * @param {object} res - Express response object
  * @param {string} message - User-friendly error message

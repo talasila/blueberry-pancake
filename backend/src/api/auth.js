@@ -5,12 +5,14 @@ import otpService from '../services/OTPService.js';
 import rateLimitService from '../services/RateLimitService.js';
 import suspensionService from '../services/SuspensionService.js';
 import eventService from '../services/EventService.js';
-import { 
-  generateToken, 
+import eventMemberService from '../services/EventMemberService.js';
+import {
+  generateToken,
   generateRefreshToken,
   validateRefreshToken,
   invalidateRefreshToken,
-  JWT_COOKIE_NAME, 
+  clearAuthCookies,
+  JWT_COOKIE_NAME,
   REFRESH_COOKIE_NAME,
   getJWTCookieOptions,
   getRefreshCookieOptions
@@ -18,6 +20,8 @@ import {
 import loggerService from '../logging/Logger.js';
 import { verifyTurnstile } from '../middleware/turnstileProtection.js';
 import { isProduction, isDevelopment, isTest } from '../utils/environment.js';
+import { handleApiError, formatRateLimitResponse } from '../utils/apiErrorHandler.js';
+import { normalizeEmail, isValidEmail } from '../utils/emailUtils.js';
 
 const router = Router();
 
@@ -36,10 +40,10 @@ router.post('/otp/request', async (req, res) => {
       });
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(email);
 
     // Validate email format
-    if (!emailService.isValidEmail(normalizedEmail)) {
+    if (!isValidEmail(normalizedEmail)) {
       return res.status(400).json({
         error: 'Invalid email address format'
       });
@@ -52,12 +56,7 @@ router.post('/otp/request', async (req, res) => {
     // Global rate limit (caps total OTP requests across all callers)
     const globalResult = await rateLimitService.checkGlobalLimit();
     if (!globalResult.allowed) {
-      const retryAfterSeconds = Math.ceil(globalResult.retryAfter || 0);
-      const retryAfterMinutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
-      return res.status(429).json({
-        error: `Too many requests. Please try again in ${retryAfterMinutes} minute(s).`,
-        retryAfter: retryAfterSeconds
-      });
+      return formatRateLimitResponse(res, globalResult, 'Too many requests');
     }
 
     // Check if email is suspended
@@ -74,12 +73,7 @@ router.post('/otp/request', async (req, res) => {
       const rateLimitResult = await rateLimitService.checkLimits(normalizedEmail, clientIP);
 
       if (!rateLimitResult.allowed) {
-        const retryAfterSeconds = Math.ceil(rateLimitResult.retryAfter || 0);
-        const retryAfterMinutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
-        return res.status(429).json({
-          error: `Rate limit exceeded. Please try again in ${retryAfterMinutes} minute(s).`,
-          retryAfter: retryAfterSeconds
-        });
+        return formatRateLimitResponse(res, rateLimitResult, 'Rate limit exceeded');
       }
     }
 
@@ -117,10 +111,7 @@ router.post('/otp/request', async (req, res) => {
 
     return res.status(200).json(response);
   } catch (error) {
-    loggerService.error(`Error in OTP request: ${error.message}`).catch(() => {});
-    return res.status(500).json({
-      error: 'An unexpected error occurred. Please try again later.'
-    });
+    return handleApiError(res, error, 'request OTP');
   }
 });
 
@@ -139,7 +130,7 @@ router.post('/otp/verify', async (req, res) => {
       });
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(email);
 
     const rawOtp = otp;
     if (rawOtp == null || (typeof rawOtp !== 'string' && typeof rawOtp !== 'number')) {
@@ -155,7 +146,7 @@ router.post('/otp/verify', async (req, res) => {
     }
 
     // Validate email format
-    if (!emailService.isValidEmail(normalizedEmail)) {
+    if (!isValidEmail(normalizedEmail)) {
       return res.status(400).json({
         error: 'Invalid email address format'
       });
@@ -212,7 +203,7 @@ router.post('/otp/verify', async (req, res) => {
     // Get all events where user is an administrator
     let adminEvents = [];
     try {
-      adminEvents = await eventService.getEventsByAdministrator(normalizedEmail);
+      adminEvents = await eventMemberService.getEventsByAdministrator(normalizedEmail);
       loggerService.info(`User ${normalizedEmail} has administrator access to ${adminEvents.length} event(s)`).catch(() => {});
     } catch (error) {
       loggerService.error(`Failed to get events for administrator ${normalizedEmail}: ${error.message}`).catch(() => {});
@@ -252,14 +243,7 @@ router.post('/otp/verify', async (req, res) => {
       message: 'Authentication successful'
     });
   } catch (error) {
-    loggerService.error(`Error in OTP verification: ${error.message}`, { stack: error.stack }).catch(() => {});
-    // Provide more specific error message if possible
-    const errorMessage = error.message || 'An unexpected error occurred. Please try again later.';
-    return res.status(500).json({
-      error: errorMessage.includes('JWT') || errorMessage.includes('secret') 
-        ? 'Authentication service configuration error. Please contact support.'
-        : 'An unexpected error occurred. Please try again later.'
-    });
+    return handleApiError(res, error, 'verify OTP');
   }
 });
 
@@ -274,21 +258,7 @@ router.post('/logout', async (req, res) => {
       await invalidateRefreshToken(refreshToken);
     }
 
-    const isProd = isProduction();
-
-    res.clearCookie(JWT_COOKIE_NAME, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'strict',
-      path: '/',
-    });
-
-    res.clearCookie(REFRESH_COOKIE_NAME, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: isProd ? 'none' : 'strict',
-      path: '/api/auth',
-    });
+    clearAuthCookies(res);
 
     loggerService.info('User logged out').catch(() => {});
 
@@ -297,10 +267,7 @@ router.post('/logout', async (req, res) => {
       message: 'Logged out successfully'
     });
   } catch (error) {
-    loggerService.error(`Error during logout: ${error.message}`).catch(() => {});
-    return res.status(500).json({
-      error: 'An error occurred during logout'
-    });
+    return handleApiError(res, error, 'logout');
   }
 });
 
@@ -317,20 +284,8 @@ router.post('/refresh', async (req, res) => {
     const validation = await validateRefreshToken(refreshToken);
     
     if (!validation.valid) {
-      const isProd = isProduction();
-      res.clearCookie(JWT_COOKIE_NAME, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? 'none' : 'strict',
-        path: '/',
-      });
-      res.clearCookie(REFRESH_COOKIE_NAME, {
-        httpOnly: true,
-        secure: isProd,
-        sameSite: isProd ? 'none' : 'strict',
-        path: '/api/auth',
-      });
-      
+      clearAuthCookies(res);
+
       return res.status(401).json({
         error: validation.error || 'Invalid refresh token'
       });
@@ -342,7 +297,7 @@ router.post('/refresh', async (req, res) => {
     // Get current events where user is an administrator (refresh access list)
     let adminEvents = [];
     try {
-      adminEvents = await eventService.getEventsByAdministrator(email);
+      adminEvents = await eventMemberService.getEventsByAdministrator(email);
       loggerService.debug(`Token refresh: User ${email} has access to ${adminEvents.length} event(s)`).catch(() => {});
     } catch (error) {
       loggerService.error(`Failed to get events during refresh for ${email}: ${error.message}`).catch(() => {});
@@ -380,10 +335,7 @@ router.post('/refresh', async (req, res) => {
       message: 'Token refreshed successfully'
     });
   } catch (error) {
-    loggerService.error(`Error in token refresh: ${error.message}`, { stack: error.stack }).catch(() => {});
-    return res.status(500).json({
-      error: 'An unexpected error occurred. Please try again later.'
-    });
+    return handleApiError(res, error, 'refresh token');
   }
 });
 

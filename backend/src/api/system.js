@@ -3,6 +3,7 @@ import requireAuth from '../middleware/requireAuth.js';
 import { requireRoot } from '../middleware/requireRoot.js';
 import loggerService from '../logging/Logger.js';
 import systemService from '../services/SystemService.js';
+import { handleApiError } from '../utils/apiErrorHandler.js';
 
 const router = Router();
 
@@ -49,8 +50,7 @@ router.get('/events', async (req, res) => {
 
     res.json(result);
   } catch (error) {
-    await loggerService.error('Failed to list events for admin', error);
-    res.status(500).json({ error: 'Failed to list events' });
+    return handleApiError(res, error, 'list events for admin');
   }
 });
 
@@ -78,8 +78,7 @@ router.get('/events/:eventId', async (req, res) => {
 
     res.json(details);
   } catch (error) {
-    await loggerService.error('Failed to get event details for admin', error);
-    res.status(500).json({ error: 'Failed to get event details' });
+    return handleApiError(res, error, 'get event details for admin');
   }
 });
 
@@ -109,11 +108,7 @@ router.delete('/events/:eventId', async (req, res) => {
       wasActive: result.wasActive
     });
   } catch (error) {
-    if (error.message === 'Event not found') {
-      return res.status(404).json({ error: 'Event not found' });
-    }
-    await loggerService.error('Failed to delete event as admin', error);
-    res.status(500).json({ error: 'Failed to delete event' });
+    return handleApiError(res, error, 'delete event as admin');
   }
 });
 
@@ -133,8 +128,7 @@ router.get('/stats', async (req, res) => {
     const stats = await systemService.getSystemStats();
     res.json(stats);
   } catch (error) {
-    await loggerService.error('Failed to get system stats', error);
-    res.status(500).json({ error: 'Failed to get system stats' });
+    return handleApiError(res, error, 'get system stats');
   }
 });
 

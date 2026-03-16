@@ -1,12 +1,13 @@
-import { Navigate, useParams } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import { useCallback } from 'react';
 import apiClient from '@/services/apiClient';
 import useEvent from '@/hooks/useEvent';
 import { isUserAdmin } from '@/utils/adminCheck';
+import RouteGuard from './RouteGuard';
 
 /**
  * DashboardRoute Component
- * 
+ *
  * Protects dashboard route based on user role and event state.
  * - Administrators can access at any time, regardless of event state
  * - Regular users can only access when event is in "completed" state
@@ -16,29 +17,22 @@ import { isUserAdmin } from '@/utils/adminCheck';
 function DashboardRoute({ children }) {
   const { eventId } = useParams();
   const { event, isLoading: eventLoading } = useEvent();
-  const [hasAccess, setHasAccess] = useState(null);
-  const [isChecking, setIsChecking] = useState(true);
 
-  useEffect(() => {
+  const checkPermission = useCallback(() => {
     if (eventLoading) {
-      setIsChecking(true);
-      return;
+      return new Promise(() => {});
     }
 
     if (!event) {
-      setHasAccess(false);
-      setIsChecking(false);
-      return;
+      return { allowed: false, redirectTo: `/event/${eventId}` };
     }
 
     const userEmail = apiClient.getUserEmail();
-    const accessGranted = isUserAdmin(userEmail, event) || event.state === 'completed';
-    setHasAccess(accessGranted);
-    setIsChecking(false);
-  }, [event, eventLoading]);
+    const allowed = isUserAdmin(userEmail, event) || event.state === 'completed';
+    return { allowed, redirectTo: `/event/${eventId}` };
+  }, [event, eventLoading, eventId]);
 
-  // Show loading state while checking
-  if (isChecking || eventLoading) {
+  if (eventLoading) {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
         <div className="flex flex-col items-center gap-4">
@@ -49,13 +43,16 @@ function DashboardRoute({ children }) {
     );
   }
 
-  // Redirect to event main page if access denied
-  if (!hasAccess) {
-    return <Navigate to={`/event/${eventId}`} replace />;
-  }
-
-  // User has access, render protected content
-  return children;
+  return (
+    <RouteGuard
+      checkPermission={checkPermission}
+      redirectTo={`/event/${eventId}`}
+      loadingText="Checking permissions..."
+      showSpinner
+    >
+      {children}
+    </RouteGuard>
+  );
 }
 
 export default DashboardRoute;

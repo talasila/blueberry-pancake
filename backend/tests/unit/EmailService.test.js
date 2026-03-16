@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import emailService from '../../src/services/EmailService.js';
+import { isValidEmail } from '../../src/utils/emailUtils.js';
 
 // Mock Resend
 vi.mock('resend', () => {
@@ -52,19 +53,19 @@ describe('EmailService', () => {
     delete process.env.EMAIL_FROM_ADDRESS;
   });
 
-  describe('isValidEmail', () => {
+  describe('isValidEmail (from emailUtils)', () => {
     it('should validate correct email addresses', () => {
-      expect(emailService.isValidEmail('test@example.com')).toBe(true);
-      expect(emailService.isValidEmail('user.name@domain.co.uk')).toBe(true);
+      expect(isValidEmail('test@example.com')).toBe(true);
+      expect(isValidEmail('user.name@domain.co.uk')).toBe(true);
     });
 
     it('should reject invalid email addresses', () => {
-      expect(emailService.isValidEmail('invalid')).toBe(false);
-      expect(emailService.isValidEmail('invalid@')).toBe(false);
-      expect(emailService.isValidEmail('@example.com')).toBe(false);
-      expect(emailService.isValidEmail('')).toBe(false);
-      expect(emailService.isValidEmail(null)).toBe(false);
-      expect(emailService.isValidEmail(undefined)).toBe(false);
+      expect(isValidEmail('invalid')).toBe(false);
+      expect(isValidEmail('invalid@')).toBe(false);
+      expect(isValidEmail('@example.com')).toBe(false);
+      expect(isValidEmail('')).toBe(false);
+      expect(isValidEmail(null)).toBe(false);
+      expect(isValidEmail(undefined)).toBe(false);
     });
   });
 

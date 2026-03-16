@@ -2,12 +2,13 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import DashboardPage from '../../src/pages/DashboardPage.jsx';
-import dashboardService from '../../src/services/dashboardService.js';
+import apiClient from '../../src/services/apiClient.js';
 import { useEventContext } from '../../src/contexts/EventContext.jsx';
 
-vi.mock('../../src/services/dashboardService.js', () => ({
+vi.mock('../../src/services/apiClient.js', () => ({
   default: {
-    getDashboardData: vi.fn()
+    get: vi.fn(),
+    getUserEmail: vi.fn(() => 'test@example.com')
   }
 }));
 
@@ -134,7 +135,7 @@ describe('DashboardPage – Summary tab redesign', () => {
   });
 
   it('renders the top-rated bottle hero card when ratings exist', async () => {
-    dashboardService.getDashboardData.mockResolvedValue(DASHBOARD_WITH_RATINGS);
+    apiClient.get.mockResolvedValue(DASHBOARD_WITH_RATINGS);
     renderDashboard();
 
     await waitFor(() => {
@@ -147,7 +148,7 @@ describe('DashboardPage – Summary tab redesign', () => {
   });
 
   it('shows "No ratings yet" hero card when no ratings exist', async () => {
-    dashboardService.getDashboardData.mockResolvedValue(DASHBOARD_EMPTY);
+    apiClient.get.mockResolvedValue(DASHBOARD_EMPTY);
     renderDashboard();
 
     await waitFor(() => {
@@ -158,7 +159,7 @@ describe('DashboardPage – Summary tab redesign', () => {
   });
 
   it('renders ratings progress bar with actual/expected', async () => {
-    dashboardService.getDashboardData.mockResolvedValue(DASHBOARD_WITH_RATINGS);
+    apiClient.get.mockResolvedValue(DASHBOARD_WITH_RATINGS);
     renderDashboard();
 
     await waitFor(() => {
@@ -170,7 +171,7 @@ describe('DashboardPage – Summary tab redesign', () => {
   });
 
   it('renders global average rating card', async () => {
-    dashboardService.getDashboardData.mockResolvedValue(DASHBOARD_WITH_RATINGS);
+    apiClient.get.mockResolvedValue(DASHBOARD_WITH_RATINGS);
     renderDashboard();
 
     await waitFor(() => {
@@ -182,7 +183,7 @@ describe('DashboardPage – Summary tab redesign', () => {
   });
 
   it('renders Most Divisive card with item ID', async () => {
-    dashboardService.getDashboardData.mockResolvedValue(DASHBOARD_WITH_RATINGS);
+    apiClient.get.mockResolvedValue(DASHBOARD_WITH_RATINGS);
     renderDashboard();
 
     await waitFor(() => {
@@ -194,7 +195,7 @@ describe('DashboardPage – Summary tab redesign', () => {
   });
 
   it('renders personality strip with dominant hero and secondary pills', async () => {
-    dashboardService.getDashboardData.mockResolvedValue(DASHBOARD_WITH_RATINGS);
+    apiClient.get.mockResolvedValue(DASHBOARD_WITH_RATINGS);
     renderDashboard();
 
     await waitFor(() => {
@@ -212,7 +213,7 @@ describe('DashboardPage – Summary tab redesign', () => {
       ...DASHBOARD_WITH_RATINGS,
       userSummaries: DASHBOARD_WITH_RATINGS.userSummaries.map(u => ({ ...u, personality: null }))
     };
-    dashboardService.getDashboardData.mockResolvedValue(dataNoPersonalities);
+    apiClient.get.mockResolvedValue(dataNoPersonalities);
     renderDashboard();
 
     await waitFor(() => {
@@ -232,7 +233,7 @@ describe('DashboardPage – Summary tab redesign', () => {
       ...DASHBOARD_WITH_RATINGS,
       userSummaries: DASHBOARD_WITH_RATINGS.userSummaries.map(u => ({ ...u, personality: null }))
     };
-    dashboardService.getDashboardData.mockResolvedValue(dataWithNullPersonality);
+    apiClient.get.mockResolvedValue(dataWithNullPersonality);
     renderDashboard();
 
     await waitFor(() => {

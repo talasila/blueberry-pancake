@@ -1,4 +1,5 @@
 import apiClient from './apiClient.js';
+import { isValidEventId } from '../utils/eventIdValidation.js';
 
 /**
  * Rating service for frontend
@@ -130,10 +131,10 @@ export const ratingService = {
    * @returns {Promise<object>} Saved rating object
    */
   async submitRating(eventId, itemId, rating, note) {
-    if (!eventId || eventId === 'undefined' || eventId === 'null' || eventId.trim() === '') {
+    if (!isValidEventId(eventId)) {
       throw new Error('Event ID is required');
     }
-    
+
     try {
       const body = {
         itemId,
@@ -156,10 +157,10 @@ export const ratingService = {
    * @returns {Promise<object>} Response object
    */
   async deleteRating(eventId, itemId) {
-    if (!eventId || eventId === 'undefined' || eventId === 'null' || eventId.trim() === '') {
+    if (!isValidEventId(eventId)) {
       throw new Error('Event ID is required');
     }
-    
+
     try {
       const response = await apiClient.delete(`/events/${eventId}/ratings/${itemId}`);
       return response;

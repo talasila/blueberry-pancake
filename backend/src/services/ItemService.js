@@ -3,6 +3,8 @@ import eventService from './EventService.js';
 import loggerService from '../logging/Logger.js';
 import dataRepository from '../data/DynamoDBRepository.js';
 import { validateEventId } from '../utils/validators.js';
+import { getCurrentTimestamp } from '../utils/timestamps.js';
+import { normalizeEmail } from '../utils/emailUtils.js';
 
 // Use alphanumeric alphabet for 12-character item IDs (unique within event)
 const nanoid = customAlphabet('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', 12);
@@ -196,7 +198,7 @@ class ItemService {
       throw new Error('Owner email is required');
     }
 
-    const normalizedEmail = ownerEmail.trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(ownerEmail);
 
     // Validate item registration data
     const validation = this.validateItemRegistration(itemData);
@@ -242,13 +244,13 @@ class ItemService {
       price: validation.normalized.price,
       description: validation.normalized.description,
       ownerEmail: normalizedEmail,
-      registeredAt: new Date().toISOString(),
+      registeredAt: getCurrentTimestamp(),
       itemId: null
     };
 
     // Add item to event
     event.items.push(item);
-    event.updatedAt = new Date().toISOString();
+    event.updatedAt = getCurrentTimestamp();
 
     // Persist updated event to DynamoDB
     await dataRepository.writeEventConfig(eventId, event);
@@ -286,7 +288,7 @@ class ItemService {
     }
 
     // For regular users, return only their own items
-    const normalizedEmail = userEmail.trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(userEmail);
     return (event.items || []).filter(item => item.ownerEmail === normalizedEmail);
   }
 
@@ -322,7 +324,7 @@ class ItemService {
       throw new Error('Administrator email is required');
     }
 
-    const normalizedEmail = adminEmail.trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(adminEmail);
 
     // Get event and validate state
     const event = await eventService.getEvent(eventId);
@@ -345,7 +347,7 @@ class ItemService {
     // If clearing assignment (null), just set to null and skip validation
     if (itemIdToAssign === null) {
       foundItem.itemId = null;
-      event.updatedAt = new Date().toISOString();
+      event.updatedAt = getCurrentTimestamp();
 
       // Persist updated event to DynamoDB
       await dataRepository.writeEventConfig(eventId, event);
@@ -373,7 +375,7 @@ class ItemService {
 
     // Assign itemId to item
     foundItem.itemId = itemIdToAssign;
-    event.updatedAt = new Date().toISOString();
+    event.updatedAt = getCurrentTimestamp();
 
     // Persist updated event to DynamoDB
     await dataRepository.writeEventConfig(eventId, event);
@@ -454,7 +456,7 @@ class ItemService {
       throw new Error('Owner email is required');
     }
 
-    const normalizedEmail = ownerEmail.trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(ownerEmail);
 
     // Use pre-loaded event from middleware when available (FR-008)
     const event = preloadedEvent || await eventService.getEvent(eventId);
@@ -508,7 +510,7 @@ class ItemService {
       item.description = validation.normalized.description;
     }
 
-    event.updatedAt = new Date().toISOString();
+    event.updatedAt = getCurrentTimestamp();
 
     // Persist updated event to DynamoDB
     await dataRepository.writeEventConfig(eventId, event);
@@ -539,7 +541,7 @@ class ItemService {
       throw new Error('Owner email is required');
     }
 
-    const normalizedEmail = ownerEmail.trim().toLowerCase();
+    const normalizedEmail = normalizeEmail(ownerEmail);
 
     // Use pre-loaded event from middleware when available (FR-008)
     const event = preloadedEvent || await eventService.getEvent(eventId);
@@ -566,7 +568,7 @@ class ItemService {
 
     // Remove item from array
     event.items.splice(itemIndex, 1);
-    event.updatedAt = new Date().toISOString();
+    event.updatedAt = getCurrentTimestamp();
 
     // Persist updated event to DynamoDB
     await dataRepository.writeEventConfig(eventId, event);

@@ -3,7 +3,6 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import apiClient from '@/services/apiClient';
 import { ratingService } from '@/services/ratingService';
-import dashboardService from '@/services/dashboardService';
 import { getBookmarks, loadBookmarksFromServer } from '@/utils/bookmarkStorage';
 import ItemButton from '@/components/ItemButton';
 import RatingDrawer from '@/components/RatingDrawer';
@@ -263,7 +262,7 @@ function EventPage() {
     const fetchDashboardData = async () => {
       if (event?.state === 'completed' && eventId) {
         try {
-          const data = await dashboardService.getDashboardData(eventId);
+          const data = await apiClient.get(`/events/${eventId}/dashboard`);
           setDashboardData(data);
         } catch (err) {
           console.error('Error fetching dashboard data for winners:', err);
