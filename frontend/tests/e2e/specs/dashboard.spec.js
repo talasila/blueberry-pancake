@@ -14,6 +14,7 @@ import {
   enterAndSubmitPIN,
   dismissGuestWelcomeSheet,
   getUserToken,
+  loginAsUserToEvent,
   BASE_URL,
   API_URL,
   startEvent,
@@ -47,10 +48,10 @@ async function clickItemsTab(page) {
 }
 
 /**
- * Click the Users tab and return the active tab panel.
+ * Click the People tab and return the active tab panel.
  */
 async function clickUsersTab(page) {
-  const usersTab = page.getByRole('tab', { name: /users/i });
+  const usersTab = page.getByRole('tab', { name: /people/i });
   await usersTab.waitFor({ state: 'visible', timeout: 10000 });
   await usersTab.click();
   const tabPanel = page.locator('[role="tabpanel"][data-state="active"]');
@@ -71,7 +72,8 @@ test.describe('Dashboard Page', () => {
     
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/dashboard`));
     await expect(page.getByRole('heading', { name: /dashboard/i })).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText(/total.*users/i)).toBeVisible({ timeout: 10000 });
+    const summaryPanel = page.getByLabel('Summary');
+    await expect(summaryPanel.getByText(/^people$/i)).toBeVisible({ timeout: 10000 });
   });
 
   test('administrator sees dashboard in started state', async ({ page, testEvent }) => {
@@ -96,14 +98,7 @@ test.describe('Dashboard Page', () => {
     await startEvent(eventId, token);
     
     // Access as regular user
-    await clearAuth(page);
-    await page.goto(`${BASE_URL}/event/${eventId}`);
-    await submitEmail(page, 'regularuser@example.com');
-    await enterAndSubmitPIN(page, pin);
-    await dismissGuestWelcomeSheet(page);
-    
-    // Wait for event page to fully load after PIN entry
-    await page.waitForURL(new RegExp(`/event/${eventId}$`), { timeout: 10000 });
+    await loginAsUserToEvent(page, eventId, 'regularuser@example.com', pin);
     
     // Try to access dashboard
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
@@ -168,12 +163,12 @@ test.describe('Dashboard Page', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     
-    // Should see four statistics
-    // Look for specific stat labels
-    await expect(page.getByText(/total.*users/i)).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText(/total.*(bottles|items)/i)).toBeVisible();
-    await expect(page.getByText(/total.*ratings/i)).toBeVisible();
-    await expect(page.getByText(/ratings.*bottle/i)).toBeVisible();
+    // Should see four statistics scoped to Summary tab
+    const summaryPanel = page.getByLabel('Summary');
+    await expect(summaryPanel.getByText(/^people$/i)).toBeVisible({ timeout: 10000 });
+    await expect(summaryPanel.getByText(/^(bottles|items)$/i)).toBeVisible();
+    await expect(summaryPanel.getByText(/^ratings$/i)).toBeVisible();
+    await expect(summaryPanel.getByText(/ratings.*bottle/i)).toBeVisible();
   });
 
   test('shows zero/N/A values when no ratings exist', async ({ page, testEvent }) => {
@@ -469,8 +464,8 @@ test.describe('Dashboard Page', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     
-    // Click on Users tab and wait for content to load
-    const usersTab = page.getByRole('tab', { name: /users/i });
+    // Click on People tab and wait for content to load
+    const usersTab = page.getByRole('tab', { name: /people/i });
     await usersTab.click();
     
     // Wait for the testuser card to appear in the users list
@@ -515,8 +510,8 @@ test.describe('Dashboard Page', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     
-    // Click on Users tab
-    const usersTab = page.getByRole('tab', { name: /users/i });
+    // Click on People tab
+    const usersTab = page.getByRole('tab', { name: /people/i });
     await usersTab.click();
     
     // Table should show derived name from email (john.doe)
@@ -557,8 +552,9 @@ test.describe('Dashboard Page', () => {
     await expect(page.getByRole('heading', { name: /dashboard/i })).toBeVisible({ timeout: 10000 });
     
     // Summary tab content should be populated with stats
-    await expect(page.getByText(/total users/i)).toBeVisible();
-    await expect(page.getByText(/total bottles/i)).toBeVisible();
+    const summaryPanel = page.getByLabel('Summary');
+    await expect(summaryPanel.getByText(/^people$/i)).toBeVisible();
+    await expect(summaryPanel.getByText(/^bottles$/i)).toBeVisible();
   });
 
   test('refresh button triggers data refetch without errors', async ({ page, testEvent }) => {
@@ -572,7 +568,8 @@ test.describe('Dashboard Page', () => {
     const refreshButton = page.getByRole('button', { name: /refresh/i });
     await expect(refreshButton).toBeVisible({ timeout: 5000 });
     
-    await expect(page.getByText(/total users/i)).toBeVisible({ timeout: 10000 });
+    const summaryPanel = page.getByLabel('Summary');
+    await expect(summaryPanel.getByText(/^people$/i)).toBeVisible({ timeout: 10000 });
 
     // Click refresh and verify a dashboard-specific API call is made
     const responsePromise = page.waitForResponse(
@@ -583,8 +580,8 @@ test.describe('Dashboard Page', () => {
     expect(response.status()).toBe(200);
 
     // Verify the dashboard content is still rendered after refresh
-    await expect(page.getByText(/total users/i)).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText(/total.*(bottles|items)/i)).toBeVisible({ timeout: 5000 });
+    await expect(summaryPanel.getByText(/^people$/i)).toBeVisible({ timeout: 5000 });
+    await expect(summaryPanel.getByText(/^(bottles|items)$/i)).toBeVisible({ timeout: 5000 });
   });
 
   test('dashboard link visible to admin in dropdown menu', async ({ page, testEvent }) => {

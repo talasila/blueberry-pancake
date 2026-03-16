@@ -164,7 +164,7 @@ function DashboardPage() {
           <h1 className="text-lg font-semibold">Dashboard</h1>
         </div>
         <Button
-          variant="outline"
+          variant="ghost"
           size="icon"
           onClick={handleRefresh}
           disabled={isRefreshing}
@@ -184,25 +184,25 @@ function DashboardPage() {
 
       {/* Main Tabs */}
       <Tabs defaultValue="summary" className="w-full">
-        <TabsList>
+        <TabsList className="w-full justify-center">
           <TabsTrigger value="summary">Summary</TabsTrigger>
           <TabsTrigger value="items">{plural}</TabsTrigger>
-          <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="users">People</TabsTrigger>
         </TabsList>
         
         {/* Tab 1: Summary - Statistics Cards */}
         <TabsContent value="summary">
           <div className="grid grid-cols-2 gap-4 py-4">
             <StatisticsCard
-              title="Total Users"
+              title="People"
               value={statistics?.totalUsers ?? null}
             />
             <StatisticsCard
-              title={`Total ${plural}`}
+              title={plural}
               value={statistics?.totalItems ?? null}
             />
             <StatisticsCard
-              title="Total Ratings"
+              title="Ratings"
               value={statistics?.totalRatings ?? null}
               progressPercentage={ratingsProgress}
             />
