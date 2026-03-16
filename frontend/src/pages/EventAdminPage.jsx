@@ -13,6 +13,7 @@ import Message from '@/components/Message';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import SideDrawer from '@/components/SideDrawer';
 import { cn } from '@/lib/utils';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { isValidEmailFormat, clearSuccessMessage, downloadCSV } from '@/utils/helpers';
 import { calculateWeightedAverage } from '@/utils/bayesianAverage';
 import { useItemTerminology } from '@/utils/itemTerminology';
@@ -1842,9 +1843,6 @@ function EventAdminPage({ onOpenAdminGuide }) {
         title="Ratings"
       >
         <div className="space-y-4">
-          <div className="text-sm text-muted-foreground font-normal">
-            How guests rate each item.
-          </div>
           {event?.state !== 'created' && (
             <Message type="info">
               Ratings can only be edited during Setup.
@@ -1855,27 +1853,31 @@ function EventAdminPage({ onOpenAdminGuide }) {
           <div>
             <label className="text-sm font-medium">Rating Scale</label>
             <p className="text-xs text-muted-foreground mt-0.5 mb-2">
-              Guests rate from 1 to {maxRating || 4}
+              Choose the scale, then customize each level's color and label below.
             </p>
-            <div className="flex gap-1">
+            <ToggleGroup
+              type="single"
+              value={String(maxRating)}
+              onValueChange={(val) => {
+                if (!val) return;
+                setMaxRating(parseInt(val, 10));
+                setMaxRatingError('');
+                setRatingConfigError('');
+              }}
+              disabled={isSavingRatingConfig || (event?.state !== 'created')}
+              className="w-full"
+            >
               {[2, 3, 4].map((n) => (
-                <Button
+                <ToggleGroupItem
                   key={n}
-                  type="button"
-                  variant={parseInt(maxRating, 10) === n ? 'default' : 'outline'}
+                  value={String(n)}
                   size="sm"
-                  className="flex-1"
-                  disabled={isSavingRatingConfig || (event?.state !== 'created')}
-                  onClick={() => {
-                    setMaxRating(n);
-                    setMaxRatingError('');
-                    setRatingConfigError('');
-                  }}
+                  className="flex-1 data-[state=on]:bg-primary/15 data-[state=on]:text-primary data-[state=on]:font-semibold"
                 >
                   1–{n}
-                </Button>
+                </ToggleGroupItem>
               ))}
-            </div>
+            </ToggleGroup>
           </div>
 
           {/* Rating levels — compact rows */}
@@ -1883,18 +1885,15 @@ function EventAdminPage({ onOpenAdminGuide }) {
             <div className="space-y-2">
               {ratings.map((rating) => (
                 <div key={rating.value} className="flex items-center gap-2">
-                  <span className="text-xs font-medium text-muted-foreground w-4 text-center shrink-0">{rating.value}</span>
                   <div className="relative shrink-0">
                     <button
                       type="button"
                       onClick={() => toggleColorDropdown(rating.value)}
                       disabled={isSavingRatingConfig || (event?.state !== 'created')}
-                      className="flex h-8 w-8 items-center justify-center rounded-md border border-input transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                      className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-sm ring-1 ring-input ring-offset-2 ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                      style={{ backgroundColor: rating.color }}
                     >
-                      <div
-                        className="w-5 h-5 rounded-full border border-black/10 dark:border-white/20"
-                        style={{ backgroundColor: rating.color }}
-                      />
+                      {rating.value}
                     </button>
                     {openColorDropdowns[rating.value] && (
                       <>
