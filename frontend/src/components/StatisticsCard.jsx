@@ -15,8 +15,9 @@ import { cn } from '@/lib/utils';
  * @param {number} progressPercentage - Optional progress percentage (0-100) for fill background
  * @param {function} onClick - Optional click handler for interactive cards
  * @param {string} subtitle - Optional subtitle text shown below the value in muted style
+ * @param {string} accentColor - Optional CSS class string for card accent styling (e.g., "bg-chart-2/10 border-l-4 border-l-[var(--chart-2)]")
  */
-function StatisticsCard({ title, value, tooltipMessage, progressPercentage, onClick, subtitle }) {
+function StatisticsCard({ title, value, tooltipMessage, progressPercentage, onClick, subtitle, accentColor }) {
   const isNullValue = value === null || value === undefined;
   const displayValue = isNullValue ? 'N/A' : value;
   
@@ -31,7 +32,8 @@ function StatisticsCard({ title, value, tooltipMessage, progressPercentage, onCl
     <Card 
       className={cn(
         "h-full relative overflow-hidden",
-        isClickable && "cursor-pointer hover:bg-accent/50 transition-colors"
+        isClickable && "cursor-pointer hover:bg-accent/50 transition-colors",
+        accentColor
       )}
       onClick={onClick}
     >

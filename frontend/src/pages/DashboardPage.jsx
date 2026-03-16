@@ -2,9 +2,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { RefreshCw, ArrowLeft } from 'lucide-react';
+import { RefreshCw, ArrowLeft, Trophy } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import StatisticsCard from '@/components/StatisticsCard';
+import PersonalitySummaryStrip from '@/components/PersonalitySummaryStrip';
 import ItemRatingsTable from '@/components/ItemRatingsTable';
 import UserRatingsTable from '@/components/UserRatingsTable';
 import ItemDetailsDrawer from '@/components/ItemDetailsDrawer';
@@ -17,10 +20,12 @@ import { useItemTerminology } from '@/utils/itemTerminology';
  * DashboardPage Component
  * 
  * Displays event statistics and item rating details.
- * Features:
- * - Summary statistics (Total Users, Total Items, Total Ratings, Average Ratings per Item)
- * - Item ratings table with sortable columns
- * - Loading and error states
+ * Summary tab layout:
+ * - Top-Rated Bottle hero card (full-width, accent background)
+ * - People + Bottles stat cards (half-width, color-accented)
+ * - Ratings progress bar (full-width, actual/expected)
+ * - Avg Rating + Most Divisive cards (half-width, color-accented)
+ * - Personality summary strip (full-width, conditional)
  */
 function DashboardPage() {
   const { eventId } = useParams();
@@ -126,28 +131,25 @@ function DashboardPage() {
   const { statistics } = dashboardData;
   const isRefreshing = isLoading && dashboardData; // Refreshing if loading but data exists
 
-  // Calculate progress percentage for Total Ratings
-  // Progress = (totalRatings / expectedRatings) * 100
-  // Expected ratings = totalUsers * totalItems
-  const calculateRatingsProgress = () => {
+  const maxRating = dashboardData.ratingConfiguration?.maxRating || 4;
+
+  const ratingsProgress = (() => {
     const totalUsers = statistics?.totalUsers ?? 0;
     const totalItems = statistics?.totalItems ?? 0;
-    const totalRatings = statistics?.totalRatings ?? 0;
-    
-    if (totalUsers === 0 || totalItems === 0) {
-      return null; // Can't calculate progress if no users or items
-    }
-    
-    const expectedRatings = totalUsers * totalItems;
-    if (expectedRatings === 0) {
-      return null;
-    }
-    
-    const progress = (totalRatings / expectedRatings) * 100;
-    return Math.max(0, Math.min(100, progress)); // Clamp between 0 and 100
-  };
+    const actual = statistics?.totalRatings ?? 0;
+    const expected = totalUsers * totalItems;
 
-  const ratingsProgress = calculateRatingsProgress();
+    if (expected === 0) return { actual, expected, percentage: null, remaining: 0 };
+
+    const percentage = Math.max(0, Math.min(100, (actual / expected) * 100));
+    return { actual, expected, percentage, remaining: expected - actual };
+  })();
+
+  const topRatedItem = (() => {
+    const rated = (dashboardData.itemSummaries || []).filter(i => i.numberOfRaters > 0);
+    if (rated.length === 0) return null;
+    return rated.sort((a, b) => b.weightedAverage - a.weightedAverage || a.itemId - b.itemId)[0];
+  })();
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-4">
@@ -190,65 +192,102 @@ function DashboardPage() {
           <TabsTrigger value="users">People</TabsTrigger>
         </TabsList>
         
-        {/* Tab 1: Summary - Statistics Cards */}
+        {/* Tab 1: Summary - Narrative highlight reel */}
         <TabsContent value="summary">
-          <div className="grid grid-cols-2 gap-4 py-4">
-            <StatisticsCard
-              title="People"
-              value={statistics?.totalUsers ?? null}
-            />
-            <StatisticsCard
-              title={plural}
-              value={statistics?.totalItems ?? null}
-            />
-            <StatisticsCard
-              title="Ratings"
-              value={statistics?.totalRatings ?? null}
-              progressPercentage={ratingsProgress}
-            />
-            <StatisticsCard
-              title={`Ratings per ${singular}`}
-              value={statistics?.averageRatingsPerItem ?? null}
-              tooltipMessage={statistics?.totalItems === 0 ? `No ${pluralLower} configured` : undefined}
-            />
-            
-            {/* Most Controversial Item - only show if data exists */}
-            {dashboardData.mostControversial && (
-              <StatisticsCard
-                title="Most Controversial"
-                value={`#${dashboardData.mostControversial.itemId}`}
-                onClick={() => {
-                  if (event?.state === 'completed' || isAdmin) {
-                    setOpenItemDetailsItemId(dashboardData.mostControversial.itemId);
-                    history.pushState(
-                      { drawer: 'item', itemId: dashboardData.mostControversial.itemId }, 
-                      '', 
-                      window.location.pathname
-                    );
-                  }
-                }}
-              />
-            )}
-            
-            {/* Least Controversial Item - only show if data exists */}
-            {dashboardData.leastControversial && (
-              <StatisticsCard
-                title="Least Controversial"
-                value={`#${dashboardData.leastControversial.itemId}`}
-                onClick={() => {
-                  if (event?.state === 'completed' || isAdmin) {
-                    setOpenItemDetailsItemId(dashboardData.leastControversial.itemId);
-                    history.pushState(
-                      { drawer: 'item', itemId: dashboardData.leastControversial.itemId }, 
-                      '', 
-                      window.location.pathname
-                    );
-                  }
-                }}
-              />
-            )}
-          </div>
+          <div className="flex flex-col gap-4 py-4">
+            {/* Hero: Top-Rated Bottle */}
+            <Card
+              className={`bg-primary/5 dark:bg-primary/10 ${topRatedItem && (event?.state === 'completed' || isAdmin) ? 'cursor-pointer hover:bg-primary/10 dark:hover:bg-primary/15 transition-colors' : ''}`}
+              onClick={() => {
+                if (topRatedItem && (event?.state === 'completed' || isAdmin)) {
+                  setOpenItemDetailsItemId(topRatedItem.itemId);
+                  history.pushState({ drawer: 'item', itemId: topRatedItem.itemId }, '', window.location.pathname);
+                }
+              }}
+            >
+              <CardContent className="pt-6 pb-4">
+                {topRatedItem ? (
+                  <div className="flex flex-col items-center gap-1">
+                    <Trophy className="h-6 w-6 text-primary mb-1" />
+                    <div className="text-2xl font-bold tracking-tight">{singular} #{topRatedItem.itemId}</div>
+                    <div className="text-lg font-semibold text-primary">{topRatedItem.averageRating.toFixed(1)} / {maxRating}</div>
+                    <p className="text-xs text-muted-foreground">Top Rated</p>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-1">
+                    <Trophy className="h-6 w-6 text-muted-foreground/40 mb-1" />
+                    <p className="text-sm text-muted-foreground">No ratings yet</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
+            {/* Row: People + Bottles */}
+            <div className="grid grid-cols-2 gap-4">
+              <StatisticsCard
+                title="People"
+                value={statistics?.totalUsers ?? null}
+                accentColor="border-l-4 border-l-[var(--chart-2)] bg-[var(--chart-2)]/5"
+              />
+              <StatisticsCard
+                title={plural}
+                value={statistics?.totalItems ?? null}
+                accentColor="border-l-4 border-l-[var(--chart-4)] bg-[var(--chart-4)]/5"
+              />
+            </div>
+
+            {/* Full-width: Ratings Progress (slim) */}
+            <Card>
+              <CardContent className="pt-4 pb-4">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-muted-foreground">Ratings</span>
+                  <span className="text-sm font-semibold tabular-nums">
+                    {ratingsProgress.expected > 0 ? `${ratingsProgress.actual} / ${ratingsProgress.expected}` : '0'}
+                  </span>
+                </div>
+                <Progress value={ratingsProgress.percentage ?? 0} className="h-2" />
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  {ratingsProgress.expected === 0
+                    ? 'No ratings possible yet'
+                    : ratingsProgress.percentage >= 100
+                      ? '100% complete'
+                      : `${Math.round(ratingsProgress.percentage)}% complete · ${ratingsProgress.remaining} to go`}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* Row: Avg Rating + Most Divisive */}
+            <div className="grid grid-cols-2 gap-4">
+              <StatisticsCard
+                title="Avg Rating"
+                value={dashboardData.globalAverage != null ? dashboardData.globalAverage.toFixed(1) : null}
+                accentColor="border-l-4 border-l-[var(--chart-1)] bg-[var(--chart-1)]/5"
+              />
+              {dashboardData.mostControversial && (
+                <StatisticsCard
+                  title="Most Divisive"
+                  value={`#${dashboardData.mostControversial.itemId}`}
+                  accentColor="border-l-4 border-l-[var(--chart-5)] bg-[var(--chart-5)]/5"
+                  onClick={() => {
+                    if (event?.state === 'completed' || isAdmin) {
+                      setOpenItemDetailsItemId(dashboardData.mostControversial.itemId);
+                      history.pushState(
+                        { drawer: 'item', itemId: dashboardData.mostControversial.itemId },
+                        '',
+                        window.location.pathname
+                      );
+                    }
+                  }}
+                />
+              )}
+            </div>
+
+            {/* Personality Summary Strip */}
+            <PersonalitySummaryStrip
+              userSummaries={dashboardData.userSummaries}
+              itemTerms={{ singular: singularLower, plural: pluralLower }}
+            />
+          </div>
         </TabsContent>
         
         {/* Tab 2: Item Ratings */}

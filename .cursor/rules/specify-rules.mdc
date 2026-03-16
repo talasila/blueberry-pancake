@@ -126,6 +126,8 @@ JavaScript (ES2020+), Node.js 18+: Follow standard conventions
 - N/A (reads from existing event API via `apiClient`) (031-event-progress-stepper)
 - JavaScript (ES2022+), React 19, JSX + React 19, Vite 6, Tailwind CSS 4, Radix UI, lucide-react, sonner (toasts), qrcode.react (new) (032-invite-drawer)
 - N/A (no data model changes) (032-invite-drawer)
+- JavaScript (ES2022+), React 18, Node.js + React, react-router-dom, shadcn/ui (Card, Tabs, Progress), Tailwind CSS v4, lucide-reac (033-dashboard-summary-redesign)
+- N/A (reads from existing backend API) (033-dashboard-summary-redesign)
 
 ## Recent Changes
 - 001-root-admin: Added Node.js 22+, JavaScript ES2020+ + Express 5, React 19, Vite, Tailwind CSS 4, Radix UI

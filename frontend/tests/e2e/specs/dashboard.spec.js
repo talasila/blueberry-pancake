@@ -155,7 +155,7 @@ test.describe('Dashboard Page', () => {
   // User Story 3 - View Summary Statistics
   // ===================================
 
-  test('displays four summary statistics', async ({ page, testEvent }) => {
+  test('displays summary statistics and hero card', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
@@ -163,12 +163,13 @@ test.describe('Dashboard Page', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     
-    // Should see four statistics scoped to Summary tab
     const summaryPanel = page.getByLabel('Summary');
     await expect(summaryPanel.getByText(/^people$/i)).toBeVisible({ timeout: 10000 });
     await expect(summaryPanel.getByText(/^(bottles|items)$/i)).toBeVisible();
     await expect(summaryPanel.getByText(/^ratings$/i)).toBeVisible();
-    await expect(summaryPanel.getByText(/ratings.*bottle/i)).toBeVisible();
+    await expect(summaryPanel.getByText(/avg rating/i)).toBeVisible();
+    // Hero card shows "No ratings yet" or "Top Rated" for empty event
+    await expect(summaryPanel.getByText(/no ratings yet|top rated/i)).toBeVisible();
   });
 
   test('shows zero/N/A values when no ratings exist', async ({ page, testEvent }) => {
@@ -179,9 +180,12 @@ test.describe('Dashboard Page', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
     
+    const summaryPanel = page.getByLabel('Summary');
     // Stats should show 0 or N/A for new event
-    const zeroOrNA = page.getByText(/^0$|N\/A/);
+    const zeroOrNA = summaryPanel.getByText(/^0$|N\/A/);
     await expect(zeroOrNA.first()).toBeVisible({ timeout: 10000 });
+    // Hero card shows empty state
+    await expect(summaryPanel.getByText(/no ratings yet/i)).toBeVisible();
   });
 
   // ===================================
