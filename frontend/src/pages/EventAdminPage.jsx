@@ -2,7 +2,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { RefreshCw, Copy, Check, Trash2, X, AlertTriangle, Download, Search, Palette, LayoutList, Star, ShieldCheck, Users, UserPlus, Share2 } from 'lucide-react';
+import { RefreshCw, Copy, Check, Trash2, X, AlertTriangle, Download, Search, Palette, LayoutList, Star, Users, UserPlus, Share2, ArrowLeft, Pencil, Wrench } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -961,10 +961,10 @@ function EventAdminPage({ onOpenAdminGuide }) {
   };
 
   useEffect(() => {
-    if (openDrawer === 'guests' && eventId) {
+    if (openDrawer === 'people' && eventId) {
       refreshGuestsData();
     }
-  }, [openDrawer === 'guests']);
+  }, [openDrawer === 'people']);
 
   const filteredGuests = useMemo(() => {
     let guests = getAllUsersWithStats();
@@ -1573,25 +1573,40 @@ function EventAdminPage({ onOpenAdminGuide }) {
     <div className="px-4 sm:px-6 lg:px-8 py-4">
       <div className="max-w-md mx-auto w-full">
         <div className="space-y-6">
-          {/* Header: inline-editable event name */}
-          <div>
-            <Input
-              value={editedName}
-              onChange={(e) => handleNameChange(e.target.value)}
-              onBlur={handleNameBlur}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') e.target.blur();
-                if (e.key === 'Escape') {
-                  if (saveNameRef.current) clearTimeout(saveNameRef.current);
-                  setEditedName(event.name);
-                  e.target.blur();
-                }
-              }}
-              disabled={isSavingName}
-              maxLength={100}
-              className="text-base font-semibold border-transparent bg-transparent px-0 h-auto py-0 focus-visible:border-input focus-visible:bg-background focus-visible:px-3 focus-visible:py-1.5 transition-all truncate"
-              aria-label="Event name"
-            />
+          {/* Page header with back navigation */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate(`/event/${eventId}`)}
+              className="flex items-center justify-center h-8 w-8 -ml-1 rounded-md hover:bg-accent transition-colors touch-manipulation"
+              aria-label="Back to event"
+            >
+              <ArrowLeft className="h-4 w-4" />
+            </button>
+            <h1 className="text-lg font-semibold">Settings</h1>
+          </div>
+
+          {/* Inline-editable event name */}
+          <div className="-mt-3">
+            <div className="flex items-center gap-1.5">
+              <Input
+                value={editedName}
+                onChange={(e) => handleNameChange(e.target.value)}
+                onBlur={handleNameBlur}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') e.target.blur();
+                  if (e.key === 'Escape') {
+                    if (saveNameRef.current) clearTimeout(saveNameRef.current);
+                    setEditedName(event.name);
+                    e.target.blur();
+                  }
+                }}
+                disabled={isSavingName}
+                maxLength={100}
+                className="text-base border-transparent bg-transparent px-0 h-auto py-0 shadow-none focus-visible:ring-0 focus-visible:border-transparent focus-visible:border-b-input transition-all truncate"
+                aria-label="Event name"
+              />
+              <Pencil className="h-3.5 w-3.5 text-muted-foreground/60 flex-shrink-0" />
+            </div>
             {(nameSaved || isSavingName) && (
               <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
                 {nameSaved ? (
@@ -1642,30 +1657,17 @@ function EventAdminPage({ onOpenAdminGuide }) {
             />
             <SettingsRow
               icon={<Users className="h-4 w-4" />}
-              label="Guests"
-              badge={<Badge variant="outline">{getNonAdminUserCount()} registered</Badge>}
-              onClick={() => openDrawerWithHistory('guests')}
-            />
-            <SettingsRow
-              icon={<ShieldCheck className="h-4 w-4" />}
-              label="Administrators"
-              onClick={() => openDrawerWithHistory('administrators')}
+              label="People"
+              badge={<Badge variant="outline">{getNonAdminUserCount()} guests</Badge>}
+              onClick={() => openDrawerWithHistory('people')}
             />
 
             {isCurrentUserAdministrator() && (
-              <>
-                <SettingsRow
-                  icon={<Download className="h-4 w-4" />}
-                  label="Export Data"
-                  onClick={() => openDrawerWithHistory('export-data')}
-                />
-                <SettingsRow
-                  icon={<AlertTriangle className="h-4 w-4" />}
-                  label="Danger Zone"
-                  variant="destructive"
-                  onClick={() => openDrawerWithHistory('danger-zone')}
-                />
-              </>
+              <SettingsRow
+                icon={<Wrench className="h-4 w-4" />}
+                label="Advanced"
+                onClick={() => openDrawerWithHistory('advanced')}
+              />
             )}
           </div>
         </div>
@@ -2126,132 +2128,9 @@ function EventAdminPage({ onOpenAdminGuide }) {
         </div>
       </SideDrawer>
 
-      {/* Administrators Management Drawer */}
+      {/* People Drawer (Guests + Administrators) */}
       <SideDrawer
-        isOpen={openDrawer === 'administrators'}
-        onClose={() => {
-          // Check if current history state has a drawer that matches the open drawer
-          // Only go back if we're on a drawer state we created
-          if (history.state?.drawer === openDrawer) {
-            history.back();
-          } else {
-            setOpenDrawer(null);
-          }
-        }}
-        title="Administrators"
-      >
-        <div className="space-y-4">
-          <div className="text-sm text-muted-foreground font-normal">
-            Administrators can manage event settings, control the event state, and view the dashboard. Add others by email — they'll have full access once they join the event. The event owner is always an administrator and cannot be removed.
-          </div>
-          {/* Administrators list */}
-          {isLoadingAdministrators ? (
-            <div className="flex items-center justify-center py-4">
-              <LoadingSpinner />
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {Object.keys(administrators).length === 0 ? (
-                <p className="text-sm text-muted-foreground">No administrators found</p>
-              ) : (
-                Object.entries(administrators).map(([email, data]) => (
-                  <ListCard key={email}>
-                    <div className="flex items-start justify-between gap-3 px-3 py-2.5">
-                      <div className="flex-1 min-w-0 space-y-0.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium truncate">{email}</span>
-                          {data.owner && (
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">Owner</Badge>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Added {new Date(data.assignedAt).toLocaleDateString()}
-                        </p>
-                      </div>
-                      {!data.owner && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            if (window.confirm(`Are you sure you want to remove ${email} as an administrator?`)) {
-                              handleDeleteAdministrator(email);
-                            }
-                          }}
-                          disabled={isDeletingAdmin}
-                          aria-label={`Delete administrator ${email}`}
-                          className="shrink-0 h-8 w-8"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  </ListCard>
-                ))
-              )}
-            </div>
-          )}
-
-          {/* Add administrator form */}
-          <div className="space-y-2 pt-4">
-            <div>
-              <p className="text-sm text-muted-foreground mb-2">
-                Add an administrator to this event
-              </p>
-              <Input
-                type="email"
-                placeholder="Enter email address"
-                value={newAdminEmail}
-                onChange={(e) => {
-                  setNewAdminEmail(e.target.value);
-                  setAddAdminError('');
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !isAddingAdmin) {
-                    handleAddAdministrator();
-                  }
-                }}
-                disabled={isAddingAdmin}
-                aria-label="New administrator email"
-              />
-            </div>
-
-            {addAdminError && (
-              <Message type="error">{addAdminError}</Message>
-            )}
-
-            {addAdminSuccess && (
-              <Message type="success">{addAdminSuccess}</Message>
-            )}
-
-            {deleteAdminError && (
-              <Message type="error">{deleteAdminError}</Message>
-            )}
-
-            {deleteAdminSuccess && (
-              <Message type="success">{deleteAdminSuccess}</Message>
-            )}
-
-            <Button
-              onClick={handleAddAdministrator}
-              disabled={!newAdminEmail.trim() || isAddingAdmin}
-              className="w-full"
-            >
-              {isAddingAdmin ? (
-                <>
-                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                  Adding...
-                </>
-              ) : (
-                'Add Administrator'
-              )}
-            </Button>
-          </div>
-        </div>
-      </SideDrawer>
-
-      {/* Guests Drawer */}
-      <SideDrawer
-        isOpen={openDrawer === 'guests'}
+        isOpen={openDrawer === 'people'}
         onClose={() => {
           if (history.state?.drawer === openDrawer) {
             history.back();
@@ -2259,156 +2138,270 @@ function EventAdminPage({ onOpenAdminGuide }) {
             setOpenDrawer(null);
           }
         }}
-        title="Guests"
+        title="People"
         width="w-full max-w-2xl"
       >
-        <div className="space-y-4">
-          <div className="text-sm text-muted-foreground font-normal">
-            Everyone who has joined the event using the PIN. You can search by name, email, or registered {itemTerminology.singularLower}. Removing a guest deletes all their data including ratings, items, and bookmarks.
-          </div>
-          <div className="relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder={`Search by name, email, or ${itemTerminology.singularLower}...`}
-              value={guestSearchQuery}
-              onChange={(e) => setGuestSearchQuery(e.target.value)}
-              className="pl-9"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="flex gap-1 flex-1">
-              {['all', 'registered', 'unregistered'].map((filter) => (
-                <Button
-                  key={filter}
-                  variant={guestRegistrationFilter === filter ? 'default' : 'outline'}
-                  size="sm"
-                  className="text-xs h-7 px-2.5"
-                  onClick={() => setGuestRegistrationFilter(filter)}
-                >
-                  {filter === 'all' ? 'All' : filter === 'registered' ? 'Registered' : 'Not registered'}
-                </Button>
-              ))}
+        <Tabs defaultValue="guests" className="w-full">
+          <TabsList className="w-full">
+            <TabsTrigger value="guests" className="flex-1">Guests</TabsTrigger>
+            <TabsTrigger value="admins" className="flex-1">Admins</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="guests" className="space-y-4 mt-4">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder={`Search by name, email, or ${itemTerminology.singularLower}...`}
+                value={guestSearchQuery}
+                onChange={(e) => setGuestSearchQuery(e.target.value)}
+                className="pl-9"
+              />
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={refreshGuestsData}
-              disabled={isRefreshingGuests}
-              className="shrink-0 h-7 w-7"
-              aria-label="Refresh guests"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingGuests ? 'animate-spin' : ''}`} />
-            </Button>
-          </div>
+            <div className="flex items-center gap-2">
+              <div className="flex gap-1 flex-1">
+                {['all', 'registered', 'unregistered'].map((filter) => (
+                  <Button
+                    key={filter}
+                    variant={guestRegistrationFilter === filter ? 'default' : 'outline'}
+                    size="sm"
+                    className="text-xs h-7 px-2.5"
+                    onClick={() => setGuestRegistrationFilter(filter)}
+                  >
+                    {filter === 'all' ? 'All' : filter === 'registered' ? 'Registered' : 'Not registered'}
+                  </Button>
+                ))}
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={refreshGuestsData}
+                disabled={isRefreshingGuests}
+                className="shrink-0 h-7 w-7"
+                aria-label="Refresh guests"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingGuests ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
 
-          {deleteUserError && (
-            <Message type="error">{deleteUserError}</Message>
-          )}
+            {deleteUserError && (
+              <Message type="error">{deleteUserError}</Message>
+            )}
 
-          {deleteUserSuccess && (
-            <Message type="success">{deleteUserSuccess}</Message>
-          )}
+            {deleteUserSuccess && (
+              <Message type="success">{deleteUserSuccess}</Message>
+            )}
 
-          {(() => {
-            const allGuests = getAllUsersWithStats();
-            const displayGuests = filteredGuests;
+            {(() => {
+              const allGuests = getAllUsersWithStats();
+              const displayGuests = filteredGuests;
 
-            if (allGuests.length === 0) {
-              return (
-                <p className="text-sm text-muted-foreground text-center py-8">
-                  No guests registered yet
-                </p>
-              );
-            }
-
-            return (
-              <>
-                <p className="text-sm text-muted-foreground">
-                  {(guestSearchQuery.trim() || guestRegistrationFilter !== 'all')
-                    ? `Showing ${displayGuests.length} of ${allGuests.length} guests`
-                    : `${allGuests.length} guests`}
-                </p>
-
-                {displayGuests.length === 0 ? (
+              if (allGuests.length === 0) {
+                return (
                   <p className="text-sm text-muted-foreground text-center py-8">
-                    {guestSearchQuery.trim() ? 'No guests match your search' : 'No guests match this filter'}
+                    No guests have joined yet
                   </p>
-                ) : (
-                  <div className="space-y-2">
-                    {displayGuests.map((guest) => (
-                      <ListCard key={guest.email}>
-                        <div className="flex items-start justify-between gap-3 px-3 py-2.5">
-                          <div className="flex-1 min-w-0 space-y-0.5">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="text-sm font-medium truncate">
-                                {guest.name || guest.email}
-                              </span>
-                              {guest.isOwner && (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">Owner</Badge>
+                );
+              }
+
+              return (
+                <>
+                  <p className="text-sm text-muted-foreground">
+                    {(guestSearchQuery.trim() || guestRegistrationFilter !== 'all')
+                      ? `Showing ${displayGuests.length} of ${allGuests.length} guests`
+                      : `${allGuests.length} guests`}
+                  </p>
+
+                  {displayGuests.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      {guestSearchQuery.trim() ? 'No guests match your search' : 'No guests match this filter'}
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {displayGuests.map((guest) => (
+                        <ListCard key={guest.email}>
+                          <div className="flex items-start justify-between gap-3 px-3 py-2.5">
+                            <div className="flex-1 min-w-0 space-y-0.5">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-medium truncate">
+                                  {guest.name || guest.email}
+                                </span>
+                                {guest.isOwner && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">Owner</Badge>
+                                )}
+                                {guest.isAdministrator && !guest.isOwner && (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0">Admin</Badge>
+                                )}
+                                {guest.itemsCount > 0 ? (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-300 text-green-700 dark:border-green-700 dark:text-green-400">
+                                    {guest.itemsCount} {guest.itemsCount === 1 ? itemTerminology.singularLower : itemTerminology.pluralLower}
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400">
+                                    No {itemTerminology.pluralLower}
+                                  </Badge>
+                                )}
+                              </div>
+                              {guest.name && (
+                                <p className="text-xs text-muted-foreground truncate">{guest.email}</p>
                               )}
-                              {guest.isAdministrator && !guest.isOwner && (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">Admin</Badge>
-                              )}
-                              {guest.itemsCount > 0 ? (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-300 text-green-700 dark:border-green-700 dark:text-green-400">
-                                  {guest.itemsCount} {guest.itemsCount === 1 ? itemTerminology.singularLower : itemTerminology.pluralLower}
-                                </Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400">
-                                  No {itemTerminology.pluralLower}
-                                </Badge>
+                              {guest.itemsCount > 0 && guest.itemNames.length > 0 && (
+                                <p className="text-xs text-muted-foreground truncate">
+                                  {guest.itemNames.join(', ')}
+                                </p>
                               )}
                             </div>
-                            {guest.name && (
-                              <p className="text-xs text-muted-foreground truncate">{guest.email}</p>
-                            )}
-                            {guest.itemsCount > 0 && guest.itemNames.length > 0 && (
-                              <p className="text-xs text-muted-foreground truncate">
-                                {guest.itemNames.join(', ')}
-                              </p>
+                            {!guest.isOwner && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleOpenDeleteUserDialog(guest.email, guest.name, guest.isAdministrator)}
+                                disabled={isRefreshingGuests}
+                                className="shrink-0 h-8 w-8"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             )}
                           </div>
-                          {!guest.isOwner && (
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => handleOpenDeleteUserDialog(guest.email, guest.name, guest.isAdministrator)}
-                              disabled={isRefreshingGuests}
-                              className="shrink-0 h-8 w-8"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
+                        </ListCard>
+                      ))}
+                    </div>
+                  )}
+                </>
+              );
+            })()}
+          </TabsContent>
+
+          <TabsContent value="admins" className="space-y-4 mt-4">
+            <p className="text-sm text-muted-foreground">
+              Admins can manage settings, control the event state, and view the dashboard. The event owner cannot be removed.
+            </p>
+            {isLoadingAdministrators ? (
+              <div className="flex items-center justify-center py-4">
+                <LoadingSpinner />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {Object.keys(administrators).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No administrators found</p>
+                ) : (
+                  Object.entries(administrators).map(([email, data]) => (
+                    <ListCard key={email}>
+                      <div className="flex items-start justify-between gap-3 px-3 py-2.5">
+                        <div className="flex-1 min-w-0 space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium truncate">{email}</span>
+                            {data.owner && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">Owner</Badge>
+                            )}
+                          </div>
+                          <p className="text-xs text-muted-foreground">
+                            Added {new Date(data.assignedAt).toLocaleDateString()}
+                          </p>
                         </div>
-                      </ListCard>
-                    ))}
-                  </div>
+                        {!data.owner && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => {
+                              if (window.confirm(`Are you sure you want to remove ${email} as an administrator?`)) {
+                                handleDeleteAdministrator(email);
+                              }
+                            }}
+                            disabled={isDeletingAdmin}
+                            aria-label={`Delete administrator ${email}`}
+                            className="shrink-0 h-8 w-8"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+                    </ListCard>
+                  ))
                 )}
-              </>
-            );
-          })()}
-        </div>
+              </div>
+            )}
+
+            <div className="space-y-2 pt-4">
+              <div>
+                <p className="text-sm text-muted-foreground mb-2">
+                  Add an administrator by email
+                </p>
+                <Input
+                  type="email"
+                  placeholder="Enter email address"
+                  value={newAdminEmail}
+                  onChange={(e) => {
+                    setNewAdminEmail(e.target.value);
+                    setAddAdminError('');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !isAddingAdmin) {
+                      handleAddAdministrator();
+                    }
+                  }}
+                  disabled={isAddingAdmin}
+                  aria-label="New administrator email"
+                />
+              </div>
+
+              {addAdminError && (
+                <Message type="error">{addAdminError}</Message>
+              )}
+
+              {addAdminSuccess && (
+                <Message type="success">{addAdminSuccess}</Message>
+              )}
+
+              {deleteAdminError && (
+                <Message type="error">{deleteAdminError}</Message>
+              )}
+
+              {deleteAdminSuccess && (
+                <Message type="success">{deleteAdminSuccess}</Message>
+              )}
+
+              <Button
+                onClick={handleAddAdministrator}
+                disabled={!newAdminEmail.trim() || isAddingAdmin}
+                className="w-full"
+              >
+                {isAddingAdmin ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    Adding...
+                  </>
+                ) : (
+                  'Add Administrator'
+                )}
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
       </SideDrawer>
 
-      {/* Export Data Drawer */}
+      {/* Advanced Drawer (Export + Danger Zone) */}
       {isCurrentUserAdministrator() && (
         <SideDrawer
-          isOpen={openDrawer === 'export-data'}
+          isOpen={openDrawer === 'advanced'}
           onClose={() => {
-          // Check if current history state has a drawer that matches the open drawer
-          // Only go back if we're on a drawer state we created
-          if (history.state?.drawer === openDrawer) {
-            history.back();
-          } else {
-            setOpenDrawer(null);
-          }
-        }}
-          title="Export Data"
+            if (history.state?.drawer === openDrawer) {
+              history.back();
+            } else {
+              setOpenDrawer(null);
+            }
+          }}
+          title="Advanced"
         >
-          <div className="space-y-4">
-            <div className="text-sm text-muted-foreground font-normal">
-              Export event data as CSV files for analysis and backup purposes.
-            </div>
+          <Tabs defaultValue="export" className="w-full">
+            <TabsList className="w-full">
+              <TabsTrigger value="export" className="flex-1">Export</TabsTrigger>
+              <TabsTrigger value="danger" className="flex-1">Danger Zone</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="export" className="space-y-4 mt-4">
+              <p className="text-sm text-muted-foreground">
+                Export event data as CSV files for analysis and backup.
+              </p>
 
             {exportRatingsError && (
               <Message type="error">{exportRatingsError}</Message>
@@ -2557,58 +2550,35 @@ function EventAdminPage({ onOpenAdminGuide }) {
                 </Button>
               </div>
             </div>
-          </div>
-        </SideDrawer>
-      )}
+            </TabsContent>
 
-      {/* Danger Zone Drawer */}
-      {isCurrentUserAdministrator() && (
-        <SideDrawer
-          isOpen={openDrawer === 'danger-zone'}
-          onClose={() => {
-          // Check if current history state has a drawer that matches the open drawer
-          // Only go back if we're on a drawer state we created
-          if (history.state?.drawer === openDrawer) {
-            history.back();
-          } else {
-            setOpenDrawer(null);
-          }
-        }}
-          title="Danger Zone"
-        >
-          <div className="space-y-4">
-            <div className="text-sm text-muted-foreground font-normal">
-              These actions are permanent and cannot be undone. Please be certain before proceeding.
-            </div>
+            <TabsContent value="danger" className="space-y-4 mt-4">
+              <p className="text-sm text-muted-foreground">
+                These actions are permanent and cannot be undone.
+              </p>
 
-            {deleteEventError && (
-              <Message type="error">{deleteEventError}</Message>
-            )}
+              {deleteEventError && (
+                <Message type="error">{deleteEventError}</Message>
+              )}
+              {deleteRatingsError && (
+                <Message type="error">{deleteRatingsError}</Message>
+              )}
+              {deleteRatingsSuccess && (
+                <Message type="success">{deleteRatingsSuccess}</Message>
+              )}
+              {deleteUsersError && (
+                <Message type="error">{deleteUsersError}</Message>
+              )}
+              {deleteUsersSuccess && (
+                <Message type="success">{deleteUsersSuccess}</Message>
+              )}
 
-            {deleteRatingsError && (
-              <Message type="error">{deleteRatingsError}</Message>
-            )}
-
-            {deleteRatingsSuccess && (
-              <Message type="success">{deleteRatingsSuccess}</Message>
-            )}
-
-            {deleteUsersError && (
-              <Message type="error">{deleteUsersError}</Message>
-            )}
-
-            {deleteUsersSuccess && (
-              <Message type="success">{deleteUsersSuccess}</Message>
-            )}
-
-            {/* Delete All Users Section */}
-            {isCurrentUserAdministrator() && (
               <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
                 <div className="space-y-3">
                   <div>
                     <h4 className="font-semibold text-destructive mb-1">Delete All Users</h4>
                     <p className="text-sm text-muted-foreground">
-                      Permanently delete all users (excluding administrators) and all their associated data including items, ratings, bookmarks, and profiles.
+                      Permanently delete all users (excluding administrators) and all their associated data.
                     </p>
                     {getNonAdminUserCount() > 0 && (
                       <p className="text-sm font-medium text-foreground mt-1">
@@ -2633,16 +2603,13 @@ function EventAdminPage({ onOpenAdminGuide }) {
                   )}
                 </div>
               </div>
-            )}
 
-            {/* Delete All Ratings Section */}
-            {isCurrentUserAdministrator() && (
               <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
                 <div className="space-y-3">
                   <div>
                     <h4 className="font-semibold text-destructive mb-1">Delete All Ratings</h4>
                     <p className="text-sm text-muted-foreground">
-                      Permanently delete all ratings and bookmarks for this event. Event configuration and items will remain unchanged.
+                      Permanently delete all ratings and bookmarks for this event.
                     </p>
                   </div>
                   <Button
@@ -2657,32 +2624,31 @@ function EventAdminPage({ onOpenAdminGuide }) {
                   </Button>
                 </div>
               </div>
-            )}
 
-            {/* Delete Event Section - Owner Only */}
-            {isCurrentUserOwner() && (
-              <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
-                <div className="space-y-3">
-                  <div>
-                    <h4 className="font-semibold text-destructive mb-1">Delete Event</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Permanently delete this event and all of its data. This action cannot be undone.
-                    </p>
+              {isCurrentUserOwner() && (
+                <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="font-semibold text-destructive mb-1">Delete Event</h4>
+                      <p className="text-sm text-muted-foreground">
+                        Permanently delete this event and all of its data. This action cannot be undone.
+                      </p>
+                    </div>
+                    <Button
+                      data-testid="delete-event-button"
+                      variant="destructive"
+                      onClick={() => setIsDeleteDialogOpen(true)}
+                      disabled={isDeletingEvent}
+                      className="w-full sm:w-auto"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Event
+                    </Button>
                   </div>
-                  <Button
-                    data-testid="delete-event-button"
-                    variant="destructive"
-                    onClick={() => setIsDeleteDialogOpen(true)}
-                    disabled={isDeletingEvent}
-                    className="w-full sm:w-auto"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete Event
-                  </Button>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </SideDrawer>
       )}
 

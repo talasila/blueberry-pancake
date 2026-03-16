@@ -18,9 +18,13 @@ async function openAdminsDrawer(page, eventId, email) {
   const token = await addAdminToEvent(eventId, email);
   await setAuthToken(page, token, email);
   await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-  const adminsButton = page.getByRole('button', { name: /administrator/i });
-  await adminsButton.waitFor({ state: 'visible', timeout: 10000 });
-  await adminsButton.click();
+  const peopleButton = page.getByRole('button', { name: /people/i });
+  await peopleButton.waitFor({ state: 'visible', timeout: 10000 });
+  await peopleButton.click();
+  const drawer = page.getByRole('dialog', { name: /people/i });
+  await drawer.waitFor({ state: 'visible', timeout: 5000 });
+  const adminsTab = drawer.getByRole('tab', { name: /admins/i });
+  await adminsTab.click();
 }
 
 /**
@@ -53,8 +57,8 @@ test.describe('Administrator Management', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
     
-    const adminsSection = page.getByRole('button', { name: /administrator/i });
-    await expect(adminsSection).toBeVisible({ timeout: 10000 });
+    const peopleSection = page.getByRole('button', { name: /people/i });
+    await expect(peopleSection).toBeVisible({ timeout: 10000 });
   });
 
   test('can add new administrator with valid email', async ({ page, testEvent }) => {

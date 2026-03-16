@@ -39,20 +39,22 @@ async function registerItem(eventId, token, name) {
 }
 
 async function openGuestsDrawer(page) {
-  const guestsButton = page.getByRole('button', { name: /guests/i });
-  await guestsButton.waitFor({ state: 'visible', timeout: 10000 });
-  await guestsButton.click();
-  const drawer = page.getByRole('dialog', { name: /guests/i });
+  const peopleButton = page.getByRole('button', { name: /people/i });
+  await peopleButton.waitFor({ state: 'visible', timeout: 10000 });
+  await peopleButton.click();
+  const drawer = page.getByRole('dialog', { name: /people/i });
   await drawer.waitFor({ state: 'visible', timeout: 5000 });
   return drawer;
 }
 
-async function openDangerZoneDrawer(page) {
-  const dangerZoneButton = page.getByRole('button', { name: /danger zone/i });
-  await dangerZoneButton.waitFor({ state: 'visible', timeout: 10000 });
-  await dangerZoneButton.click();
-  const drawer = page.getByRole('dialog', { name: /danger zone/i });
+async function openDangerZoneTab(page) {
+  const advancedButton = page.getByRole('button', { name: /advanced/i });
+  await advancedButton.waitFor({ state: 'visible', timeout: 10000 });
+  await advancedButton.click();
+  const drawer = page.getByRole('dialog', { name: /advanced/i });
   await drawer.waitFor({ state: 'visible', timeout: 5000 });
+  const dangerTab = drawer.getByRole('tab', { name: /danger zone/i });
+  await dangerTab.click();
   return drawer;
 }
 
@@ -71,7 +73,7 @@ async function confirmDeletion(page, confirmationText) {
 
 test.describe('Guests – View Guest List (US1)', () => {
 
-  test('Guests card appears between Administrators and Export Data with correct count', async ({ page, testEvent }) => {
+  test('People row appears with correct guest count', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const token = await addAdminToEvent(eventId, adminEmail);
@@ -83,9 +85,9 @@ test.describe('Guests – View Guest List (US1)', () => {
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
 
-    const guestsButton = page.getByRole('button', { name: /guests/i });
-    await expect(guestsButton).toBeVisible();
-    await expect(guestsButton.getByText('2 registered')).toBeVisible();
+    const peopleButton = page.getByRole('button', { name: /people/i });
+    await expect(peopleButton).toBeVisible();
+    await expect(peopleButton.getByText('2 guests')).toBeVisible();
   });
 
   test('drawer opens and shows all registered users with details', async ({ page, testEvent }) => {
@@ -129,9 +131,9 @@ test.describe('Guests – View Guest List (US1)', () => {
 
     // Delete all non-admin users first (if any) to get an empty state
     // Actually, a fresh test event has only the owner (test@example.com) and the admin we added
-    // Both are administrators, so getNonAdminUserCount is 0 and the card shows "0 registered"
-    const guestsButton = page.getByRole('button', { name: /guests/i });
-    await expect(guestsButton.getByText('0 registered')).toBeVisible();
+    // Both are administrators, so getNonAdminUserCount is 0 and the card shows "0 guests"
+    const peopleButton = page.getByRole('button', { name: /people/i });
+    await expect(peopleButton.getByText('0 guests')).toBeVisible();
   });
 
   test('Refresh button triggers data re-fetch', async ({ page, testEvent }) => {
@@ -387,7 +389,7 @@ test.describe('Guests – Danger Zone Cleanup (US4)', () => {
 
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    const drawer = await openDangerZoneDrawer(page);
+    const drawer = await openDangerZoneTab(page);
 
     await expect(drawer.getByText('Users Management')).not.toBeVisible();
     await expect(drawer.getByTestId('user-select')).not.toBeVisible();
@@ -403,7 +405,7 @@ test.describe('Guests – Danger Zone Cleanup (US4)', () => {
 
     await setAuthToken(page, token, adminEmail);
     await page.goto(`${BASE_URL}/event/${eventId}/admin`);
-    const drawer = await openDangerZoneDrawer(page);
+    const drawer = await openDangerZoneTab(page);
 
     await expect(drawer.getByRole('heading', { name: 'Delete All Users' })).toBeVisible();
     const deleteAllButton = page.getByTestId('delete-all-users-button');

@@ -108,13 +108,14 @@ async function eventExists(eventId, token) {
  * Helper: Open Danger Zone drawer
  */
 async function openDangerZoneDrawer(page) {
-  const dangerZoneButton = page.getByRole('button', { name: /danger zone/i });
-  await dangerZoneButton.waitFor({ state: 'visible', timeout: 10000 });
-  await dangerZoneButton.click();
-  
-  // Wait for the drawer to actually appear (better than arbitrary timeout)
-  const drawer = page.getByRole('dialog', { name: /danger zone/i });
+  const advancedButton = page.getByRole('button', { name: /advanced/i });
+  await advancedButton.waitFor({ state: 'visible', timeout: 10000 });
+  await advancedButton.click();
+
+  const drawer = page.getByRole('dialog', { name: /advanced/i });
   await drawer.waitFor({ state: 'visible', timeout: 5000 });
+  const dangerTab = drawer.getByRole('tab', { name: /danger zone/i });
+  await dangerTab.click();
 }
 
 /**
@@ -143,10 +144,10 @@ async function confirmDeletion(page, confirmationText) {
  * Helper: Open Guests drawer
  */
 async function openGuestsDrawer(page) {
-  const guestsButton = page.getByRole('button', { name: /guests/i });
-  await guestsButton.waitFor({ state: 'visible', timeout: 10000 });
-  await guestsButton.click();
-  const drawer = page.getByRole('dialog', { name: /guests/i });
+  const peopleButton = page.getByRole('button', { name: /people/i });
+  await peopleButton.waitFor({ state: 'visible', timeout: 10000 });
+  await peopleButton.click();
+  const drawer = page.getByRole('dialog', { name: /people/i });
   await drawer.waitFor({ state: 'visible', timeout: 5000 });
   return drawer;
 }

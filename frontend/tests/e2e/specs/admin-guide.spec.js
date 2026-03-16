@@ -232,7 +232,7 @@ test.describe('US2: Created state walkthrough', () => {
     await openAdminGuide(page);
     await navigateToStep(page, 1);
     await expect(page.getByRole('heading', { name: 'Name Your Event' })).toBeVisible();
-    await page.getByRole('button', { name: /back/i }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'How a Tasting Works' })).toBeVisible();
   });
 });

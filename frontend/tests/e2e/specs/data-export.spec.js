@@ -71,12 +71,12 @@ const EXPORT_BUTTON_NAMES = {
  * Open the Export Data drawer on the admin page
  */
 async function openExportDrawer(page) {
-  const exportButton = page.getByRole('button', { name: /export data/i });
-  await exportButton.waitFor({ state: 'visible', timeout: 10000 });
-  await exportButton.click();
-  
-  // Wait for drawer to open
-  await page.getByRole('heading', { name: /export data/i }).waitFor({ state: 'visible', timeout: 5000 });
+  const advancedButton = page.getByRole('button', { name: /advanced/i });
+  await advancedButton.waitFor({ state: 'visible', timeout: 10000 });
+  await advancedButton.click();
+
+  const drawer = page.getByRole('dialog', { name: /advanced/i });
+  await drawer.waitFor({ state: 'visible', timeout: 5000 });
 }
 
 /**

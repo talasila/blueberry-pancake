@@ -1,8 +1,8 @@
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, ArrowLeft } from 'lucide-react';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import StatisticsCard from '@/components/StatisticsCard';
 import ItemRatingsTable from '@/components/ItemRatingsTable';
@@ -24,6 +24,7 @@ import { useItemTerminology } from '@/utils/itemTerminology';
  */
 function DashboardPage() {
   const { eventId } = useParams();
+  const navigate = useNavigate();
   const { event, isAdmin } = useEventContext();
   const { singular, singularLower, plural, pluralLower } = useItemTerminology(event);
   const [dashboardData, setDashboardData] = useState(null);
@@ -150,18 +151,27 @@ function DashboardPage() {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-4">
-      {/* Header with title and refresh button */}
+      {/* Header with back button, title, and refresh */}
       <div className="flex items-center justify-between mb-6">
-        <h4 className="text-xl font-bold">Dashboard</h4>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate(`/event/${eventId}`)}
+            className="flex items-center justify-center h-8 w-8 -ml-1 rounded-md hover:bg-accent transition-colors touch-manipulation"
+            aria-label="Back to event"
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </button>
+          <h1 className="text-lg font-semibold">Dashboard</h1>
+        </div>
         <Button
           variant="outline"
-          size="sm"
+          size="icon"
           onClick={handleRefresh}
           disabled={isRefreshing}
-          className="flex items-center gap-2"
+          aria-label="Refresh"
+          className="h-8 w-8"
         >
           <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-          Refresh
         </Button>
       </div>
 

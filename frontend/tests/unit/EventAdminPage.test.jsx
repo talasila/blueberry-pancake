@@ -336,13 +336,22 @@ describe('EventAdminPage Component', () => {
       });
     });
 
-    it('does not render a PIN settings row', async () => {
+    it('does not render a standalone PIN settings row', async () => {
       renderWithProviders(mockEvent);
 
       await waitFor(() => {
         expect(screen.getByText('Invite')).toBeInTheDocument();
       });
-      expect(screen.queryByText('PIN')).not.toBeInTheDocument();
+      expect(screen.queryByText(/^PIN$/)).not.toBeInTheDocument();
+    });
+
+    it('renders a Settings heading with a back button', async () => {
+      renderWithProviders(mockEvent);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: 'Settings' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Back to event' })).toBeInTheDocument();
+      });
     });
 
     it('renders the event progress stepper', async () => {
