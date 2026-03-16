@@ -43,9 +43,12 @@ export default function InviteQRCard({ eventUrl, pin, onCanvasReady }) {
       )}
 
       {spacedPin ? (
-        <p className="w-[200px] text-center text-lg font-bold tracking-[0.25em] font-mono text-foreground">
-          {spacedPin}
-        </p>
+        <div className="flex flex-col items-center">
+          <span className="text-xs text-muted-foreground">PIN</span>
+          <p className="w-[200px] text-center text-lg font-bold tracking-[0.25em] font-mono text-foreground">
+            {spacedPin}
+          </p>
+        </div>
       ) : (
         <p className="text-sm text-muted-foreground">No PIN assigned</p>
       )}

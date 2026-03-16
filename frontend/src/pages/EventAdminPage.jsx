@@ -1619,7 +1619,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
             <SettingsRow
               icon={<UserPlus className="h-4 w-4" />}
               label="Invite"
-              badge={event.pin ? <Badge variant="outline" className="font-mono text-xs">{event.pin}</Badge> : null}
+              badge={event.pin ? <Badge variant="outline" className="font-mono text-xs">PIN {event.pin}</Badge> : null}
               onClick={() => openDrawerWithHistory('invite')}
             />
             <SettingsRow
@@ -1631,12 +1631,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
             <SettingsRow
               icon={<LayoutList className="h-4 w-4" />}
               label={itemTerminology.plural}
-              badge={
-                <>
-                  <Badge variant="outline" className="text-xs">{parseInt(numberOfItems, 10) - excludedItemIds.length} for rating</Badge>
-                  <Badge variant="outline" className="text-xs">{itemsSummary.total} registered</Badge>
-                </>
-              }
+              badge={<Badge variant="outline" className="text-xs">{itemsSummary.total} of {parseInt(numberOfItems, 10) - excludedItemIds.length} registered</Badge>}
               onClick={() => openDrawerWithHistory('items')}
             />
             <SettingsRow

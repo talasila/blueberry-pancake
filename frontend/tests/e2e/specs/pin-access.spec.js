@@ -228,7 +228,7 @@ test.describe('PIN-based Event Access', () => {
 
     const drawer = page.locator('[role="dialog"]');
     await expect(async () => {
-      const spacedPinElement = drawer.locator('.font-mono.text-2xl');
+      const spacedPinElement = drawer.locator('.font-mono.text-lg');
       const spacedPin = await spacedPinElement.textContent();
       const newPin = spacedPin.replace(/\s+/g, '');
       expect(newPin).toHaveLength(6);

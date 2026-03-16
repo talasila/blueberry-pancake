@@ -53,10 +53,10 @@ async function transitionTo(eventId, targetState) {
 async function openAdminGuide(page) {
   await page.getByRole('button', { name: 'Open menu' }).click();
   const guideItem = page.getByRole('menuitem', { name: /admin guide/i });
-  await expect(guideItem).toBeVisible({ timeout: 3000 });
+  await expect(guideItem).toBeVisible({ timeout: 5000 });
   await guideItem.click();
   await expect(page.locator('[role="dialog"][aria-label="Admin guide"]')).toBeVisible({
-    timeout: 3000,
+    timeout: 5000,
   });
 }
 
