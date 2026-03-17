@@ -148,6 +148,13 @@ describe('RatingService', () => {
       ).rejects.toThrow('Event is not in started state');
     });
 
+    it('should reject rating when event is paused', async () => {
+      const event = { state: 'paused', eventId: VALID_EVENT_ID };
+      await expect(
+        ratingService.submitRating(VALID_EVENT_ID, 1, 3, '', VALID_EMAIL, event)
+      ).rejects.toThrow('Event is not in started state');
+    });
+
     it('should trim note whitespace', async () => {
       const event = mockStartedEvent();
       const result = await ratingService.submitRating(VALID_EVENT_ID, 1, 3, '  nice wine  ', VALID_EMAIL, event);
@@ -295,6 +302,13 @@ describe('RatingService', () => {
 
     it('should reject when event is not started', async () => {
       const event = { state: 'completed', eventId: VALID_EVENT_ID };
+      await expect(
+        ratingService.deleteRating(VALID_EVENT_ID, 1, VALID_EMAIL, event)
+      ).rejects.toThrow('Event is not in started state');
+    });
+
+    it('should reject when event is paused', async () => {
+      const event = { state: 'paused', eventId: VALID_EVENT_ID };
       await expect(
         ratingService.deleteRating(VALID_EVENT_ID, 1, VALID_EMAIL, event)
       ).rejects.toThrow('Event is not in started state');
