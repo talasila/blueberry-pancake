@@ -136,6 +136,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
   const [isDeletingRatings, setIsDeletingRatings] = useState(false);
   const [deleteRatingsError, setDeleteRatingsError] = useState('');
   const [deleteRatingsSuccess, setDeleteRatingsSuccess] = useState('');
+  const [totalRatingsCount, setTotalRatingsCount] = useState(null);
   
   // Delete users state
   const [isDeleteUsersDialogOpen, setIsDeleteUsersDialogOpen] = useState(false);
@@ -843,10 +844,11 @@ function EventAdminPage({ onOpenAdminGuide }) {
       
       setDeleteRatingsSuccess('All ratings and bookmarks deleted successfully');
       clearSuccessMessage(setDeleteRatingsSuccess);
-      
+      setTotalRatingsCount(0);
+
       // Close dialog
       setIsDeleteRatingsDialogOpen(false);
-      
+
       // Refresh event data to reflect changes
       try {
         const refreshedEvent = await apiClient.getEvent(eventId);
@@ -872,10 +874,11 @@ function EventAdminPage({ onOpenAdminGuide }) {
       
       setDeleteUsersSuccess(result.message || `Successfully deleted ${result.usersDeleted || 0} user(s) and all their associated data`);
       clearSuccessMessage(setDeleteUsersSuccess);
-      
+      setTotalRatingsCount(0);
+
       // Close dialog
       setIsDeleteUsersDialogOpen(false);
-      
+
       // Refresh event data to reflect changes
       try {
         const refreshedEvent = await apiClient.getEvent(eventId);
@@ -1504,6 +1507,20 @@ function EventAdminPage({ onOpenAdminGuide }) {
   const openDrawerWithHistory = (drawer) => {
     if (drawer === 'advanced') {
       dispatchExport({ type: 'RESET_ALL' });
+      // Clear danger zone messages
+      setDeleteEventError('');
+      setDeleteRatingsError('');
+      setDeleteRatingsSuccess('');
+      setDeleteUsersError('');
+      setDeleteUsersSuccess('');
+      // Fetch total ratings count for the danger zone
+      if (eventId) {
+        ratingService.getRatings(eventId).then(ratings => {
+          setTotalRatingsCount(ratings?.length ?? 0);
+        }).catch(() => {
+          setTotalRatingsCount(null);
+        });
+      }
     }
     setOpenDrawer(drawer);
     history.pushState({ drawer }, '', window.location.pathname);
@@ -2408,6 +2425,48 @@ function EventAdminPage({ onOpenAdminGuide }) {
                 <Message type="success">{deleteUsersSuccess}</Message>
               )}
 
+              {/* Delete All Ratings — least destructive */}
+              <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
+                <div className="space-y-3">
+                  <div>
+                    <h4 className="font-semibold text-destructive mb-1">Delete All Ratings</h4>
+                    <p className="text-sm text-muted-foreground">
+                      Permanently delete all ratings and bookmarks for this event.
+                    </p>
+                    {totalRatingsCount !== null && totalRatingsCount > 0 && (
+                      <p className="text-sm font-medium text-foreground mt-1">
+                        {totalRatingsCount} rating(s) will be deleted.
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    data-testid="delete-all-ratings-button"
+                    variant="destructive"
+                    onClick={() => setIsDeleteRatingsDialogOpen(true)}
+                    disabled={isDeletingRatings}
+                    className="w-full sm:w-auto"
+                  >
+                    {isDeletingRatings ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete All Ratings
+                      </>
+                    )}
+                  </Button>
+                  {totalRatingsCount !== null && totalRatingsCount === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      No ratings exist for this event.
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Delete All Users — more destructive */}
               <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
                 <div className="space-y-3">
                   <div>
@@ -2428,8 +2487,17 @@ function EventAdminPage({ onOpenAdminGuide }) {
                     disabled={isDeletingUsers || getNonAdminUserCount() === 0}
                     className="w-full sm:w-auto"
                   >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete All Users
+                    {isDeletingUsers ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete All Users
+                      </>
+                    )}
                   </Button>
                   {getNonAdminUserCount() === 0 && (
                     <p className="text-xs text-muted-foreground">
@@ -2439,27 +2507,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
                 </div>
               </div>
 
-              <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
-                <div className="space-y-3">
-                  <div>
-                    <h4 className="font-semibold text-destructive mb-1">Delete All Ratings</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Permanently delete all ratings and bookmarks for this event.
-                    </p>
-                  </div>
-                  <Button
-                    data-testid="delete-all-ratings-button"
-                    variant="destructive"
-                    onClick={() => setIsDeleteRatingsDialogOpen(true)}
-                    disabled={isDeletingRatings}
-                    className="w-full sm:w-auto"
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete All Ratings
-                  </Button>
-                </div>
-              </div>
-
+              {/* Delete Event — most destructive, owner only */}
               {isCurrentUserOwner() && (
                 <div className="p-4 border border-destructive/20 rounded-lg bg-destructive/5">
                   <div className="space-y-3">
@@ -2476,8 +2524,17 @@ function EventAdminPage({ onOpenAdminGuide }) {
                       disabled={isDeletingEvent}
                       className="w-full sm:w-auto"
                     >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete Event
+                      {isDeletingEvent ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Deleting...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Delete Event
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>
