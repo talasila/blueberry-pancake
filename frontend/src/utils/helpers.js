@@ -64,8 +64,8 @@ export function downloadCSV(data, columns, filename) {
     lines.push(values.join(','));
   }
 
-  // Create CSV content
-  const csvContent = lines.join('\n') + '\n';
+  // Create CSV content with UTF-8 BOM for Excel compatibility
+  const csvContent = '\uFEFF' + lines.join('\n') + '\n';
 
   // Create blob and download
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });

@@ -104,8 +104,13 @@ async function clickExportButton(page, type) {
 async function parseDownloadedCSV(download) {
   const filePath = await download.path();
   const { readFileSync } = await import('node:fs');
-  const content = readFileSync(filePath, 'utf-8');
-  
+  let content = readFileSync(filePath, 'utf-8');
+
+  // Strip UTF-8 BOM if present
+  if (content.charCodeAt(0) === 0xFEFF) {
+    content = content.slice(1);
+  }
+
   const lines = content.trim().split('\n');
   const headers = parseCSVLine(lines[0]);
   const rows = lines.slice(1).map(line => {

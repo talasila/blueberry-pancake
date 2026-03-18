@@ -1,7 +1,7 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEventContext } from '@/contexts/EventContext';
 import useEventPolling from '@/hooks/useEventPolling';
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, useReducer } from 'react';
 import { RefreshCw, Copy, Check, Trash2, X, AlertTriangle, Download, Search, Palette, LayoutList, Star, Users, UserPlus, Share2, ArrowLeft, Pencil, Wrench } from 'lucide-react';
 import apiClient from '@/services/apiClient';
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,31 @@ import ThemePicker from '@/components/ThemePicker';
 import { getPreset } from '@/utils/themePresets';
 import InviteQRCard from '@/components/InviteQRCard';
 import { formatInvitationMessage, downloadQRImage } from '@/utils/inviteUtils';
+import ExportCard from '@/components/ExportCard';
+
+const initialExportState = {
+  ratings: { loading: false, error: '', success: '' },
+  matrix: { loading: false, error: '', success: '' },
+  users: { loading: false, error: '', success: '' },
+  items: { loading: false, error: '', success: '' },
+};
+
+function exportReducer(state, action) {
+  switch (action.type) {
+    case 'START_EXPORT':
+      return { ...state, [action.key]: { loading: true, error: '', success: '' } };
+    case 'EXPORT_ERROR':
+      return { ...state, [action.key]: { loading: false, error: action.error, success: '' } };
+    case 'EXPORT_SUCCESS':
+      return { ...state, [action.key]: { loading: false, error: '', success: action.message } };
+    case 'CLEAR_MESSAGE':
+      return { ...state, [action.key]: { ...state[action.key], [action.field]: '' } };
+    case 'RESET_ALL':
+      return initialExportState;
+    default:
+      return state;
+  }
+}
 
 /**
  * EventAdminPage Component
@@ -135,19 +160,10 @@ function EventAdminPage({ onOpenAdminGuide }) {
   const [guestRegistrationFilter, setGuestRegistrationFilter] = useState('all'); // 'all' | 'registered' | 'unregistered'
   const [isRefreshingGuests, setIsRefreshingGuests] = useState(false);
   
-  // Export data state
-  const [isExportingRatings, setIsExportingRatings] = useState(false);
-  const [exportRatingsError, setExportRatingsError] = useState('');
-  const [exportRatingsSuccess, setExportRatingsSuccess] = useState('');
-  const [isExportingMatrix, setIsExportingMatrix] = useState(false);
-  const [exportMatrixError, setExportMatrixError] = useState('');
-  const [exportMatrixSuccess, setExportMatrixSuccess] = useState('');
-  const [isExportingUsers, setIsExportingUsers] = useState(false);
-  const [exportUsersError, setExportUsersError] = useState('');
-  const [exportUsersSuccess, setExportUsersSuccess] = useState('');
-  const [isExportingItems, setIsExportingItems] = useState(false);
-  const [exportItemsError, setExportItemsError] = useState('');
-  const [exportItemsSuccess, setExportItemsSuccess] = useState('');
+  // Export data state (consolidated)
+  const [exportState, dispatchExport] = useReducer(exportReducer, initialExportState);
+  const isAnyExporting = Object.values(exportState).some(s => s.loading);
+  const ratingsCache = useRef({ eventId: null, data: null, timestamp: 0 });
 
   // Check for OTP authentication - admin pages require OTP even if accessed via PIN
   useEffect(() => {
@@ -983,28 +999,34 @@ function EventAdminPage({ onOpenAdminGuide }) {
     });
   }, [event?.users, items, administrators, guestSearchQuery, guestRegistrationFilter]);
 
+  // Fetch ratings with short-lived cache to avoid redundant API calls across exports
+  const fetchRatingsWithCache = useCallback(async (eid) => {
+    const cache = ratingsCache.current;
+    const MAX_AGE = 30000; // 30 seconds
+    if (cache.eventId === eid && cache.data && (Date.now() - cache.timestamp) < MAX_AGE) {
+      return cache.data;
+    }
+    const data = await ratingService.getRatings(eid);
+    ratingsCache.current = { eventId: eid, data, timestamp: Date.now() };
+    return data;
+  }, []);
+
   // Handle export ratings data
   const handleExportRatings = async () => {
     if (!eventId || !event) return;
 
-    setIsExportingRatings(true);
-    setExportRatingsError('');
-    setExportRatingsSuccess('');
+    dispatchExport({ type: 'START_EXPORT', key: 'ratings' });
 
     try {
-      // Fetch ratings data
-      const ratings = await ratingService.getRatings(eventId);
+      const ratings = await fetchRatingsWithCache(eventId);
 
       if (!ratings || ratings.length === 0) {
-        setExportRatingsError('No ratings data available to export');
-        setIsExportingRatings(false);
+        dispatchExport({ type: 'EXPORT_ERROR', key: 'ratings', error: 'No ratings data available to export' });
         return;
       }
 
-      // Get user names from event.users
       const usersMap = event.users || {};
-      
-      // Transform ratings data to include username
+
       const exportData = ratings.map(rating => {
         const normalizedEmail = (rating.email || '').trim().toLowerCase();
         const userData = usersMap[normalizedEmail];
@@ -1020,20 +1042,16 @@ function EventAdminPage({ onOpenAdminGuide }) {
         };
       });
 
-      // Generate filename with event ID and timestamp
-      const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const timestamp = new Date().toISOString().split('T')[0];
       const filename = `ratings-export-${eventId}-${timestamp}.csv`;
 
-      // Download CSV
       downloadCSV(exportData, ['username', 'userEmail', 'ratingTimestamp', 'itemid', 'rating', 'note'], filename);
 
-      setExportRatingsSuccess('Ratings data exported successfully');
-      clearSuccessMessage(setExportRatingsSuccess);
+      dispatchExport({ type: 'EXPORT_SUCCESS', key: 'ratings', message: 'Ratings data exported successfully' });
+      clearSuccessMessage(() => dispatchExport({ type: 'CLEAR_MESSAGE', key: 'ratings', field: 'success' }));
     } catch (error) {
       console.error('Error exporting ratings:', error);
-      setExportRatingsError(error.message || 'Failed to export ratings data. Please try again.');
-    } finally {
-      setIsExportingRatings(false);
+      dispatchExport({ type: 'EXPORT_ERROR', key: 'ratings', error: error.message || 'Failed to export ratings data. Please try again.' });
     }
   };
 
@@ -1041,27 +1059,21 @@ function EventAdminPage({ onOpenAdminGuide }) {
   const handleExportMatrix = async () => {
     if (!eventId || !event) return;
 
-    setIsExportingMatrix(true);
-    setExportMatrixError('');
-    setExportMatrixSuccess('');
+    dispatchExport({ type: 'START_EXPORT', key: 'matrix' });
 
     try {
-      // Fetch ratings data
-      const ratings = await ratingService.getRatings(eventId);
+      const ratings = await fetchRatingsWithCache(eventId);
 
       if (!ratings || ratings.length === 0) {
-        setExportMatrixError('No ratings data available to export');
-        setIsExportingMatrix(false);
+        dispatchExport({ type: 'EXPORT_ERROR', key: 'matrix', error: 'No ratings data available to export' });
         return;
       }
 
-      // Get user names from event.users
       const usersMap = event.users || {};
-      
-      // Get all unique itemIds and users
+
       const itemIds = new Set();
       const userEmails = new Set();
-      const ratingMap = new Map(); // Map: "itemId|email" -> rating
+      const ratingMap = new Map();
 
       ratings.forEach(rating => {
         if (rating.itemId) {
@@ -1072,14 +1084,9 @@ function EventAdminPage({ onOpenAdminGuide }) {
         }
       });
 
-      // Sort itemIds numerically
       const sortedItemIds = Array.from(itemIds).sort((a, b) => a - b);
-      
-      // Sort users by email
       const sortedUserEmails = Array.from(userEmails).sort();
 
-      // Calculate global average (average of all ratings across all items)
-      // Match dashboard calculation: sum of all rating values / total ratings
       const globalAverage = ratings.length > 0
         ? ratings.reduce((sum, r) => {
             const ratingValue = parseInt(r.rating, 10);
@@ -1087,41 +1094,32 @@ function EventAdminPage({ onOpenAdminGuide }) {
           }, 0) / ratings.length
         : null;
 
-      // Calculate total users (count of users in event.users object, same as dashboard)
       const totalUsers = event.users ? Object.keys(event.users).length : 0;
 
-      // Build column headers with username (email) format for uniqueness
-      const columnHeaders = new Map(); // Map: email -> column header
+      const columnHeaders = new Map();
       sortedUserEmails.forEach(email => {
         const normalizedEmail = email.trim().toLowerCase();
         const userData = usersMap[normalizedEmail];
         const username = userData?.name || '';
-        // Use "username (email)" format, or just email if no username
         const columnHeader = username ? `${username} (${email})` : email;
         columnHeaders.set(email, columnHeader);
       });
 
-      // Build matrix data
       const matrixData = sortedItemIds.map(itemId => {
         const row = { itemId };
-        
-        // Add user ratings as columns
+
         sortedUserEmails.forEach(email => {
           const key = `${itemId}|${email}`;
           const rating = ratingMap.get(key);
           const columnHeader = columnHeaders.get(email);
-          
           row[columnHeader] = rating || '';
         });
 
-        // Calculate average rating for this item
         const itemRatings = ratings.filter(r => r.itemId === itemId);
         const averageRating = itemRatings.length > 0
           ? (itemRatings.reduce((sum, r) => sum + r.rating, 0) / itemRatings.length).toFixed(2)
           : '';
 
-        // Calculate weighted average using Bayesian formula (same as dashboard)
-        // Count unique raters for this item
         const uniqueRaters = new Set();
         itemRatings.forEach(rating => {
           if (rating.email) {
@@ -1130,13 +1128,11 @@ function EventAdminPage({ onOpenAdminGuide }) {
         });
         const numberOfRaters = uniqueRaters.size;
 
-        // Calculate sum of ratings for this item (match dashboard calculation)
         const sumOfRatings = itemRatings.reduce((sum, r) => {
           const ratingValue = parseInt(r.rating, 10);
           return sum + (isNaN(ratingValue) ? 0 : ratingValue);
         }, 0);
 
-        // Calculate weighted average using Bayesian formula
         const weightedAvg = calculateWeightedAverage(
           globalAverage,
           totalUsers,
@@ -1153,27 +1149,22 @@ function EventAdminPage({ onOpenAdminGuide }) {
         return row;
       });
 
-      // Build column headers: itemId, user columns, Average Rating, Weighted Rating
       const columns = ['itemId'];
       sortedUserEmails.forEach(email => {
         columns.push(columnHeaders.get(email));
       });
       columns.push('Average Rating', 'Weighted Rating');
 
-      // Generate filename with event ID and timestamp
-      const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const timestamp = new Date().toISOString().split('T')[0];
       const filename = `ratings-matrix-${eventId}-${timestamp}.csv`;
 
-      // Download CSV
       downloadCSV(matrixData, columns, filename);
 
-      setExportMatrixSuccess('Ratings matrix exported successfully');
-      clearSuccessMessage(setExportMatrixSuccess);
+      dispatchExport({ type: 'EXPORT_SUCCESS', key: 'matrix', message: 'Ratings matrix exported successfully' });
+      clearSuccessMessage(() => dispatchExport({ type: 'CLEAR_MESSAGE', key: 'matrix', field: 'success' }));
     } catch (error) {
       console.error('Error exporting matrix:', error);
-      setExportMatrixError(error.message || 'Failed to export ratings matrix. Please try again.');
-    } finally {
-      setIsExportingMatrix(false);
+      dispatchExport({ type: 'EXPORT_ERROR', key: 'matrix', error: error.message || 'Failed to export ratings matrix. Please try again.' });
     }
   };
 
@@ -1181,49 +1172,34 @@ function EventAdminPage({ onOpenAdminGuide }) {
   const handleExportUsers = async () => {
     if (!eventId || !event) return;
 
-    setIsExportingUsers(true);
-    setExportUsersError('');
-    setExportUsersSuccess('');
+    dispatchExport({ type: 'START_EXPORT', key: 'users' });
 
     try {
-      // Get all users from event.users
       const usersMap = event.users || {};
       if (Object.keys(usersMap).length === 0) {
-        setExportUsersError('No users found to export');
-        setIsExportingUsers(false);
+        dispatchExport({ type: 'EXPORT_ERROR', key: 'users', error: 'No users found to export' });
         return;
       }
 
-      // Get all ratings
-      const ratings = await ratingService.getRatings(eventId);
-
-      // Get administrators map
+      const ratings = await fetchRatingsWithCache(eventId);
       const administratorsMap = administrators || {};
 
-      // Build user export data
       const userExportData = Object.entries(usersMap).map(([email, userData]) => {
         const normalizedEmail = email.trim().toLowerCase();
-        
-        // Get username
         const username = userData?.name || '';
-
-        // Get registration date
         const registrationDate = userData?.registeredAt || '';
 
-        // Determine administrator status
         const adminData = administratorsMap[normalizedEmail];
         let adminStatus = 'Regular User';
         if (adminData) {
           adminStatus = adminData.owner ? 'Owner' : 'Administrator';
         }
 
-        // Get items registered by this user
         const userItems = items.filter(item => {
           if (!item.ownerEmail) return false;
           return item.ownerEmail.trim().toLowerCase() === normalizedEmail;
         });
 
-        // Build item IDs and names (comma-separated)
         const itemIds = userItems
           .filter(item => item.itemId !== null && item.itemId !== undefined)
           .map(item => item.itemId)
@@ -1234,13 +1210,11 @@ function EventAdminPage({ onOpenAdminGuide }) {
           .filter(name => name)
           .join(', ');
 
-        // Get ratings given by this user
         const userRatings = ratings.filter(r => {
           const ratingEmail = (r.email || '').trim().toLowerCase();
           return ratingEmail === normalizedEmail;
         });
 
-        // Calculate average rating given
         const averageRatingGiven = userRatings.length > 0
           ? (userRatings.reduce((sum, r) => {
               const ratingValue = parseInt(r.rating, 10);
@@ -1261,10 +1235,8 @@ function EventAdminPage({ onOpenAdminGuide }) {
         };
       });
 
-      // Sort by email
       userExportData.sort((a, b) => a.email.localeCompare(b.email));
 
-      // Build column headers
       const columns = [
         'email',
         'username',
@@ -1277,20 +1249,16 @@ function EventAdminPage({ onOpenAdminGuide }) {
         'averageRatingGiven'
       ];
 
-      // Generate filename with event ID and timestamp
-      const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const timestamp = new Date().toISOString().split('T')[0];
       const filename = `users-export-${eventId}-${timestamp}.csv`;
 
-      // Download CSV
       downloadCSV(userExportData, columns, filename);
 
-      setExportUsersSuccess('User data exported successfully');
-      clearSuccessMessage(setExportUsersSuccess);
+      dispatchExport({ type: 'EXPORT_SUCCESS', key: 'users', message: 'User data exported successfully' });
+      clearSuccessMessage(() => dispatchExport({ type: 'CLEAR_MESSAGE', key: 'users', field: 'success' }));
     } catch (error) {
       console.error('Error exporting users:', error);
-      setExportUsersError(error.message || 'Failed to export user data. Please try again.');
-    } finally {
-      setIsExportingUsers(false);
+      dispatchExport({ type: 'EXPORT_ERROR', key: 'users', error: error.message || 'Failed to export user data. Please try again.' });
     }
   };
 
@@ -1298,29 +1266,21 @@ function EventAdminPage({ onOpenAdminGuide }) {
   const handleExportItems = async () => {
     if (!eventId || !event) return;
 
-    setIsExportingItems(true);
-    setExportItemsError('');
-    setExportItemsSuccess('');
+    dispatchExport({ type: 'START_EXPORT', key: 'items' });
 
     try {
-      // Get item configuration
       const itemConfig = event.itemConfiguration || {};
       const numberOfItems = itemConfig.numberOfItems || 0;
       const excludedItemIds = itemConfig.excludedItemIds || [];
 
       if (numberOfItems === 0) {
-        setExportItemsError(`No ${itemTerminology.pluralLower} configured for this event`);
-        setIsExportingItems(false);
+        dispatchExport({ type: 'EXPORT_ERROR', key: 'items', error: `No ${itemTerminology.pluralLower} configured for this event` });
         return;
       }
 
-      // Get all ratings
-      const ratings = await ratingService.getRatings(eventId);
-
-      // Get user names from event.users
+      const ratings = await fetchRatingsWithCache(eventId);
       const usersMap = event.users || {};
 
-      // Create a map of registered items by itemId for quick lookup
       const itemsByItemId = new Map();
       (items || []).forEach(item => {
         if (item.itemId !== null && item.itemId !== undefined) {
@@ -1328,7 +1288,6 @@ function EventAdminPage({ onOpenAdminGuide }) {
         }
       });
 
-      // Calculate global average (for weighted average calculation)
       const globalAverage = ratings.length > 0
         ? ratings.reduce((sum, r) => {
             const ratingValue = parseInt(r.rating, 10);
@@ -1336,24 +1295,19 @@ function EventAdminPage({ onOpenAdminGuide }) {
           }, 0) / ratings.length
         : null;
 
-      // Calculate total users (for weighted average calculation)
       const totalUsers = event.users ? Object.keys(event.users).length : 0;
 
-      // Get max rating from event configuration
-      const maxRating = event.ratingConfiguration?.maxRating || 4;
+      // Get max rating from event configuration (dynamic)
+      const eventMaxRating = event.ratingConfiguration?.maxRating || 4;
 
-      // Build item export data for all items (1 to numberOfItems, excluding excludedItemIds)
       const itemExportData = [];
       for (let itemId = 1; itemId <= numberOfItems; itemId++) {
-        // Skip excluded item IDs
         if (excludedItemIds.includes(itemId)) {
           continue;
         }
 
-        // Check if this itemId has a registered item
         const registeredItem = itemsByItemId.get(itemId);
 
-        // Get owner information
         let ownerEmail = '';
         let ownerName = '';
         if (registeredItem) {
@@ -1363,10 +1317,8 @@ function EventAdminPage({ onOpenAdminGuide }) {
           ownerName = ownerData?.name || '';
         }
 
-        // Get ratings for this item (by itemId)
         const itemRatings = ratings.filter(r => parseInt(r.itemId, 10) === itemId);
 
-        // Count unique raters
         const uniqueRaters = new Set();
         itemRatings.forEach(rating => {
           if (rating.email) {
@@ -1375,7 +1327,6 @@ function EventAdminPage({ onOpenAdminGuide }) {
         });
         const numberOfRaters = uniqueRaters.size;
 
-        // Calculate average rating
         let averageRating = '';
         if (itemRatings.length > 0) {
           const sum = itemRatings.reduce((acc, rating) => {
@@ -1385,13 +1336,11 @@ function EventAdminPage({ onOpenAdminGuide }) {
           averageRating = (sum / itemRatings.length).toFixed(2);
         }
 
-        // Calculate sum of ratings for Bayesian formula
         const sumOfRatings = itemRatings.reduce((acc, rating) => {
           const ratingValue = parseInt(rating.rating, 10);
           return acc + (isNaN(ratingValue) ? 0 : ratingValue);
         }, 0);
 
-        // Calculate weighted average using Bayesian formula
         const weightedAvg = calculateWeightedAverage(
           globalAverage,
           totalUsers,
@@ -1402,21 +1351,19 @@ function EventAdminPage({ onOpenAdminGuide }) {
           ? weightedAvg.toFixed(2)
           : '';
 
-        // Calculate rating progression (percentage of users who rated this item)
         let ratingProgression = '';
         if (totalUsers > 0) {
           ratingProgression = ((numberOfRaters / totalUsers) * 100).toFixed(2);
         }
 
-        // Calculate rating distribution (count of each rating value)
+        // Calculate rating distribution dynamically based on maxRating
         const ratingDistribution = {};
-        for (let ratingValue = 1; ratingValue <= maxRating; ratingValue++) {
-          ratingDistribution[ratingValue] = itemRatings.filter(
+        for (let ratingValue = 1; ratingValue <= eventMaxRating; ratingValue++) {
+          ratingDistribution[`ratingCount${ratingValue}`] = itemRatings.filter(
             r => parseInt(r.rating, 10) === ratingValue
           ).length;
         }
 
-        // Build export row
         itemExportData.push({
           itemId: itemId,
           name: registeredItem ? (registeredItem.name || '') : '',
@@ -1429,16 +1376,11 @@ function EventAdminPage({ onOpenAdminGuide }) {
           averageRating: averageRating,
           weightedAverage: weightedAverage,
           ratingProgression: ratingProgression,
-          ratingCount1: ratingDistribution[1] || 0,
-          ratingCount2: ratingDistribution[2] || 0,
-          ratingCount3: ratingDistribution[3] || 0,
-          ratingCount4: ratingDistribution[4] || 0
+          ...ratingDistribution
         });
       }
 
-      // Items are already sorted by itemId (1 to numberOfItems)
-
-      // Build column headers
+      // Build column headers with dynamic rating distribution columns
       const columns = [
         'itemId',
         'name',
@@ -1451,26 +1393,21 @@ function EventAdminPage({ onOpenAdminGuide }) {
         'averageRating',
         'weightedAverage',
         'ratingProgression',
-        'ratingCount1',
-        'ratingCount2',
-        'ratingCount3',
-        'ratingCount4'
       ];
+      for (let i = 1; i <= eventMaxRating; i++) {
+        columns.push(`ratingCount${i}`);
+      }
 
-      // Generate filename with event ID and timestamp
-      const timestamp = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+      const timestamp = new Date().toISOString().split('T')[0];
       const filename = `${itemTerminology.pluralLower}-export-${eventId}-${timestamp}.csv`;
 
-      // Download CSV
       downloadCSV(itemExportData, columns, filename);
 
-      setExportItemsSuccess(`${itemTerminology.singular} details exported successfully`);
-      clearSuccessMessage(setExportItemsSuccess);
+      dispatchExport({ type: 'EXPORT_SUCCESS', key: 'items', message: `${itemTerminology.singular} details exported successfully` });
+      clearSuccessMessage(() => dispatchExport({ type: 'CLEAR_MESSAGE', key: 'items', field: 'success' }));
     } catch (error) {
       console.error('Error exporting items:', error);
-      setExportItemsError(error.message || `Failed to export ${itemTerminology.singularLower} details. Please try again.`);
-    } finally {
-      setIsExportingItems(false);
+      dispatchExport({ type: 'EXPORT_ERROR', key: 'items', error: error.message || `Failed to export ${itemTerminology.singularLower} details. Please try again.` });
     }
   };
 
@@ -1565,6 +1502,9 @@ function EventAdminPage({ onOpenAdminGuide }) {
   }
 
   const openDrawerWithHistory = (drawer) => {
+    if (drawer === 'advanced') {
+      dispatchExport({ type: 'RESET_ALL' });
+    }
     setOpenDrawer(drawer);
     history.pushState({ drawer }, '', window.location.pathname);
   };
@@ -2403,153 +2343,48 @@ function EventAdminPage({ onOpenAdminGuide }) {
                 Export event data as CSV files for analysis and backup.
               </p>
 
-            {exportRatingsError && (
-              <Message type="error">{exportRatingsError}</Message>
-            )}
-
-            {exportRatingsSuccess && (
-              <Message type="success">{exportRatingsSuccess}</Message>
-            )}
-
-            {exportMatrixError && (
-              <Message type="error">{exportMatrixError}</Message>
-            )}
-
-            {exportMatrixSuccess && (
-              <Message type="success">{exportMatrixSuccess}</Message>
-            )}
-
-            {exportUsersError && (
-              <Message type="error">{exportUsersError}</Message>
-            )}
-
-            {exportUsersSuccess && (
-              <Message type="success">{exportUsersSuccess}</Message>
-            )}
-
-            {exportItemsError && (
-              <Message type="error">{exportItemsError}</Message>
-            )}
-
-            {exportItemsSuccess && (
-              <Message type="success">{exportItemsSuccess}</Message>
-            )}
-
-            {/* Raw Ratings Data Export */}
-            <div className="p-4 border rounded-lg">
-              <div className="space-y-3">
-                <div>
-                  <h4 className="font-semibold mb-1">Raw Ratings Data</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Export all ratings data including username, email, timestamp, {itemTerminology.singularLower} ID, rating, and notes.
-                  </p>
-                </div>
-                <Button
-                  onClick={handleExportRatings}
-                  disabled={isExportingRatings || isExportingMatrix || isExportingUsers || isExportingItems}
-                  className="w-full sm:w-auto"
-                >
-                  {isExportingRatings ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Exporting...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-4 w-4 mr-2" />
-                      Export Ratings Data
-                    </>
-                  )}
-                </Button>
+            {Object.entries(exportState).map(([key, state]) => (
+              <div key={key}>
+                {state.error && <Message type="error">{state.error}</Message>}
+                {state.success && <Message type="success">{state.success}</Message>}
               </div>
-            </div>
+            ))}
 
-            {/* Ratings Matrix Export */}
-            <div className="p-4 border rounded-lg">
-              <div className="space-y-3">
-                <div>
-                  <h4 className="font-semibold mb-1">Ratings Matrix</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Export a matrix showing {itemTerminology.singularLower}-to-user ratings with average and weighted ratings for each {itemTerminology.singularLower}. Weighted rating uses the Bayesian formula (same as dashboard) that accounts for {itemTerminology.pluralLower} with fewer ratings.
-                  </p>
-                </div>
-                <Button
-                  onClick={handleExportMatrix}
-                  disabled={isExportingMatrix || isExportingRatings || isExportingUsers || isExportingItems}
-                  className="w-full sm:w-auto"
-                >
-                  {isExportingMatrix ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Exporting...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-4 w-4 mr-2" />
-                      Export Ratings Matrix
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
+            <ExportCard
+              title="Raw Ratings Data"
+              description={`Export all ratings data including username, email, timestamp, ${itemTerminology.singularLower} ID, rating, and notes.`}
+              buttonLabel="Export Ratings Data"
+              isLoading={exportState.ratings.loading}
+              disabled={isAnyExporting}
+              onClick={handleExportRatings}
+            />
 
-            {/* User Data Export */}
-            <div className="p-4 border rounded-lg">
-              <div className="space-y-3">
-                <div>
-                  <h4 className="font-semibold mb-1">User Data</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Export all user data including email, username, registration date, administrator status, {itemTerminology.pluralLower} registered (with IDs and names), ratings given, and average rating given.
-                  </p>
-                </div>
-                <Button
-                  onClick={handleExportUsers}
-                  disabled={isExportingUsers || isExportingRatings || isExportingMatrix || isExportingItems}
-                  className="w-full sm:w-auto"
-                >
-                  {isExportingUsers ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Exporting...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-4 w-4 mr-2" />
-                      Export User Data
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
+            <ExportCard
+              title="Ratings Matrix"
+              description={`Export a matrix showing ${itemTerminology.singularLower}-to-user ratings with average and weighted ratings for each ${itemTerminology.singularLower}. Weighted rating uses the Bayesian formula (same as dashboard) that accounts for ${itemTerminology.pluralLower} with fewer ratings.`}
+              buttonLabel="Export Ratings Matrix"
+              isLoading={exportState.matrix.loading}
+              disabled={isAnyExporting}
+              onClick={handleExportMatrix}
+            />
 
-            {/* Item Details Export */}
-            <div className="p-4 border rounded-lg">
-              <div className="space-y-3">
-                <div>
-                  <h4 className="font-semibold mb-1">{itemTerminology.singular} Details</h4>
-                  <p className="text-sm text-muted-foreground">
-                    Export all {itemTerminology.pluralLower} (including unregistered) with details including {itemTerminology.singularLower} ID, name, price, description, owner information, and complete rating statistics (number of raters, average rating, weighted average, rating progression, and rating distribution). Unregistered {itemTerminology.pluralLower} will have empty values for name, price, description, and owner information.
-                  </p>
-                </div>
-                <Button
-                  onClick={handleExportItems}
-                  disabled={isExportingItems || isExportingRatings || isExportingMatrix || isExportingUsers}
-                  className="w-full sm:w-auto"
-                >
-                  {isExportingItems ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                      Exporting...
-                    </>
-                  ) : (
-                    <>
-                      <Download className="h-4 w-4 mr-2" />
-                      Export {itemTerminology.singular} Details
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
+            <ExportCard
+              title="User Data"
+              description={`Export all user data including email, username, registration date, administrator status, ${itemTerminology.pluralLower} registered (with IDs and names), ratings given, and average rating given.`}
+              buttonLabel="Export User Data"
+              isLoading={exportState.users.loading}
+              disabled={isAnyExporting}
+              onClick={handleExportUsers}
+            />
+
+            <ExportCard
+              title={`${itemTerminology.singular} Details`}
+              description={`Export all ${itemTerminology.pluralLower} (including unregistered) with details including ${itemTerminology.singularLower} ID, name, price, description, owner information, and complete rating statistics (number of raters, average rating, weighted average, rating progression, and rating distribution). Unregistered ${itemTerminology.pluralLower} will have empty values for name, price, description, and owner information.`}
+              buttonLabel={`Export ${itemTerminology.singular} Details`}
+              isLoading={exportState.items.loading}
+              disabled={isAnyExporting}
+              onClick={handleExportItems}
+            />
             </TabsContent>
 
             <TabsContent value="danger" className="space-y-4 mt-4">
