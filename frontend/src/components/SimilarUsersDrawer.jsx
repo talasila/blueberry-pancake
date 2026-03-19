@@ -108,6 +108,14 @@ function SimilarUsersDrawer({
     return ratingOption?.color || null;
   };
 
+  // Get descriptive tier label for a similarity score (0-1)
+  const getSimilarityLabel = (score) => {
+    if (score >= 0.9) return 'Taste Twin';
+    if (score >= 0.75) return 'Very Similar';
+    if (score >= 0.6) return 'Similar';
+    return 'Some Overlap';
+  };
+
   // Don't render if drawer was never opened (optimization)
   if (!isOpen && !hasBeenOpenedRef.current) {
     return null;
@@ -152,8 +160,10 @@ function SimilarUsersDrawer({
           {similarUsers.map((user, index) => {
             const score = user.similarityScore ?? 0;
             const fillCount = score * 5;
+            const percentage = Math.round(score * 100);
+            const tierLabel = getSimilarityLabel(score);
             const commonItemsCount = user.commonItemsCount || (user.commonItems ? user.commonItems.length : 0);
-            
+
             return (
               <ListCard
                 key={user.email || index}
@@ -162,37 +172,43 @@ function SimilarUsersDrawer({
                 onClick={() => handleUserClick(user)}
                 className="w-full text-left active:scale-[0.98] transition-all duration-150"
               >
-                  <div className="flex items-center gap-2 px-3 py-1.5">
+                <div className="flex items-center gap-2 px-3 py-1.5">
                   <div className="flex-1 min-w-0">
                     <span className="text-sm font-medium truncate block leading-tight">{user.name || user.email}</span>
                     <span className="text-[10px] text-muted-foreground leading-tight">
                       {user.personality ? `${getPersonalityName(user.personality)} · ` : ''}{commonItemsCount} common
                     </span>
                   </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    {[0, 1, 2, 3, 4].map((i) => {
-                      const remainder = fillCount - i;
-                      const isFull = remainder >= 0.75;
-                      const isHalf = !isFull && remainder >= 0.25;
+                  <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-semibold tabular-nums" style={{ color: 'var(--event-accent)' }}>{percentage}%</span>
+                      <div className="flex items-center gap-0.5">
+                        {[0, 1, 2, 3, 4].map((i) => {
+                          const remainder = fillCount - i;
+                          const isFull = remainder >= 0.75;
+                          const isHalf = !isFull && remainder >= 0.25;
 
-                      return (
-                        <div
-                          key={i}
-                          className="w-2.5 h-2.5 rounded-full overflow-hidden border"
-                          style={{
-                            borderColor: 'var(--event-accent)',
-                            backgroundColor: 'var(--event-surface)',
-                          }}
-                        >
-                          {isFull && (
-                            <div className="w-full h-full" style={{ backgroundColor: 'var(--event-accent)' }} />
-                          )}
-                          {isHalf && (
-                            <div className="w-1/2 h-full" style={{ backgroundColor: 'var(--event-accent)' }} />
-                          )}
-                        </div>
-                      );
-                    })}
+                          return (
+                            <div
+                              key={i}
+                              className="w-1.5 h-1.5 rounded-full overflow-hidden border"
+                              style={{
+                                borderColor: 'var(--event-accent)',
+                                backgroundColor: 'var(--event-surface)',
+                              }}
+                            >
+                              {isFull && (
+                                <div className="w-full h-full" style={{ backgroundColor: 'var(--event-accent)' }} />
+                              )}
+                              {isHalf && (
+                                <div className="w-1/2 h-full" style={{ backgroundColor: 'var(--event-accent)' }} />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground leading-tight">{tierLabel}</span>
                   </div>
                 </div>
               </ListCard>
