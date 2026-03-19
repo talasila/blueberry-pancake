@@ -352,7 +352,7 @@ function UserDetailsDrawer({
       {/* Drawer - slides up from bottom with animation */}
       <div
         className={`
-          fixed bottom-0 left-0 right-0 w-full max-h-[75vh]
+          fixed bottom-0 left-0 right-0 w-full max-h-[calc(100dvh-60px)]
           bg-background shadow-xl z-50 rounded-t-lg
           transform transition-transform duration-300 ease-out
           ${isOpen && isAnimating ? 'translate-y-0' : 'translate-y-full'}
@@ -363,7 +363,7 @@ function UserDetailsDrawer({
         aria-labelledby="user-details-title"
         aria-hidden={!isOpen}
       >
-        <div className="flex flex-col h-full max-h-[75vh]">
+        <div className="flex flex-col h-full max-h-[calc(100dvh-60px)]">
           {/* Header with title and close button */}
           <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0 rounded-t-lg" style={{ backgroundColor: 'var(--event-header-bg)' }}>
             <h2 id="user-details-title" className="text-base font-semibold">

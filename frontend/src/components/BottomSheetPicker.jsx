@@ -43,7 +43,7 @@ export default function BottomSheetPicker({ isOpen, onClose, title, children }) 
       {/* Sheet */}
       <div
         className={cn(
-          'fixed bottom-0 left-0 right-0 max-h-[75vh]',
+          'fixed bottom-0 left-0 right-0 max-h-[calc(100dvh-60px)]',
           'bg-background shadow-xl z-50 rounded-t-2xl',
           'transform transition-transform duration-300 ease-out',
           isAnimating ? 'translate-y-0' : 'translate-y-full',
@@ -53,7 +53,7 @@ export default function BottomSheetPicker({ isOpen, onClose, title, children }) 
         aria-label={title || 'Bottom sheet'}
         data-testid="bottom-sheet"
       >
-        <div className="flex flex-col h-full max-h-[75vh]">
+        <div className="flex flex-col h-full max-h-[calc(100dvh-60px)]">
           {/* Drag handle */}
           <div className="flex justify-center pt-2 pb-1 flex-shrink-0">
             <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />

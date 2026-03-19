@@ -223,7 +223,7 @@ export default function MyBottlesSheet({ isOpen, onClose, event, eventId }) {
 
       {/* Sheet */}
       <div
-        className={`fixed bottom-0 left-0 right-0 w-full max-h-[85vh] bg-background shadow-xl z-50 rounded-t-lg transform transition-transform duration-300 ease-out ${
+        className={`fixed bottom-0 left-0 right-0 w-full max-h-[calc(100dvh-60px)] bg-background shadow-xl z-50 rounded-t-lg transform transition-transform duration-300 ease-out ${
           isOpen && isAnimating ? 'translate-y-0' : 'translate-y-full'
         } ${!isOpen ? 'pointer-events-none' : ''}`}
         role="dialog"
@@ -232,7 +232,7 @@ export default function MyBottlesSheet({ isOpen, onClose, event, eventId }) {
         aria-hidden={!isOpen}
         data-testid="my-bottles-sheet"
       >
-        <div className="flex flex-col h-full max-h-[85vh]">
+        <div className="flex flex-col h-full max-h-[calc(100dvh-60px)]">
           {/* Header — themed to match RatingDrawer */}
           <div
             className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0 rounded-t-lg"

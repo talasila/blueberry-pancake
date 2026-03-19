@@ -74,7 +74,7 @@ export default function GuestWelcomeBottomSheet({
       />
 
       <div
-        className={`fixed bottom-0 left-0 right-0 w-full max-h-[85vh] bg-background shadow-xl z-50 rounded-t-lg transform transition-transform duration-300 ease-out ${
+        className={`fixed bottom-0 left-0 right-0 w-full max-h-[calc(100dvh-60px)] bg-background shadow-xl z-50 rounded-t-lg transform transition-transform duration-300 ease-out ${
           isOpen && isAnimating ? 'translate-y-0' : 'translate-y-full'
         } ${!isOpen ? 'pointer-events-none' : ''}`}
         role="dialog"
@@ -83,7 +83,7 @@ export default function GuestWelcomeBottomSheet({
         aria-hidden={!isOpen}
         data-testid="guest-welcome-bottom-sheet"
       >
-        <div className="flex flex-col h-full max-h-[85vh]">
+        <div className="flex flex-col h-full max-h-[calc(100dvh-60px)]">
           <div className="flex-1 overflow-y-auto px-5 pt-6 pb-4">
             <h2 className="text-xl font-bold text-foreground">
               Welcome to {event.name}!

@@ -92,10 +92,10 @@ function ItemDetailsDrawer({ isOpen, onClose, eventId, itemId, eventState, isAdm
         <div className="fixed inset-0 bg-black/50 z-40 transition-opacity duration-300" onClick={onClose} aria-hidden="true" />
       )}
       <div
-        className={`fixed bottom-0 left-0 right-0 w-full max-h-[75vh] bg-background shadow-xl z-50 rounded-t-lg transform transition-transform duration-300 ease-out ${isOpen && isAnimating ? 'translate-y-0' : 'translate-y-full'} ${!isOpen ? 'pointer-events-none' : ''}`}
+        className={`fixed bottom-0 left-0 right-0 w-full max-h-[calc(100dvh-60px)] bg-background shadow-xl z-50 rounded-t-lg transform transition-transform duration-300 ease-out ${isOpen && isAnimating ? 'translate-y-0' : 'translate-y-full'} ${!isOpen ? 'pointer-events-none' : ''}`}
         role="dialog" aria-modal="true" aria-labelledby="item-details-title" aria-hidden={!isOpen}
       >
-        <div className="flex flex-col h-full max-h-[75vh]">
+        <div className="flex flex-col h-full max-h-[calc(100dvh-60px)]">
           <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0 rounded-t-lg" style={{ backgroundColor: 'var(--event-header-bg)' }}>
             <div className="flex items-center gap-2">
               <h2 id="item-details-title" className="text-base font-semibold">

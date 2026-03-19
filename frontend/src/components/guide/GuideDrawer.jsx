@@ -132,7 +132,7 @@ export default function GuideDrawer({ isOpen, onClose }) {
       {/* Drawer */}
       <div
         className={`
-          fixed bottom-0 left-0 right-0 w-full max-h-[85vh]
+          fixed bottom-0 left-0 right-0 w-full max-h-[calc(100dvh-60px)]
           bg-background shadow-xl z-50 rounded-t-lg
           transform transition-transform duration-300 ease-out
           ${isOpen && isAnimating ? 'translate-y-0' : 'translate-y-full'}
@@ -143,7 +143,7 @@ export default function GuideDrawer({ isOpen, onClose }) {
         aria-label="Hosting guide"
         aria-hidden={!isOpen}
       >
-        <div className="flex flex-col h-full max-h-[85vh]">
+        <div className="flex flex-col h-full max-h-[calc(100dvh-60px)]">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b flex-shrink-0 rounded-t-lg" style={{ backgroundColor: 'var(--event-header-bg)' }}>
             <div className="flex items-center gap-2">
