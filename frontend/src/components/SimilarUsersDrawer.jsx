@@ -321,43 +321,97 @@ function SimilarUsersDrawer({
               {detailsUserRef.current?.commonItems && detailsUserRef.current.commonItems.length > 0 ? (
                 <div className="space-y-5">
                   <p className="text-xs text-muted-foreground">
-                    Each row is a {singular.toLowerCase()} you both rated. The big dot in the middle is your rating. The small dot is {detailsUserRef.current.name || detailsUserRef.current.email}&rsquo;s rating — the further apart, the more you disagreed.
+                    Each row is a {singular.toLowerCase()} you both rated. The large dot is yours, the small dot is {detailsUserRef.current.name || detailsUserRef.current.email}&rsquo;s. A bullseye means you agreed. The longer and redder the line between dots, the more you disagreed.
                   </p>
+                  {/* Scale legend — mirrors ListCard layout: w-8 handle + px-4 inner padding */}
+                  {ratingConfig.ratings && ratingConfig.ratings.length > 0 && (
+                    <div className="flex">
+                      <div className="w-8 flex-shrink-0" />
+                      <div className="flex-1 flex items-center justify-between px-4">
+                        {ratingConfig.ratings.map((r) => (
+                          <div key={r.value} className="flex flex-col items-center gap-1" style={{ width: `${100 / (ratingConfig.maxRating || ratingConfig.ratings.length)}%` }}>
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: r.color }} />
+                            <span className="text-[9px] text-muted-foreground leading-tight">{r.value}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div className="space-y-1.5">
                     {sortItemsById(detailsUserRef.current.commonItems).map((item, itemIndex) => {
                       const userColor = getRatingColor(item.userRating);
                       const similarColor = getRatingColor(item.similarUserRating);
-                      const diff = item.similarUserRating - item.userRating;
-                      const offsetPx = diff * 22;
+                      const isMatch = item.userRating === item.similarUserRating;
+                      const maxRating = ratingConfig.maxRating || ratingConfig.ratings?.length || 4;
+                      const diff = Math.abs(item.userRating - item.similarUserRating);
+
+                      // Bridge color: green (close) → yellow (mid) → red (far)
+                      const bridgeColor = diff <= 1 ? '#34C759' : diff >= maxRating - 1 ? '#FF3B30' : '#FFCC00';
+
+                      // Column center positions as percentages
+                      const minVal = Math.min(item.userRating, item.similarUserRating);
+                      const maxVal = Math.max(item.userRating, item.similarUserRating);
+                      const colWidth = 100 / maxRating;
+                      const bridgeLeft = ((minVal - 1) + 0.5) * colWidth;
+                      const bridgeRight = ((maxVal - 1) + 0.5) * colWidth;
 
                       return (
                         <ListCard
                           key={itemIndex}
                           handle={item.itemId}
                         >
-                          <div className="flex items-center justify-center py-2 relative">
-                            <div className="absolute left-1/2 top-0 bottom-0 w-px bg-muted-foreground/15" />
-                            <div
-                              className="w-4 h-4 rounded-full z-10 flex items-center justify-center"
-                              style={{ backgroundColor: userColor || 'var(--muted)' }}
-                            >
-                              {diff === 0 && (
+                          <div className="py-2 px-4">
+                            <div className="relative flex items-center justify-between">
+                              {/* Bridge line connecting the two ratings */}
+                              {!isMatch && (
                                 <div
-                                  className="w-2 h-2 rounded-full border border-white"
-                                  style={{ backgroundColor: similarColor || 'var(--muted)' }}
+                                  className="absolute h-1 rounded-full top-1/2 -translate-y-1/2"
+                                  style={{
+                                    left: `${bridgeLeft}%`,
+                                    width: `${bridgeRight - bridgeLeft}%`,
+                                    backgroundColor: bridgeColor,
+                                    opacity: 0.3,
+                                  }}
                                 />
                               )}
+                              {/* Scale positions with dots */}
+                              {ratingConfig.ratings?.map((r) => {
+                                const isUserRating = r.value === item.userRating;
+                                const isSimilarRating = r.value === item.similarUserRating;
+
+                                return (
+                                  <div key={r.value} className="flex items-center justify-center z-10" style={{ width: `${colWidth}%` }}>
+                                    {isUserRating && isSimilarRating ? (
+                                      /* Bullseye: perfect match */
+                                      <div
+                                        className="w-5 h-5 rounded-full flex items-center justify-center"
+                                        style={{ backgroundColor: userColor || 'var(--muted)' }}
+                                      >
+                                        <div
+                                          className="w-2.5 h-2.5 rounded-full border border-white/80"
+                                          style={{ backgroundColor: similarColor || 'var(--muted)' }}
+                                        />
+                                      </div>
+                                    ) : isUserRating ? (
+                                      /* Current user's rating: large dot */
+                                      <div
+                                        className="w-5 h-5 rounded-full"
+                                        style={{ backgroundColor: userColor || 'var(--muted)' }}
+                                      />
+                                    ) : isSimilarRating ? (
+                                      /* Similar user's rating: small dot */
+                                      <div
+                                        className="w-3 h-3 rounded-full opacity-70"
+                                        style={{ backgroundColor: similarColor || 'var(--muted)' }}
+                                      />
+                                    ) : (
+                                      /* Empty position: faint placeholder */
+                                      <div className="w-2 h-2 rounded-full bg-muted-foreground/10" />
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
-                            {diff !== 0 && (
-                              <div
-                                className="w-3 h-3 rounded-full absolute"
-                                style={{
-                                  backgroundColor: similarColor || 'var(--muted)',
-                                  left: `calc(50% + ${offsetPx}px - 6px)`,
-                                  opacity: 0.7,
-                                }}
-                              />
-                            )}
                           </div>
                         </ListCard>
                       );
