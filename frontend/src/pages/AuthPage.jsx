@@ -99,7 +99,7 @@ function AuthPage() {
 
   return (
     <div className="w-full h-full">
-      <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-4 min-h-full">
+      <div className="flex items-start pt-8 sm:items-center sm:pt-4 justify-center px-4 sm:px-6 lg:px-8 min-h-full">
         <div className="w-full max-w-md">
           <Card>
             <CardHeader>
