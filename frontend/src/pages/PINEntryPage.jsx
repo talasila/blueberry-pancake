@@ -22,6 +22,7 @@ function PINEntryPage() {
   const navigate = useNavigate();
   
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [pin, setPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -31,9 +32,10 @@ function PINEntryPage() {
     import.meta.env.VITE_TURNSTILE_SITE_KEY
   );
 
-  // Get email from sessionStorage (set in EmailEntryPage)
+  // Get email and name from sessionStorage (set in EmailEntryPage)
   useEffect(() => {
     const storedEmail = sessionStorage.getItem(`event:${eventId}:email`);
+    const storedName = sessionStorage.getItem(`event:${eventId}:name`);
     if (storedEmail) {
       // Security check: Verify this is not an admin email
       // Admins should use OTP authentication, not PIN
@@ -42,10 +44,12 @@ function PINEntryPage() {
           if (response.isAdmin) {
             // Admin detected - redirect to OTP entry
             sessionStorage.removeItem(`event:${eventId}:email`);
+            sessionStorage.removeItem(`event:${eventId}:name`);
             navigate(`/event/${eventId}/otp`, { replace: true });
           } else {
             // Regular user - proceed with PIN entry
             setEmail(storedEmail);
+            if (storedName) setName(storedName);
           }
         })
         .catch(err => {
@@ -53,6 +57,7 @@ function PINEntryPage() {
           // Backend will enforce the security check
           console.error('Error checking admin status:', err);
           setEmail(storedEmail);
+          if (storedName) setName(storedName);
         });
     } else {
       // If no email found, redirect back to email entry
@@ -83,7 +88,7 @@ function PINEntryPage() {
     setLoading(true);
 
     try {
-      const response = await apiClient.verifyPIN(eventId, pin, email.trim());
+      const response = await apiClient.verifyPIN(eventId, pin, email.trim(), name || undefined);
       
       // Clear local bookmark cache (bookmarks are persisted on server, will be loaded on event page)
       clearAllBookmarks();
@@ -97,8 +102,9 @@ function PINEntryPage() {
         localStorage.setItem(`pin:session:${eventId}`, response.sessionId);
       }
 
-      // Clear email from sessionStorage
+      // Clear email and name from sessionStorage
       sessionStorage.removeItem(`event:${eventId}:email`);
+      sessionStorage.removeItem(`event:${eventId}:name`);
 
       setSuccess('PIN verified successfully! Redirecting...');
       
@@ -188,6 +194,7 @@ function PINEntryPage() {
                       variant="outline"
                       onClick={() => {
                         sessionStorage.removeItem(`event:${eventId}:email`);
+                        sessionStorage.removeItem(`event:${eventId}:name`);
                         navigate(`/event/${eventId}/email`, { replace: true });
                       }}
                       disabled={loading}

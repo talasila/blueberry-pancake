@@ -95,7 +95,7 @@ router.get('/mine', requireAuth, async (req, res) => {
 router.post('/:eventId/verify-pin', async (req, res) => {
   try {
     const { eventId } = req.params;
-    const { pin, email } = req.body;
+    const { pin, email, name: rawName } = req.body;
     const ipAddress = req.ip || req.socket?.remoteAddress || 'unknown';
 
     // Validate event ID format
@@ -112,6 +112,15 @@ router.post('/:eventId/verify-pin', async (req, res) => {
     // Validate email format
     if (!isValidEmail(email)) {
       return badRequestError(res, 'Invalid email format');
+    }
+
+    // Validate optional name (server-side: trim, non-empty, max 100 chars)
+    let validatedName;
+    if (rawName && typeof rawName === 'string') {
+      const trimmedName = rawName.trim();
+      if (trimmedName && trimmedName.length <= 100) {
+        validatedName = trimmedName;
+      }
     }
 
     // Validate PIN format using centralized validation
@@ -152,7 +161,15 @@ router.post('/:eventId/verify-pin', async (req, res) => {
 
     // PIN verified successfully - register user for the event
     try {
-      await eventMemberService.registerUser(eventId, email.trim());
+      const registration = await eventMemberService.registerUser(eventId, email.trim(), validatedName);
+      // For returning users, update name separately (atomic registration uses if_not_exists)
+      if (registration.alreadyExists && validatedName) {
+        try {
+          await eventConfigService.updateUserName(eventId, email.trim(), validatedName);
+        } catch (nameError) {
+          loggerService.warn(`Name update failed for returning user in event ${eventId}: ${nameError.message}`);
+        }
+      }
     } catch (registrationError) {
       // Log registration error but don't fail the PIN verification
       // User can still access the event even if registration fails

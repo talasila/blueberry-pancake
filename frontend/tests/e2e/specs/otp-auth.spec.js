@@ -29,17 +29,19 @@ test.describe('OTP Authentication', () => {
     // Should be on email entry page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/email`));
     
-    // Enter admin email
+    // Enter name and admin email
+    const nameInput = page.locator('input#name');
+    await nameInput.waitFor({ state: 'visible', timeout: 5000 });
+    await nameInput.fill('Test Admin');
     const emailInput = page.locator('input#email');
-    await emailInput.waitFor({ state: 'visible', timeout: 5000 });
     await emailInput.fill(adminEmail);
-    
+
     const continueButton = page.getByRole('button', { name: /continue/i });
     await continueButton.click();
-    
+
     // Should be redirected to OTP entry page (detected as admin)
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/otp`), { timeout: 5000 });
-    
+
     // Dev mode only: the banner showing the generated OTP is not rendered in production.
     await page.getByText(/OTP code generated|OTP code has been sent/i).waitFor({ state: 'visible', timeout: 5000 });
     
@@ -122,17 +124,19 @@ test.describe('OTP Authentication', () => {
     // Should be on email entry page
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/email`));
     
-    // Enter admin email
+    // Enter name and admin email
+    const nameInput = page.locator('input#name');
+    await nameInput.waitFor({ state: 'visible', timeout: 5000 });
+    await nameInput.fill('Test Admin');
     const emailInput = page.locator('input#email');
-    await emailInput.waitFor({ state: 'visible', timeout: 5000 });
     await emailInput.fill(adminEmail);
-    
+
     const continueButton = page.getByRole('button', { name: /continue/i });
     await continueButton.click();
-    
+
     // Should be redirected to OTP entry page (detected as admin)
     await expect(page).toHaveURL(new RegExp(`/event/${eventId}/otp`), { timeout: 5000 });
-    
+
     // Wait for OTP input to be visible and enabled (enabled means the OTP request finished)
     const otpInput = page.locator('input#otp');
     await otpInput.waitFor({ state: 'visible', timeout: 5000 });

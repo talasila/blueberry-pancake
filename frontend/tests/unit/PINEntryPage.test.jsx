@@ -150,7 +150,7 @@ describe('PINEntryPage', () => {
       fireEvent.submit(form);
 
       await waitFor(() => {
-        expect(apiClient.verifyPIN).toHaveBeenCalledWith('A5ohYrHe', '123456', 'user@example.com');
+        expect(apiClient.verifyPIN).toHaveBeenCalledWith('A5ohYrHe', '123456', 'user@example.com', undefined);
       });
     });
 
@@ -201,6 +201,78 @@ describe('PINEntryPage', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+  });
+
+  describe('Name handling (T010)', () => {
+    it('calls verifyPIN with name from sessionStorage as the fourth argument', async () => {
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
+      sessionStorageMock.setItem('event:A5ohYrHe:name', 'Jane Doe');
+      apiClient.verifyPIN.mockResolvedValue({
+        sessionId: 'test-session-id',
+        eventId: 'A5ohYrHe',
+        user: { email: 'user@example.com', exp: 9999999999 },
+      });
+      renderComponent();
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
+      });
+
+      const pinInput = screen.getByPlaceholderText(/Enter 6-digit PIN/i);
+      fireEvent.change(pinInput, { target: { value: '123456' } });
+
+      const form = screen.getByRole('button', { name: /Access Event/i }).closest('form');
+      fireEvent.submit(form);
+
+      await waitFor(() => {
+        expect(apiClient.verifyPIN).toHaveBeenCalledWith('A5ohYrHe', '123456', 'user@example.com', 'Jane Doe');
+      });
+    });
+
+    it('removes name key from sessionStorage after successful verification', async () => {
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
+      sessionStorageMock.setItem('event:A5ohYrHe:name', 'Jane Doe');
+      apiClient.verifyPIN.mockResolvedValue({
+        sessionId: 'test-session-id',
+        user: { email: 'user@example.com', exp: 9999999999 },
+      });
+      renderComponent();
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByPlaceholderText(/Enter 6-digit PIN/i), { target: { value: '123456' } });
+      fireEvent.submit(screen.getByRole('button', { name: /Access Event/i }).closest('form'));
+
+      await waitFor(() => {
+        expect(sessionStorageMock.removeItem).toHaveBeenCalledWith('event:A5ohYrHe:name');
+      });
+    });
+
+    it('passes undefined to verifyPIN when name is missing from sessionStorage', async () => {
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
+      apiClient.verifyPIN.mockResolvedValue({
+        sessionId: 'test-session-id',
+        eventId: 'A5ohYrHe',
+        user: { email: 'user@example.com', exp: 9999999999 },
+      });
+      renderComponent();
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
+      });
+
+      const pinInput = screen.getByPlaceholderText(/Enter 6-digit PIN/i);
+      fireEvent.change(pinInput, { target: { value: '123456' } });
+
+      const form = screen.getByRole('button', { name: /Access Event/i }).closest('form');
+      fireEvent.submit(form);
+
+      await waitFor(() => {
+        expect(apiClient.verifyPIN).toHaveBeenCalledWith('A5ohYrHe', '123456', 'user@example.com', undefined);
+      });
     });
   });
 

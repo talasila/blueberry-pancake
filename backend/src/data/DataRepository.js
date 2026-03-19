@@ -77,9 +77,10 @@ export default class DataRepository {
    * @param {string} eventId - Event identifier
    * @param {string} email - User email (will be normalized)
    * @param {string} registeredAt - Registration timestamp
+   * @param {string} [name] - Optional display name to store with registration
    * @returns {Promise<{registered: boolean, alreadyExists: boolean}>} Result indicating if user was registered
    */
-  async registerUserAtomic(eventId, email, registeredAt) {
+  async registerUserAtomic(eventId, email, registeredAt, name = undefined) {
     throw new Error('registerUserAtomic not implemented');
   }
 

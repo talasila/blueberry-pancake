@@ -3,6 +3,7 @@ import supertest from 'supertest';
 import app from '../../src/app.js';
 import emailService from '../../src/services/EmailService.js';
 import suspensionService from '../../src/services/SuspensionService.js';
+import eventConfigService from '../../src/services/EventConfigService.js';
 
 const request = supertest(app);
 
@@ -61,6 +62,19 @@ vi.mock('../../src/services/OTPService.js', () => ({
 vi.mock('../../src/services/EventService.js', () => ({
   default: {
     getEventsByAdministrator: vi.fn().mockResolvedValue([]),
+  },
+}));
+
+vi.mock('../../src/services/EventMemberService.js', () => ({
+  default: {
+    getEventsByAdministrator: vi.fn().mockResolvedValue([]),
+    getEventSummariesByAdministrator: vi.fn().mockResolvedValue([]),
+  },
+}));
+
+vi.mock('../../src/services/EventConfigService.js', () => ({
+  default: {
+    updateUserName: vi.fn().mockResolvedValue({ email: 'verify@example.com', name: 'Test User' }),
   },
 }));
 
@@ -257,6 +271,38 @@ describe('OTP Authentication API', () => {
         .expect(200);
 
       expect(suspensionService.getFailedAttempts(testEmail)).toBe(0);
+    });
+
+    it('verify-otp with name and eventId saves name', async () => {
+      const response = await request
+        .post('/api/auth/otp/verify')
+        .send({ email: 'nameuser@example.com', otp: '123456', name: 'Alice', eventId: 'A1B2C3D4' })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('user');
+      expect(response.body.user).toHaveProperty('email', 'nameuser@example.com');
+
+      // Name should be saved via eventConfigService.updateUserName
+      expect(eventConfigService.updateUserName).toHaveBeenCalledWith(
+        'A1B2C3D4',
+        'nameuser@example.com',
+        'Alice'
+      );
+    });
+
+    it('verify-otp without name/eventId still works (backward compatibility)', async () => {
+      const response = await request
+        .post('/api/auth/otp/verify')
+        .send({ email: 'noname@example.com', otp: '123456' })
+        .expect(200);
+
+      expect(response.body).toHaveProperty('success', true);
+      expect(response.body).toHaveProperty('user');
+      expect(response.body.user).toHaveProperty('email', 'noname@example.com');
+
+      // updateUserName should NOT be called when name/eventId are missing
+      expect(eventConfigService.updateUserName).not.toHaveBeenCalled();
     });
   });
 });

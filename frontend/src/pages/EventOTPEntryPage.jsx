@@ -20,6 +20,7 @@ function EventOTPEntryPage() {
   const navigate = useNavigate();
   
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [requestingOTP, setRequestingOTP] = useState(false);
@@ -57,11 +58,13 @@ function EventOTPEntryPage() {
     }
   }, [turnstileToken, resetWidget]);
 
-  // Get email from sessionStorage (set in EmailEntryPage) and auto-request OTP
+  // Get email and name from sessionStorage (set in EmailEntryPage) and auto-request OTP
   useEffect(() => {
     const storedEmail = sessionStorage.getItem(`event:${eventId}:email`);
+    const storedName = sessionStorage.getItem(`event:${eventId}:name`);
     if (storedEmail) {
       setEmail(storedEmail);
+      if (storedName) setName(storedName);
       // Automatically request OTP when email is available
       requestOTP(storedEmail);
     } else {
@@ -80,14 +83,15 @@ function EventOTPEntryPage() {
     setLoading(true);
 
     try {
-      const response = await apiClient.verifyOTP(email, otp);
-      
+      const response = await apiClient.verifyOTP(email, otp, name || undefined, eventId);
+
       if (response.user) {
         apiClient.setUserSession(response.user);
       }
 
-      // Clear email from sessionStorage
+      // Clear email and name from sessionStorage
       sessionStorage.removeItem(`event:${eventId}:email`);
+      sessionStorage.removeItem(`event:${eventId}:name`);
 
       setSuccess('Authentication successful! Redirecting...');
       
@@ -184,6 +188,7 @@ function EventOTPEntryPage() {
                       variant="outline"
                       onClick={() => {
                         sessionStorage.removeItem(`event:${eventId}:email`);
+                        sessionStorage.removeItem(`event:${eventId}:name`);
                         navigate(`/event/${eventId}/email`, { replace: true });
                       }}
                       disabled={loading || requestingOTP}

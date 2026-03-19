@@ -312,10 +312,11 @@ class DynamoDBRepository extends DataRepository {
    * Uses DynamoDB UpdateExpression to prevent concurrent registration race conditions
    * Only adds the user if they don't already exist (if_not_exists)
    */
-  async registerUserAtomic(eventId, email, registeredAt) {
+  async registerUserAtomic(eventId, email, registeredAt, name = undefined) {
     await this.initialize();
 
     const normalizedEmail = email.toLowerCase();
+    const userData = { registeredAt, ...(name && { name }) };
 
     try {
       const result = await this.docClient.send(new UpdateCommand({
@@ -331,7 +332,7 @@ class DynamoDBRepository extends DataRepository {
           '#email': normalizedEmail,
         },
         ExpressionAttributeValues: {
-          ':userData': { registeredAt },
+          ':userData': userData,
           ':now': new Date().toISOString(),
         },
         ReturnValues: 'UPDATED_OLD',

@@ -19,7 +19,9 @@ function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
   
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => {
+    try { return localStorage.getItem('remembered:email') || ''; } catch { return ''; }
+  });
   const [otp, setOtp] = useState('');
   const [step, setStep] = useState('request'); // 'request' or 'verify'
   const [loading, setLoading] = useState(false);

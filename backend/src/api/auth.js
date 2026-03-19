@@ -6,6 +6,8 @@ import rateLimitService from '../services/RateLimitService.js';
 import suspensionService from '../services/SuspensionService.js';
 import eventService from '../services/EventService.js';
 import eventMemberService from '../services/EventMemberService.js';
+import eventConfigService from '../services/EventConfigService.js';
+import { validateEventId } from '../utils/validators.js';
 import {
   generateToken,
   generateRefreshToken,
@@ -121,7 +123,7 @@ router.post('/otp/request', async (req, res) => {
  */
 router.post('/otp/verify', async (req, res) => {
   try {
-    const { email, otp } = req.body;
+    const { email, otp, name: rawName, eventId } = req.body;
 
     // Validate inputs
     if (!email || typeof email !== 'string') {
@@ -194,10 +196,23 @@ router.post('/otp/verify', async (req, res) => {
     // OTP is valid - reset failed attempts and generate JWT token
     // Always reset failed attempts on successful verification (including test OTP)
     await suspensionService.resetFailedAttempts(normalizedEmail);
-    
+
     if (!otpResult.bypass) {
       // Invalidate used OTP (not needed for test OTP which is static)
       otpService.invalidateOTP(normalizedEmail);
+    }
+
+    // Save display name if provided with a valid eventId
+    if (rawName && typeof rawName === 'string' && eventId && typeof eventId === 'string') {
+      const eventIdValidation = validateEventId(eventId);
+      const trimmedName = rawName.trim();
+      if (eventIdValidation.valid && trimmedName && trimmedName.length <= 100) {
+        try {
+          await eventConfigService.updateUserName(eventId, normalizedEmail, trimmedName);
+        } catch (nameError) {
+          loggerService.warn(`Name update failed for admin in event ${eventId}: ${nameError.message}`);
+        }
+      }
     }
 
     // Get all events where user is an administrator

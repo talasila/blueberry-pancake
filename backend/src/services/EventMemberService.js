@@ -17,9 +17,10 @@ class EventMemberService {
    * Users are stored as a map with email as key and registration data as value
    * @param {string} eventId - Event identifier
    * @param {string} email - User email address
-   * @returns {Promise<object>} Updated event with user registered
+   * @param {string} [name] - Optional display name to store with registration
+   * @returns {Promise<object>} Registration result including alreadyExists flag
    */
-  async registerUser(eventId, email) {
+  async registerUser(eventId, email, name = undefined) {
     // Validate event ID format
     const idValidation = validateEventId(eventId);
     if (!idValidation.valid) {
@@ -42,7 +43,7 @@ class EventMemberService {
     try {
       // Use atomic registration to prevent concurrent registration race conditions
       // This uses DynamoDB's if_not_exists to safely add users without overwriting
-      const result = await dataRepository.registerUserAtomic(eventId, normalizedEmail, registrationTimestamp);
+      const result = await dataRepository.registerUserAtomic(eventId, normalizedEmail, registrationTimestamp, name);
 
       if (result.registered && !result.alreadyExists) {
         loggerService.info(`User registered for event: ${eventId}, email: ${normalizedEmail}, registeredAt: ${registrationTimestamp}`);
@@ -54,6 +55,7 @@ class EventMemberService {
         eventId,
         email: normalizedEmail,
         registered: result.registered && !result.alreadyExists,
+        alreadyExists: result.alreadyExists,
         registeredAt: registrationTimestamp
       };
     } catch (error) {

@@ -202,15 +202,15 @@ function errorLocator(page) {
 }
 
 /**
- * Navigate and wait for the email entry page, then enter email and submit.
+ * Navigate and wait for the email entry page, then enter name + email and submit.
  * Handles the case where the page is already past the email step (on PIN page).
  */
-export async function submitEmail(page, email) {
+export async function submitEmail(page, email, name = 'Test User') {
   const currentUrl = page.url();
   if (/\/pin(\?|$)/.test(new URL(currentUrl).pathname)) {
     return;
   }
-  
+
   const emailInput = page.locator('input#email');
   const pinInput = pinInputLocator(page);
 
@@ -222,8 +222,12 @@ export async function submitEmail(page, email) {
     }
     throw new Error('submitEmail: neither email nor PIN input appeared within timeout');
   }
+
+  // Fill name field (required alongside email)
+  const nameInput = page.locator('input#name');
+  await nameInput.fill(name);
   await emailInput.fill(email);
-  
+
   const continueButton = page.getByRole('button', { name: /continue/i });
   await continueButton.click();
   await page.waitForURL(/\/(pin|otp)$/, { timeout: 10000 });

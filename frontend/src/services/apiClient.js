@@ -462,10 +462,12 @@ class ApiClient {
    * Verify OTP code and receive JWT token
    * @param {string} email - Email address
    * @param {string} otp - OTP code
+   * @param {string} [name] - Optional display name to store
+   * @param {string} [eventId] - Optional event ID to associate name with
    * @returns {Promise<any>} Response data with token
    */
-  async verifyOTP(email, otp) {
-    return this.post('/auth/otp/verify', { email, otp });
+  async verifyOTP(email, otp, name = undefined, eventId = undefined) {
+    return this.post('/auth/otp/verify', { email, otp, ...(name && { name }), ...(eventId && { eventId }) });
   }
 
   /**
@@ -515,10 +517,11 @@ class ApiClient {
    * @param {string} eventId - Event identifier
    * @param {string} pin - 6-digit PIN
    * @param {string} email - User email address
+   * @param {string} [name] - Optional display name to store
    * @returns {Promise<any>} Response data with sessionId
    */
-  async verifyPIN(eventId, pin, email) {
-    return this.post(`/events/${eventId}/verify-pin`, { pin, email });
+  async verifyPIN(eventId, pin, email, name = undefined) {
+    return this.post(`/events/${eventId}/verify-pin`, { pin, email, ...(name && { name }) });
   }
 
   /**

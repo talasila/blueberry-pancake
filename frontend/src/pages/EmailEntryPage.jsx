@@ -9,17 +9,23 @@ import { useTurnstile } from '@/hooks/useTurnstile';
 
 /**
  * EmailEntryPage Component
- * 
+ *
  * First step of event access:
- * 1. User enters email address
+ * 1. User enters name and email address
  * 2. System checks if email is an event administrator
  * 3. Routes to PIN entry (regular user) or OTP entry (admin)
  */
 function EmailEntryPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  
-  const [email, setEmail] = useState('');
+
+  // Initialize state from localStorage for returning users (graceful degradation)
+  const getRemembered = (key) => {
+    try { return localStorage.getItem(key) || ''; } catch { return ''; }
+  };
+
+  const [name, setName] = useState(() => getRemembered('remembered:name'));
+  const [email, setEmail] = useState(() => getRemembered('remembered:email'));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { token: turnstileToken, containerRef: turnstileRef } = useTurnstile(
@@ -39,56 +45,67 @@ function EmailEntryPage() {
    */
   const checkAdminStatus = async (email) => {
     try {
-      // Use the check-admin endpoint
       const response = await apiClient.checkEventAdmin(eventId, email.trim(), turnstileToken);
       return response.isAdmin || false;
     } catch (err) {
-      // If we can't check (e.g., event not found), default to PIN entry
-      // PIN entry will handle the error appropriately
       console.error('Error checking admin status:', err);
       return false;
     }
   };
 
   /**
-   * Handle email submission
+   * Handle form submission
    */
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    
+
+    const trimmedName = name.trim();
+    const trimmedEmail = email.trim();
+
+    // Validate name
+    if (!trimmedName) {
+      setError('Your name is required');
+      return;
+    }
+
     // Validate email
-    if (!email || !email.trim()) {
+    if (!trimmedEmail) {
       setError('Email address is required');
       return;
     }
-    
-    if (!validateEmail(email.trim())) {
+
+    if (!validateEmail(trimmedEmail)) {
       setError('Please enter a valid email address');
       return;
     }
-    
+
     setLoading(true);
 
     try {
       // Check if email is an administrator
-      const isAdmin = await checkAdminStatus(email.trim());
-      
-      // Store email in sessionStorage for next step
-      sessionStorage.setItem(`event:${eventId}:email`, email.trim());
-      
+      const isAdmin = await checkAdminStatus(trimmedEmail);
+
+      // Persist to localStorage for future pre-fill (always overwrite with current values)
+      try {
+        localStorage.setItem('remembered:name', trimmedName);
+        localStorage.setItem('remembered:email', trimmedEmail);
+      } catch { /* private browsing or storage full — ignore */ }
+
+      // Store in sessionStorage for PIN/OTP page handoff
+      sessionStorage.setItem(`event:${eventId}:email`, trimmedEmail);
+      sessionStorage.setItem(`event:${eventId}:name`, trimmedName);
+
       // Route based on admin status
       if (isAdmin) {
-        // Admin: route to OTP entry
         navigate(`/event/${eventId}/otp`, { replace: true });
       } else {
-        // Regular user: route to PIN entry
         navigate(`/event/${eventId}/pin`, { replace: true });
       }
     } catch (err) {
       // If event fetch fails, still route to PIN entry
-      // PIN entry will handle the authentication error
-      sessionStorage.setItem(`event:${eventId}:email`, email.trim());
+      sessionStorage.setItem(`event:${eventId}:email`, trimmedEmail);
+      sessionStorage.setItem(`event:${eventId}:name`, trimmedName);
       navigate(`/event/${eventId}/pin`, { replace: true });
     } finally {
       setLoading(false);
@@ -103,12 +120,28 @@ function EmailEntryPage() {
             <CardHeader>
               <CardTitle>Access Event</CardTitle>
               <CardDescription>
-                Enter your email address to continue
+                Enter your name and email address to continue
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit}>
                 <div className="space-y-4">
+                  {/* Name input */}
+                  <div>
+                    <Label htmlFor="name">Your Name</Label>
+                    <Input
+                      id="name"
+                      type="text"
+                      placeholder="Your name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      disabled={loading}
+                      required
+                      className="mt-1"
+                      autoFocus
+                    />
+                  </div>
+
                   {/* Email input */}
                   <div>
                     <Label htmlFor="email">Email Address</Label>
@@ -121,7 +154,6 @@ function EmailEntryPage() {
                       disabled={loading}
                       required
                       className="mt-1"
-                      autoFocus
                     />
                   </div>
 
@@ -135,7 +167,7 @@ function EmailEntryPage() {
                   {/* Action button */}
                   <Button
                     type="submit"
-                    disabled={loading || !email.trim()}
+                    disabled={loading || !name.trim() || !email.trim()}
                     className="w-full"
                   >
                     {loading ? 'Checking...' : 'Continue'}
@@ -152,4 +184,3 @@ function EmailEntryPage() {
 }
 
 export default EmailEntryPage;
-
