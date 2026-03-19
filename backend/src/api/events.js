@@ -230,11 +230,55 @@ router.post('/:eventId/verify-pin', async (req, res) => {
 });
 
 /**
+ * GET /api/events/:eventId/public-info
+ * Return minimal public event information for display on unauthenticated entry pages.
+ * Public endpoint - no authentication required.
+ * Returns only: name, typeOfItem, theme, state.
+ * Rate limited to prevent abuse.
+ */
+router.get('/:eventId/public-info', async (req, res) => {
+  try {
+    const { eventId } = req.params;
+
+    const eventIdValidation = validateEventId(eventId);
+    if (!eventIdValidation.valid) {
+      return badRequestError(res, 'Invalid event ID format');
+    }
+
+    // Rate limiting (same pattern as check-admin)
+    const globalResult = await rateLimitService.checkGlobalCheckAdminLimit();
+    if (!globalResult.allowed) {
+      return formatRateLimitResponse(res, globalResult, 'Too many requests');
+    }
+
+    if (isProduction()) {
+      const clientIP = req.ip || req.socket?.remoteAddress || 'unknown';
+      const ipLimit = await rateLimitService.checkIPLimit(clientIP);
+      if (!ipLimit.allowed) {
+        return formatRateLimitResponse(res, ipLimit, 'Too many requests');
+      }
+    }
+
+    const event = await eventService.getEvent(eventId);
+
+    // Return only public-safe fields
+    res.json({
+      name: event.name,
+      typeOfItem: event.typeOfItem,
+      theme: event.theme || 'classic',
+      state: event.state,
+    });
+  } catch (error) {
+    return handleApiError(res, error, 'get public event info');
+  }
+});
+
+/**
  * GET /api/events/:eventId/check-admin
  * Check if an email is an administrator for an event
  * Public endpoint - no authentication required
  * Used to determine which authentication flow to use (PIN vs OTP)
- * 
+ *
  * Rate limited to prevent user enumeration attacks
  */
 router.get('/:eventId/check-admin', async (req, res) => {

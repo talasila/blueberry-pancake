@@ -3,22 +3,23 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import apiClient from '@/services/apiClient';
 import { clearAllBookmarks } from '@/utils/bookmarkStorage';
 import { useTurnstile } from '@/hooks/useTurnstile';
 
 /**
  * AuthPage Component
- * 
- * Handles OTP-based authentication:
- * 1. User enters email and requests OTP
- * 2. User enters OTP code and verifies
+ *
+ * Handles authentication via verification code:
+ * 1. User enters email and requests a verification code
+ * 2. User enters the code and verifies
  * 3. On success, stores JWT token and redirects
  */
 function AuthPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  
+
   const [email, setEmail] = useState(() => {
     try { return localStorage.getItem('remembered:email') || ''; } catch { return ''; }
   });
@@ -41,9 +42,6 @@ function AuthPage() {
     }
   }, [from, navigate]);
 
-  /**
-   * Handle OTP request
-   */
   const handleRequestOTP = async (e) => {
     e.preventDefault();
     setError('');
@@ -59,11 +57,11 @@ function AuthPage() {
 
     try {
       const response = await apiClient.requestOTP(email, turnstileToken);
-      setSuccess(response.message || 'OTP code has been sent to your email. Please check your inbox.');
+      setSuccess(response.message || 'Verification code has been sent to your email. Please check your inbox.');
       setStep('verify');
       resetWidget();
     } catch (err) {
-      const errorMessage = err.message || 'Unable to send OTP code. Please check your email address and try again.';
+      const errorMessage = err.message || 'Unable to send verification code. Please check your email address and try again.';
       setError(errorMessage);
       resetWidget();
     } finally {
@@ -71,9 +69,6 @@ function AuthPage() {
     }
   };
 
-  /**
-   * Handle OTP verification
-   */
   const handleVerifyOTP = async (e) => {
     e.preventDefault();
     setError('');
@@ -82,23 +77,20 @@ function AuthPage() {
 
     try {
       const response = await apiClient.verifyOTP(email, otp);
-      
-      // Clear local bookmark cache (bookmarks are persisted on server, will be loaded on event page)
+
       clearAllBookmarks();
-      
+
       if (response.user) {
         apiClient.setUserSession(response.user);
       }
 
       setSuccess('Authentication successful! Redirecting...');
-      
-      // Redirect to originally requested page or landing page
+
       setTimeout(() => {
         navigate(from, { replace: true });
       }, 1000);
     } catch (err) {
-      // Show user-friendly error message
-      const errorMessage = err.message || 'Invalid OTP code. Please check the code and try again.';
+      const errorMessage = err.message || 'Invalid verification code. Please check the code and try again.';
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -106,43 +98,43 @@ function AuthPage() {
   };
 
   return (
-    <div className="w-full">
-      <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-4">
+    <div className="w-full h-full">
+      <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-4 min-h-full">
         <div className="w-full max-w-md">
           <Card>
             <CardHeader>
-              <CardTitle>Sign In</CardTitle>
+              <CardTitle>Welcome back</CardTitle>
               <CardDescription>
-                {step === 'request' 
-                  ? 'Enter your email address to receive an OTP code'
-                  : 'Enter the 6-digit OTP code sent to your email'}
+                {step === 'request'
+                  ? "We'll send a verification code to your email"
+                  : <>Enter the verification code sent to <span className="font-medium text-foreground">{email}</span></>}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={step === 'request' ? handleRequestOTP : handleVerifyOTP}>
                 <div className="space-y-4">
-                  {/* Email input - always visible */}
-                  <div>
-                    <label htmlFor="email" className="sr-only">
-                      Email address
-                    </label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Enter your email"
-                      required
-                      disabled={loading || step === 'verify'}
-                      className={step === 'verify' ? 'opacity-60' : ''}
-                    />
-                  </div>
+                  {/* Email input - visible only in request step */}
+                  {step === 'request' && (
+                    <div>
+                      <Label htmlFor="email">Email Address</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="Enter your email"
+                        required
+                        disabled={loading}
+                        className="mt-1"
+                      />
+                    </div>
+                  )}
 
-                  {/* OTP input - visible only in verify step */}
+                  {/* Verification code input - visible only in verify step */}
                   {step === 'verify' && (
                     <div>
                       <label htmlFor="otp" className="sr-only">
-                        OTP code
+                        Verification code
                       </label>
                       <Input
                         id="otp"
@@ -153,7 +145,7 @@ function AuthPage() {
                         value={otp}
                         onChange={(e) => setOtp(e.target.value)}
                         disabled={loading}
-                        placeholder="Enter 6-digit OTP"
+                        placeholder="Enter 6-digit code"
                         className="text-center text-lg tracking-widest"
                       />
                     </div>
@@ -196,11 +188,11 @@ function AuthPage() {
                       disabled={loading || (step === 'request' && (!email || (turnstileLoading && !turnstileError))) || (step === 'verify' && otp.length !== 6)}
                       className="flex-1"
                     >
-                      {loading 
-                        ? 'Processing...' 
-                        : step === 'request' 
-                          ? 'Request OTP'
-                          : 'Verify OTP'}
+                      {loading
+                        ? 'Processing...'
+                        : step === 'request'
+                          ? 'Send verification code'
+                          : 'Sign in'}
                     </Button>
                   </div>
                 </div>

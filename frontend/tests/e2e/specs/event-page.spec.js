@@ -61,25 +61,15 @@ test.describe('Event Page', () => {
   test('shows error for non-existent event', async ({ page }) => {
     // Use a valid format event ID that doesn't exist (8 alphanumeric chars)
     const nonExistentEventId = 'AAAAAAAA';
-    
+
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/${nonExistentEventId}`);
-    
-    // Should be redirected to email entry page first
+
+    // Should be redirected to email entry page
     await expect(page).toHaveURL(new RegExp(`/event/${nonExistentEventId}/email`));
-    
-    // Submit email to proceed to PIN page
-    await submitEmail(page, 'testuser@example.com');
-    
-    // Should be on PIN entry page
-    await expect(page).toHaveURL(new RegExp(`/event/${nonExistentEventId}/pin`), { timeout: 5000 });
-    
-    // Enter a PIN to trigger the "event not found" error
-    await enterAndSubmitPIN(page, '123456');
-    
-    // Error should be displayed about event not found
-    const errorLocator = page.getByText(/event not found|not found|invalid/i).first();
-    await expect(errorLocator).toBeVisible({ timeout: 10000 });
+
+    // Email entry page now shows "Event not found" for non-existent events
+    await expect(page.getByText(/event not found/i)).toBeVisible({ timeout: 10000 });
   });
 
   // ===================================

@@ -54,7 +54,7 @@ test.describe('OTP Authentication', () => {
     await expect(otpInput).toHaveValue(TEST_OTP);
     
     // Click verify button - wait for it to be enabled first
-    const verifyButton = page.getByRole('button', { name: /verify.*otp/i });
+    const verifyButton = page.getByRole('button', { name: /sign in/i });
     await expect(verifyButton).toBeEnabled({ timeout: 5000 });
     await verifyButton.click();
     
@@ -96,11 +96,11 @@ test.describe('OTP Authentication', () => {
     await expect(otpInput).toBeVisible({ timeout: 20000 });
     await otpInput.fill('999999');
     
-    const verifyButton = page.getByRole('button', { name: /verify|submit|continue/i });
+    const verifyButton = page.getByRole('button', { name: /sign in|verify|submit|continue/i });
     await expect(verifyButton).toBeVisible({ timeout: 5000 });
     await verifyButton.click();
-    
-    // Should show OTP-specific error message
+
+    // Should show error message
     const errorElement = page.locator('.text-destructive').or(page.locator('[role="alert"]'));
     await expect(errorElement).toBeVisible({ timeout: 10000 });
     await expect(errorElement).toContainText(/invalid.*otp|incorrect.*code|otp.*expired|verification.*failed|too many failed attempts/i, { timeout: 10000 });
@@ -144,7 +144,7 @@ test.describe('OTP Authentication', () => {
     await otpInput.fill(INVALID_OTP);
     
     // Click verify button and wait for the API response
-    const verifyButton = page.getByRole('button', { name: /verify.*otp/i });
+    const verifyButton = page.getByRole('button', { name: /sign in/i });
     await Promise.all([
       page.waitForResponse(resp => resp.url().includes('/auth/otp/verify')),
       verifyButton.click(),

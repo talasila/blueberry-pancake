@@ -489,6 +489,28 @@ class ApiClient {
   }
 
   /**
+   * Get public event info (name, typeOfItem, theme, state) without authentication.
+   * Never throws — returns structured result with notFound flag.
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<{data: object|null, notFound: boolean}>}
+   */
+  async getEventPublicInfo(eventId) {
+    try {
+      const response = await this.request(`/events/${eventId}/public-info`, {
+        method: 'GET',
+        expectedStatuses: [404],
+      });
+      if (response === null) {
+        return { data: null, notFound: true };
+      }
+      const data = await response.json();
+      return { data, notFound: false };
+    } catch {
+      return { data: null, notFound: false };
+    }
+  }
+
+  /**
    * Check if an email is an administrator for an event
    * @param {string} eventId - Event identifier
    * @param {string} email - Email address to check

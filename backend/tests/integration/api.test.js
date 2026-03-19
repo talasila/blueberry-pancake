@@ -13,15 +13,30 @@ vi.mock('../../src/services/EventService.js', () => ({
     getEvent: vi.fn().mockResolvedValue({
       eventId: 'A1B2C3D4',
       name: 'Test Event',
+      typeOfItem: 'wine',
+      theme: 'elegant',
       state: 'started',
       users: {},
       administrators: { 'admin@example.com': { assignedAt: '2024-01-01', owner: true } },
       items: [],
+      pin: '123456',
+      ratingConfiguration: { maxRating: 3 },
+      itemConfiguration: { numberOfItems: 20 },
     }),
     isAdministrator: vi.fn().mockReturnValue(false),
     isEventMember: vi.fn().mockReturnValue(true),
     getItemConfiguration: vi.fn(),
     getRatingConfiguration: vi.fn(),
+  },
+}));
+
+vi.mock('../../src/services/RateLimitService.js', () => ({
+  default: {
+    checkGlobalCheckAdminLimit: vi.fn().mockResolvedValue({ allowed: true }),
+    checkGlobalLimit: vi.fn().mockResolvedValue({ allowed: true }),
+    checkLimits: vi.fn().mockResolvedValue({ allowed: true }),
+    checkEmailLimit: vi.fn().mockResolvedValue({ allowed: true }),
+    checkIPLimit: vi.fn().mockResolvedValue({ allowed: true }),
   },
 }));
 
@@ -48,6 +63,7 @@ vi.mock('../../src/middleware/jwtAuth.js', async (importOriginal) => {
 });
 
 import app from '../../src/app.js';
+import eventService from '../../src/services/EventService.js';
 import eventMemberService from '../../src/services/EventMemberService.js';
 import eventConfigService from '../../src/services/EventConfigService.js';
 
@@ -134,5 +150,58 @@ describe('POST /api/events/:eventId/verify-pin (name parameter)', () => {
       'guest@example.com',
       undefined
     );
+  });
+});
+
+/**
+ * T008: GET /api/events/:eventId/public-info
+ */
+describe('GET /api/events/:eventId/public-info', () => {
+  const EVENT_ID = 'A1B2C3D4';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns public info for a valid event', async () => {
+    const response = await request
+      .get(`/api/events/${EVENT_ID}/public-info`)
+      .expect(200);
+
+    expect(response.body).toHaveProperty('name', 'Test Event');
+    expect(response.body).toHaveProperty('typeOfItem', 'wine');
+    expect(response.body).toHaveProperty('theme', 'elegant');
+    expect(response.body).toHaveProperty('state', 'started');
+  });
+
+  it('returns 404 for a non-existent event', async () => {
+    eventService.getEvent.mockRejectedValueOnce(new Error('Event not found: ZZZZZZZZ'));
+
+    const response = await request
+      .get('/api/events/ZZZZZZZZ/public-info')
+      .expect(404);
+
+    expect(response.body).toHaveProperty('error');
+    expect(response.body.error).toContain('not found');
+  });
+
+  it('returns 400 for an invalid eventId format', async () => {
+    const response = await request
+      .get('/api/events/invalid!!!/public-info')
+      .expect(400);
+
+    expect(response.body).toHaveProperty('error');
+  });
+
+  it('does NOT return sensitive fields', async () => {
+    const response = await request
+      .get(`/api/events/${EVENT_ID}/public-info`)
+      .expect(200);
+
+    expect(response.body).not.toHaveProperty('pin');
+    expect(response.body).not.toHaveProperty('administrators');
+    expect(response.body).not.toHaveProperty('users');
+    expect(response.body).not.toHaveProperty('ratingConfiguration');
+    expect(response.body).not.toHaveProperty('itemConfiguration');
   });
 });

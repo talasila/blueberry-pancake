@@ -254,7 +254,7 @@ export async function enterPIN(page, pin) {
  * @returns {'navigated' | 'error'} outcome
  */
 export async function submitPIN(page) {
-  const submitButton = page.getByRole('button', { name: /access event/i });
+  const submitButton = page.getByRole('button', { name: /join event/i });
   
   await submitButton.waitFor({ state: 'visible', timeout: 5000 });
   await expect(submitButton).toBeEnabled({ timeout: 5000 });
@@ -491,7 +491,7 @@ export async function authenticateViaOTP(page, email = 'creator@example.com') {
   await expect(otpInput).toBeVisible({ timeout: 10000 });
   await otpInput.fill(TEST_OTP);
 
-  const verifyButton = page.locator('form').getByRole('button', { name: /verify|submit|continue/i });
+  const verifyButton = page.locator('form').getByRole('button', { name: /sign in|verify|submit|continue/i });
   await expect(verifyButton).toBeVisible({ timeout: 5000 });
   await verifyButton.click();
 

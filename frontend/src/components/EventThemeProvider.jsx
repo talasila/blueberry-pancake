@@ -13,6 +13,7 @@ import { getThemeVars } from '@/utils/themePresets';
 export default function EventThemeProvider({ children }) {
   const { event } = useEventContext();
   const theme = event?.theme || 'classic';
+  const hasEvent = !!event;
   const appliedVarsRef = useRef([]);
 
   const [isDark, setIsDark] = useState(
@@ -32,7 +33,12 @@ export default function EventThemeProvider({ children }) {
 
   const cssVars = useMemo(() => getThemeVars(theme, isDark), [theme, isDark]);
 
+  // Only mirror vars to document root when we have a real event from context.
+  // When event is null (pre-auth entry pages), let the entry page's own
+  // useEffect set root vars from the public-info fetch instead.
   useEffect(() => {
+    if (!hasEvent) return;
+
     const root = document.documentElement;
 
     appliedVarsRef.current.forEach((key) => root.style.removeProperty(key));
@@ -45,10 +51,14 @@ export default function EventThemeProvider({ children }) {
       keys.forEach((key) => root.style.removeProperty(key));
       appliedVarsRef.current = [];
     };
-  }, [cssVars]);
+  }, [cssVars, hasEvent]);
 
+  // When event is null (pre-auth entry pages), render a plain wrapper without
+  // theme vars so entry pages can control theming via their own inline styles
+  // and root mirror. Otherwise the classic fallback vars here would override
+  // the entry page's theme for ancestors like the Header.
   return (
-    <div style={cssVars} data-event-theme={theme}>
+    <div style={hasEvent ? cssVars : undefined} data-event-theme={hasEvent ? theme : undefined}>
       {children}
     </div>
   );

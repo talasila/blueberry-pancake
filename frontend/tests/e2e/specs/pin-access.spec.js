@@ -67,7 +67,7 @@ test.describe('PIN-based Event Access', () => {
     await enterPIN(page, '123'); // Only 3 digits
     
     // Submit button should be disabled (validation)
-    const submitButton = page.getByRole('button', { name: /access event/i });
+    const submitButton = page.getByRole('button', { name: /join event/i });
     await expect(submitButton).toBeDisabled({ timeout: 5000 });
   });
   
@@ -243,12 +243,8 @@ test.describe('PIN-based Event Access', () => {
   test('PIN entry for non-existent event', async ({ page }) => {
     await clearAuth(page);
     await page.goto(`${BASE_URL}/event/ZZZZZZZZ`);
-    
-    await submitEmail(page, 'test@example.com');
-    await enterAndSubmitPIN(page, '123456');
-    
-    const errorMsg = await getErrorMessage(page);
-    expect(errorMsg).not.toBeNull();
-    expect(errorMsg).toMatch(/not found/i);
+
+    // Email entry page now shows "Event Not Found" for non-existent events
+    await expect(page.getByText(/event not found/i)).toBeVisible({ timeout: 10000 });
   });
 });

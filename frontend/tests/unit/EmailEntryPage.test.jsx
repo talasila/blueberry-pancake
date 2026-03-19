@@ -3,6 +3,8 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import EmailEntryPage from '../../src/pages/EmailEntryPage.jsx';
 import apiClient from '../../src/services/apiClient.js';
+import useEventPublicInfo from '../../src/hooks/useEventPublicInfo';
+import { getThemeVars } from '../../src/utils/themePresets';
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
@@ -35,6 +37,18 @@ vi.mock('../../src/hooks/useTurnstile.js', () => ({
     resetWidget: vi.fn(),
     containerRef: { current: null }
   }))
+}));
+
+vi.mock('../../src/hooks/useEventPublicInfo', () => ({
+  default: vi.fn(() => ({ name: null, typeOfItem: null, theme: null, state: null, loading: true, error: false, notFound: false }))
+}));
+
+vi.mock('../../src/hooks/useDarkMode', () => ({
+  default: vi.fn(() => ({ isDark: false, toggleDark: vi.fn() }))
+}));
+
+vi.mock('../../src/utils/themePresets', () => ({
+  getThemeVars: vi.fn(() => ({}))
 }));
 
 const sessionStorageMock = (() => {
@@ -73,6 +87,8 @@ describe('EmailEntryPage', () => {
     sessionStorageMock.clear();
     localStorageMock.clear();
     apiClient.checkEventAdmin.mockResolvedValue({ isAdmin: false });
+    useEventPublicInfo.mockReturnValue({ name: null, typeOfItem: null, theme: null, state: null, loading: true, error: false, notFound: false });
+    getThemeVars.mockReturnValue({});
   });
 
   describe('T009 (US1) - Core name field behavior', () => {
@@ -314,6 +330,78 @@ describe('EmailEntryPage', () => {
       await waitFor(() => {
         expect(sessionStorageMock.setItem).toHaveBeenCalledWith('event:A5ohYrHe:name', 'Updated Name');
       });
+    });
+  });
+
+  describe('T007 (US1) - Themed rendering', () => {
+    it('displays event name in title', () => {
+      useEventPublicInfo.mockReturnValue({
+        name: 'Wine Night', typeOfItem: 'wine', theme: 'cellar',
+        state: 'started', loading: false, error: false, notFound: false
+      });
+
+      renderComponent();
+
+      expect(screen.getByText('Wine Night')).toBeInTheDocument();
+    });
+
+    it('shows contextual description with typeOfItem', () => {
+      useEventPublicInfo.mockReturnValue({
+        name: 'Wine Night', typeOfItem: 'wine', theme: 'cellar',
+        state: 'started', loading: false, error: false, notFound: false
+      });
+
+      renderComponent();
+
+      expect(screen.getByText('Enter your details to join the wine tasting')).toBeInTheDocument();
+    });
+
+    it('falls back to generic copy when loading', () => {
+      useEventPublicInfo.mockReturnValue({
+        name: null, typeOfItem: null, theme: null,
+        state: null, loading: true, error: false, notFound: false
+      });
+
+      renderComponent();
+
+      expect(screen.getByText('Join Event')).toBeInTheDocument();
+    });
+
+    it('shows "Event Not Found" message when notFound is true', () => {
+      useEventPublicInfo.mockReturnValue({
+        name: null, typeOfItem: null, theme: null,
+        state: null, loading: false, error: false, notFound: true
+      });
+
+      renderComponent();
+
+      expect(screen.getByText('Event Not Found')).toBeInTheDocument();
+      // Form should not be rendered
+      expect(screen.queryByLabelText(/Your Name/i)).not.toBeInTheDocument();
+    });
+
+    it('shows "This event has ended" banner when state is completed', () => {
+      useEventPublicInfo.mockReturnValue({
+        name: 'Done Event', typeOfItem: null, theme: null,
+        state: 'completed', loading: false, error: false, notFound: false
+      });
+
+      renderComponent();
+
+      expect(screen.getByText(/This event has ended/)).toBeInTheDocument();
+      // Form should still be rendered
+      expect(screen.getByLabelText(/Your Name/i)).toBeInTheDocument();
+    });
+
+    it('calls getThemeVars with the event theme', () => {
+      useEventPublicInfo.mockReturnValue({
+        name: 'Wine Night', typeOfItem: 'wine', theme: 'cellar',
+        state: 'started', loading: false, error: false, notFound: false
+      });
+
+      renderComponent();
+
+      expect(getThemeVars).toHaveBeenCalledWith('cellar', false);
     });
   });
 });

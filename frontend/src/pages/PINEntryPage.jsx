@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,6 +7,9 @@ import { Input } from '@/components/ui/input';
 import apiClient from '@/services/apiClient';
 import { clearAllBookmarks } from '@/utils/bookmarkStorage';
 import { useTurnstile } from '@/hooks/useTurnstile';
+import useEventPublicInfo from '@/hooks/useEventPublicInfo';
+import useDarkMode from '@/hooks/useDarkMode';
+import { getThemeVars } from '@/utils/themePresets';
 
 /**
  * PINEntryPage Component
@@ -31,6 +34,25 @@ function PINEntryPage() {
   const { token: turnstileToken, containerRef: turnstileRef } = useTurnstile(
     import.meta.env.VITE_TURNSTILE_SITE_KEY
   );
+
+  // Fetch public event info for theming and display
+  const eventInfo = useEventPublicInfo(eventId);
+  const { isDark } = useDarkMode();
+  const themeVars = useMemo(
+    () => eventInfo.theme ? getThemeVars(eventInfo.theme, isDark) : {},
+    [eventInfo.theme, isDark]
+  );
+
+  // Mirror theme vars onto document root so Header and portals pick them up
+  const appliedVarsRef = useRef([]);
+  useEffect(() => {
+    const root = document.documentElement;
+    appliedVarsRef.current.forEach((key) => root.style.removeProperty(key));
+    const keys = Object.keys(themeVars);
+    keys.forEach((key) => root.style.setProperty(key, themeVars[key]));
+    appliedVarsRef.current = keys;
+    return () => { keys.forEach((key) => root.style.removeProperty(key)); };
+  }, [themeVars]);
 
   // Get email and name from sessionStorage (set in EmailEntryPage)
   useEffect(() => {
@@ -139,19 +161,14 @@ function PINEntryPage() {
   };
 
   return (
-    <div className="w-full">
-      <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-4">
+    <div className="w-full h-full" style={themeVars} data-event-theme={eventInfo.theme || undefined}>
+      <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-4 min-h-full">
         <div className="w-full max-w-md">
           <Card>
             <CardHeader>
-              <CardTitle>Enter PIN</CardTitle>
+              <CardTitle>{eventInfo.name || 'Enter PIN'}</CardTitle>
               <CardDescription>
-                Enter the 6-digit PIN to access this event
-                {email && (
-                  <span className="block mt-1 text-sm text-muted-foreground">
-                    Email: {email}
-                  </span>
-                )}
+                Enter the 6-digit PIN provided by your host
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -209,7 +226,7 @@ function PINEntryPage() {
                     >
                       {loading 
                         ? 'Verifying...' 
-                        : 'Access Event'}
+                        : 'Join Event'}
                     </Button>
                   </div>
                 </div>

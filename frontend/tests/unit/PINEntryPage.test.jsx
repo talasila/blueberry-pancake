@@ -3,6 +3,8 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import PINEntryPage from '../../src/pages/PINEntryPage.jsx';
 import apiClient from '../../src/services/apiClient.js';
+import useEventPublicInfo from '../../src/hooks/useEventPublicInfo';
+import { getThemeVars } from '../../src/utils/themePresets';
 
 const mockNavigate = vi.fn();
 vi.mock('react-router-dom', async () => {
@@ -24,6 +26,18 @@ vi.mock('../../src/services/apiClient.js', () => ({
 
 vi.mock('../../src/utils/bookmarkStorage', () => ({
   clearAllBookmarks: vi.fn(),
+}));
+
+vi.mock('../../src/hooks/useEventPublicInfo', () => ({
+  default: vi.fn(() => ({ name: null, typeOfItem: null, theme: null, state: null, loading: true, error: false, notFound: false }))
+}));
+
+vi.mock('../../src/hooks/useDarkMode', () => ({
+  default: vi.fn(() => ({ isDark: false, toggleDark: vi.fn() }))
+}));
+
+vi.mock('../../src/utils/themePresets', () => ({
+  getThemeVars: vi.fn(() => ({}))
 }));
 
 vi.mock('../../src/hooks/useTurnstile.js', () => ({
@@ -77,7 +91,7 @@ describe('PINEntryPage', () => {
       await waitFor(() => {
         expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
       });
-      expect(screen.getByRole('button', { name: /Access Event/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Join Event/i })).toBeInTheDocument();
     });
 
     it('redirects to email entry when no email in sessionStorage', async () => {
@@ -111,7 +125,7 @@ describe('PINEntryPage', () => {
       const pinInput = screen.getByPlaceholderText(/Enter 6-digit PIN/i);
       fireEvent.change(pinInput, { target: { value: '123' } });
 
-      expect(screen.getByRole('button', { name: /Access Event/i })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /Join Event/i })).toBeDisabled();
     });
 
     it('enables submit button when PIN is exactly 6 digits', async () => {
@@ -125,7 +139,7 @@ describe('PINEntryPage', () => {
       const pinInput = screen.getByPlaceholderText(/Enter 6-digit PIN/i);
       fireEvent.change(pinInput, { target: { value: '123456' } });
 
-      expect(screen.getByRole('button', { name: /Access Event/i })).not.toBeDisabled();
+      expect(screen.getByRole('button', { name: /Join Event/i })).not.toBeDisabled();
     });
   });
 
@@ -146,7 +160,7 @@ describe('PINEntryPage', () => {
       const pinInput = screen.getByPlaceholderText(/Enter 6-digit PIN/i);
       fireEvent.change(pinInput, { target: { value: '123456' } });
 
-      const form = screen.getByRole('button', { name: /Access Event/i }).closest('form');
+      const form = screen.getByRole('button', { name: /Join Event/i }).closest('form');
       fireEvent.submit(form);
 
       await waitFor(() => {
@@ -167,7 +181,7 @@ describe('PINEntryPage', () => {
       });
 
       fireEvent.change(screen.getByPlaceholderText(/Enter 6-digit PIN/i), { target: { value: '123456' } });
-      fireEvent.submit(screen.getByRole('button', { name: /Access Event/i }).closest('form'));
+      fireEvent.submit(screen.getByRole('button', { name: /Join Event/i }).closest('form'));
 
       await waitFor(() => {
         expect(apiClient.setUserSession).toHaveBeenCalledWith({ email: 'user@example.com', exp: 9999999999 });
@@ -189,7 +203,7 @@ describe('PINEntryPage', () => {
         });
 
         fireEvent.change(screen.getByPlaceholderText(/Enter 6-digit PIN/i), { target: { value: '123456' } });
-        fireEvent.submit(screen.getByRole('button', { name: /Access Event/i }).closest('form'));
+        fireEvent.submit(screen.getByRole('button', { name: /Join Event/i }).closest('form'));
 
         await waitFor(() => {
           expect(screen.getByText(/PIN verified successfully/i)).toBeInTheDocument();
@@ -222,7 +236,7 @@ describe('PINEntryPage', () => {
       const pinInput = screen.getByPlaceholderText(/Enter 6-digit PIN/i);
       fireEvent.change(pinInput, { target: { value: '123456' } });
 
-      const form = screen.getByRole('button', { name: /Access Event/i }).closest('form');
+      const form = screen.getByRole('button', { name: /Join Event/i }).closest('form');
       fireEvent.submit(form);
 
       await waitFor(() => {
@@ -244,7 +258,7 @@ describe('PINEntryPage', () => {
       });
 
       fireEvent.change(screen.getByPlaceholderText(/Enter 6-digit PIN/i), { target: { value: '123456' } });
-      fireEvent.submit(screen.getByRole('button', { name: /Access Event/i }).closest('form'));
+      fireEvent.submit(screen.getByRole('button', { name: /Join Event/i }).closest('form'));
 
       await waitFor(() => {
         expect(sessionStorageMock.removeItem).toHaveBeenCalledWith('event:A5ohYrHe:name');
@@ -267,7 +281,7 @@ describe('PINEntryPage', () => {
       const pinInput = screen.getByPlaceholderText(/Enter 6-digit PIN/i);
       fireEvent.change(pinInput, { target: { value: '123456' } });
 
-      const form = screen.getByRole('button', { name: /Access Event/i }).closest('form');
+      const form = screen.getByRole('button', { name: /Join Event/i }).closest('form');
       fireEvent.submit(form);
 
       await waitFor(() => {
@@ -287,7 +301,7 @@ describe('PINEntryPage', () => {
       });
 
       fireEvent.change(screen.getByPlaceholderText(/Enter 6-digit PIN/i), { target: { value: '000000' } });
-      fireEvent.submit(screen.getByRole('button', { name: /Access Event/i }).closest('form'));
+      fireEvent.submit(screen.getByRole('button', { name: /Join Event/i }).closest('form'));
 
       await waitFor(() => {
         expect(screen.getByText(/Invalid PIN/i)).toBeInTheDocument();
@@ -304,7 +318,7 @@ describe('PINEntryPage', () => {
       });
 
       fireEvent.change(screen.getByPlaceholderText(/Enter 6-digit PIN/i), { target: { value: '000000' } });
-      fireEvent.submit(screen.getByRole('button', { name: /Access Event/i }).closest('form'));
+      fireEvent.submit(screen.getByRole('button', { name: /Join Event/i }).closest('form'));
 
       await waitFor(() => {
         expect(screen.getByText(/Too many attempts/i)).toBeInTheDocument();
@@ -321,7 +335,7 @@ describe('PINEntryPage', () => {
       });
 
       fireEvent.change(screen.getByPlaceholderText(/Enter 6-digit PIN/i), { target: { value: '000000' } });
-      fireEvent.submit(screen.getByRole('button', { name: /Access Event/i }).closest('form'));
+      fireEvent.submit(screen.getByRole('button', { name: /Join Event/i }).closest('form'));
 
       await waitFor(() => {
         expect(screen.getByText(/Unable to connect to the server/i)).toBeInTheDocument();
@@ -341,7 +355,7 @@ describe('PINEntryPage', () => {
       });
 
       fireEvent.change(screen.getByPlaceholderText(/Enter 6-digit PIN/i), { target: { value: '123456' } });
-      fireEvent.submit(screen.getByRole('button', { name: /Access Event/i }).closest('form'));
+      fireEvent.submit(screen.getByRole('button', { name: /Join Event/i }).closest('form'));
 
       await waitFor(() => {
         expect(screen.getByText('Verifying...')).toBeInTheDocument();
@@ -364,6 +378,65 @@ describe('PINEntryPage', () => {
       fireEvent.click(screen.getByRole('button', { name: /Back/i }));
 
       expect(mockNavigate).toHaveBeenCalledWith('/event/A5ohYrHe/email', { replace: true });
+    });
+  });
+
+  describe('Themed rendering (T011)', () => {
+    it('shows event name in title when event info is loaded', async () => {
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
+      useEventPublicInfo.mockReturnValue({
+        name: 'Wine Night',
+        typeOfItem: null,
+        theme: 'cellar',
+        state: null,
+        loading: false,
+        error: false,
+        notFound: false,
+      });
+      renderComponent();
+
+      await waitFor(() => {
+        expect(screen.getByText('Wine Night')).toBeInTheDocument();
+      });
+    });
+
+    it('shows fallback title when no event info is available', async () => {
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
+      // Default mock returns loading: true, name: null — fallback title
+      useEventPublicInfo.mockReturnValue({
+        name: null,
+        typeOfItem: null,
+        theme: null,
+        state: null,
+        loading: true,
+        error: false,
+        notFound: false,
+      });
+      renderComponent();
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('Enter PIN')).toBeInTheDocument();
+    });
+
+    it('calls getThemeVars when a theme is present', async () => {
+      sessionStorageMock.setItem('event:A5ohYrHe:email', 'user@example.com');
+      useEventPublicInfo.mockReturnValue({
+        name: 'Ocean Party',
+        typeOfItem: null,
+        theme: 'ocean',
+        state: null,
+        loading: false,
+        error: false,
+        notFound: false,
+      });
+      renderComponent();
+
+      await waitFor(() => {
+        expect(getThemeVars).toHaveBeenCalledWith('ocean', false);
+      });
     });
   });
 });

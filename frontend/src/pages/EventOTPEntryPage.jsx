@@ -1,10 +1,13 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import apiClient from '@/services/apiClient';
 import { useTurnstile } from '@/hooks/useTurnstile';
+import useEventPublicInfo from '@/hooks/useEventPublicInfo';
+import useDarkMode from '@/hooks/useDarkMode';
+import { getThemeVars } from '@/utils/themePresets';
 
 /**
  * EventOTPEntryPage Component
@@ -28,6 +31,25 @@ function EventOTPEntryPage() {
   const [success, setSuccess] = useState('');
   const [otpRequested, setOtpRequested] = useState(false);
 
+  // Fetch public event info for theming and display
+  const eventInfo = useEventPublicInfo(eventId);
+  const { isDark } = useDarkMode();
+  const themeVars = useMemo(
+    () => eventInfo.theme ? getThemeVars(eventInfo.theme, isDark) : {},
+    [eventInfo.theme, isDark]
+  );
+
+  // Mirror theme vars onto document root so Header and portals pick them up
+  const appliedVarsRef = useRef([]);
+  useEffect(() => {
+    const root = document.documentElement;
+    appliedVarsRef.current.forEach((key) => root.style.removeProperty(key));
+    const keys = Object.keys(themeVars);
+    keys.forEach((key) => root.style.setProperty(key, themeVars[key]));
+    appliedVarsRef.current = keys;
+    return () => { keys.forEach((key) => root.style.removeProperty(key)); };
+  }, [themeVars]);
+
   const { token: turnstileToken, resetWidget, containerRef: turnstileRef } = useTurnstile(
     import.meta.env.VITE_TURNSTILE_SITE_KEY
   );
@@ -46,11 +68,11 @@ function EventOTPEntryPage() {
 
     try {
       const response = await apiClient.requestOTP(emailToUse, turnstileToken);
-      setSuccess(response.message || 'OTP code has been sent to your email. Please check your inbox.');
+      setSuccess(response.message || 'Verification code has been sent to your email. Please check your inbox.');
       setOtpRequested(true);
       resetWidget();
     } catch (err) {
-      const errorMessage = err.message || 'Unable to send OTP code. Please check your email address and try again.';
+      const errorMessage = err.message || 'Unable to send verification code. Please check your email address and try again.';
       setError(errorMessage);
       resetWidget();
     } finally {
@@ -101,7 +123,7 @@ function EventOTPEntryPage() {
       }, 1000);
     } catch (err) {
       // Show user-friendly error message
-      const errorMessage = err.message || 'Invalid OTP code. Please check the code and try again.';
+      const errorMessage = err.message || 'Invalid verification code. Please check the code and try again.';
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -113,19 +135,16 @@ function EventOTPEntryPage() {
   }
 
   return (
-    <div className="w-full">
-      <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-4">
+    <div className="w-full h-full" style={themeVars} data-event-theme={eventInfo.theme || undefined}>
+      <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-4 min-h-full">
         <div className="w-full max-w-md">
           <Card>
             <CardHeader>
-              <CardTitle>Admin Authentication</CardTitle>
+              <CardTitle>{eventInfo.name || 'Admin Authentication'}</CardTitle>
               <CardDescription>
-                Enter the 6-digit OTP code sent to your email
-                {email && (
-                  <span className="block mt-1 text-sm text-muted-foreground">
-                    Email: {email}
-                  </span>
-                )}
+                {email
+                  ? <>Enter the verification code sent to <span className="font-medium text-foreground">{email}</span></>
+                  : 'Enter the verification code sent to your email'}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -134,7 +153,7 @@ function EventOTPEntryPage() {
                   {/* OTP input */}
                   <div>
                     <label htmlFor="otp" className="sr-only">
-                      OTP code
+                      Verification code
                     </label>
                     <Input
                       id="otp"
@@ -146,7 +165,7 @@ function EventOTPEntryPage() {
                       onChange={(e) => setOtp(e.target.value)}
                       disabled={loading || requestingOTP}
                       autoFocus
-                      placeholder="Enter 6-digit OTP"
+                      placeholder="Enter 6-digit code"
                       className="text-center text-lg tracking-widest"
                     />
                   </div>
@@ -176,7 +195,7 @@ function EventOTPEntryPage() {
                         disabled={requestingOTP || loading}
                         className="text-sm"
                       >
-                        {requestingOTP ? 'Sending...' : "Didn't receive code? Resend OTP"}
+                        {requestingOTP ? 'Sending...' : "Didn't receive code? Resend"}
                       </Button>
                     </div>
                   )}
@@ -203,7 +222,7 @@ function EventOTPEntryPage() {
                     >
                       {loading 
                         ? 'Verifying...' 
-                        : 'Verify OTP'}
+                        : 'Sign in'}
                     </Button>
                   </div>
                 </div>
