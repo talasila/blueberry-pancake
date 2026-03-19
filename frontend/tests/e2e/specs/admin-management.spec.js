@@ -13,9 +13,10 @@ import {
 
 /**
  * Open the Administrators drawer for a given admin on the admin page.
+ * @param {{ asOwner?: boolean }} options - Set asOwner: true to add the admin as the event owner
  */
-async function openAdminsDrawer(page, eventId, email) {
-  const token = await addAdminToEvent(eventId, email);
+async function openAdminsDrawer(page, eventId, email, { asOwner = false } = {}) {
+  const token = await addAdminToEvent(eventId, email, { owner: asOwner });
   await setAuthToken(page, token, email);
   await page.goto(`${BASE_URL}/event/${eventId}/admin`);
   const peopleButton = page.getByRole('button', { name: /people/i });
@@ -63,7 +64,7 @@ test.describe('Administrator Management', () => {
 
   test('can add new administrator with valid email', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
-    await openAdminsDrawer(page, eventId, 'owner@example.com');
+    await openAdminsDrawer(page, eventId, 'owner@example.com', { asOwner: true });
     
     const drawer = page.locator('[role="dialog"]');
     const emailInput = drawer.locator('input[type="email"]').or(drawer.getByPlaceholder(/email/i));
@@ -77,7 +78,7 @@ test.describe('Administrator Management', () => {
 
   test('shows error for invalid email format', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
-    await openAdminsDrawer(page, eventId, 'owner@example.com');
+    await openAdminsDrawer(page, eventId, 'owner@example.com', { asOwner: true });
     
     const drawer = page.locator('[role="dialog"]');
     const emailInput = drawer.locator('input[type="email"]').or(drawer.getByPlaceholder(/email/i));
@@ -94,7 +95,7 @@ test.describe('Administrator Management', () => {
   test('shows error when adding duplicate administrator', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     const adminEmail = 'owner@example.com';
-    await openAdminsDrawer(page, eventId, adminEmail);
+    await openAdminsDrawer(page, eventId, adminEmail, { asOwner: true });
     
     const drawer = page.locator('[role="dialog"]');
     const emailInput = drawer.locator('input[type="email"]').or(drawer.getByPlaceholder(/email/i));
@@ -104,6 +105,21 @@ test.describe('Administrator Management', () => {
     await drawer.getByRole('button', { name: /add/i }).click();
     
     await expect(drawer.getByText(/already exists/i)).toBeVisible({ timeout: 5000 });
+  });
+
+  test('non-owner admin cannot see add administrator form', async ({ page, testEvent }) => {
+    const { eventId } = testEvent;
+    // First add the owner, then a second admin
+    await addAdminToEvent(eventId, 'owner@example.com');
+    // Open admin drawer as the non-owner admin
+    await openAdminsDrawer(page, eventId, 'secondadmin@example.com');
+
+    const drawer = page.locator('[role="dialog"]');
+    // The admin list should be visible
+    await expect(drawer.getByText('owner@example.com')).toBeVisible({ timeout: 5000 });
+    // But the add admin input and button should NOT be visible
+    await expect(drawer.locator('input[type="email"]').or(drawer.getByPlaceholder(/email/i))).not.toBeVisible({ timeout: 3000 });
+    await expect(drawer.getByRole('button', { name: /add administrator/i })).not.toBeVisible({ timeout: 3000 });
   });
 
   // ===================================
@@ -196,7 +212,7 @@ test.describe('Administrator Management', () => {
 
   test('handles email with extra whitespace', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
-    await openAdminsDrawer(page, eventId, 'owner@example.com');
+    await openAdminsDrawer(page, eventId, 'owner@example.com', { asOwner: true });
     
     const drawer = page.locator('[role="dialog"]');
     const emailInput = drawer.locator('input[type="email"]').or(drawer.getByPlaceholder(/email/i));
@@ -210,7 +226,7 @@ test.describe('Administrator Management', () => {
 
   test('email comparison is case-insensitive', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
-    await openAdminsDrawer(page, eventId, 'owner@example.com');
+    await openAdminsDrawer(page, eventId, 'owner@example.com', { asOwner: true });
     
     const drawer = page.locator('[role="dialog"]');
     const emailInput = drawer.locator('input[type="email"]').or(drawer.getByPlaceholder(/email/i));

@@ -122,9 +122,10 @@ describe('EventAdminService', () => {
   });
 
   describe('addAdministrator', () => {
-    it('should add a new administrator', async () => {
+    it('should add a new administrator when requester is owner', async () => {
       const event = mockEvent();
       eventService.getEvent.mockResolvedValue(event);
+      eventService.isOwner.mockReturnValue(true);
       dataRepository.addAdministratorAtomic.mockResolvedValue({ added: true, alreadyExists: false });
       // Second getEvent call returns updated event
       eventService.getEvent.mockResolvedValueOnce(event).mockResolvedValueOnce({
@@ -135,7 +136,7 @@ describe('EventAdminService', () => {
         }
       });
 
-      const result = await eventAdminService.addAdministrator(VALID_EVENT_ID, 'new@example.com', ADMIN_EMAIL);
+      const result = await eventAdminService.addAdministrator(VALID_EVENT_ID, 'new@example.com', OWNER_EMAIL);
       expect(dataRepository.addAdministratorAtomic).toHaveBeenCalledWith(
         VALID_EVENT_ID,
         'new@example.com',
@@ -143,8 +144,18 @@ describe('EventAdminService', () => {
       );
     });
 
+    it('should reject when requester is a non-owner admin', async () => {
+      eventService.getEvent.mockResolvedValue(mockEvent());
+      eventService.isOwner.mockReturnValue(false);
+
+      await expect(
+        eventAdminService.addAdministrator(VALID_EVENT_ID, 'new@example.com', ADMIN_EMAIL)
+      ).rejects.toThrow('Only the event owner can add administrators');
+    });
+
     it('should reject when administrator already exists', async () => {
       eventService.getEvent.mockResolvedValue(mockEvent());
+      eventService.isOwner.mockReturnValue(true);
       dataRepository.addAdministratorAtomic.mockResolvedValue({ added: false, alreadyExists: true });
 
       await expect(
@@ -152,36 +163,38 @@ describe('EventAdminService', () => {
       ).rejects.toThrow('already exists');
     });
 
-    it('should reject when requester is not admin', async () => {
+    it('should reject when requester is not an admin at all', async () => {
       eventService.getEvent.mockResolvedValue(mockEvent());
-      eventService.isAdministrator.mockReturnValue(false);
+      eventService.isOwner.mockReturnValue(false);
 
       await expect(
         eventAdminService.addAdministrator(VALID_EVENT_ID, 'new@example.com', 'nobody@example.com')
-      ).rejects.toThrow('Only administrators can add');
+      ).rejects.toThrow('Only the event owner can add administrators');
     });
 
     it('should reject invalid email format', async () => {
       eventService.getEvent.mockResolvedValue(mockEvent());
+      eventService.isOwner.mockReturnValue(true);
       eventService.isValidEmail.mockReturnValue(false);
 
       await expect(
-        eventAdminService.addAdministrator(VALID_EVENT_ID, 'not-valid', ADMIN_EMAIL)
+        eventAdminService.addAdministrator(VALID_EVENT_ID, 'not-valid', OWNER_EMAIL)
       ).rejects.toThrow('Invalid email address format');
     });
 
     it('should reject empty email', async () => {
       await expect(
-        eventAdminService.addAdministrator(VALID_EVENT_ID, '  ', ADMIN_EMAIL)
+        eventAdminService.addAdministrator(VALID_EVENT_ID, '  ', OWNER_EMAIL)
       ).rejects.toThrow('Email address cannot be empty');
     });
 
     it('should trim email before processing', async () => {
       eventService.getEvent.mockResolvedValue(mockEvent());
+      eventService.isOwner.mockReturnValue(true);
       dataRepository.addAdministratorAtomic.mockResolvedValue({ added: true, alreadyExists: false });
       eventService.getEvent.mockResolvedValue(mockEvent());
 
-      await eventAdminService.addAdministrator(VALID_EVENT_ID, '  new@example.com  ', ADMIN_EMAIL);
+      await eventAdminService.addAdministrator(VALID_EVENT_ID, '  new@example.com  ', OWNER_EMAIL);
       expect(dataRepository.addAdministratorAtomic).toHaveBeenCalledWith(
         VALID_EVENT_ID,
         'new@example.com',

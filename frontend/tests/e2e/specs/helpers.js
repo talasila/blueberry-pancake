@@ -76,12 +76,15 @@ export async function deleteTestEvent(eventId) {
 
 /**
  * Add an administrator to an event and get JWT token
+ * @param {string} eventId
+ * @param {string} email
+ * @param {{ owner?: boolean }} options - Set owner: true to add as event owner
  */
-export async function addAdminToEvent(eventId, email) {
+export async function addAdminToEvent(eventId, email, { owner = false } = {}) {
   const response = await fetch(`${API_URL}/api/test/events/${eventId}/add-admin`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, owner }),
     signal: AbortSignal.timeout(10000),
   });
   

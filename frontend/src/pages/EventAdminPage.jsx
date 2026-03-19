@@ -2278,60 +2278,62 @@ function EventAdminPage({ onOpenAdminGuide }) {
               </div>
             )}
 
-            <div className="space-y-2 pt-4">
-              <div>
-                <p className="text-sm text-muted-foreground mb-2">
-                  Add an administrator by email
-                </p>
-                <Input
-                  type="email"
-                  placeholder="Enter email address"
-                  value={newAdminEmail}
-                  onChange={(e) => {
-                    setNewAdminEmail(e.target.value);
-                    setAddAdminError('');
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !isAddingAdmin) {
-                      handleAddAdministrator();
-                    }
-                  }}
-                  disabled={isAddingAdmin}
-                  aria-label="New administrator email"
-                />
-              </div>
+            {deleteAdminError && (
+              <Message type="error">{deleteAdminError}</Message>
+            )}
 
-              {addAdminError && (
-                <Message type="error">{addAdminError}</Message>
-              )}
+            {deleteAdminSuccess && (
+              <Message type="success">{deleteAdminSuccess}</Message>
+            )}
 
-              {addAdminSuccess && (
-                <Message type="success">{addAdminSuccess}</Message>
-              )}
+            {isCurrentUserOwner() && (
+              <div className="space-y-2 pt-4">
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Add an administrator by email
+                  </p>
+                  <Input
+                    type="email"
+                    placeholder="Enter email address"
+                    value={newAdminEmail}
+                    onChange={(e) => {
+                      setNewAdminEmail(e.target.value);
+                      setAddAdminError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !isAddingAdmin) {
+                        handleAddAdministrator();
+                      }
+                    }}
+                    disabled={isAddingAdmin}
+                    aria-label="New administrator email"
+                  />
+                </div>
 
-              {deleteAdminError && (
-                <Message type="error">{deleteAdminError}</Message>
-              )}
-
-              {deleteAdminSuccess && (
-                <Message type="success">{deleteAdminSuccess}</Message>
-              )}
-
-              <Button
-                onClick={handleAddAdministrator}
-                disabled={!newAdminEmail.trim() || isAddingAdmin}
-                className="w-full"
-              >
-                {isAddingAdmin ? (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                    Adding...
-                  </>
-                ) : (
-                  'Add Administrator'
+                {addAdminError && (
+                  <Message type="error">{addAdminError}</Message>
                 )}
-              </Button>
-            </div>
+
+                {addAdminSuccess && (
+                  <Message type="success">{addAdminSuccess}</Message>
+                )}
+
+                <Button
+                  onClick={handleAddAdministrator}
+                  disabled={!newAdminEmail.trim() || isAddingAdmin}
+                  className="w-full"
+                >
+                  {isAddingAdmin ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Adding...
+                    </>
+                  ) : (
+                    'Add Administrator'
+                  )}
+                </Button>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </SideDrawer>

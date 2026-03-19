@@ -241,10 +241,11 @@ export async function addAdminAndGenerateToken(req, res) {
       event.administrators = {};
     }
     
+    const { owner = false } = req.body;
     if (!event.administrators[email]) {
       event.administrators[email] = {
         assignedAt: new Date().toISOString(),
-        owner: false
+        owner: !!owner
       };
       
       // Optionally add to users (only if addToUsers is true)

@@ -334,7 +334,7 @@ router.get('/:eventId/administrators', requireAuth, async (req, res) => {
 /**
  * POST /api/events/:eventId/administrators
  * Add a new administrator to an event
- * Requires OTP authentication (JWT token) and administrator authorization
+ * Requires OTP authentication (JWT token) and owner authorization
  */
 router.post('/:eventId/administrators', requireAuth, async (req, res) => {
   try {

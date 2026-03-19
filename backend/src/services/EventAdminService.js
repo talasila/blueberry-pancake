@@ -55,7 +55,7 @@ class EventAdminService {
    * Add a new administrator to an event
    * @param {string} eventId - Event identifier
    * @param {string} newAdminEmail - Email of the new administrator to add
-   * @param {string} requesterEmail - Email of the requester (must be an existing administrator)
+   * @param {string} requesterEmail - Email of the requester (must be the event owner)
    * @returns {Promise<object>} Updated event with new administrator
    */
   async addAdministrator(eventId, newAdminEmail, requesterEmail) {
@@ -82,9 +82,9 @@ class EventAdminService {
     // Get current event for authorization check
     const event = await eventService.getEvent(eventId);
 
-    // Validate requester is administrator
-    if (!eventService.isAdministrator(event, requesterEmail)) {
-      throw new Error('Unauthorized: Only administrators can add administrators');
+    // Validate requester is the owner (only owners can add administrators)
+    if (!eventService.isOwner(event, requesterEmail)) {
+      throw new Error('Unauthorized: Only the event owner can add administrators');
     }
 
     // Validate and normalize email (trimming already done above)

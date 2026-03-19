@@ -905,17 +905,17 @@ test.describe('Admin Concurrent Actions', () => {
     await cleanupEvents(eventIds);
   });
 
-  test('two admins adding same administrator simultaneously', async () => {
+  test('owner adding same administrator simultaneously from two requests', async () => {
     const testEventId = await createTestEvent('Admin Add Race Event', DEFAULT_TEST_PIN);
     eventIds.push(testEventId);
-    
-    const admin1Token = await addAdminToEvent(testEventId, 'admin1@example.com');
-    const admin2Token = await addAdminToEvent(testEventId, 'admin2@example.com');
-    
-    // Both try to add the same new admin
+
+    // Only the owner can add administrators
+    const ownerToken = await addAdminToEvent(testEventId, 'owner@example.com', { owner: true });
+
+    // Owner sends two concurrent requests to add the same new admin
     const [result1, result2] = await Promise.all([
-      addAdministrator(testEventId, admin1Token, 'newadmin@example.com'),
-      addAdministrator(testEventId, admin2Token, 'newadmin@example.com'),
+      addAdministrator(testEventId, ownerToken, 'newadmin@example.com'),
+      addAdministrator(testEventId, ownerToken, 'newadmin@example.com'),
     ]);
     
     // One should succeed, one should fail with "already exists"
