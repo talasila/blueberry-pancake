@@ -12,13 +12,14 @@ import UserDetailsDrawer from '@/components/UserDetailsDrawer';
 import RatingErrorBoundary from '@/components/RatingErrorBoundary';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { Button } from '@/components/ui/button';
-import { Users, BarChart3 } from 'lucide-react';
+import { Users } from 'lucide-react';
 import { useItemTerminology } from '@/utils/itemTerminology';
 import { calculateUserRatingProgress } from '@/utils/ratingProgress';
 import { deriveItemRaterCounts } from '@/utils/participationCounts';
 import { getMinimumThreshold } from '@/utils/personalityDetection';
 import GuestWelcomeBottomSheet from '@/components/GuestWelcomeBottomSheet';
 import PersonalityRevealSheet from '@/components/PersonalityRevealSheet';
+import MyProgressButton from '@/components/MyProgressButton';
 import itemService from '@/services/itemService';
 
 /**
@@ -724,70 +725,12 @@ function EventPage() {
                 Similar Tastes
               </Button>
               {userRatingProgressData && (
-                <Button
+                <MyProgressButton
                   onClick={handleMyProgressClick}
-                  variant="outline"
-                  className="flex items-center gap-2 relative overflow-hidden"
-                >
-                  {/* Progress/history visualization at bottom 10% */}
-                  {userRatingProgressData.totalRatings > 0 ? (
-                    <div
-                      className="absolute bottom-0 left-0 right-0 flex"
-                      style={{ height: '10%' }}
-                      role="progressbar"
-                      aria-valuenow={userRatingProgressData.ratingProgression}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-label={`${userRatingProgressData.ratingProgression.toFixed(0)}% complete`}
-                    >
-                      <div
-                        className="h-full flex"
-                        style={{ width: `${userRatingProgressData.ratingProgression}%` }}
-                      >
-                        {userRatingProgressData.ratings.map((ratingValue, index) => {
-                          const ratingOption = ratingConfig?.ratings?.find(r => r.value === ratingValue);
-                          const color = ratingOption?.color || '#6B7280';
-                          const segmentWidth = 100 / userRatingProgressData.ratings.length;
-                          
-                          return (
-                            <div
-                              key={index}
-                              className="h-full transition-all"
-                              style={{
-                                width: `${segmentWidth}%`,
-                                backgroundColor: color,
-                                minWidth: '2px'
-                              }}
-                              title={`Rating ${ratingValue}${ratingOption?.label ? `: ${ratingOption.label}` : ''}`}
-                            />
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : (
-                    <div
-                      className="absolute bottom-0 left-0 right-0 bg-muted"
-                      style={{ height: '10%' }}
-                      role="progressbar"
-                      aria-valuenow={0}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                      aria-label="0% complete"
-                    />
-                  )}
-                  {/* Icon and text - always visible */}
-                  <div className="relative z-10 flex items-center gap-2">
-                    <BarChart3 className="h-4 w-4" />
-                    <span>My Progress</span>
-                  </div>
-                  {showPersonalityBadge && (
-                    <span
-                      className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary z-20"
-                      data-testid="personality-badge"
-                      aria-label="New personality available"
-                    />
-                  )}
-                </Button>
+                  ratingProgression={userRatingProgressData.ratingProgression}
+                  totalRatings={userRatingProgressData.totalRatings}
+                  showPersonalityBadge={showPersonalityBadge}
+                />
               )}
             </div>
           )}
@@ -795,70 +738,12 @@ function EventPage() {
           {/* My Progress button - visible when user has at least 1 rating but less than 3 */}
           {!hasMinimumRatings() && userRatingProgressData && (
             <div className="flex justify-center mt-8">
-              <Button
+              <MyProgressButton
                 onClick={handleMyProgressClick}
-                variant="outline"
-                className="flex items-center gap-2 relative overflow-hidden"
-              >
-                {/* Progress/history visualization at bottom 10% */}
-                {userRatingProgressData.totalRatings > 0 ? (
-                  <div
-                    className="absolute bottom-0 left-0 right-0 flex"
-                    style={{ height: '10%' }}
-                    role="progressbar"
-                    aria-valuenow={userRatingProgressData.ratingProgression}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-label={`${userRatingProgressData.ratingProgression.toFixed(0)}% complete`}
-                  >
-                    <div
-                      className="h-full flex"
-                      style={{ width: `${userRatingProgressData.ratingProgression}%` }}
-                    >
-                      {userRatingProgressData.ratings.map((ratingValue, index) => {
-                        const ratingOption = ratingConfig?.ratings?.find(r => r.value === ratingValue);
-                        const color = ratingOption?.color || '#6B7280';
-                        const segmentWidth = 100 / userRatingProgressData.ratings.length;
-                        
-                        return (
-                          <div
-                            key={index}
-                            className="h-full transition-all"
-                            style={{
-                              width: `${segmentWidth}%`,
-                              backgroundColor: color,
-                              minWidth: '2px'
-                            }}
-                            title={`Rating ${ratingValue}${ratingOption?.label ? `: ${ratingOption.label}` : ''}`}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    className="absolute bottom-0 left-0 right-0 bg-muted"
-                    style={{ height: '10%' }}
-                    role="progressbar"
-                    aria-valuenow={0}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    aria-label="0% complete"
-                  />
-                )}
-                {/* Icon and text - always visible */}
-                <div className="relative z-10 flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4" />
-                  <span>My Progress</span>
-                </div>
-                {showPersonalityBadge && (
-                  <span
-                    className="absolute top-1 right-1 w-2 h-2 rounded-full bg-primary z-20"
-                    data-testid="personality-badge"
-                    aria-label="New personality available"
-                  />
-                )}
-              </Button>
+                ratingProgression={userRatingProgressData.ratingProgression}
+                totalRatings={userRatingProgressData.totalRatings}
+                showPersonalityBadge={showPersonalityBadge}
+              />
             </div>
           )}
         </div>
