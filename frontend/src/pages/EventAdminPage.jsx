@@ -2105,28 +2105,16 @@ function EventAdminPage({ onOpenAdminGuide }) {
           </TabsList>
 
           <TabsContent value="guests" className="space-y-4 mt-4">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder={`Search by name, email, or ${itemTerminology.singularLower}...`}
-                value={guestSearchQuery}
-                onChange={(e) => setGuestSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
+            {/* Line 1: Search + Refresh */}
             <div className="flex items-center gap-2">
-              <div className="flex gap-1 flex-1">
-                {['all', 'registered', 'unregistered'].map((filter) => (
-                  <Button
-                    key={filter}
-                    variant={guestRegistrationFilter === filter ? 'default' : 'outline'}
-                    size="sm"
-                    className="text-xs h-7 px-2.5"
-                    onClick={() => setGuestRegistrationFilter(filter)}
-                  >
-                    {filter === 'all' ? 'All' : filter === 'registered' ? 'Registered' : 'Not registered'}
-                  </Button>
-                ))}
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={`Search by name, email, or ${itemTerminology.singularLower}...`}
+                  value={guestSearchQuery}
+                  onChange={(e) => setGuestSearchQuery(e.target.value)}
+                  className="pl-9"
+                />
               </div>
               <Button
                 variant="ghost"
@@ -2138,6 +2126,23 @@ function EventAdminPage({ onOpenAdminGuide }) {
               >
                 <RefreshCw className={`h-3.5 w-3.5 ${isRefreshingGuests ? 'animate-spin' : ''}`} />
               </Button>
+            </div>
+            {/* Line 2: Filter label + segmented control */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground whitespace-nowrap">{itemTerminology.singular} registered?</span>
+              <div className="flex gap-1">
+                {['all', 'registered', 'unregistered'].map((filter) => (
+                  <Button
+                    key={filter}
+                    variant={guestRegistrationFilter === filter ? 'default' : 'outline'}
+                    size="sm"
+                    className="text-xs h-7 px-2.5"
+                    onClick={() => setGuestRegistrationFilter(filter)}
+                  >
+                    {filter === 'all' ? 'Any' : filter === 'registered' ? 'Yes' : 'No'}
+                  </Button>
+                ))}
+              </div>
             </div>
 
             {deleteUserError && (

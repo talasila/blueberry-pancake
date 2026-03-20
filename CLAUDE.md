@@ -5,6 +5,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-19
 ## Active Technologies
 - DynamoDB (via DynamoDBRepository) — user records in `event.users` map (035-guest-name-entry)
 - DynamoDB (via DynamoDBRepository) — read-only access for public info (036-themed-entry-pages)
+- JavaScript (ES Modules), Node.js >= 22.12.0 + React 19.2.1, Radix UI, Tailwind CSS 4.1.17 (037-guest-filter-redesign)
+- N/A — no backend changes (037-guest-filter-redesign)
 
 - JavaScript (ES Modules), Node.js >= 22.12.0 + React 19.2.1, Express 5.2.1, Radix UI, Tailwind CSS 4.1.17 (034-codebase-refactor)
 
@@ -24,10 +26,10 @@ npm test && npm run lint
 JavaScript (ES Modules), Node.js >= 22.12.0: Follow standard conventions
 
 ## Recent Changes
+- 037-guest-filter-redesign: Added JavaScript (ES Modules), Node.js >= 22.12.0 + React 19.2.1, Radix UI, Tailwind CSS 4.1.17
 - 036-themed-entry-pages: Added JavaScript (ES Modules), Node.js >= 22.12.0 + React 19.2.1, Express 5.2.1, Radix UI, Tailwind CSS 4.1.17
 - 035-guest-name-entry: Added JavaScript (ES Modules), Node.js >= 22.12.0 + React 19.2.1, Express 5.2.1, Radix UI, Tailwind CSS 4.1.17
 
-- 034-codebase-refactor: Added JavaScript (ES Modules), Node.js >= 22.12.0 + React 19.2.1, Express 5.2.1, Radix UI, Tailwind CSS 4.1.17
 
 <!-- MANUAL ADDITIONS START -->
 <!-- MANUAL ADDITIONS END -->
