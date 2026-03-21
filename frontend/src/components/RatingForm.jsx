@@ -195,12 +195,10 @@ function RatingForm({ itemId, eventId, existingRating, ratingConfig, onClose, ev
               role="radio"
               aria-checked={isSelected}
               onClick={() => setSelectedRating(isSelected ? null : option.value)}
-              className={`w-full rounded-lg flex items-stretch text-left transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 active:scale-[0.98] overflow-hidden ${
-                isSelected ? '' : 'bg-muted/50'
-              }`}
+              className="w-full rounded-lg flex items-stretch text-left transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 active:scale-[0.98] overflow-hidden bg-muted/50"
               style={
                 isSelected
-                  ? { backgroundColor: option.color, color: 'white' }
+                  ? { backgroundColor: option.color, color: 'white', boxShadow: `0 0 0 2px color-mix(in srgb, ${option.color} 40%, transparent)` }
                   : {}
               }
             >

@@ -48,15 +48,16 @@ function ItemButton({ itemId, ratingColor, isBookmarked, isWinner, onClick, rate
         className={cn(
           "relative w-[60px] h-[60px] rounded-full text-[28px] font-normal leading-none",
           "flex items-center justify-center",
-          "transition-all duration-200",
           "hover:scale-105 active:scale-95",
           "outline-2 outline-offset-2 outline-transparent focus:outline-[var(--event-accent)]",
           "shadow-none",
-          ratingColor 
-            ? "text-white" 
-            : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+          "bg-gray-100 dark:bg-gray-800",
+          ratingColor ? "text-white" : "text-gray-700 dark:text-gray-300"
         )}
-        style={ratingColor ? { backgroundColor: ratingColor } : {}}
+        style={{
+          ...(ratingColor ? { backgroundColor: ratingColor } : {}),
+          transition: 'background-color 400ms ease-out, color 300ms ease-out, transform 200ms ease-out, outline-color 200ms ease-out'
+        }}
         aria-label={`Item ${itemId}${isBookmarked ? ' (bookmarked)' : ''}${isWinner ? ' (winner)' : ''}${participationLabel}`}
       >
       <span>{itemId}</span>
