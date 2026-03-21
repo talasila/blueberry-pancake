@@ -138,5 +138,20 @@ describe('AuthPage', () => {
       expect(description).toBeInTheDocument();
       expect(description.textContent).toContain('user@example.com');
     });
+
+    it('saves email to localStorage after successful verification', async () => {
+      apiClient.verifyOTP.mockResolvedValue({ user: { email: 'user@example.com' } });
+      await goToVerifyStep();
+
+      const otpInput = screen.getByPlaceholderText('Enter 6-digit code');
+      fireEvent.change(otpInput, { target: { value: '123456' } });
+
+      const signInButton = screen.getByRole('button', { name: 'Sign in' });
+      fireEvent.click(signInButton);
+
+      await waitFor(() => {
+        expect(localStorageMock.setItem).toHaveBeenCalledWith('remembered:email', 'user@example.com');
+      });
+    });
   });
 });

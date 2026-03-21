@@ -80,6 +80,10 @@ function AuthPage() {
 
       clearAllBookmarks();
 
+      try {
+        localStorage.setItem('remembered:email', email);
+      } catch { /* private browsing or storage full */ }
+
       if (response.user) {
         apiClient.setUserSession(response.user);
       }
