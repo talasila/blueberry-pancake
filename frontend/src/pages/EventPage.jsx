@@ -700,7 +700,7 @@ function EventPage() {
                       onClick={handleItemClick}
                       ratedCount={itemRaterCounts[itemId] || 0}
                       totalParticipants={event?.users ? Object.keys(event.users).length : 0}
-                      showRing={event?.state === 'started'}
+                      showRing={isAdmin && event?.state === 'started'}
                     />
                   ))}
                 </div>
