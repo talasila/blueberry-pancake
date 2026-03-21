@@ -1903,17 +1903,21 @@ function EventAdminPage({ onOpenAdminGuide }) {
 
           {/* Note Suggestions Toggle — wine events only */}
           {event?.typeOfItem === 'wine' && (
-            <div className="flex items-center justify-between py-2">
+            <div className="flex items-start justify-between py-2 gap-4">
               <div className="flex flex-col">
                 <label className="text-sm font-medium">Note Suggestions</label>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  Show tasting note hints when rating
+                  When guests pick a rating, two fun tasting quips appear that they can tap to add to their notes.
+                  The tone is playful and opinionated — a low rating might suggest <em>"A complex bouquet of nope"</em> while
+                  a top rating could offer <em>"My taste buds are writing thank-you notes."</em> Works best for casual,
+                  social tastings. Turn off for formal or competitive events where guests prefer to write their own notes.
                 </p>
               </div>
               <Switch
                 checked={noteSuggestionsEnabled}
                 onCheckedChange={setNoteSuggestionsEnabled}
                 disabled={isSavingRatingConfig || (event?.state !== 'created')}
+                className="flex-shrink-0"
               />
             </div>
           )}
