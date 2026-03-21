@@ -389,7 +389,7 @@ function EventPage() {
       setIsSimilarUsersDrawerOpen(false);
     }
 
-    if (event?.state !== 'completed' && event?.typeOfItem === 'wine' && availableItemIds.length > 0) {
+    if (event?.state !== 'completed' && event?.typeOfItem === 'wine' && ratingConfig?.personalityEnabled !== false && availableItemIds.length > 0) {
       const threshold = getMinimumThreshold(availableItemIds.length);
       hadPersonalityBeforeDrawerRef.current = ratings.length >= threshold;
     }
@@ -508,6 +508,7 @@ function EventPage() {
 
   // Personality dot badge logic
   const showPersonalityBadge = useMemo(() => {
+    if (ratingConfig?.personalityEnabled === false) return false;
     if (event?.typeOfItem !== 'wine') return false;
     if (!['started', 'paused', 'completed'].includes(event?.state)) return false;
     if (availableItemIds.length === 0 || ratings.length === 0) return false;
@@ -515,7 +516,7 @@ function EventPage() {
     if (ratings.length < threshold) return false;
     const badgeKey = `personality-badge-${eventId}`;
     return !sessionStorage.getItem(badgeKey);
-  }, [event?.typeOfItem, event?.state, availableItemIds, ratings, eventId]);
+  }, [ratingConfig?.personalityEnabled, event?.typeOfItem, event?.state, availableItemIds, ratings, eventId]);
 
   // Clear badge when My Progress drawer opens
   const handleMyProgressClickOriginal = useCallback(() => {
@@ -534,7 +535,7 @@ function EventPage() {
       return;
     }
 
-    if (event?.typeOfItem !== 'wine' || !['started', 'paused'].includes(event?.state)) {
+    if (ratingConfig?.personalityEnabled === false || event?.typeOfItem !== 'wine' || !['started', 'paused'].includes(event?.state)) {
       setPendingRevealCheck(false);
       return;
     }
@@ -754,6 +755,7 @@ function EventPage() {
         isOpen={isSimilarUsersDrawerOpen}
         onClose={handleSimilarUsersDrawerClose}
         eventId={eventId}
+        personalityEnabled={ratingConfig?.personalityEnabled !== false}
       />
 
       {/* User Details Drawer */}

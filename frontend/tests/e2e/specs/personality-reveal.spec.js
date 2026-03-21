@@ -14,6 +14,7 @@ import {
   startEvent,
   configureItems,
   loginAsUserToEvent,
+  updateRatingConfig,
 } from './helpers.js';
 
 const ITEMS_COUNT = 8;
@@ -154,5 +155,41 @@ test.describe('Personality Reveal Sheet', () => {
     await page.waitForTimeout(1000);
     const progressCard = page.locator('[aria-label*="tasting personality" i]');
     await expect(progressCard).not.toBeVisible();
+  });
+
+  test('reveal sheet does NOT appear when personalityEnabled is false', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
+    const adminEmail = 'admin@example.com';
+    const token = await addAdminToEvent(eventId, adminEmail);
+    await configureItems(eventId, token, ITEMS_COUNT);
+
+    // Disable personality detection before starting event
+    const cfgResult = await updateRatingConfig(eventId, token, { personalityEnabled: false });
+    if (!cfgResult.ok) throw new Error(`Failed to disable personality: ${cfgResult.data}`);
+
+    await startEvent(eventId, token);
+
+    const userEmail = 'nopersonality@example.com';
+    const userToken = await getUserToken(eventId, userEmail, pin);
+    await submitRatings(eventId, userToken, RATINGS_BELOW_THRESHOLD);
+
+    await loginAsUserToEvent(page, eventId, userEmail, pin);
+
+    // Submit threshold-crossing rating via UI
+    const itemButton = page.getByRole('button', { name: new RegExp(`^Item ${RATINGS_BELOW_THRESHOLD + 1}\\b`) });
+    await expect(itemButton).toBeVisible({ timeout: 10000 });
+    await itemButton.click();
+
+    const ratingDrawer = page.locator('[role="dialog"]');
+    await expect(ratingDrawer).toBeVisible({ timeout: 5000 });
+    await ratingDrawer.getByRole('radio').first().click();
+    await ratingDrawer.getByRole('button', { name: /submit/i }).click();
+
+    // Wait for drawer to close and rating to process
+    await expect(ratingDrawer.locator('[aria-labelledby="drawer-title"]')).not.toBeVisible({ timeout: 10000 });
+
+    // Reveal sheet should NOT appear
+    await page.waitForTimeout(3000);
+    await expect(page.getByTestId('personality-reveal-sheet')).not.toBeVisible();
   });
 });

@@ -283,10 +283,12 @@ function DashboardPage() {
             </div>
 
             {/* Personality Summary Strip */}
-            <PersonalitySummaryStrip
-              userSummaries={dashboardData.userSummaries}
-              itemTerms={{ singular: singularLower, plural: pluralLower }}
-            />
+            {dashboardData?.ratingConfiguration?.personalityEnabled !== false && (
+              <PersonalitySummaryStrip
+                userSummaries={dashboardData.userSummaries}
+                itemTerms={{ singular: singularLower, plural: pluralLower }}
+              />
+            )}
           </div>
         </TabsContent>
         
@@ -311,9 +313,10 @@ function DashboardPage() {
         
         {/* Tab 3: User Ratings */}
         <TabsContent value="users">
-          <UserRatingsTable 
+          <UserRatingsTable
             userSummaries={dashboardData?.userSummaries || []}
             ratingConfiguration={dashboardData?.ratingConfiguration?.ratings || []}
+            personalityEnabled={dashboardData?.ratingConfiguration?.personalityEnabled !== false}
             onRowClick={(userEmail) => {
               setOpenUserDetailsEmail(userEmail);
               // Add to history for browser back navigation

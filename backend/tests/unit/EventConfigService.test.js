@@ -98,6 +98,30 @@ describe('EventConfigService', () => {
       expect(result.noteSuggestionsEnabled).toBeUndefined();
     });
 
+    it('should include personalityEnabled for wine events', async () => {
+      const event = mockEvent();
+      eventService.getEvent.mockResolvedValue(event);
+
+      const result = await eventConfigService.getRatingConfiguration(VALID_EVENT_ID);
+      expect(result.personalityEnabled).toBe(true);
+    });
+
+    it('should not include personalityEnabled for non-wine events', async () => {
+      const event = mockEvent({ typeOfItem: 'beer' });
+      eventService.getEvent.mockResolvedValue(event);
+
+      const result = await eventConfigService.getRatingConfiguration(VALID_EVENT_ID);
+      expect(result.personalityEnabled).toBeUndefined();
+    });
+
+    it('should return stored personalityEnabled value when set to false', async () => {
+      const event = mockEvent({ ratingConfiguration: { maxRating: 4, ratings: eventConfigService.generateDefaultRatings(4), personalityEnabled: false } });
+      eventService.getEvent.mockResolvedValue(event);
+
+      const result = await eventConfigService.getRatingConfiguration(VALID_EVENT_ID);
+      expect(result.personalityEnabled).toBe(false);
+    });
+
     it('should reject invalid event ID', async () => {
       await expect(
         eventConfigService.getRatingConfiguration('bad')
@@ -195,6 +219,59 @@ describe('EventConfigService', () => {
           ADMIN_EMAIL
         )
       ).rejects.toThrow('wine events');
+    });
+
+    it('should reject personalityEnabled change when not in created state', async () => {
+      const event = mockEvent({ state: 'started' });
+      eventService.getEvent.mockResolvedValue(event);
+
+      await expect(
+        eventConfigService.updateRatingConfiguration(
+          VALID_EVENT_ID,
+          { personalityEnabled: false },
+          ADMIN_EMAIL
+        )
+      ).rejects.toThrow('created');
+    });
+
+    it('should reject personalityEnabled for non-wine events', async () => {
+      const event = mockEvent({ typeOfItem: 'beer' });
+      eventService.getEvent.mockResolvedValue(event);
+
+      await expect(
+        eventConfigService.updateRatingConfiguration(
+          VALID_EVENT_ID,
+          { personalityEnabled: true },
+          ADMIN_EMAIL
+        )
+      ).rejects.toThrow('wine events');
+    });
+
+    it('should reject non-boolean personalityEnabled', async () => {
+      const event = mockEvent();
+      eventService.getEvent.mockResolvedValue(event);
+
+      await expect(
+        eventConfigService.updateRatingConfiguration(
+          VALID_EVENT_ID,
+          { personalityEnabled: 'yes' },
+          ADMIN_EMAIL
+        )
+      ).rejects.toThrow('personalityEnabled must be a boolean');
+    });
+
+    it('should save personalityEnabled for wine events in created state', async () => {
+      const event = mockEvent();
+      eventService.getEvent.mockResolvedValue(event);
+      eventService.updateEvent.mockResolvedValue();
+
+      const result = await eventConfigService.updateRatingConfiguration(
+        VALID_EVENT_ID,
+        { personalityEnabled: false },
+        ADMIN_EMAIL
+      );
+
+      expect(result.personalityEnabled).toBe(false);
     });
   });
 

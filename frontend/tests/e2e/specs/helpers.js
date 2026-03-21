@@ -502,3 +502,24 @@ export async function authenticateViaOTP(page, email = 'creator@example.com') {
     throw new Error(`authenticateViaOTP landed on error page: ${currentUrl}`);
   }
 }
+
+/**
+ * Update rating configuration for an event via API.
+ * @param {string} eventId - Event identifier
+ * @param {string} token - Admin JWT token
+ * @param {object} config - Configuration fields to update (e.g., { personalityEnabled: false })
+ * @returns {{ ok: boolean, status: number, data: object|string }}
+ */
+export async function updateRatingConfig(eventId, token, config) {
+  const response = await fetch(`${API_URL}/api/events/${eventId}/rating-configuration`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify(config),
+    signal: AbortSignal.timeout(10000),
+  });
+  const data = response.ok ? await response.json() : await response.text();
+  return { ok: response.ok, status: response.status, data };
+}

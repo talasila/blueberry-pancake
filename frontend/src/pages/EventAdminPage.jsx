@@ -107,6 +107,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
   const [maxRating, setMaxRating] = useState(4);
   const [ratings, setRatings] = useState([]);
   const [noteSuggestionsEnabled, setNoteSuggestionsEnabled] = useState(true);
+  const [personalityEnabled, setPersonalityEnabled] = useState(true);
   const [isSavingRatingConfig, setIsSavingRatingConfig] = useState(false);
   const [ratingConfigError, setRatingConfigError] = useState('');
   const [ratingConfigSuccess, setRatingConfigSuccess] = useState('');
@@ -354,6 +355,7 @@ function EventAdminPage({ onOpenAdminGuide }) {
         setRatings(config.ratings);
         if (event?.typeOfItem === 'wine') {
           setNoteSuggestionsEnabled(config.noteSuggestionsEnabled);
+          setPersonalityEnabled(config.personalityEnabled);
         }
       } catch (error) {
         console.error('Failed to fetch rating configuration:', error);
@@ -577,19 +579,25 @@ function EventAdminPage({ onOpenAdminGuide }) {
         ratings: ratings
       };
       
-      // Include noteSuggestionsEnabled for wine events
+      // Include wine-only feature flags
       if (event?.typeOfItem === 'wine') {
         configToSave.noteSuggestionsEnabled = noteSuggestionsEnabled;
+        configToSave.personalityEnabled = personalityEnabled;
       }
 
       const result = await apiClient.updateRatingConfiguration(eventId, configToSave, expectedUpdatedAt);
-      
+
       setMaxRating(result.maxRating);
       setRatings(result.ratings);
-      
-      // Update noteSuggestionsEnabled if returned in result
-      if (event?.typeOfItem === 'wine' && result.noteSuggestionsEnabled !== undefined) {
-        setNoteSuggestionsEnabled(result.noteSuggestionsEnabled);
+
+      // Update wine-only feature flags if returned in result
+      if (event?.typeOfItem === 'wine') {
+        if (result.noteSuggestionsEnabled !== undefined) {
+          setNoteSuggestionsEnabled(result.noteSuggestionsEnabled);
+        }
+        if (result.personalityEnabled !== undefined) {
+          setPersonalityEnabled(result.personalityEnabled);
+        }
       }
       
       setRatingConfigSuccess('Rating configuration saved successfully');
@@ -1917,6 +1925,26 @@ function EventAdminPage({ onOpenAdminGuide }) {
                 The tone is playful and opinionated — a low rating might suggest <em>"A complex bouquet of nope"</em> while
                 a top rating could offer <em>"My taste buds are writing thank-you notes."</em> Works best for casual,
                 social tastings. Turn off for formal or competitive events where guests prefer to write their own notes.
+              </p>
+            </div>
+          )}
+
+          {/* Personality Detection Toggle — wine events only */}
+          {event?.typeOfItem === 'wine' && (
+            <div className="py-2">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium">Personality Detection</label>
+                <Switch
+                  checked={personalityEnabled}
+                  onCheckedChange={setPersonalityEnabled}
+                  disabled={isSavingRatingConfig || (event?.state !== 'created')}
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                After guests rate enough items, a tasting personality is assigned based on their rating patterns —
+                labels like <em>"The Simon Cowell"</em> for tough critics or <em>"The Golden Retriever"</em> for
+                generous raters. Adds a fun reveal moment during social tastings. Turn off for formal or competitive
+                events where personality labels may not suit the tone.
               </p>
             </div>
           )}

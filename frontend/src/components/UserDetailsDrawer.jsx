@@ -176,12 +176,13 @@ function UserDetailsDrawer({
     [ratings, itemIds, ratingConfiguration]
   );
 
-  // Personality detection (current user, wine events, active states only)
+  // Personality detection (current user, wine events, active states only, when enabled)
   const isWineEvent = event?.typeOfItem === 'wine';
   const isActiveState = ['started', 'paused', 'completed'].includes(event?.state);
+  const isPersonalityEnabled = ratingConfig?.personalityEnabled !== false;
 
   const personalityId = useMemo(() => {
-    if (!isWineEvent || !isActiveState || !isCurrentUser || ratings.length === 0) return null;
+    if (!isPersonalityEnabled || !isWineEvent || !isActiveState || !isCurrentUser || ratings.length === 0) return null;
 
     const sortedByTime = [...ratings].sort((a, b) => {
       const at = a.timestamp ? new Date(a.timestamp).getTime() : 0;
@@ -211,7 +212,7 @@ function UserDetailsDrawer({
       earliestTimestamp: timestamps[0] || null,
       latestTimestamp: timestamps[timestamps.length - 1] || null,
     });
-  }, [ratings, itemIds, ratingConfiguration, isWineEvent, isActiveState, isCurrentUser]);
+  }, [ratings, itemIds, ratingConfiguration, isWineEvent, isActiveState, isCurrentUser, isPersonalityEnabled]);
 
   // Shift detection via sessionStorage
   const previousPersonalityName = useMemo(() => {

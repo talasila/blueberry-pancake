@@ -58,15 +58,20 @@ class EventConfigService {
     // Get event
     const event = await eventService.getEvent(eventId);
 
-    // Determine noteSuggestionsEnabled value
+    // Determine wine-only feature flags
     // Default to true for wine events if not set
     let noteSuggestionsEnabled = undefined;
+    let personalityEnabled = undefined;
     if (event.typeOfItem === 'wine') {
       if (event.ratingConfiguration?.noteSuggestionsEnabled !== undefined) {
         noteSuggestionsEnabled = event.ratingConfiguration.noteSuggestionsEnabled;
       } else {
-        // Default to true for wine events when not set
         noteSuggestionsEnabled = true;
+      }
+      if (event.ratingConfiguration?.personalityEnabled !== undefined) {
+        personalityEnabled = event.ratingConfiguration.personalityEnabled;
+      } else {
+        personalityEnabled = true;
       }
     }
 
@@ -77,9 +82,12 @@ class EventConfigService {
         ratings: event.ratingConfiguration.ratings ?? this.generateDefaultRatings(event.ratingConfiguration.maxRating ?? 4)
       };
 
-      // Include noteSuggestionsEnabled if applicable (wine events)
+      // Include wine-only feature flags if applicable
       if (noteSuggestionsEnabled !== undefined) {
         config.noteSuggestionsEnabled = noteSuggestionsEnabled;
+      }
+      if (personalityEnabled !== undefined) {
+        config.personalityEnabled = personalityEnabled;
       }
 
       return config;
@@ -92,9 +100,12 @@ class EventConfigService {
       ratings: this.generateDefaultRatings(defaultMaxRating)
     };
 
-    // Include noteSuggestionsEnabled if applicable (wine events)
+    // Include wine-only feature flags if applicable
     if (noteSuggestionsEnabled !== undefined) {
       defaultConfig.noteSuggestionsEnabled = noteSuggestionsEnabled;
+    }
+    if (personalityEnabled !== undefined) {
+      defaultConfig.personalityEnabled = personalityEnabled;
     }
 
     return defaultConfig;
@@ -198,23 +209,35 @@ class EventConfigService {
     // Handle noteSuggestionsEnabled if provided
     let noteSuggestionsEnabled = current.noteSuggestionsEnabled;
     if (config.noteSuggestionsEnabled !== undefined) {
-      // Validate noteSuggestionsEnabled change is allowed
       if (event.state !== 'created') {
         throw new Error('Note suggestions toggle can only be changed when event is in "created" state');
       }
-
       if (event.typeOfItem !== 'wine') {
         throw new Error('Note suggestions are only available for wine events');
       }
-
       if (typeof config.noteSuggestionsEnabled !== 'boolean') {
         throw new Error('noteSuggestionsEnabled must be a boolean');
       }
-
       noteSuggestionsEnabled = config.noteSuggestionsEnabled;
     } else if (event.typeOfItem === 'wine' && noteSuggestionsEnabled === undefined) {
-      // Default to true for wine events if not set
       noteSuggestionsEnabled = true;
+    }
+
+    // Handle personalityEnabled if provided
+    let personalityEnabled = current.personalityEnabled;
+    if (config.personalityEnabled !== undefined) {
+      if (event.state !== 'created') {
+        throw new Error('Personality detection toggle can only be changed when event is in "created" state');
+      }
+      if (event.typeOfItem !== 'wine') {
+        throw new Error('Personality detection is only available for wine events');
+      }
+      if (typeof config.personalityEnabled !== 'boolean') {
+        throw new Error('personalityEnabled must be a boolean');
+      }
+      personalityEnabled = config.personalityEnabled;
+    } else if (event.typeOfItem === 'wine' && personalityEnabled === undefined) {
+      personalityEnabled = true;
     }
 
     // Update event
@@ -223,9 +246,10 @@ class EventConfigService {
       ratings: normalizedRatings
     };
 
-    // Include noteSuggestionsEnabled if applicable (wine events)
+    // Include wine-only feature flags if applicable
     if (event.typeOfItem === 'wine') {
       event.ratingConfiguration.noteSuggestionsEnabled = noteSuggestionsEnabled;
+      event.ratingConfiguration.personalityEnabled = personalityEnabled;
     }
 
     event.updatedAt = getCurrentTimestamp();
@@ -237,6 +261,7 @@ class EventConfigService {
       eventId,
       maxRating: newMaxRating,
       noteSuggestionsEnabled: event.typeOfItem === 'wine' ? noteSuggestionsEnabled : undefined,
+      personalityEnabled: event.typeOfItem === 'wine' ? personalityEnabled : undefined,
       requester: requesterEmail
     });
 
@@ -245,9 +270,10 @@ class EventConfigService {
       ratings: normalizedRatings
     };
 
-    // Include noteSuggestionsEnabled in response if applicable (wine events)
+    // Include wine-only feature flags in response if applicable
     if (event.typeOfItem === 'wine') {
       result.noteSuggestionsEnabled = noteSuggestionsEnabled;
+      result.personalityEnabled = personalityEnabled;
     }
 
     return result;

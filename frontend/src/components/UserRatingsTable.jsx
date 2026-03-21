@@ -21,7 +21,7 @@ import { getPersonalityName } from '@/utils/personalityContent';
  * @param {Array} props.ratingConfiguration - Rating configuration array
  * @param {function} props.onRowClick - Callback when a card is clicked, receives user email
  */
-function UserRatingsTable({ userSummaries = [], ratingConfiguration = [], onRowClick }) {
+function UserRatingsTable({ userSummaries = [], ratingConfiguration = [], onRowClick, personalityEnabled = true }) {
   const [sortColumn, setSortColumn] = useState('email');
   const [sortDirection, setSortDirection] = useState('asc');
 
@@ -145,7 +145,7 @@ function UserRatingsTable({ userSummaries = [], ratingConfiguration = [], onRowC
               {/* Row 2: Email · Personality */}
               <div className="text-[10px] text-muted-foreground mt-0.5">
                 <span>{trimEmail(user.email)}</span>
-                {user.personality && (
+                {personalityEnabled && user.personality && (
                   <span className="italic"> · {getPersonalityName(user.personality)}</span>
                 )}
               </div>

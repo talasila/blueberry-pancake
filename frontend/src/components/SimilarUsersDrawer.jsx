@@ -18,10 +18,11 @@ import ListCard from '@/components/ListCard';
  * @param {function} props.onClose - Close handler
  * @param {string} props.eventId - Event identifier
  */
-function SimilarUsersDrawer({ 
-  isOpen, 
-  onClose, 
+function SimilarUsersDrawer({
+  isOpen,
+  onClose,
   eventId,
+  personalityEnabled = true,
 }) {
   const { event } = useEventContext();
   const { singular } = useItemTerminology(event);
@@ -176,7 +177,7 @@ function SimilarUsersDrawer({
                   <div className="flex-1 min-w-0">
                     <span className="text-sm font-medium truncate block leading-tight">{user.name || user.email}</span>
                     <span className="text-[10px] text-muted-foreground leading-tight">
-                      {user.personality ? `${getPersonalityName(user.personality)} · ` : ''}{commonItemsCount} common
+                      {personalityEnabled && user.personality ? `${getPersonalityName(user.personality)} · ` : ''}{commonItemsCount} common
                     </span>
                   </div>
                   <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
