@@ -1,85 +1,118 @@
 import * as icons from 'lucide-react';
-import { ChevronDown } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 
 /**
- * Renders a single guide step: icon, heading, and short description.
- * Supports optional expand/collapse and step-type indicator.
+ * Renders a single guide step.
  *
- * Backward-compatible: when isExpanded / onToggle are not provided,
- * renders fully expanded with no toggle (existing GuideDrawer behavior).
+ * Timeline variant (when isCollapsible): numbered circle matching the
+ * EventProgressStepper style, connector line, heading, collapsible description.
+ *
+ * Legacy variant (no onToggle): centred icon + text used by GuideDrawer.
  *
  * @param {object} props
- * @param {object} props.step - { id, heading, description, icon, stepType? }
- * @param {boolean} [props.isExpanded] - Whether the description is visible
- * @param {function} [props.onToggle] - Called when the step heading is tapped
- * @param {string} [props.stepType] - 'real-world' | 'in-app' (renders a badge)
- * @param {string} [props.visualState] - 'done' | 'now' | 'ahead' (affects styling)
+ * @param {object} props.step - { id, heading, description, icon, position }
+ * @param {boolean} [props.isExpanded]
+ * @param {function} [props.onToggle]
+ * @param {string} [props.visualState] - 'done' | 'now' | 'ahead'
+ * @param {boolean} [props.isLastInPhase] - hides bottom connector line
  */
-export default function GuideStepCard({ step, isExpanded, onToggle, stepType, visualState }) {
+export default function GuideStepCard({ step, isExpanded, onToggle, visualState, isLastInPhase }) {
   const IconComponent = icons[step.icon] || icons.HelpCircle;
   const isCollapsible = typeof onToggle === 'function';
   const showDescription = isCollapsible ? isExpanded : true;
-  const type = stepType || step.stepType;
 
-  const stateClasses = {
-    done: 'opacity-60',
-    now: 'bg-primary/5 ring-1 ring-primary/20',
-    ahead: 'opacity-40',
-  };
+  // ── Legacy (non-timeline) layout for GuideDrawer ───────────────────
+  if (!isCollapsible) {
+    return (
+      <div className="flex flex-col items-center px-6 py-4 text-center">
+        <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+          <IconComponent className="h-8 w-8 text-primary" />
+        </div>
+        <h3 className="mb-2 text-lg font-semibold">{step.heading}</h3>
+        <p className="text-sm leading-relaxed text-muted-foreground">
+          {step.description}
+        </p>
+      </div>
+    );
+  }
 
-  const iconBgClasses = {
-    done: 'bg-muted',
-    now: 'bg-primary/10',
-    ahead: 'bg-muted/50',
-  };
+  // ── Timeline layout (matches EventProgressStepper circle style) ────
+
+  const isDone = visualState === 'done';
+  const isNow = visualState === 'now';
+
+  // Circle: same h-7 w-7 border-2 pattern as EventProgressStepper
+  const circleClasses = isDone
+    ? 'bg-primary border-primary text-primary-foreground'
+    : isNow
+      ? 'border-primary bg-background ring-2 ring-primary/20'
+      : 'border-muted bg-background text-muted-foreground';
+
+  // Connector line
+  const connectorClass = isDone
+    ? 'bg-primary'
+    : isNow
+      ? 'bg-primary'
+      : 'bg-muted';
+
+  // Row opacity
+  const rowOpacity = isDone
+    ? 'opacity-55'
+    : visualState === 'ahead'
+      ? 'opacity-45'
+      : '';
 
   return (
     <div
-      className={`rounded-lg px-4 py-3 transition-all ${stateClasses[visualState] || ''}`}
+      className={`flex gap-3 ${rowOpacity}`}
       data-testid={`guide-step-${step.id}`}
     >
-      <button
-        type="button"
-        className={`flex w-full items-center gap-3 text-left ${isCollapsible ? 'cursor-pointer' : 'cursor-default'}`}
-        onClick={isCollapsible ? onToggle : undefined}
-        aria-expanded={isCollapsible ? isExpanded : undefined}
-        tabIndex={isCollapsible ? 0 : -1}
-      >
-        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${iconBgClasses[visualState] || 'bg-primary/10'}`}>
-          {visualState === 'done' ? (
-            <icons.Check className="h-5 w-5 text-muted-foreground" />
+      {/* Timeline column */}
+      <div className="flex flex-col items-center w-7 shrink-0">
+        {/* Numbered circle */}
+        <div
+          className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${circleClasses}`}
+          aria-current={isNow ? 'step' : undefined}
+        >
+          {isDone ? (
+            <Check className="h-4 w-4" />
           ) : (
-            <IconComponent className="h-5 w-5 text-primary" />
-          )}
-        </div>
-
-        <div className="flex flex-1 items-center gap-2">
-          <h3 className="text-sm font-semibold">{step.heading}</h3>
-          {type && (
-            <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium leading-tight ${
-              type === 'in-app'
-                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
-            }`}>
-              {type === 'in-app' ? 'In App' : 'Real World'}
+            <span className={`text-xs font-semibold ${isNow ? 'text-primary' : ''}`}>
+              {step.position}
             </span>
           )}
         </div>
-
-        {isCollapsible && (
-          <ChevronDown
-            className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-          />
+        {/* Connector line */}
+        {!isLastInPhase && (
+          <div className={`flex-1 w-0.5 min-h-4 ${connectorClass}`} />
         )}
-      </button>
+      </div>
 
-      {showDescription && (
-        <div className={`mt-2 ${isCollapsible ? 'pl-[52px]' : 'px-6 py-4 text-center'}`}>
-          <p className={`text-sm leading-relaxed text-muted-foreground ${!isCollapsible ? '' : ''}`}>
+      {/* Step content */}
+      <div className="flex-1 min-w-0 pb-2.5">
+        <button
+          type="button"
+          className="flex w-full items-center gap-1 text-left cursor-pointer h-7"
+          onClick={onToggle}
+          aria-expanded={isExpanded}
+          tabIndex={0}
+        >
+          <h3 className={`flex-1 text-sm ${
+            isNow ? 'font-semibold text-foreground' : isDone ? 'font-medium text-foreground' : 'text-muted-foreground'
+          }`}>
+            {step.heading}
+          </h3>
+          <ChevronDown
+            className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+          />
+        </button>
+
+        {showDescription && (
+          <p className="mt-1 text-sm leading-relaxed text-muted-foreground pr-2">
             {step.description}
           </p>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

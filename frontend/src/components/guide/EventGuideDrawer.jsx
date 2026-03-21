@@ -1,15 +1,23 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { X } from 'lucide-react';
+import { X, CalendarDays, Wine, Timer, PartyPopper } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useEventContext } from '@/contexts/EventContext';
 import { eventGuideSteps, phases, getStepVisualState } from '@/data/eventGuideContent';
 import GuideStepCard from './GuideStepCard';
 
+const PHASE_ICONS = {
+  'before-event': CalendarDays,
+  'event-day-setup': Wine,
+  'during-tasting': Timer,
+  'the-reveal': PartyPopper,
+};
+
 /**
- * EventGuideDrawer — unified bottom-sheet overlay showing the full 17-step
- * blind tasting journey. Steps are grouped by phase with section headers.
- * Each step renders in done / now / ahead visual state based on event
- * lifecycle. Auto-scrolls to the first "now" step on open.
+ * EventGuideDrawer — unified bottom-sheet overlay showing the full 11-step
+ * blind tasting journey as a vertical timeline. Steps are grouped by phase
+ * with visual section headers. Each step renders in done / now / ahead
+ * visual state based on event lifecycle. Auto-scrolls to the first "now"
+ * step on open.
  *
  * @param {object} props
  * @param {boolean} props.isOpen
@@ -132,29 +140,34 @@ export default function EventGuideDrawer({ isOpen, onClose }) {
             </Button>
           </div>
 
-          {/* Scrollable step list */}
+          {/* Scrollable timeline */}
           <div className="flex-1 overflow-y-auto" ref={scrollContainerRef}>
-            <div className="py-2">
+            <div className="py-3 px-3">
               {phases.map((phase) => {
+                const PhaseIcon = PHASE_ICONS[phase.id];
                 const phaseSteps = eventGuideSteps.filter(
                   (s) => s.position >= phase.stepRange[0] && s.position <= phase.stepRange[1],
                 );
 
                 return (
-                  <div key={phase.id}>
+                  <div key={phase.id} className="mb-1">
                     {/* Phase section header */}
-                    <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border/50 px-4 py-2 mt-1 first:mt-0">
+                    <div className="flex items-center gap-2.5 rounded-lg bg-muted/50 px-3 py-2 mb-2">
+                      {PhaseIcon && (
+                        <PhaseIcon className="h-4 w-4 text-muted-foreground shrink-0" />
+                      )}
                       <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                         {phase.label}
                       </h3>
                     </div>
 
-                    {/* Steps in this phase */}
-                    <div className="flex flex-col gap-1 px-2 py-1">
-                      {phaseSteps.map((step) => {
+                    {/* Timeline steps */}
+                    <div className="pl-2">
+                      {phaseSteps.map((step, idx) => {
                         const vs = eventState
                           ? getStepVisualState(eventState, step.position)
                           : 'ahead';
+                        const isLast = idx === phaseSteps.length - 1;
 
                         // Assign ref to first "now" step for auto-scroll
                         const isFirstNow = vs === 'now' && !firstNowAssigned;
@@ -169,8 +182,8 @@ export default function EventGuideDrawer({ isOpen, onClose }) {
                               step={step}
                               isExpanded={!!expandedSteps[step.id]}
                               onToggle={() => toggleStep(step.id)}
-                              stepType={step.stepType}
                               visualState={vs}
+                              isLastInPhase={isLast}
                             />
                           </div>
                         );
