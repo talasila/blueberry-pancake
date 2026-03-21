@@ -24,7 +24,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import apiClient from './services/apiClient.js';
 import { isUserAdmin } from './utils/adminCheck.js';
 import GuideDrawer from './components/guide/GuideDrawer';
-import AdminGuideDrawer from './components/guide/AdminGuideDrawer';
+import EventGuideDrawer from './components/guide/EventGuideDrawer';
 import MembershipRevokedDialog from './components/MembershipRevokedDialog';
 import SessionExpiredDialog from './components/SessionExpiredDialog';
 import EventThemeProvider from './components/EventThemeProvider';
@@ -213,7 +213,7 @@ function AppLayout() {
         </Routes>
       </main>
       {!isAdminRoute && !isSystemRoute && <GuideDrawer isOpen={guideOpen} onClose={closeGuide} />}
-      {isAdminRoute && <AdminGuideDrawer isOpen={adminGuideOpen} onClose={closeAdminGuide} />}
+      {isAdminRoute && <EventGuideDrawer isOpen={adminGuideOpen} onClose={closeAdminGuide} />}
       {isEventRoute && eventId && <MyBottlesSheetHost />}
     </div>
   );

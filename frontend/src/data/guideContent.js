@@ -1,10 +1,11 @@
 /**
  * Static guide content for "How to Host a Blind Wine Tasting Party"
  *
- * Two role paths: host (8 steps) and guest (4 steps).
+ * Two role paths: host (6 steps, overview of the full hosting journey) and guest (4 steps).
  * Each step has an id, heading, description (≤3 sentences), and a lucide-react icon name.
  *
- * Content topics sourced from spec.md "Guide Content Steps".
+ * Host path summarizes the 17-step real-world flow at overview depth.
+ * Guest path is unchanged from original.
  * Data shape defined in data-model.md.
  * Language follows FR-014: plain, conversational, non-technical.
  */
@@ -12,58 +13,44 @@ export const guideContent = {
   host: [
     {
       id: 'host-1',
-      heading: 'Pick Your Wines',
+      heading: 'Invite & Prepare',
       description:
-        'Have your guests bring a bottle each (or more) or grab some bottles with some variety or pick a fun theme like "all under $15." The more different they are, the more interesting the tasting gets.',
-      icon: 'Wine',
+        'Pick a date and let your guests know. Ask each person or couple to bring a bottle. Grab some brown paper bags and numbered stickers to cover and label them.',
+      icon: 'Megaphone',
     },
     {
       id: 'host-2',
-      heading: 'Cover the Bottles',
+      heading: 'Cover & Number the Bottles',
       description:
-        'Hide every label with paper bags, foil, or even socks. Number each bottle so everyone knows which one they\'re tasting. The mystery is what makes it fun!',
+        'When guests arrive, collect the bottles and hide each label in a bag. Stick a random number on each one — the mystery is what makes it fun!',
       icon: 'EyeOff',
     },
     {
       id: 'host-3',
-      heading: 'Set Up Your Space',
+      heading: 'Set Up the App',
       description:
-        'Set out glasses, water for rinsing, and some crackers or bread to cleanse palates between pours. No fancy equipment needed — keep it casual.',
-      icon: 'LayoutGrid',
-    },
-    {
-      id: 'host-4',
-      heading: 'Invite Your Guests',
-      description:
-        'Send out invites and let everyone know what to expect — a relaxed, no-expertise-needed evening of tasting and rating wines together.',
-      icon: 'Users',
-    },
-    {
-      id: 'host-5',
-      heading: 'Create Your Event',
-      description:
-        'Set up a tasting event in the app so your guests can rate each wine on their phones. It only takes a minute.',
+        'Create an event in the app, configure your rating scale, and share the PIN or link with your guests so they can join on their phones.',
       icon: 'PlusCircle',
     },
     {
-      id: 'host-6',
-      heading: 'Share the Event Link',
+      id: 'host-4',
+      heading: 'Taste & Rate Together',
       description:
-        'Give your guests easy access by sharing the event link or event code & PIN. They\'ll use it to join and start rating.',
-      icon: 'Share2',
-    },
-    {
-      id: 'host-7',
-      heading: 'Taste & Rate',
-      description:
-        'Pour each wine and walk your guests through tasting it. Everyone rates it in the app — no wine knowledge required, just honest opinions!',
+        'Start the event and let everyone taste each wine at their own pace. Guests rate each bottle in the app — no wine expertise needed.',
       icon: 'Star',
     },
     {
-      id: 'host-8',
-      heading: 'Reveal & Compare',
+      id: 'host-5',
+      heading: 'The Big Reveal',
       description:
-        'Unwrap the bottles and see how everyone rated them on the dashboard. The results are always surprising — and always a great conversation starter.',
+        'Pause the event, unwrap the bottles, and match each one to its number in the app. Then check the dashboard to see the scores.',
+      icon: 'Eye',
+    },
+    {
+      id: 'host-6',
+      heading: 'Declare the Winner',
+      description:
+        'Announce the results to your guests and complete the event. Everyone can then see the full dashboard and results on their phone.',
       icon: 'Trophy',
     },
   ],

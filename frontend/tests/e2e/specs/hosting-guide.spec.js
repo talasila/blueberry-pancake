@@ -94,7 +94,7 @@ test.describe('US2: Role selection', () => {
     await page.goto(BASE_URL);
     await openGuide(page);
     await selectRole(page, 'host');
-    await expect(page.getByText('Pick Your Wines')).toBeVisible();
+    await expect(page.getByText('Invite & Prepare')).toBeVisible();
   });
 
   test('selecting guest shows guest step content', async ({ page }) => {
@@ -118,20 +118,18 @@ test.describe('US2: Role selection', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('US3: Host path navigation', () => {
-  test('navigate through all 8 host steps via Next button', async ({ page }) => {
+  test('navigate through all 6 host steps via Next button', async ({ page }) => {
     await page.goto(BASE_URL);
     await openGuide(page);
     await selectRole(page, 'host');
 
     const headings = [
-      'Pick Your Wines',
-      'Cover the Bottles',
-      'Set Up Your Space',
-      'Invite Your Guests',
-      'Create Your Event',
-      'Share the Event Link',
-      'Taste & Rate',
-      'Reveal & Compare',
+      'Invite & Prepare',
+      'Cover & Number the Bottles',
+      'Set Up the App',
+      'Taste & Rate Together',
+      'The Big Reveal',
+      'Declare the Winner',
     ];
 
     for (let i = 0; i < headings.length; i++) {
@@ -147,18 +145,18 @@ test.describe('US3: Host path navigation', () => {
     await openGuide(page);
     await selectRole(page, 'host');
     await page.getByRole('button', { name: /next/i }).click();
-    await expect(page.getByRole('heading', { name: 'Cover the Bottles' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Cover & Number the Bottles' })).toBeVisible();
     await page.getByRole('button', { name: /back/i }).click();
-    await expect(page.getByRole('heading', { name: 'Pick Your Wines' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Invite & Prepare' })).toBeVisible();
   });
 
   test('progress indicator updates per step', async ({ page }) => {
     await page.goto(BASE_URL);
     await openGuide(page);
     await selectRole(page, 'host');
-    await expect(page.getByText(/1\s*(of|\/)\s*8/i)).toBeVisible();
+    await expect(page.getByText(/1\s*(of|\/)\s*6/i)).toBeVisible();
     await page.getByRole('button', { name: /next/i }).click();
-    await expect(page.getByText(/2\s*(of|\/)\s*8/i)).toBeVisible();
+    await expect(page.getByText(/2\s*(of|\/)\s*6/i)).toBeVisible();
   });
 
   test('final host step shows contextual CTA', async ({ page }) => {
@@ -166,10 +164,10 @@ test.describe('US3: Host path navigation', () => {
     await openGuide(page);
     await selectRole(page, 'host');
     // Navigate to last step
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 5; i++) {
       await page.getByRole('button', { name: /next/i }).click();
     }
-    await expect(page.getByRole('heading', { name: 'Reveal & Compare' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Declare the Winner' })).toBeVisible();
     // Should see a CTA button (either Sign Up or Create Event) that is clickable
     const cta = page.getByRole('button', { name: /sign up|create your event/i });
     await expect(cta).toBeVisible();
@@ -225,8 +223,8 @@ test.describe('US5: Overview / table of contents', () => {
     const overviewBtn = page.getByRole('button', { name: /show overview/i });
     await expect(overviewBtn).toBeVisible({ timeout: 5000 });
     await overviewBtn.click();
-    await expect(page.getByText('Pick Your Wines')).toBeVisible();
-    await expect(page.getByText('Reveal & Compare')).toBeVisible();
+    await expect(page.getByText('Invite & Prepare')).toBeVisible();
+    await expect(page.getByText('Declare the Winner')).toBeVisible();
   });
 
   test('tapping a title jumps to that step', async ({ page }) => {
@@ -237,7 +235,7 @@ test.describe('US5: Overview / table of contents', () => {
     await expect(overviewBtn).toBeVisible({ timeout: 5000 });
     await overviewBtn.click();
     const guide = page.locator('[role="dialog"][aria-label="Hosting guide"]');
-    await guide.getByText('Share the Event Link').click();
-    await expect(page.getByText(/6\s*(of|\/)\s*8/i)).toBeVisible();
+    await guide.getByText('Set Up the App').click();
+    await expect(page.getByText(/3\s*(of|\/)\s*6/i)).toBeVisible();
   });
 });

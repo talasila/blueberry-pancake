@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { guideContent } from '../../src/data/guideContent.js';
 
 describe('guideContent data integrity', () => {
-  it('host path has exactly 8 steps', () => {
-    expect(guideContent.host).toHaveLength(8);
+  it('host path has exactly 6 steps', () => {
+    expect(guideContent.host).toHaveLength(6);
   });
 
   it('guest path has exactly 4 steps', () => {

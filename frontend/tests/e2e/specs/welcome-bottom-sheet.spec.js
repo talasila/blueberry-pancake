@@ -69,7 +69,7 @@ test.describe('Welcome Bottom Sheet', () => {
 
       await expect(page.locator('[data-testid="welcome-start-info"]')).toContainText('State');
 
-      await expect(page.locator('[data-testid="welcome-open-guide"]')).toContainText('Setup guide');
+      await expect(page.locator('[data-testid="welcome-open-guide"]')).toContainText('Event guide');
 
       await expect(page.getByText(/event created.*share the pin/i)).not.toBeVisible();
     } finally {
@@ -110,7 +110,7 @@ test.describe('Welcome Bottom Sheet', () => {
     }
   });
 
-  test('"Show me the setup guide" opens admin guide', async ({ page }) => {
+  test('"Event guide" button opens event guide', async ({ page }) => {
     const eventId = await createEventViaUI(page, 'Guide Link Test');
 
     try {
@@ -120,7 +120,7 @@ test.describe('Welcome Bottom Sheet', () => {
       await page.locator('[data-testid="welcome-open-guide"]').click();
       await expect(sheet).not.toBeVisible({ timeout: 3000 });
 
-      await expect(page.locator('[role="dialog"][aria-label="Admin guide"]')).toBeVisible({
+      await expect(page.locator('[role="dialog"][aria-label="Event guide"]')).toBeVisible({
         timeout: 5000,
       });
     } finally {

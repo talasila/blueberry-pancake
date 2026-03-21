@@ -6,7 +6,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import apiClient from '@/services/apiClient';
 import ThemePicker from '@/components/ThemePicker';
-import WalkthroughDrawer from '@/components/guide/WalkthroughDrawer';
 
 /**
  * CreateEventPage Component
@@ -23,7 +22,6 @@ function CreateEventPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [nameError, setNameError] = useState('');
-  const [walkthroughOpen, setWalkthroughOpen] = useState(false);
 
   /**
    * Validate event name on blur
@@ -110,14 +108,7 @@ function CreateEventPage() {
             <CardHeader>
               <CardTitle>Create Event</CardTitle>
               <CardDescription>
-                Set up a blind tasting event in seconds.{' '}
-                <button
-                  type="button"
-                  className="inline text-primary hover:underline font-medium"
-                  onClick={() => setWalkthroughOpen(true)}
-                >
-                  How does it work?
-                </button>
+                Set up a blind tasting event in seconds. Tap the help icon above for a full walkthrough.
               </CardDescription>
             </CardHeader>
             <form onSubmit={handleSubmit}>
@@ -201,10 +192,6 @@ function CreateEventPage() {
         </div>
       </div>
 
-      <WalkthroughDrawer
-        isOpen={walkthroughOpen}
-        onClose={() => setWalkthroughOpen(false)}
-      />
     </div>
   );
 }
