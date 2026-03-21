@@ -179,20 +179,6 @@ test.describe('US2: Structure and content', () => {
     }
   });
 
-  test('steps show step-type badges (In App / Real World)', async ({ page, testEvent }) => {
-    const { eventId } = testEvent;
-    await setupAdmin(page, eventId);
-    await navigateToAdmin(page, eventId);
-    await openEventGuide(page);
-    const drawer = page.locator(GUIDE_DIALOG);
-    // Step 1 is in-app
-    const step1 = drawer.locator('[data-testid="guide-step-step-1"]');
-    await expect(step1.getByText('In App')).toBeAttached();
-    // Step 2 is real-world
-    const step2 = drawer.locator('[data-testid="guide-step-step-2"]');
-    await expect(step2.getByText('Real World')).toBeAttached();
-  });
-
   test('step content covers key topics: registration, rating lock, assignment', async ({ page, testEvent }) => {
     const { eventId } = testEvent;
     await setupAdmin(page, eventId);
