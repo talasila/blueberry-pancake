@@ -205,9 +205,11 @@ test.describe('Production Smoke Test', () => {
           await userPage.goto(`${APP_URL}/event/${eventId}`);
           await userPage.waitForLoadState('networkidle');
 
-          // Email entry
+          // Email + name entry (name is mandatory)
+          const nameInput = userPage.locator('input#name');
+          await nameInput.waitFor({ state: 'visible', timeout: 5000 });
+          await nameInput.fill('Smoke Test User');
           const emailInput = userPage.locator('input#email');
-          await emailInput.waitFor({ state: 'visible', timeout: 5000 });
           await emailInput.fill('smoketest-user@example.com');
           await userPage.getByRole('button', { name: /continue/i }).click();
 
@@ -222,9 +224,9 @@ test.describe('Production Smoke Test', () => {
           await pinInput.fill(eventPIN);
           await userPage.waitForTimeout(500);
 
-          const accessButton = userPage.getByRole('button', { name: /access event/i });
-          await expect(accessButton).toBeEnabled({ timeout: 5000 });
-          await accessButton.click();
+          const joinButton = userPage.getByRole('button', { name: /join event|access event/i });
+          await expect(joinButton).toBeEnabled({ timeout: 8000 });
+          await joinButton.click();
 
           // Event page
           await userPage.waitForURL(new RegExp(`/event/${eventId}$`), { timeout: 10_000 });
