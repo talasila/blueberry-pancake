@@ -137,9 +137,8 @@ export function calculateRatingProgression(itemRatings, totalUsers) {
 
 /**
  * Find the current user's rating for a specific item.
- *
- * @param {Array}  ratings   - Ratings for the item
- * @param {string} userEmail - Current user's email
+ * @param {Array}  ratings        - Ratings for the item
+ * @param {string} userIdentifier - Current user's identifier (email for admins, userId for guests)
  * @returns {Object|null} The matching rating object, or null
  */
 export function findUserRating(ratings, userEmail) {

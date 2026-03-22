@@ -26,16 +26,7 @@ export function useItemDetailsData({ isOpen, eventId, itemId, eventState, isAdmi
   // Get user email on mount and when drawer opens
   useEffect(() => {
     if (isOpen && eventId) {
-      let email = apiClient.getUserEmail();
-
-      // Fall back to sessionStorage (stored during email entry)
-      if (!email && eventId) {
-        const storedEmail = sessionStorage.getItem(`event:${eventId}:email`);
-        if (storedEmail) {
-          email = storedEmail;
-        }
-      }
-
+      const email = apiClient.getUserEmail();
       setUserEmail(email);
     }
   }, [isOpen, eventId]);

@@ -1,4 +1,5 @@
 import eventService from '../services/EventService.js';
+import { resolveEmailFromUserId } from '../utils/userIdUtils.js';
 
 /**
  * Middleware that verifies the authenticated user is still a member of the event
@@ -15,13 +16,8 @@ export default async function requireEventMembership(req, res, next) {
     const event = await eventService.getEvent(eventId);
 
     // For PIN-auth users with userId but no email, resolve email from users map
-    if (!email && req.user?.userId && event?.users) {
-      for (const [userEmail, data] of Object.entries(event.users)) {
-        if (data.userId === req.user.userId) {
-          email = userEmail;
-          break;
-        }
-      }
+    if (!email && req.user?.userId) {
+      email = resolveEmailFromUserId(event, req.user.userId);
     }
 
     if (!eventId || !email) {

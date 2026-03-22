@@ -171,14 +171,3 @@ function escapeCSVField(field) {
 
   return str;
 }
-
-/**
- * Check if two arrays are equal
- * @param {Array} a - First array
- * @param {Array} b - Second array
- * @returns {boolean} True if arrays are equal
- */
-function arraysEqual(a, b) {
-  if (a.length !== b.length) return false;
-  return a.every((val, i) => val === b[i]);
-}

@@ -5,26 +5,11 @@ import eventMemberService from '../services/EventMemberService.js';
 import { toCSV } from '../utils/csvParser.js';
 import requireAuth from '../middleware/requireAuth.js';
 import requireEventMembership from '../middleware/requireEventMembership.js';
-import { isValidEmail } from '../utils/emailUtils.js';
-import { validateEventId, validateNumericItemId, validateAuthentication } from '../utils/validators.js';
+import { resolveEmailFromUserId } from '../utils/userIdUtils.js';
+import { validateEventId, validateNumericItemId } from '../utils/validators.js';
 import { handleApiError, badRequestError, unauthorizedError } from '../utils/apiErrorHandler.js';
 
 const router = Router({ mergeParams: true });
-
-/**
- * Resolve the user's email from JWT — handles both OTP (email in token) and PIN (userId in token).
- * For PIN auth, scans the event users map to find the email matching the userId.
- */
-async function resolveUserEmail(req, eventId) {
-  if (req.user?.email) return req.user.email;
-  if (req.user?.userId) {
-    const event = await eventService.getEvent(eventId);
-    for (const [email, data] of Object.entries(event?.users || {})) {
-      if (data.userId === req.user.userId) return email;
-    }
-  }
-  return null;
-}
 
 /**
  * GET /api/events/:eventId/ratings
@@ -53,12 +38,7 @@ router.get('/ratings', requireAuth, async (req, res) => {
       } else if (req.user.userId) {
         // PIN auth — resolve email from userId
         const event = await eventService.getEvent(eventId);
-        for (const [email, data] of Object.entries(event.users || {})) {
-          if (data.userId === req.user.userId) {
-            userEmail = email;
-            break;
-          }
-        }
+        userEmail = resolveEmailFromUserId(event, req.user.userId);
       }
 
       if (!userEmail) {

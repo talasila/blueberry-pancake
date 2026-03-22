@@ -49,8 +49,8 @@ function UserDetailsDrawer({
 
   // Get current user ID from session
   useEffect(() => {
-    const userId = apiClient.getUserId() || apiClient.getUserEmail();
-    setCurrentUserId(userId);
+    const identifier = apiClient.getUserId() || apiClient.getUserEmail();
+    setCurrentUserId(identifier);
   }, []);
 
   // Use provided userId or fall back to current user

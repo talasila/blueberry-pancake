@@ -3,6 +3,7 @@ import dashboardService from '../services/DashboardService.js';
 import eventService from '../services/EventService.js';
 import requireAuth from '../middleware/requireAuth.js';
 import { validateEventId } from '../utils/validators.js';
+import { resolveEmailFromUserId } from '../utils/userIdUtils.js';
 import { handleApiError, badRequestError, unauthorizedError, forbiddenError } from '../utils/apiErrorHandler.js';
 
 const router = Router({ mergeParams: true });
@@ -35,9 +36,7 @@ router.get('/', requireAuth, async (req, res) => {
     // Resolve user email for admin check (supports both OTP and PIN auth)
     let userEmail = req.user?.email;
     if (!userEmail && req.user?.userId && event?.users) {
-      for (const [email, data] of Object.entries(event.users)) {
-        if (data.userId === req.user.userId) { userEmail = email; break; }
-      }
+      userEmail = resolveEmailFromUserId(event, req.user.userId);
     }
     if (!userEmail) {
       return unauthorizedError(res, 'Authentication required');

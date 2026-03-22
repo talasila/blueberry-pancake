@@ -22,6 +22,7 @@ import { isProduction } from '../utils/environment.js';
 import { validateEventId } from '../utils/validators.js';
 import { handleApiError, badRequestError, unauthorizedError, forbiddenError, formatRateLimitResponse } from '../utils/apiErrorHandler.js';
 import { isValidEmail, normalizeEmail } from '../utils/emailUtils.js';
+import { resolveEmailFromUserId } from '../utils/userIdUtils.js';
 import { verifyTurnstile } from '../middleware/turnstileProtection.js';
 
 const router = Router();
@@ -856,9 +857,7 @@ router.get('/:eventId/bookmarks', requireAuth, async (req, res) => {
     let userEmail = req.user?.email;
     if (!userEmail && req.user?.userId) {
       const evt = await eventService.getEvent(eventId);
-      for (const [email, data] of Object.entries(evt?.users || {})) {
-        if (data.userId === req.user.userId) { userEmail = email; break; }
-      }
+      userEmail = resolveEmailFromUserId(evt, req.user.userId);
     }
 
     if (!userEmail || typeof userEmail !== 'string') {
@@ -896,9 +895,7 @@ router.get('/:eventId/profile', requireAuth, async (req, res) => {
     let userEmail = req.user?.email;
     if (!userEmail && req.user?.userId) {
       const evt = await eventService.getEvent(eventId);
-      for (const [email, data] of Object.entries(evt?.users || {})) {
-        if (data.userId === req.user.userId) { userEmail = email; break; }
-      }
+      userEmail = resolveEmailFromUserId(evt, req.user.userId);
     }
 
     if (!userEmail || typeof userEmail !== 'string') {
@@ -934,9 +931,7 @@ router.put('/:eventId/profile', requireAuth, async (req, res) => {
     let userEmail = req.user?.email;
     if (!userEmail && req.user?.userId) {
       const evt = await eventService.getEvent(eventId);
-      for (const [email, data] of Object.entries(evt?.users || {})) {
-        if (data.userId === req.user.userId) { userEmail = email; break; }
-      }
+      userEmail = resolveEmailFromUserId(evt, req.user.userId);
     }
 
     if (!userEmail || typeof userEmail !== 'string') {
@@ -977,9 +972,7 @@ router.put('/:eventId/bookmarks', requireAuth, async (req, res) => {
     let userEmail = req.user?.email;
     if (!userEmail && req.user?.userId) {
       const evt = await eventService.getEvent(eventId);
-      for (const [email, data] of Object.entries(evt?.users || {})) {
-        if (data.userId === req.user.userId) { userEmail = email; break; }
-      }
+      userEmail = resolveEmailFromUserId(evt, req.user.userId);
     }
 
     if (!userEmail || typeof userEmail !== 'string') {

@@ -56,7 +56,7 @@ function ItemDetailsDrawer({ isOpen, onClose, eventId, itemId, eventState, isAdm
 
     const enriched = ratings.map(rating => {
       const userData = event?.users?.[rating.email];
-      const name = userData?.name || rating.email?.split('@')[0] || rating.email;
+      const name = userData?.name || 'Guest';
       return { ...rating, userName: name };
     });
 

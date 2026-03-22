@@ -24,3 +24,30 @@ export function generateUserId() {
 export function isValidUserId(id) {
   return typeof id === 'string' && USER_ID_PATTERN.test(id);
 }
+
+/**
+ * Find a user's email by their userId in an event's users map.
+ * @param {object} event - Event object with users map
+ * @param {string} userId - The opaque userId to look up
+ * @returns {string|null} The user's email, or null if not found
+ */
+export function resolveEmailFromUserId(event, userId) {
+  if (!userId || !event?.users) return null;
+  for (const [email, data] of Object.entries(event.users)) {
+    if (data.userId === userId) return email;
+  }
+  return null;
+}
+
+/**
+ * Resolve the requesting user's email from a JWT-decoded req.user object.
+ * For OTP users, email is directly available. For PIN users, scans the event's users map.
+ * @param {object} reqUser - req.user from JWT middleware (has email or userId)
+ * @param {object} event - Event object with users map
+ * @returns {string|null} The user's email, or null if unresolvable
+ */
+export function resolveRequestEmail(reqUser, event) {
+  if (reqUser?.email) return reqUser.email;
+  if (reqUser?.resolvedEmail) return reqUser.resolvedEmail;
+  return resolveEmailFromUserId(event, reqUser?.userId);
+}

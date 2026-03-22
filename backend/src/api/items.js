@@ -4,6 +4,7 @@ import eventService from '../services/EventService.js';
 import loggerService from '../logging/Logger.js';
 import requireAuth from '../middleware/requireAuth.js';
 import requireEventMembership from '../middleware/requireEventMembership.js';
+import { resolveRequestEmail } from '../utils/userIdUtils.js';
 import { validateEventId, validateItemId, validateNumericItemId, validateAuthentication } from '../utils/validators.js';
 import { handleApiError, badRequestError, unauthorizedError } from '../utils/apiErrorHandler.js';
 
@@ -13,22 +14,6 @@ const router = Router({ mergeParams: true });
 router.use(requireAuth);
 
 /**
- * Resolve user email from JWT for PIN-auth users.
- * For OTP users, email is in the token. For PIN users, scan the event's users map.
- */
-async function resolveEmail(req, eventId) {
-  if (req.user?.email) return req.user.email;
-  if (req.user?.resolvedEmail) return req.user.resolvedEmail;
-  if (req.user?.userId) {
-    const event = await eventService.getEvent(eventId);
-    for (const [email, data] of Object.entries(event?.users || {})) {
-      if (data.userId === req.user.userId) return email;
-    }
-  }
-  return null;
-}
-
-/**
  * POST /api/events/:eventId/items
  * Register a new item for an event
  * Only allowed when event is in "created" or "started" state
@@ -36,7 +21,7 @@ async function resolveEmail(req, eventId) {
 router.post('/', requireEventMembership, async (req, res) => {
   try {
     const { eventId } = req.params;
-    const userEmail = req.user?.email || req.user?.resolvedEmail || await resolveEmail(req, eventId);
+    const userEmail = resolveRequestEmail(req.user, req.event);
 
     // Debug logging
     loggerService.debug(`POST /items - eventId: ${eventId}, type: ${typeof eventId}, userEmail: ${userEmail || 'none'}`).catch(() => {});
@@ -74,14 +59,7 @@ router.post('/', requireEventMembership, async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { eventId } = req.params;
-    const userEmail = req.user?.email || req.user?.resolvedEmail || await resolveEmail(req, eventId);
     const ownItemsOnly = req.query.ownItemsOnly === 'true';
-
-    // Validate authentication
-    const authValidation = validateAuthentication(userEmail);
-    if (!authValidation.valid) {
-      return unauthorizedError(res, authValidation.error);
-    }
 
     // Validate event ID format
     const eventIdValidation = validateEventId(eventId);
@@ -91,6 +69,14 @@ router.get('/', async (req, res) => {
 
     // Get event to check if user is administrator
     const event = await eventService.getEvent(eventId);
+    const userEmail = resolveRequestEmail(req.user, event);
+
+    // Validate authentication
+    const authValidation = validateAuthentication(userEmail);
+    if (!authValidation.valid) {
+      return unauthorizedError(res, authValidation.error);
+    }
+
     const isAdministrator = eventService.isAdministrator(event, userEmail);
 
     // If ownItemsOnly is true, force filtering by user email even for admins
@@ -112,7 +98,8 @@ router.get('/', async (req, res) => {
 router.patch('/:itemId/assign-item-id', async (req, res) => {
   try {
     const { eventId, itemId } = req.params;
-    const userEmail = req.user?.email || req.user?.resolvedEmail || await resolveEmail(req, eventId);
+    const event = await eventService.getEvent(eventId);
+    const userEmail = resolveRequestEmail(req.user, event);
 
     // Validate authentication
     const authValidation = validateAuthentication(userEmail);
@@ -156,13 +143,6 @@ router.patch('/:itemId/assign-item-id', async (req, res) => {
 router.get('/by-item-id/:itemId', async (req, res) => {
   try {
     const { eventId, itemId } = req.params;
-    const userEmail = req.user?.email || req.user?.resolvedEmail || await resolveEmail(req, eventId);
-
-    // Validate authentication
-    const authValidation = validateAuthentication(userEmail);
-    if (!authValidation.valid) {
-      return unauthorizedError(res, authValidation.error);
-    }
 
     // Validate event ID format
     const eventIdValidation = validateEventId(eventId);
@@ -178,6 +158,14 @@ router.get('/by-item-id/:itemId', async (req, res) => {
 
     // Check if user is an admin (to allow viewing item details at any event state)
     const event = await eventService.getEvent(eventId);
+    const userEmail = resolveRequestEmail(req.user, event);
+
+    // Validate authentication
+    const authValidation = validateAuthentication(userEmail);
+    if (!authValidation.valid) {
+      return unauthorizedError(res, authValidation.error);
+    }
+
     const isAdmin = eventService.isAdministrator(event, userEmail);
 
     // Get item by assigned itemId (admins can view at any time)
@@ -197,7 +185,7 @@ router.get('/by-item-id/:itemId', async (req, res) => {
 router.patch('/:itemId', requireEventMembership, async (req, res) => {
   try {
     const { eventId, itemId } = req.params;
-    const userEmail = req.user?.email || req.user?.resolvedEmail || await resolveEmail(req, eventId);
+    const userEmail = resolveRequestEmail(req.user, req.event);
 
     // Validate authentication
     const authValidation = validateAuthentication(userEmail);
@@ -236,7 +224,7 @@ router.patch('/:itemId', requireEventMembership, async (req, res) => {
 router.delete('/:itemId', requireEventMembership, async (req, res) => {
   try {
     const { eventId, itemId } = req.params;
-    const userEmail = req.user?.email || req.user?.resolvedEmail || await resolveEmail(req, eventId);
+    const userEmail = resolveRequestEmail(req.user, req.event);
 
     // Validate authentication
     const authValidation = validateAuthentication(userEmail);

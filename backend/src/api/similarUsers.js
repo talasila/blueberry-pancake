@@ -5,6 +5,7 @@ import eventService from '../services/EventService.js';
 import eventMemberService from '../services/EventMemberService.js';
 import requireAuth from '../middleware/requireAuth.js';
 import { isValidEmail } from '../utils/emailUtils.js';
+import { resolveEmailFromUserId } from '../utils/userIdUtils.js';
 import { validateEventId, validateAuthentication } from '../utils/validators.js';
 import { handleApiError, badRequestError, unauthorizedError, notFoundError } from '../utils/apiErrorHandler.js';
 
@@ -45,13 +46,7 @@ router.get('/similar-users', requireAuth, async (req, res) => {
     if (req.user.email) {
       userEmail = req.user.email;
     } else if (req.user.userId) {
-      // PIN auth — find email from userId in event users map
-      for (const [email, data] of Object.entries(event.users || {})) {
-        if (data.userId === req.user.userId) {
-          userEmail = email;
-          break;
-        }
-      }
+      userEmail = resolveEmailFromUserId(event, req.user.userId);
     }
 
     const authValidation = validateAuthentication(userEmail);
