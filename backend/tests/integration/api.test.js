@@ -111,7 +111,7 @@ describe('POST /api/events/:eventId/verify-pin (name parameter)', () => {
   });
 
   it('verify-pin with name stores name for new user', async () => {
-    eventMemberService.registerUser.mockResolvedValue({ registered: true, alreadyExists: false });
+    eventMemberService.registerUser.mockResolvedValue({ registered: true, alreadyExists: false, userId: 'u_testABCDEF', name: 'Alice' });
 
     const response = await request
       .post(`/api/events/${EVENT_ID}/verify-pin`)
@@ -121,7 +121,9 @@ describe('POST /api/events/:eventId/verify-pin (name parameter)', () => {
     expect(response.body).toHaveProperty('message', 'PIN verified successfully');
     expect(response.body).toHaveProperty('eventId', EVENT_ID);
     expect(response.body).toHaveProperty('user');
-    expect(response.body.user).toHaveProperty('email', 'guest@example.com');
+    expect(response.body.user).toHaveProperty('userId', 'u_testABCDEF');
+    expect(response.body.user).toHaveProperty('name', 'Alice');
+    expect(response.body.user).not.toHaveProperty('email');
 
     // Name should be passed to registerUser
     expect(eventMemberService.registerUser).toHaveBeenCalledWith(
@@ -131,25 +133,14 @@ describe('POST /api/events/:eventId/verify-pin (name parameter)', () => {
     );
   });
 
-  it('verify-pin without name still works (backward compatibility)', async () => {
-    eventMemberService.registerUser.mockResolvedValue({ registered: true, alreadyExists: false });
-
+  it('verify-pin without name returns 400 (name is mandatory)', async () => {
     const response = await request
       .post(`/api/events/${EVENT_ID}/verify-pin`)
       .send({ pin: '123456', email: 'guest@example.com' })
-      .expect(200);
+      .expect(400);
 
-    expect(response.body).toHaveProperty('message', 'PIN verified successfully');
-    expect(response.body).toHaveProperty('eventId', EVENT_ID);
-    expect(response.body).toHaveProperty('user');
-    expect(response.body.user).toHaveProperty('email', 'guest@example.com');
-
-    // registerUser should be called with undefined name
-    expect(eventMemberService.registerUser).toHaveBeenCalledWith(
-      EVENT_ID,
-      'guest@example.com',
-      undefined
-    );
+    expect(response.body).toHaveProperty('error', 'Display name is required');
+    expect(eventMemberService.registerUser).not.toHaveBeenCalled();
   });
 });
 

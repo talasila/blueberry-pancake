@@ -24,6 +24,24 @@ export const ratingService = {
   },
 
   /**
+   * Get only the current user's ratings for an event (via ?mine=true)
+   * Response has no email or userId columns — data is implicitly "yours"
+   * @param {string} eventId - Event identifier
+   * @returns {Promise<Array<object>>} Array of rating objects
+   */
+  async getMyRatings(eventId) {
+    const response = await apiClient.request(`/events/${eventId}/ratings?mine=true`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'text/csv'
+      }
+    });
+
+    const csvText = await response.text();
+    return this.parseRatingsCSV(csvText);
+  },
+
+  /**
    * Parse ratings CSV into array of objects
    * Handles basic RFC 4180 escaping (quoted fields, doubled quotes)
    * @param {string} csvText - CSV text
@@ -35,26 +53,43 @@ export const ratingService = {
       return [];
     }
 
-    // Skip header
+    // Parse header to determine column layout (supports email, userId, or no-identity formats)
+    const headerValues = this.parseCSVLine(lines[0].trim());
+    const colMap = {};
+    headerValues.forEach((col, idx) => { colMap[col.trim().toLowerCase()] = idx; });
+
     const ratings = [];
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
       if (!line) continue;
 
       const values = this.parseCSVLine(line);
-      if (values.length >= 5) {
-        const itemId = parseInt(values[2], 10);
-        const rating = parseInt(values[3], 10);
-        
-        if (!isNaN(itemId) && !isNaN(rating)) {
-          ratings.push({
-            email: values[0] || '',
-            timestamp: values[1] || '',
-            itemId,
-            rating,
-            note: values[4] || ''
-          });
-        }
+
+      // Determine identity column (email or userId — may be absent for ?mine=true)
+      const identity = {};
+      if (colMap['email'] !== undefined) {
+        identity.email = values[colMap['email']] || '';
+      }
+      if (colMap['userid'] !== undefined) {
+        identity.userId = values[colMap['userid']] || '';
+      }
+
+      const timestampIdx = colMap['timestamp'] ?? 1;
+      const itemIdIdx = colMap['itemid'] ?? 2;
+      const ratingIdx = colMap['rating'] ?? 3;
+      const noteIdx = colMap['note'] ?? 4;
+
+      const itemId = parseInt(values[itemIdIdx], 10);
+      const rating = parseInt(values[ratingIdx], 10);
+
+      if (!isNaN(itemId) && !isNaN(rating)) {
+        ratings.push({
+          ...identity,
+          timestamp: values[timestampIdx] || '',
+          itemId,
+          rating,
+          note: values[noteIdx] || ''
+        });
       }
     }
 

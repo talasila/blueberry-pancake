@@ -138,7 +138,8 @@ test.describe('Tasting Personality Card', () => {
     await expect(similarBtn).toBeVisible({ timeout: 10000 });
     await similarBtn.click();
 
-    const otherUserBtn = page.getByRole('button', { name: new RegExp(otherEmail, 'i') });
+    const otherName = otherEmail.split('@')[0];
+    const otherUserBtn = page.getByRole('button', { name: new RegExp(otherName, 'i') });
     await expect(otherUserBtn).toBeVisible({ timeout: 10000 });
 
     await expect(otherUserBtn.getByText(/The \w+/)).toBeVisible({ timeout: 5000 });
@@ -209,7 +210,7 @@ test.describe('Tasting Personality Card', () => {
     // Verify the user card shows the username and a personality
     const userCard = page.locator('button').filter({ hasText: new RegExp(userEmail.split('@')[0], 'i') });
     await expect(userCard.first()).toBeVisible({ timeout: 10000 });
-    await expect(userCard.first()).toContainText(/·/, { timeout: 5000 });
+    await expect(userCard.first()).toContainText(/The \w+/, { timeout: 5000 });
   });
 
   // ───────────────────────────────────────────
@@ -238,7 +239,8 @@ test.describe('Tasting Personality Card', () => {
     await expect(similarBtn).toBeVisible({ timeout: 10000 });
     await similarBtn.click();
 
-    const otherUserBtn = page.getByRole('button', { name: new RegExp(otherEmail, 'i') });
+    const otherName = otherEmail.split('@')[0];
+    const otherUserBtn = page.getByRole('button', { name: new RegExp(otherName, 'i') });
     await expect(otherUserBtn).toBeVisible({ timeout: 10000 });
 
     // Should show "X common" but no personality name (no "The ...")

@@ -5,6 +5,7 @@ import { calculateWeightedAverage } from '../utils/bayesianAverage.js';
 import { detectPersonality } from './PersonalityService.js';
 import loggerService from '../logging/Logger.js';
 import { normalizeEmail } from '../utils/emailUtils.js';
+import { generateUserId } from '../utils/userIdUtils.js';
 
 /**
  * DashboardService
@@ -55,7 +56,7 @@ class DashboardService {
       );
 
       // Calculate user summaries
-      const userSummaries = this.calculateUserSummaries(
+      const userSummaries = await this.calculateUserSummaries(
         event,
         ratings,
         statistics.totalItems
@@ -257,9 +258,10 @@ class DashboardService {
    * @param {number} totalItems - Total number of items (excluding excluded items)
    * @returns {Array} Array of user rating summary objects
    */
-  calculateUserSummaries(event, ratings, totalItems) {
+  async calculateUserSummaries(event, ratings, totalItems) {
     const users = event.users || {};
     const summaries = [];
+    let needsBackfillPersist = false;
 
     // Group ratings by user email
     const ratingsByUser = {};
@@ -366,9 +368,26 @@ class DashboardService {
         });
       }
 
+      // Resolve userId (lazy backfill if missing)
+      let userId = userData?.userId;
+      if (!userId) {
+        userId = generateUserId();
+        if (event.users[email]) {
+          event.users[email] = { ...event.users[email], userId };
+          needsBackfillPersist = true;
+        }
+      }
+
+      // Backfill name from email prefix if missing
+      const displayName = userName || email.split('@')[0];
+      if (!userName && event.users[email]) {
+        event.users[email] = { ...event.users[email], name: displayName };
+        needsBackfillPersist = true;
+      }
+
       summaries.push({
-        email,
-        name: userName,
+        userId,
+        name: displayName,
         numberOfBottlesRated,
         ratingProgression,
         averageRating,
@@ -380,8 +399,17 @@ class DashboardService {
       });
     }
 
-    // Sort by email for consistent ordering
-    summaries.sort((a, b) => a.email.localeCompare(b.email));
+    // Persist any lazy-backfilled userIds/names (event object was mutated in-place)
+    if (needsBackfillPersist) {
+      try {
+        await eventService.updateEvent(event.eventId, event);
+      } catch (backfillError) {
+        loggerService.warn(`Dashboard userId backfill save failed: ${backfillError.message}`);
+      }
+    }
+
+    // Sort by name for consistent ordering
+    summaries.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     return summaries;
   }

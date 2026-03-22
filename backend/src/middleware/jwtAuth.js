@@ -72,10 +72,15 @@ export function jwtAuth(req, res, next) {
       return res.status(500).json({ error: 'JWT secret must be changed from default value in production' });
     }
     const decoded = jwt.verify(token, secret, { algorithms: ['HS256'] });
-    
+
     // Attach decoded token to request
     req.user = decoded;
-    
+
+    // Detect legacy PIN tokens (have email but no userId)
+    if (decoded.authMethod === 'pin' && decoded.email && !decoded.userId) {
+      req.user.legacyPinToken = true;
+    }
+
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
@@ -110,12 +115,25 @@ export function generateToken(payload) {
     throw new Error('JWT secret must be changed from default value in production');
   }
 
-  // Ensure events is an array (default to empty if not provided)
-  const tokenPayload = {
-    email: payload.email,
-    events: Array.isArray(payload.events) ? payload.events : [],
-    ...(payload.authMethod && { authMethod: payload.authMethod })
-  };
+  // Role-dependent payload: PIN guests get userId (no email), OTP admins get email
+  const events = Array.isArray(payload.events) ? payload.events : [];
+  let tokenPayload;
+
+  if (payload.authMethod === 'pin' && payload.userId) {
+    // Guest (PIN): opaque userId, no email
+    tokenPayload = {
+      userId: payload.userId,
+      events,
+      authMethod: 'pin'
+    };
+  } else {
+    // Admin (OTP) or legacy: email-based
+    tokenPayload = {
+      email: payload.email,
+      events,
+      ...(payload.authMethod && { authMethod: payload.authMethod })
+    };
+  }
 
   // Use secret as-is (in development, default is allowed for testing)
   return jwt.sign(tokenPayload, secret, { expiresIn: expiration });
@@ -146,9 +164,10 @@ export function addEventToToken(token, eventId) {
     events.push(eventId);
   }
   
-  // Generate new token with updated events (preserve authMethod)
+  // Generate new token with updated events (preserve identity and authMethod)
   return generateToken({
-    email: decoded.email,
+    ...(decoded.email && { email: decoded.email }),
+    ...(decoded.userId && { userId: decoded.userId }),
     events,
     ...(decoded.authMethod && { authMethod: decoded.authMethod })
   });

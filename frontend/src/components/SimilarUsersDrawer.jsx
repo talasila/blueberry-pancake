@@ -167,7 +167,7 @@ function SimilarUsersDrawer({
 
             return (
               <ListCard
-                key={user.email || index}
+                key={user.userId || index}
                 as="button"
                 handle={index + 1}
                 onClick={() => handleUserClick(user)}
@@ -175,7 +175,7 @@ function SimilarUsersDrawer({
               >
                 <div className="flex items-center gap-2 px-3 py-1.5">
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium truncate block leading-tight">{user.name || user.email}</span>
+                    <span className="text-sm font-medium truncate block leading-tight">{user.name || 'Guest'}</span>
                     <span className="text-[10px] text-muted-foreground leading-tight">
                       {personalityEnabled && user.personality ? `${getPersonalityName(user.personality)} · ` : ''}{commonItemsCount} common
                     </span>
@@ -301,7 +301,7 @@ function SimilarUsersDrawer({
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-2 border-b flex-shrink-0 rounded-t-lg" style={{ backgroundColor: 'var(--event-header-bg)' }}>
               <h2 id="details-drawer-title" className="text-base font-semibold">
-                {(detailsUserRef.current?.name || detailsUserRef.current?.email) ?? ''}
+                {detailsUserRef.current?.name || 'Guest'}
               </h2>
               <Button
                 variant="ghost"
@@ -322,7 +322,7 @@ function SimilarUsersDrawer({
               {detailsUserRef.current?.commonItems && detailsUserRef.current.commonItems.length > 0 ? (
                 <div className="space-y-5">
                   <p className="text-xs text-muted-foreground">
-                    Each row is a {singular.toLowerCase()} you both rated. The large dot is yours, the small dot is {detailsUserRef.current.name || detailsUserRef.current.email}&rsquo;s. A bullseye means you agreed. The longer and redder the line between dots, the more you disagreed.
+                    Each row is a {singular.toLowerCase()} you both rated. The large dot is yours, the small dot is {detailsUserRef.current.name || 'Guest'}&rsquo;s. A bullseye means you agreed. The longer and redder the line between dots, the more you disagreed.
                   </p>
                   {/* Scale legend — mirrors ListCard layout: w-8 handle + px-4 inner padding */}
                   {ratingConfig.ratings && ratingConfig.ratings.length > 0 && (

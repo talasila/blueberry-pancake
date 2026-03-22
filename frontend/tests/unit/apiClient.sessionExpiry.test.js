@@ -78,9 +78,9 @@ describe('apiClient — session-expired dispatch on 401', () => {
     });
   });
 
-  it('should NOT dispatch session-expired when refresh succeeds', async () => {
+  it('should NOT dispatch session-expired when refresh succeeds (OTP user)', async () => {
     const client = new ApiClient();
-    client.setUserSession({ email: 'user@test.com', exp: 9999999999, authMethod: 'pin' });
+    client.setUserSession({ email: 'user@test.com', exp: 9999999999, authMethod: 'otp' });
 
     const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
 

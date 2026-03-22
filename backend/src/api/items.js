@@ -13,6 +13,22 @@ const router = Router({ mergeParams: true });
 router.use(requireAuth);
 
 /**
+ * Resolve user email from JWT for PIN-auth users.
+ * For OTP users, email is in the token. For PIN users, scan the event's users map.
+ */
+async function resolveEmail(req, eventId) {
+  if (req.user?.email) return req.user.email;
+  if (req.user?.resolvedEmail) return req.user.resolvedEmail;
+  if (req.user?.userId) {
+    const event = await eventService.getEvent(eventId);
+    for (const [email, data] of Object.entries(event?.users || {})) {
+      if (data.userId === req.user.userId) return email;
+    }
+  }
+  return null;
+}
+
+/**
  * POST /api/events/:eventId/items
  * Register a new item for an event
  * Only allowed when event is in "created" or "started" state
@@ -20,7 +36,7 @@ router.use(requireAuth);
 router.post('/', requireEventMembership, async (req, res) => {
   try {
     const { eventId } = req.params;
-    const userEmail = req.user?.email;
+    const userEmail = req.user?.email || req.user?.resolvedEmail || await resolveEmail(req, eventId);
 
     // Debug logging
     loggerService.debug(`POST /items - eventId: ${eventId}, type: ${typeof eventId}, userEmail: ${userEmail || 'none'}`).catch(() => {});
@@ -58,7 +74,7 @@ router.post('/', requireEventMembership, async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const { eventId } = req.params;
-    const userEmail = req.user?.email;
+    const userEmail = req.user?.email || req.user?.resolvedEmail || await resolveEmail(req, eventId);
     const ownItemsOnly = req.query.ownItemsOnly === 'true';
 
     // Validate authentication
@@ -96,7 +112,7 @@ router.get('/', async (req, res) => {
 router.patch('/:itemId/assign-item-id', async (req, res) => {
   try {
     const { eventId, itemId } = req.params;
-    const userEmail = req.user?.email;
+    const userEmail = req.user?.email || req.user?.resolvedEmail || await resolveEmail(req, eventId);
 
     // Validate authentication
     const authValidation = validateAuthentication(userEmail);
@@ -140,7 +156,7 @@ router.patch('/:itemId/assign-item-id', async (req, res) => {
 router.get('/by-item-id/:itemId', async (req, res) => {
   try {
     const { eventId, itemId } = req.params;
-    const userEmail = req.user?.email;
+    const userEmail = req.user?.email || req.user?.resolvedEmail || await resolveEmail(req, eventId);
 
     // Validate authentication
     const authValidation = validateAuthentication(userEmail);
@@ -181,7 +197,7 @@ router.get('/by-item-id/:itemId', async (req, res) => {
 router.patch('/:itemId', requireEventMembership, async (req, res) => {
   try {
     const { eventId, itemId } = req.params;
-    const userEmail = req.user?.email;
+    const userEmail = req.user?.email || req.user?.resolvedEmail || await resolveEmail(req, eventId);
 
     // Validate authentication
     const authValidation = validateAuthentication(userEmail);
@@ -220,7 +236,7 @@ router.patch('/:itemId', requireEventMembership, async (req, res) => {
 router.delete('/:itemId', requireEventMembership, async (req, res) => {
   try {
     const { eventId, itemId } = req.params;
-    const userEmail = req.user?.email;
+    const userEmail = req.user?.email || req.user?.resolvedEmail || await resolveEmail(req, eventId);
 
     // Validate authentication
     const authValidation = validateAuthentication(userEmail);

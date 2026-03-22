@@ -2,6 +2,7 @@ import { Router } from 'express';
 import similarityService from '../services/SimilarityService.js';
 import ratingService from '../services/RatingService.js';
 import eventService from '../services/EventService.js';
+import eventMemberService from '../services/EventMemberService.js';
 import requireAuth from '../middleware/requireAuth.js';
 import { isValidEmail } from '../utils/emailUtils.js';
 import { validateEventId, validateAuthentication } from '../utils/validators.js';
@@ -39,8 +40,20 @@ router.get('/similar-users', requireAuth, async (req, res) => {
       return badRequestError(res, `Similar users feature is only available when event is started, paused, or completed. Current state: ${event.state}`);
     }
 
-    // Get user email from JWT token
-    const userEmail = req.user?.email;
+    // Resolve the requesting user's email from JWT
+    let userEmail;
+    if (req.user.email) {
+      userEmail = req.user.email;
+    } else if (req.user.userId) {
+      // PIN auth — find email from userId in event users map
+      for (const [email, data] of Object.entries(event.users || {})) {
+        if (data.userId === req.user.userId) {
+          userEmail = email;
+          break;
+        }
+      }
+    }
+
     const authValidation = validateAuthentication(userEmail);
     if (!authValidation.valid) {
       return unauthorizedError(res, 'Email is required for similar users lookup');
@@ -71,15 +84,36 @@ router.get('/similar-users', requireAuth, async (req, res) => {
 
     const similarUsers = await similarityService.findSimilarUsers(eventId, userEmail);
 
-    // Add user names to response (show name if available, otherwise email per clarification)
-    const similarUsersWithNames = similarUsers.map(user => ({
-      ...user,
-      name: userNames[user.email.toLowerCase()] || null
+    // Add user names and resolve userId for each similar user
+    const sanitizedUsers = await Promise.all(similarUsers.map(async (user) => {
+      const normalizedEmail = user.email.toLowerCase();
+      let userId = event.users?.[normalizedEmail]?.userId;
+      if (!userId) {
+        const result = await eventMemberService.ensureUserId(event, user.email);
+        userId = result?.userId;
+      }
+      const { email: _email, ...rest } = user;
+      return {
+        ...rest,
+        userId,
+        name: userNames[normalizedEmail] || null
+      };
     }));
 
+    // Resolve requesting user's userId
+    let currentUserId = req.user.userId;
+    if (!currentUserId) {
+      const normalizedEmail = userEmail.toLowerCase();
+      currentUserId = event.users?.[normalizedEmail]?.userId;
+      if (!currentUserId) {
+        const result = await eventMemberService.ensureUserId(event, userEmail);
+        currentUserId = result?.userId;
+      }
+    }
+
     res.json({
-      similarUsers: similarUsersWithNames,
-      currentUserEmail: userEmail,
+      similarUsers: sanitizedUsers,
+      currentUserId,
       eventId
     });
   } catch (error) {

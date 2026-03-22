@@ -14,6 +14,7 @@ import configLoader from '../config/configLoader.js';
 import dataRepository from '../data/DynamoDBRepository.js';
 import pinService from '../services/PINService.js';
 import { isProduction } from '../utils/environment.js';
+import { generateUserId } from '../utils/userIdUtils.js';
 
 /**
  * Reset the test event counter (kept for backward compatibility, but no-op now)
@@ -255,8 +256,15 @@ export async function addAdminAndGenerateToken(req, res) {
         }
         if (!event.users[email]) {
           event.users[email] = {
-            registeredAt: new Date().toISOString()
+            registeredAt: new Date().toISOString(),
+            userId: generateUserId(),
+            name: email.split('@')[0]
           };
+        } else if (!event.users[email].userId) {
+          event.users[email].userId = generateUserId();
+          if (!event.users[email].name) {
+            event.users[email].name = email.split('@')[0];
+          }
         }
       }
       

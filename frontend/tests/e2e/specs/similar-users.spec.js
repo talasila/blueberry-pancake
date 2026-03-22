@@ -148,7 +148,7 @@ test.describe('Similar Users Discovery', () => {
     
     // Should show similar user in the list — scope to drawer
     const drawer = page.locator('[role="dialog"]');
-    const similarUserEntry = drawer.getByText(similarUserEmail);
+    const similarUserEntry = drawer.getByText(similarUserEmail.split('@')[0]);
     await expect(similarUserEntry).toBeVisible({ timeout: 10000 });
   });
 
@@ -191,23 +191,25 @@ test.describe('Similar Users Discovery', () => {
     await similarButton.click();
     
     // Very similar user should appear (may be first due to higher similarity)
-    const verySimilarEntry = page.getByText(verySimilarEmail);
+    const verySimilarName = verySimilarEmail.split('@')[0];
+    const lessSimilarName = lessSimilarEmail.split('@')[0];
+    const verySimilarEntry = page.getByText(verySimilarName);
     await expect(verySimilarEntry).toBeVisible({ timeout: 10000 });
 
     const drawer = page.locator('[role="dialog"]');
     const userEntries = drawer.locator('[data-testid="similar-user-entry"]')
-      .or(drawer.locator('button').filter({ hasText: /@example\.com/ }));
+      .or(drawer.locator('button').filter({ hasText: /similar|verysimilar|lesssimilar/ }));
     await expect(async () => {
       const allTexts = await userEntries.allTextContents();
-      const veryIdx = allTexts.findIndex(t => t.includes(verySimilarEmail));
-      const lessIdx = allTexts.findIndex(t => t.includes(lessSimilarEmail));
+      const veryIdx = allTexts.findIndex(t => t.includes(verySimilarName));
+      const lessIdx = allTexts.findIndex(t => t.includes(lessSimilarName));
       expect(veryIdx).not.toBe(-1);
       expect(lessIdx).not.toBe(-1);
       expect(veryIdx).toBeLessThan(lessIdx);
     }).toPass({ timeout: 10000 });
   });
 
-  test('shows user email in similar users list', async ({ page, testEvent }) => {
+  test('shows user display name in similar users list', async ({ page, testEvent }) => {
     const { eventId, pin } = testEvent;
     const adminEmail = 'admin@example.com';
     const adminToken = await addAdminToEvent(eventId, adminEmail);
@@ -222,23 +224,23 @@ test.describe('Similar Users Discovery', () => {
     await submitRating(eventId, currentUserToken, 2, 4);
     await submitRating(eventId, currentUserToken, 3, 4);
     
-    // Create similar user (email should be displayed)
+    // Create similar user (display name should be shown)
     const otherUserEmail = 'otheruser@example.com';
     const otherUserToken = await getUserToken(eventId, otherUserEmail, pin);
     await submitRating(eventId, otherUserToken, 1, 4);
     await submitRating(eventId, otherUserToken, 2, 4);
     await submitRating(eventId, otherUserToken, 3, 4);
-    
+
     await loginAsUserToEvent(page, eventId, currentUserEmail, pin);
-    
+
     // Click Find Similar Tastes
     const similarButton = page.getByRole('button', { name: /similar tastes/i });
     await similarButton.click();
-    
-    // Should display the other user's email — scope to drawer
+
+    // Should display the other user's display name — scope to drawer
     const drawer = page.locator('[role="dialog"]');
-    const userEmailDisplay = drawer.getByText(otherUserEmail);
-    await expect(userEmailDisplay).toBeVisible({ timeout: 10000 });
+    const userNameDisplay = drawer.getByText(otherUserEmail.split('@')[0]);
+    await expect(userNameDisplay).toBeVisible({ timeout: 10000 });
   });
 
   // ===================================
@@ -362,15 +364,16 @@ test.describe('Similar Users Discovery', () => {
     await similarButton.click();
     
     // Wait for drawer to load and show the similar user - use button role for specificity
-    const similarUserButton = page.getByRole('button', { name: new RegExp(similarUserEmail, 'i') });
+    const similarUserName = similarUserEmail.split('@')[0];
+    const similarUserButton = page.getByRole('button', { name: new RegExp(similarUserName, 'i') });
     await expect(similarUserButton).toBeVisible({ timeout: 10000 });
-    
+
     // Click on the similar user to open detail drawer
     await similarUserButton.click();
-    
+
     // Verify detail drawer opens with appropriate sections
-    // Check for user identification (heading with email)
-    const detailHeading = page.getByRole('heading', { name: similarUserEmail });
+    // Check for user identification (heading with display name)
+    const detailHeading = page.getByRole('heading', { name: similarUserName });
     await expect(detailHeading).toBeVisible({ timeout: 5000 });
     
     // Check for the per-item comparison help text

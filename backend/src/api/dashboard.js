@@ -32,7 +32,13 @@ router.get('/', requireAuth, async (req, res) => {
       return res.status(404).json({ error: 'Event not found' });
     }
 
-    const userEmail = req.user?.email;
+    // Resolve user email for admin check (supports both OTP and PIN auth)
+    let userEmail = req.user?.email;
+    if (!userEmail && req.user?.userId && event?.users) {
+      for (const [email, data] of Object.entries(event.users)) {
+        if (data.userId === req.user.userId) { userEmail = email; break; }
+      }
+    }
     if (!userEmail) {
       return unauthorizedError(res, 'Authentication required');
     }

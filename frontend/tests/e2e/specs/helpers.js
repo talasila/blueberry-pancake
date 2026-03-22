@@ -118,10 +118,11 @@ function extractJWTFromCookie(response) {
  * Extracts the token from the response's Set-Cookie header.
  */
 export async function getUserToken(eventId, email, pin) {
+  const name = email.split('@')[0] || 'Test User';
   const response = await fetch(`${API_URL}/api/events/${eventId}/verify-pin`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ pin, email }),
+    body: JSON.stringify({ pin, email, name }),
     signal: AbortSignal.timeout(10000),
   });
   if (!response.ok) {

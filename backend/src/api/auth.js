@@ -219,13 +219,26 @@ router.post('/otp/verify', async (req, res) => {
     let adminEvents = [];
     try {
       adminEvents = await eventMemberService.getEventsByAdministrator(normalizedEmail);
-      loggerService.info(`User ${normalizedEmail} has administrator access to ${adminEvents.length} event(s)`).catch(() => {});
+      loggerService.info(`Admin has access to ${adminEvents.length} event(s)`).catch(() => {});
+
+      // Ensure admin has a userId in each event's users map (lazy backfill)
+      for (const adminEventId of adminEvents) {
+        try {
+          const evt = await eventService.getEvent(adminEventId);
+          if (evt?.users?.[normalizedEmail] && !evt.users[normalizedEmail].userId) {
+            await eventMemberService.ensureUserId(evt, normalizedEmail);
+          }
+        } catch (backfillError) {
+          // Non-critical — userId will be backfilled on next access
+          loggerService.debug(`userId backfill skipped for event ${adminEventId}: ${backfillError.message}`);
+        }
+      }
     } catch (error) {
-      loggerService.error(`Failed to get events for administrator ${normalizedEmail}: ${error.message}`).catch(() => {});
+      loggerService.error(`Failed to get events for administrator: ${error.message}`).catch(() => {});
       // Continue with empty events array - user can still authenticate
     }
 
-    // Generate JWT token with email and events in payload (FR-017)
+    // Generate JWT token with email and events in payload
     let token;
     try {
       token = generateToken({ 

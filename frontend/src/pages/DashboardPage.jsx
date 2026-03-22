@@ -36,7 +36,7 @@ function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [openItemDetailsItemId, setOpenItemDetailsItemId] = useState(null);
-  const [openUserDetailsEmail, setOpenUserDetailsEmail] = useState(null);
+  const [openUserDetailsUserId, setOpenUserDetailsUserId] = useState(null);
 
   const loadDashboardData = useCallback(async (showLoading = true) => {
     if (!eventId) {
@@ -78,7 +78,7 @@ function DashboardPage() {
   useEffect(() => {
     const handlePopState = () => {
       setOpenItemDetailsItemId(null);
-      setOpenUserDetailsEmail(null);
+      setOpenUserDetailsUserId(null);
     };
     
     window.addEventListener('popstate', handlePopState);
@@ -317,10 +317,10 @@ function DashboardPage() {
             userSummaries={dashboardData?.userSummaries || []}
             ratingConfiguration={dashboardData?.ratingConfiguration?.ratings || []}
             personalityEnabled={dashboardData?.ratingConfiguration?.personalityEnabled !== false}
-            onRowClick={(userEmail) => {
-              setOpenUserDetailsEmail(userEmail);
+            onRowClick={(userId) => {
+              setOpenUserDetailsUserId(userId);
               // Add to history for browser back navigation
-              history.pushState({ drawer: 'user', userEmail }, '', window.location.pathname);
+              history.pushState({ drawer: 'user', userId }, '', window.location.pathname);
             }}
           />
         </TabsContent>
@@ -347,17 +347,17 @@ function DashboardPage() {
 
       {/* User Details Drawer */}
       <UserDetailsDrawer
-        isOpen={!!openUserDetailsEmail}
+        isOpen={!!openUserDetailsUserId}
         onClose={() => {
           // Check if current history state has a drawer
           if (history.state?.drawer) {
             history.back();
           } else {
-            setOpenUserDetailsEmail(null);
+            setOpenUserDetailsUserId(null);
           }
         }}
         eventId={eventId}
-        userEmail={openUserDetailsEmail}
+        userId={openUserDetailsUserId}
         ratingConfig={dashboardData?.ratingConfiguration || null}
         availableItemIds={dashboardData?.itemSummaries?.map(item => item.itemId) || []}
       />

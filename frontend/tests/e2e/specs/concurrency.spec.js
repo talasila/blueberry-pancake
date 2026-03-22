@@ -556,7 +556,7 @@ test.describe('Multi-Tenant Isolation', () => {
     expect(similar1Response.ok).toBe(true);
     const similar1 = await similar1Response.json();
     expect(similar1.similarUsers.length).toBeGreaterThan(0);
-    expect(similar1.similarUsers.some(u => u.email === 'matcher2@example.com')).toBe(true);
+    expect(similar1.similarUsers.some(u => u.name === 'matcher2')).toBe(true);
     
     // Now authenticate matcher1 to Event 2 (same email, different event)
     const user1Event2Token = await getUserToken(event2Id, 'matcher1@example.com', DEFAULT_TEST_PIN);
@@ -574,7 +574,7 @@ test.describe('Multi-Tenant Isolation', () => {
     expect(similar2Response.ok).toBe(true);
     const similar2 = await similar2Response.json();
     // Should have no similar users (only matcher1 is in Event 2)
-    expect(similar2.similarUsers.some(u => u.email === 'matcher2@example.com')).toBe(false);
+    expect(similar2.similarUsers.some(u => u.name === 'matcher2')).toBe(false);
   });
 
   test('user profiles are isolated between events', async () => {
@@ -650,9 +650,9 @@ test.describe('Concurrent User Actions', () => {
       expect(result.ok).toBe(true);
     }
     
-    // Verify all 5 ratings exist
-    const ratings = await getRatings(testEventId, users[0]);
-    const item1Ratings = ratings.filter(r => r.itemId === 1);
+    // Verify all 5 ratings exist (fetch as admin to get email column)
+    const allRatings = await getRatings(testEventId, adminToken);
+    const item1Ratings = allRatings.filter(r => r.itemId === 1);
     expect(item1Ratings.length).toBe(5);
   });
 
@@ -683,10 +683,11 @@ test.describe('Concurrent User Actions', () => {
     }
     
     // Verify ALL 5 ratings are preserved (this would fail without the mutex fix)
-    const ratings = await getRatings(testEventId, users[0]);
+    // Fetch as admin to get email column for verification
+    const ratings = await getRatings(testEventId, adminToken);
     const item1Ratings = ratings.filter(r => r.itemId === 1);
     expect(item1Ratings.length).toBe(5);
-    
+
     // Verify each user's rating is present
     const raterEmails = item1Ratings.map(r => r.email);
     expect(raterEmails).toContain('simuser1@example.com');
@@ -1067,9 +1068,9 @@ test.describe('Cache Consistency', () => {
     expect(read2.length).toBeGreaterThanOrEqual(0);
     expect(read2.length).toBeLessThanOrEqual(TOTAL_WRITES);
     
-    // Data should be structurally valid
+    // Data should be structurally valid (userId for non-admin, email for admin)
     for (const rating of [...read1, ...read2]) {
-      expect(rating).toHaveProperty('email');
+      expect(rating.userId || rating.email).toBeTruthy();
       expect(rating).toHaveProperty('itemId');
       expect(rating).toHaveProperty('rating');
     }

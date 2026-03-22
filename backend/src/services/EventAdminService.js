@@ -5,6 +5,7 @@ import pinService from './PINService.js';
 import { normalizeEmail as normalizeEmailUtil } from '../utils/emailUtils.js';
 import { validateEventId } from '../utils/validators.js';
 import { getCurrentTimestamp } from '../utils/timestamps.js';
+import { generateUserId } from '../utils/userIdUtils.js';
 
 /**
  * EventAdminService
@@ -102,14 +103,23 @@ class EventAdminService {
       throw new Error(`Administrator with email ${normalizedEmail} already exists for this event.`);
     }
 
-    loggerService.info(`Administrator added to event ${eventId}: ${normalizedEmail} by ${requesterEmail}`, {
+    loggerService.info(`Administrator added to event ${eventId}`, {
       eventId,
-      newAdministrator: normalizedEmail,
       requester: requesterEmail
     });
 
-    // Return updated event
-    return eventService.getEvent(eventId);
+    // Ensure the new admin has a userId in the users map
+    const updatedEvent = await eventService.getEvent(eventId);
+    if (updatedEvent?.users?.[normalizedEmail] && !updatedEvent.users[normalizedEmail].userId) {
+      const userId = generateUserId();
+      updatedEvent.users[normalizedEmail] = { ...updatedEvent.users[normalizedEmail], userId };
+      if (!updatedEvent.users[normalizedEmail].name) {
+        updatedEvent.users[normalizedEmail].name = normalizedEmail.split('@')[0];
+      }
+      await eventService.updateEvent(eventId, updatedEvent);
+    }
+
+    return updatedEvent;
   }
 
   /**

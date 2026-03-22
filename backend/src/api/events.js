@@ -114,13 +114,16 @@ router.post('/:eventId/verify-pin', async (req, res) => {
       return badRequestError(res, 'Invalid email format');
     }
 
-    // Validate optional name (server-side: trim, non-empty, max 100 chars)
+    // Validate mandatory name (server-side: trim, non-empty, max 100 chars)
     let validatedName;
     if (rawName && typeof rawName === 'string') {
       const trimmedName = rawName.trim();
       if (trimmedName && trimmedName.length <= 100) {
         validatedName = trimmedName;
       }
+    }
+    if (!validatedName) {
+      return badRequestError(res, 'Display name is required');
     }
 
     // Validate PIN format using centralized validation
@@ -160,8 +163,9 @@ router.post('/:eventId/verify-pin', async (req, res) => {
     }
 
     // PIN verified successfully - register user for the event
+    let registration;
     try {
-      const registration = await eventMemberService.registerUser(eventId, email.trim(), validatedName);
+      registration = await eventMemberService.registerUser(eventId, email.trim(), validatedName);
       // For returning users, update name separately (atomic registration uses if_not_exists)
       if (registration.alreadyExists && validatedName) {
         try {
@@ -176,31 +180,34 @@ router.post('/:eventId/verify-pin', async (req, res) => {
       loggerService.warn(`User registration failed for event ${eventId}: ${registrationError.message}`);
     }
 
+    const normalizedEmail = normalizeEmail(email);
+    const userId = registration?.userId;
+
     // Generate JWT token for PIN-authenticated user with event access
+    // PIN tokens contain userId (no email) for privacy
     let token;
     try {
       // Check if user already has a JWT token (from cookie or header)
-      const existingToken = req.cookies?.[JWT_COOKIE_NAME] || 
+      const existingToken = req.cookies?.[JWT_COOKIE_NAME] ||
         (req.headers.authorization?.startsWith('Bearer ') ? req.headers.authorization.substring(7) : null);
-      
+
       if (existingToken) {
         // User already authenticated - add this event to their existing token
         try {
           token = addEventToToken(existingToken, eventId);
-          loggerService.info(`Added event ${eventId} to existing JWT for user ${normalizeEmail(email)}`);
         } catch (addError) {
           // If adding fails (token expired, invalid, etc.), create new token
           loggerService.warn(`Failed to add event to existing token, creating new: ${addError.message}`);
           token = generateToken({
-            email: normalizeEmail(email),
+            userId,
             events: [eventId],
             authMethod: 'pin'
           });
         }
       } else {
-        // New authentication - create token with this event
+        // New authentication - create token with userId (no email)
         token = generateToken({
-          email: normalizeEmail(email),
+          userId,
           events: [eventId],
           authMethod: 'pin'
         });
@@ -209,7 +216,6 @@ router.post('/:eventId/verify-pin', async (req, res) => {
       return handleApiError(res, tokenError, 'generate authentication token');
     }
 
-    const normalizedEmail = normalizeEmail(email);
     const refreshToken = await generateRefreshToken(normalizedEmail);
 
     // Set JWT as httpOnly cookie for security
@@ -221,7 +227,7 @@ router.post('/:eventId/verify-pin', async (req, res) => {
     res.json({
       sessionId: result.sessionId,
       eventId,
-      user: { email: normalizedEmail, exp: decoded?.exp, authMethod: decoded?.authMethod || 'pin' },
+      user: { userId, name: registration?.name || validatedName || normalizedEmail.split('@')[0], exp: decoded?.exp, authMethod: 'pin' },
       message: 'PIN verified successfully'
     });
   } catch (error) {
@@ -846,8 +852,14 @@ router.get('/:eventId/bookmarks', requireAuth, async (req, res) => {
       return badRequestError(res, eventIdValidation.error);
     }
 
-    // Get user email from JWT token
-    const userEmail = req.user?.email;
+    // Resolve user email from JWT (supports both OTP and PIN auth)
+    let userEmail = req.user?.email;
+    if (!userEmail && req.user?.userId) {
+      const evt = await eventService.getEvent(eventId);
+      for (const [email, data] of Object.entries(evt?.users || {})) {
+        if (data.userId === req.user.userId) { userEmail = email; break; }
+      }
+    }
 
     if (!userEmail || typeof userEmail !== 'string') {
       return unauthorizedError(res, 'Authentication required');
@@ -858,7 +870,6 @@ router.get('/:eventId/bookmarks', requireAuth, async (req, res) => {
 
     res.json({
       eventId,
-      email: userEmail,
       bookmarks
     });
   } catch (error) {
@@ -881,8 +892,14 @@ router.get('/:eventId/profile', requireAuth, async (req, res) => {
       return badRequestError(res, eventIdValidation.error);
     }
 
-    // Get user email from JWT token
-    const userEmail = req.user?.email;
+    // Resolve user email from JWT (supports both OTP and PIN auth)
+    let userEmail = req.user?.email;
+    if (!userEmail && req.user?.userId) {
+      const evt = await eventService.getEvent(eventId);
+      for (const [email, data] of Object.entries(evt?.users || {})) {
+        if (data.userId === req.user.userId) { userEmail = email; break; }
+      }
+    }
 
     if (!userEmail || typeof userEmail !== 'string') {
       return unauthorizedError(res, 'Authentication required');
@@ -913,8 +930,14 @@ router.put('/:eventId/profile', requireAuth, async (req, res) => {
       return badRequestError(res, eventIdValidation.error);
     }
 
-    // Get user email from JWT token
-    const userEmail = req.user?.email;
+    // Resolve user email from JWT (supports both OTP and PIN auth)
+    let userEmail = req.user?.email;
+    if (!userEmail && req.user?.userId) {
+      const evt = await eventService.getEvent(eventId);
+      for (const [email, data] of Object.entries(evt?.users || {})) {
+        if (data.userId === req.user.userId) { userEmail = email; break; }
+      }
+    }
 
     if (!userEmail || typeof userEmail !== 'string') {
       return unauthorizedError(res, 'Authentication required');
@@ -950,8 +973,14 @@ router.put('/:eventId/bookmarks', requireAuth, async (req, res) => {
       return badRequestError(res, eventIdValidation.error);
     }
 
-    // Get user email from JWT token
-    const userEmail = req.user?.email;
+    // Resolve user email from JWT (supports both OTP and PIN auth)
+    let userEmail = req.user?.email;
+    if (!userEmail && req.user?.userId) {
+      const evt = await eventService.getEvent(eventId);
+      for (const [email, data] of Object.entries(evt?.users || {})) {
+        if (data.userId === req.user.userId) { userEmail = email; break; }
+      }
+    }
 
     if (!userEmail || typeof userEmail !== 'string') {
       return unauthorizedError(res, 'Authentication required');

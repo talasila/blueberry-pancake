@@ -9,7 +9,7 @@ import { getPersonalityName } from '@/utils/personalityContent';
  *
  * Displays a sortable card list of user ratings. Each card shows:
  * - User name with average rating right-aligned
- * - Email (trimmed) with optional tasting personality
+ * - Optional tasting personality
  * - Rating timeline bar (chronological progress)
  * - Rating distribution bar
  *
@@ -19,10 +19,10 @@ import { getPersonalityName } from '@/utils/personalityContent';
  * @param {object} props
  * @param {Array} props.userSummaries - Array of user summary objects
  * @param {Array} props.ratingConfiguration - Rating configuration array
- * @param {function} props.onRowClick - Callback when a card is clicked, receives user email
+ * @param {function} props.onRowClick - Callback when a card is clicked, receives userId
  */
 function UserRatingsTable({ userSummaries = [], ratingConfiguration = [], onRowClick, personalityEnabled = true }) {
-  const [sortColumn, setSortColumn] = useState('email');
+  const [sortColumn, setSortColumn] = useState('name');
   const [sortDirection, setSortDirection] = useState('asc');
 
   const handleSort = (column) => {
@@ -38,9 +38,9 @@ function UserRatingsTable({ userSummaries = [], ratingConfiguration = [], onRowC
     let aValue, bValue;
 
     switch (sortColumn) {
-      case 'email':
-        aValue = (a.name || a.email || '').toLowerCase();
-        bValue = (b.name || b.email || '').toLowerCase();
+      case 'name':
+        aValue = (a.name || '').toLowerCase();
+        bValue = (b.name || '').toLowerCase();
         break;
       case 'numberOfBottlesRated':
         aValue = a.numberOfBottlesRated || 0;
@@ -67,17 +67,12 @@ function UserRatingsTable({ userSummaries = [], ratingConfiguration = [], onRowC
     return typeof value === 'number' ? value.toFixed(2) : value;
   };
 
-  const trimEmail = (email) => {
-    if (!email) return '';
-    return email.split('@')[0] || email;
-  };
-
   const getUserDisplayName = (user) => {
-    return user.name || trimEmail(user.email) || 'Unnamed User';
+    return user.name || 'Guest';
   };
 
   const sortOptions = [
-    { key: 'email', label: 'Name' },
+    { key: 'name', label: 'Name' },
     { key: 'numberOfBottlesRated', label: '# Rated' },
     { key: 'averageRating', label: 'Avg. Rating' },
   ];
@@ -125,10 +120,10 @@ function UserRatingsTable({ userSummaries = [], ratingConfiguration = [], onRowC
       <div className="space-y-2">
         {sortedUsers.map((user) => (
           <ListCard
-            key={user.email}
+            key={user.userId}
             as="button"
             type="button"
-            onClick={() => onRowClick && onRowClick(user.email)}
+            onClick={() => onRowClick && onRowClick(user.userId)}
             className="w-full text-left active:scale-[0.99] transition-all duration-150 hover:bg-muted/60"
           >
             <div className="px-3 py-2">
@@ -142,13 +137,12 @@ function UserRatingsTable({ userSummaries = [], ratingConfiguration = [], onRowC
                 </span>
               </div>
 
-              {/* Row 2: Email · Personality */}
-              <div className="text-[10px] text-muted-foreground mt-0.5">
-                <span>{trimEmail(user.email)}</span>
-                {personalityEnabled && user.personality && (
-                  <span className="italic"> · {getPersonalityName(user.personality)}</span>
-                )}
-              </div>
+              {/* Row 2: Personality */}
+              {personalityEnabled && user.personality && (
+                <div className="text-[10px] text-muted-foreground mt-0.5">
+                  <span className="italic">{getPersonalityName(user.personality)}</span>
+                </div>
+              )}
 
               {/* Row 3–4: Rating bars */}
               <div className="mt-1.5">

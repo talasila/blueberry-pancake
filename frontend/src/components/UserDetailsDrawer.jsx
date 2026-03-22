@@ -22,15 +22,15 @@ import ListCard from '@/components/ListCard';
  * @param {boolean} props.isOpen - Whether drawer is open
  * @param {function} props.onClose - Close handler
  * @param {string} props.eventId - Event identifier
- * @param {string} props.userEmail - User email to display details for (if null, uses current user)
+ * @param {string} props.userId - User ID to display details for (if null, uses current user)
  * @param {object} props.ratingConfig - Rating configuration object
  * @param {Array<number>} props.availableItemIds - Array of available item IDs for calculating progress
  */
-function UserDetailsDrawer({ 
-  isOpen, 
-  onClose, 
+function UserDetailsDrawer({
+  isOpen,
+  onClose,
   eventId,
-  userEmail: providedUserEmail = null,
+  userId: providedUserId = null,
   ratingConfig = null,
   availableItemIds = []
 }) {
@@ -41,21 +41,32 @@ function UserDetailsDrawer({
   const [ratings, setRatings] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [currentUserEmail, setCurrentUserEmail] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [ratingConfiguration, setRatingConfiguration] = useState(ratingConfig);
   const [sortColumn, setSortColumn] = useState('time');
   const [sortDirection, setSortDirection] = useState('asc');
   const [bookmarks, setBookmarks] = useState([]);
 
-  // Get current user email from JWT token using apiClient utility
+  // Get current user ID from session
   useEffect(() => {
-    const email = apiClient.getUserEmail();
-    setCurrentUserEmail(email);
+    const userId = apiClient.getUserId() || apiClient.getUserEmail();
+    setCurrentUserId(userId);
   }, []);
 
-  // Use provided userEmail or fall back to current user
-  const userEmail = providedUserEmail || currentUserEmail;
-  const isCurrentUser = !providedUserEmail || (currentUserEmail && currentUserEmail.toLowerCase() === providedUserEmail.toLowerCase());
+  // Use provided userId or fall back to current user
+  const userId = providedUserId || currentUserId;
+  // Check if the provided userId belongs to the current user
+  // For admins, currentUserId is their email — resolve via event users map
+  let isCurrentUser = !providedUserId || (currentUserId && currentUserId === providedUserId);
+  if (!isCurrentUser && providedUserId && event?.users) {
+    const currentEmail = apiClient.getUserEmail();
+    if (currentEmail) {
+      const currentUserData = event.users[currentEmail] || event.users[currentEmail.toLowerCase()];
+      if (currentUserData?.userId === providedUserId) {
+        isCurrentUser = true;
+      }
+    }
+  }
 
   // Load rating configuration if not provided
   useEffect(() => {
@@ -100,14 +111,14 @@ function UserDetailsDrawer({
 
   // Load user ratings when drawer opens
   useEffect(() => {
-    if (isOpen && eventId && userEmail) {
+    if (isOpen && eventId && userId) {
       loadUserRatings();
     } else {
       // Reset state when drawer closes
       setRatings([]);
       setError(null);
     }
-  }, [isOpen, eventId, userEmail]);
+  }, [isOpen, eventId, userId]);
 
   // Load bookmarks when drawer opens (only for current user)
   useEffect(() => {
@@ -157,11 +168,27 @@ function UserDetailsDrawer({
     setError(null);
 
     try {
-      const allRatings = await ratingService.getRatings(eventId);
-      // Filter to specified user's ratings by email
-      const userRatings = allRatings.filter(
-        r => r.email && r.email.toLowerCase() === userEmail.toLowerCase()
-      );
+      let userRatings;
+      if (isCurrentUser) {
+        // Use ?mine=true for current user — no other user data in response
+        userRatings = await ratingService.getMyRatings(eventId);
+      } else {
+        // For other users (from dashboard), fetch all and filter
+        // Admin CSV has email column; guest CSV has userId column — handle both
+        const allRatings = await ratingService.getRatings(eventId);
+        // Find the target user's email from the event users map (needed for admin CSV)
+        let targetEmail = null;
+        if (event?.users) {
+          for (const [email, data] of Object.entries(event.users)) {
+            if (data.userId === userId) { targetEmail = email; break; }
+          }
+        }
+        userRatings = allRatings.filter(r => {
+          if (r.userId) return r.userId === userId;
+          if (r.email && targetEmail) return r.email.toLowerCase() === targetEmail.toLowerCase();
+          return false;
+        });
+      }
       setRatings(userRatings);
     } catch (err) {
       console.error('Error loading user ratings:', err);
@@ -262,12 +289,18 @@ function UserDetailsDrawer({
 
   // Get user display name
   const getUserDisplayName = () => {
-    if (!userEmail) return 'User';
-    const userData = event?.users?.[userEmail];
-    if (userData?.name) return userData.name;
-    // Derive from email by dropping @domain
-    const parts = userEmail.split('@');
-    return parts[0] || userEmail;
+    if (!userId) return 'User';
+    // Find user by userId in event users map
+    if (event?.users) {
+      for (const userData of Object.values(event.users)) {
+        if (userData.userId === userId && userData.name) return userData.name;
+      }
+    }
+    // Fallback: use name from session for current user
+    if (isCurrentUser) {
+      return apiClient.getUserName() || 'My Progress';
+    }
+    return 'User';
   };
 
   // Get rating color for a rating value

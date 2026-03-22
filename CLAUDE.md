@@ -1,6 +1,6 @@
 # blueberry-pancake Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-03-21
+Auto-generated from all feature plans. Last updated: 2026-03-22
 
 ## Active Technologies
 - DynamoDB (via DynamoDBRepository) — user records in `event.users` map (035-guest-name-entry)
@@ -11,6 +11,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-21
 - N/A (static frontend content, reads existing event state from context) (038-guide-redesign)
 - JavaScript (ES Modules), Node.js >= 22.12.0 + React 19.2.1 + Express 5.2.1, Radix UI, Tailwind CSS 4.1.17, lucide-reac (040-personality-toggle)
 - DynamoDB (single-table design, nested `ratingConfiguration` object in event CONFIG item) (040-personality-toggle)
+- JavaScript (ES Modules), Node.js >= 22.12.0 + React 19.2.1 + Express 5.2.1, Radix UI, Tailwind CSS 4.1.17, nanoid ^5.1.6 (already installed), jsonwebtoken (041-email-privacy-opaque-id)
+- DynamoDB (single-table design, nested `users` map in event CONFIG item) (041-email-privacy-opaque-id)
 
 - JavaScript (ES Modules), Node.js >= 22.12.0 + React 19.2.1, Express 5.2.1, Radix UI, Tailwind CSS 4.1.17 (034-codebase-refactor)
 
@@ -30,9 +32,9 @@ npm test && npm run lint
 JavaScript (ES Modules), Node.js >= 22.12.0: Follow standard conventions
 
 ## Recent Changes
+- 041-email-privacy-opaque-id: Added JavaScript (ES Modules), Node.js >= 22.12.0 + React 19.2.1 + Express 5.2.1, Radix UI, Tailwind CSS 4.1.17, nanoid ^5.1.6 (already installed), jsonwebtoken
 - 040-personality-toggle: Added JavaScript (ES Modules), Node.js >= 22.12.0 + React 19.2.1 + Express 5.2.1, Radix UI, Tailwind CSS 4.1.17, lucide-reac
 - 038-guide-redesign: Added JavaScript (ES Modules), Node.js >= 22.12.0, React 19.2.1 + React 19.2.1, Radix UI, Tailwind CSS 4.1.17, lucide-reac
-- 037-guest-filter-redesign: Added JavaScript (ES Modules), Node.js >= 22.12.0 + React 19.2.1, Radix UI, Tailwind CSS 4.1.17
 
 
 <!-- MANUAL ADDITIONS START -->

@@ -59,7 +59,7 @@ function EventPage() {
   const [ratings, setRatings] = useState([]);
   const [bookmarks, setBookmarks] = useState([]);
   const [ratingConfig, setRatingConfig] = useState(null);
-  const [userEmail, setUserEmail] = useState(null);
+  const [userIdentifier, setUserIdentifier] = useState(null);
   const [ratingsLoading, setRatingsLoading] = useState(false);
   const [itemRaterCounts, setItemRaterCounts] = useState({});
   const [dashboardData, setDashboardData] = useState(null);
@@ -161,10 +161,10 @@ function EventPage() {
     }
   }, [event]);
 
-  // Get user email from JWT token using apiClient utility
+  // Get user identifier from session (userId for PIN, email for OTP)
   useEffect(() => {
-    const email = apiClient.getUserEmail();
-    setUserEmail(email);
+    const id = apiClient.getUserId() || apiClient.getUserEmail();
+    setUserIdentifier(id);
   }, [eventId]);
 
   // Load rating configuration - optimized to avoid refetching on every event update
@@ -223,25 +223,32 @@ function EventPage() {
 
   // Load user's ratings (T082 - with loading state)
   const loadRatings = () => {
-    if (eventId && hasAuth && redirectCheckedForEventRef.current === eventId && userEmail) {
+    if (eventId && hasAuth && redirectCheckedForEventRef.current === eventId && userIdentifier) {
       const isInitialLoad = !ratingsLoadedOnceRef.current;
       if (isInitialLoad) setRatingsLoading(true);
 
-      ratingService.getRatings(eventId)
-        .then(allRatings => {
+      // Fetch current user's ratings via ?mine=true (no other user data exposed)
+      const myRatingsPromise = ratingService.getMyRatings(eventId);
+
+      // For admins, also fetch all ratings for participation ring counts
+      const allRatingsPromise = isAdmin
+        ? ratingService.getRatings(eventId)
+        : Promise.resolve(null);
+
+      Promise.all([myRatingsPromise, allRatingsPromise])
+        .then(([myRatings, allRatings]) => {
           ratingsLoadedOnceRef.current = true;
-          setItemRaterCounts(prev => {
-            const next = deriveItemRaterCounts(allRatings);
-            const keys = Object.keys(next);
-            if (keys.length === Object.keys(prev).length && keys.every(k => prev[k] === next[k])) return prev;
-            return next;
-          });
-          const userRatings = allRatings.filter(
-            r => r.email && r.email.toLowerCase() === userEmail.toLowerCase()
-          );
+          if (allRatings) {
+            setItemRaterCounts(prev => {
+              const next = deriveItemRaterCounts(allRatings);
+              const keys = Object.keys(next);
+              if (keys.length === Object.keys(prev).length && keys.every(k => prev[k] === next[k])) return prev;
+              return next;
+            });
+          }
           setRatings(prev => {
-            if (prev.length === userRatings.length && prev.every((r, i) => r.itemId === userRatings[i].itemId && r.rating === userRatings[i].rating)) return prev;
-            return userRatings;
+            if (prev.length === myRatings.length && prev.every((r, i) => r.itemId === myRatings[i].itemId && r.rating === myRatings[i].rating)) return prev;
+            return myRatings;
           });
         })
         .catch(err => {
@@ -256,7 +263,7 @@ function EventPage() {
 
   useEffect(() => {
     loadRatings();
-  }, [eventId, hasAuth, userEmail]);
+  }, [eventId, hasAuth, userIdentifier]);
 
   // Fetch dashboard data when event is completed to determine winners
   useEffect(() => {
@@ -327,12 +334,12 @@ function EventPage() {
     return () => {
       window.removeEventListener('ratingSubmitted', handleRatingSubmitted);
     };
-  }, [eventId, hasAuth, userEmail]);
+  }, [eventId, hasAuth, userIdentifier]);
 
   // Listen for bookmark toggle events to refresh bookmarks
   useEffect(() => {
     const handleBookmarkToggled = async (customEvent) => {
-      if (customEvent.detail.eventId === eventId && userEmail) {
+      if (customEvent.detail.eventId === eventId && userIdentifier) {
         // Reload from server to ensure sync
         try {
           const bookmarkedItems = await loadBookmarksFromServer(eventId);
@@ -344,7 +351,7 @@ function EventPage() {
           setBookmarks(cachedBookmarks);
         }
       } else if (customEvent.detail.eventId === eventId) {
-        // If no userEmail, just use local cache
+        // If no userIdentifier, just use local cache
         const bookmarkedItems = getBookmarks(eventId);
         setBookmarks(bookmarkedItems);
       }
@@ -354,11 +361,11 @@ function EventPage() {
     return () => {
       window.removeEventListener('bookmarkToggled', handleBookmarkToggled);
     };
-  }, [eventId, userEmail]);
+  }, [eventId, userIdentifier]);
 
   // Load bookmarks from server on mount
   useEffect(() => {
-    if (eventId && userEmail) {
+    if (eventId && userIdentifier) {
       loadBookmarksFromServer(eventId)
         .then(bookmarkedItems => {
           setBookmarks(bookmarkedItems);
@@ -370,11 +377,11 @@ function EventPage() {
           setBookmarks(cachedBookmarks);
         });
     } else if (eventId) {
-      // If no userEmail yet, use cached bookmarks
+      // If no userIdentifier yet, use cached bookmarks
       const cachedBookmarks = getBookmarks(eventId);
       setBookmarks(cachedBookmarks);
     }
-  }, [eventId, userEmail]);
+  }, [eventId, userIdentifier]);
 
   // Push a new history entry when opening a drawer from scratch,
   // or replace the current entry when switching between drawers.
@@ -486,7 +493,7 @@ function EventPage() {
     handleMyProgressClickOriginal();
     setTimeout(() => {
       setIsUserDetailsDrawerOpen(true);
-      setDrawerHistory({ drawer: 'user', userEmail });
+      setDrawerHistory({ drawer: 'user', userIdentifier });
     }, 100);
   };
 
@@ -574,7 +581,7 @@ function EventPage() {
     }
     setTimeout(() => {
       setIsUserDetailsDrawerOpen(true);
-      setDrawerHistory({ drawer: 'user', userEmail });
+      setDrawerHistory({ drawer: 'user', userIdentifier });
     }, 400);
   };
 
@@ -763,7 +770,7 @@ function EventPage() {
         isOpen={isUserDetailsDrawerOpen}
         onClose={handleUserDetailsDrawerClose}
         eventId={eventId}
-        userEmail={userEmail}
+        userId={userIdentifier}
         ratingConfig={ratingConfig}
         availableItemIds={availableItemIds}
       />

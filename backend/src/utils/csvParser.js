@@ -29,13 +29,14 @@ export function parseCSV(csvString) {
     return [];
   }
 
-  // Expected columns: email, timestamp, itemId, rating, note
-  const expectedColumns = ['email', 'timestamp', 'itemId', 'rating', 'note'];
-  if (!arraysEqual(header, expectedColumns)) {
-    throw new Error(`Invalid CSV header. Expected: ${expectedColumns.join(',')}, got: ${header.join(',')}`);
+  // Validate header has at least the core rating columns
+  const requiredColumns = ['timestamp', 'itemId', 'rating'];
+  const missingColumns = requiredColumns.filter(col => !header.includes(col));
+  if (missingColumns.length > 0) {
+    throw new Error(`Invalid CSV header. Missing required columns: ${missingColumns.join(',')}, got: ${header.join(',')}`);
   }
 
-  // Parse data rows
+  // Parse data rows using header-driven column mapping
   const ratings = [];
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
@@ -47,13 +48,16 @@ export function parseCSV(csvString) {
       continue;
     }
 
-    const rating = {
-      email: values[0] || '',
-      timestamp: values[1] || '',
-      itemId: parseInt(values[2], 10),
-      rating: parseInt(values[3], 10),
-      note: values[4] || ''
-    };
+    // Build object from header columns
+    const rating = {};
+    for (let j = 0; j < header.length; j++) {
+      const col = header[j];
+      if (col === 'itemId' || col === 'rating') {
+        rating[col] = parseInt(values[j], 10);
+      } else {
+        rating[col] = values[j] || '';
+      }
+    }
 
     // Validate parsed values
     if (isNaN(rating.itemId) || isNaN(rating.rating)) {
@@ -128,17 +132,16 @@ export function toCSV(ratings) {
     throw new Error('Ratings must be an array');
   }
 
-  const header = ['email', 'timestamp', 'itemId', 'rating', 'note'];
+  // Derive columns from the first rating object (supports email, userId, or no-identity formats)
+  const defaultColumns = ['email', 'timestamp', 'itemId', 'rating', 'note'];
+  const header = ratings.length > 0 ? Object.keys(ratings[0]) : defaultColumns;
   const lines = [header.map(escapeCSVField).join(',')];
 
   for (const rating of ratings) {
-    const row = [
-      rating.email ?? '',
-      rating.timestamp ?? '',
-      String(rating.itemId ?? ''),
-      String(rating.rating ?? ''),
-      rating.note ?? ''
-    ];
+    const row = header.map(col => {
+      const val = rating[col];
+      return val != null ? String(val) : '';
+    });
     lines.push(row.map(escapeCSVField).join(','));
   }
 

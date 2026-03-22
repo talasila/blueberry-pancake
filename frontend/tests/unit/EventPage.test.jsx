@@ -32,6 +32,8 @@ vi.mock('../../src/services/apiClient.js', () => {
       hasEventAccess: vi.fn(() => true),
       getEvent: vi.fn(),
       getUserEmail: vi.fn(() => 'test@example.com'),
+      getUserId: vi.fn(() => 'u_testABCDEF'),
+      getUserName: vi.fn(() => 'Test User'),
       getAuthMethod: vi.fn(() => 'pin'),
       getRatingConfiguration: vi.fn(() => Promise.resolve({ maxRating: 4, ratings: [] })),
       getBookmarks: vi.fn(() => Promise.resolve({ bookmarks: [] })),

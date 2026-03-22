@@ -6,6 +6,7 @@ vi.mock('../../src/services/apiClient.js', () => ({
   default: {
     verifyPIN: vi.fn(),
     setUserSession: vi.fn(),
+    getUserName: vi.fn(() => null),
   },
 }));
 
@@ -97,7 +98,7 @@ describe('SessionExpiredDialog', () => {
 
     it('should call verifyPIN and dismiss on success', async () => {
       apiClient.verifyPIN.mockResolvedValue({
-        user: { email: 'user@test.com', exp: 9999999999, authMethod: 'pin' },
+        user: { userId: 'u_testABCDEF', name: 'user', exp: 9999999999, authMethod: 'pin' },
         sessionId: 'sess-123',
       });
 
@@ -112,12 +113,12 @@ describe('SessionExpiredDialog', () => {
       fireEvent.submit(screen.getByTestId('session-expired-pin-submit').closest('form'));
 
       await waitFor(() => {
-        expect(apiClient.verifyPIN).toHaveBeenCalledWith('ABCD1234', '123456', 'user@test.com');
+        expect(apiClient.verifyPIN).toHaveBeenCalledWith('ABCD1234', '123456', 'user@test.com', expect.any(String));
       });
 
       await waitFor(() => {
         expect(apiClient.setUserSession).toHaveBeenCalledWith({
-          email: 'user@test.com', exp: 9999999999, authMethod: 'pin',
+          userId: 'u_testABCDEF', name: 'user', exp: 9999999999, authMethod: 'pin',
         });
       });
 

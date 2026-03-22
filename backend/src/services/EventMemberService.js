@@ -4,6 +4,7 @@ import loggerService from '../logging/Logger.js';
 import { normalizeEmail as normalizeEmailUtil } from '../utils/emailUtils.js';
 import { validateEventId } from '../utils/validators.js';
 import { getCurrentTimestamp } from '../utils/timestamps.js';
+import { generateUserId } from '../utils/userIdUtils.js';
 
 /**
  * EventMemberService
@@ -39,21 +40,43 @@ class EventMemberService {
 
     const normalizedEmail = normalizeEmailUtil(email);
     const registrationTimestamp = getCurrentTimestamp();
+    // Pre-generate userId so it's included in the atomic registration
+    const newUserId = generateUserId();
+    const registrationName = name || normalizedEmail.split('@')[0];
 
     try {
       // Use atomic registration to prevent concurrent registration race conditions
       // This uses DynamoDB's if_not_exists to safely add users without overwriting
-      const result = await dataRepository.registerUserAtomic(eventId, normalizedEmail, registrationTimestamp, name);
+      // Include userId and name in the initial atomic write
+      const result = await dataRepository.registerUserAtomic(eventId, normalizedEmail, registrationTimestamp, registrationName, newUserId);
 
       if (result.registered && !result.alreadyExists) {
-        loggerService.info(`User registered for event: ${eventId}, email: ${normalizedEmail}, registeredAt: ${registrationTimestamp}`);
+        loggerService.info(`User registered for event: ${eventId}, registeredAt: ${registrationTimestamp}`);
       } else {
-        loggerService.debug(`User already registered for event: ${eventId}, email: ${normalizedEmail}`);
+        loggerService.debug(`User already registered for event: ${eventId}`);
+      }
+
+      // For existing users, ensure they have a userId (lazy backfill)
+      const event = await eventService.getEvent(eventId);
+      const userData = event?.users?.[normalizedEmail];
+      let userId = userData?.userId;
+      let userName = userData?.name || registrationName;
+
+      if (!userId) {
+        // Existing user without userId — backfill userId and name if missing
+        userId = generateUserId();
+        if (!userName) {
+          userName = normalizedEmail.split('@')[0];
+        }
+        event.users[normalizedEmail] = { ...event.users[normalizedEmail], userId, name: userName };
+        await eventService.updateEvent(eventId, event);
       }
 
       return {
         eventId,
         email: normalizedEmail,
+        userId,
+        name: userName,
         registered: result.registered && !result.alreadyExists,
         alreadyExists: result.alreadyExists,
         registeredAt: registrationTimestamp
@@ -71,6 +94,76 @@ class EventMemberService {
       loggerService.error(`Error registering user for event ${eventId}: ${error.message}`, error);
       throw error;
     }
+  }
+
+  /**
+   * Ensure a user in an event has a userId. Generate and persist one if missing.
+   * Also backfills name from email prefix if missing.
+   * @param {object} event - Event object (will be mutated and saved if needed)
+   * @param {string} email - Normalized user email
+   * @returns {Promise<{userId: string, name: string}>} The user's userId and name
+   */
+  async ensureUserId(event, email) {
+    const normalizedEmail = email.toLowerCase();
+    const userData = event.users?.[normalizedEmail];
+    if (!userData) return null;
+
+    let userId = userData.userId;
+    let userName = userData.name;
+    let needsUpdate = false;
+
+    if (!userId) {
+      userId = generateUserId();
+      event.users[normalizedEmail] = { ...event.users[normalizedEmail], userId };
+      needsUpdate = true;
+    }
+    if (!userName) {
+      userName = normalizedEmail.split('@')[0];
+      event.users[normalizedEmail] = { ...event.users[normalizedEmail], name: userName };
+      needsUpdate = true;
+    }
+
+    if (needsUpdate) {
+      await eventService.updateEvent(event.eventId, event);
+    }
+
+    return { userId, name: userName };
+  }
+
+  /**
+   * Build an email→{userId, name} lookup map for all users in an event.
+   * Generates and persists missing userIds/names via lazy backfill.
+   * @param {object} event - Event object
+   * @returns {Promise<Map<string, {userId: string, name: string}>>}
+   */
+  async buildUserIdMap(event) {
+    const users = event.users || {};
+    const map = new Map();
+    let needsUpdate = false;
+
+    for (const [email, userData] of Object.entries(users)) {
+      let userId = userData.userId;
+      let name = userData.name;
+
+      if (!userId) {
+        userId = generateUserId();
+        event.users[email] = { ...event.users[email], userId };
+        needsUpdate = true;
+      }
+      if (!name) {
+        name = email.split('@')[0];
+        event.users[email] = { ...event.users[email], name };
+        needsUpdate = true;
+      }
+
+      map.set(email, { userId, name });
+    }
+
+    if (needsUpdate) {
+      await eventService.updateEvent(event.eventId, event);
+    }
+
+    return map;
   }
 
   /**

@@ -44,7 +44,9 @@ function SessionExpiredDialog() {
     setError('');
 
     try {
-      const response = await apiClient.verifyPIN(eventId, pin, email);
+      // Name is required for verify-PIN — use stored name or derive from email
+      const name = apiClient.getUserName() || localStorage.getItem('remembered:name') || email?.split('@')[0] || 'Guest';
+      const response = await apiClient.verifyPIN(eventId, pin, email, name);
 
       if (response.user) {
         apiClient.setUserSession(response.user);

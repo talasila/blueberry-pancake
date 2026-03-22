@@ -153,11 +153,12 @@ test.describe('PIN-based Event Access', () => {
     const adminEmail = 'admin@example.com';
     await addAdminToEvent(eventId, adminEmail);
     
-    // Attempt PIN verification via API
+    // Attempt PIN verification via API (include name since it's now mandatory)
     const response = await page.request.post(`${API_URL}/api/events/${eventId}/verify-pin`, {
       data: {
         email: adminEmail,
         pin: pin,
+        name: 'Admin User',
       },
     });
     

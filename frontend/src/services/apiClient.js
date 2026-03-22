@@ -89,8 +89,14 @@ class ApiClient {
    * @param {{email: string, exp: number, authMethod?: string}} session
    */
   setUserSession(session) {
-    if (session?.email) {
-      this.userSession = { email: session.email, exp: session.exp, authMethod: session.authMethod || null };
+    if (session?.email || session?.userId) {
+      this.userSession = {
+        ...(session.email && { email: session.email }),
+        ...(session.userId && { userId: session.userId }),
+        ...(session.name && { name: session.name }),
+        exp: session.exp,
+        authMethod: session.authMethod || null
+      };
       localStorage.setItem(SESSION_KEY, JSON.stringify(this.userSession));
     } else {
       this.userSession = null;
@@ -137,7 +143,7 @@ class ApiClient {
    * @returns {boolean}
    */
   isAuthenticated() {
-    if (!this.userSession?.email) return false;
+    if (!this.userSession?.email && !this.userSession?.userId) return false;
     if (this.userSession.exp && this.userSession.exp * 1000 < Date.now()) {
       this.setUserSession(null);
       return false;
@@ -159,11 +165,27 @@ class ApiClient {
   }
 
   /**
-   * Get user email from session
+   * Get user email from session (admin/OTP flows only)
    * @returns {string|null}
    */
   getUserEmail() {
     return this.userSession?.email || null;
+  }
+
+  /**
+   * Get opaque userId from session (guest/PIN flows)
+   * @returns {string|null}
+   */
+  getUserId() {
+    return this.userSession?.userId || null;
+  }
+
+  /**
+   * Get display name from session
+   * @returns {string|null}
+   */
+  getUserName() {
+    return this.userSession?.name || null;
   }
 
   /**
@@ -328,20 +350,24 @@ class ApiClient {
         throw new Error(errorMessage);
       }
 
-      // Handle 401 Unauthorized - attempt token refresh
+      // Handle 401 Unauthorized - attempt token refresh (OTP users only)
+      // PIN users cannot refresh — they must re-authenticate via PIN
       if (response.status === 401 && !isRetry) {
-        const refreshed = await this.refreshToken();
-        
-        if (refreshed) {
-          return this.request(endpoint, options, true);
+        const authMethod = this.getAuthMethod();
+
+        if (authMethod === 'otp') {
+          const refreshed = await this.refreshToken();
+          if (refreshed) {
+            return this.request(endpoint, options, true);
+          }
         }
-        
-        // Refresh failed — notify UI so it can show a re-auth prompt
+
+        // Refresh not attempted or failed — notify UI so it can show a re-auth prompt
         const expiredAuthMethod = this.userSession?.authMethod || null;
         const expiredEmail = this.userSession?.email || null;
         const eventId = this.getEventIdFromUrl(endpoint);
         this.setUserSession(null);
-        
+
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('session-expired', {
             detail: { authMethod: expiredAuthMethod, email: expiredEmail, eventId },

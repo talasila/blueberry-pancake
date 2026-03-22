@@ -8,7 +8,9 @@ import { useEventContext } from '../../src/contexts/EventContext.jsx';
 vi.mock('../../src/services/apiClient.js', () => ({
   default: {
     get: vi.fn(),
-    getUserEmail: vi.fn(() => 'test@example.com')
+    getUserEmail: vi.fn(() => 'test@example.com'),
+    getUserId: vi.fn(() => 'u_testABCDEF'),
+    getUserName: vi.fn(() => 'Test User')
   }
 }));
 
@@ -64,7 +66,7 @@ const DASHBOARD_WITH_RATINGS = {
   },
   userSummaries: [
     {
-      email: 'sarah@test.com',
+      userId: 'u_sarah12345',
       name: 'Sarah',
       personality: 'golden-retriever',
       numberOfBottlesRated: 5,
@@ -76,7 +78,7 @@ const DASHBOARD_WITH_RATINGS = {
       noteCount: 0
     },
     {
-      email: 'mike@test.com',
+      userId: 'u_mike123456',
       name: 'Mike',
       personality: 'simon-cowell',
       numberOfBottlesRated: 4,
@@ -88,7 +90,7 @@ const DASHBOARD_WITH_RATINGS = {
       noteCount: 0
     },
     {
-      email: 'alex@test.com',
+      userId: 'u_alex123456',
       name: 'Alex',
       personality: 'golden-retriever',
       numberOfBottlesRated: 3,

@@ -94,7 +94,7 @@ describe('SimilarUsersDrawer Component', () => {
     it('should display message when no similar users found', async () => {
       getSimilarUsers.mockResolvedValue({
         similarUsers: [],
-        currentUserEmail: 'user@example.com',
+        currentUserId: 'u_userABCDEF',
         eventId: 'testEvent'
       });
 
@@ -114,7 +114,7 @@ describe('SimilarUsersDrawer Component', () => {
     it('should display list of similar users', async () => {
       const mockSimilarUsers = [
         {
-          email: 'alice@example.com',
+          userId: 'u_aliceABCDE',
           name: 'Alice Smith',
           similarityScore: 0.87,
           commonItemsCount: 12,
@@ -124,7 +124,7 @@ describe('SimilarUsersDrawer Component', () => {
           ]
         },
         {
-          email: 'bob@example.com',
+          userId: 'u_bob12ABCDE',
           name: null,
           similarityScore: 0.72,
           commonItemsCount: 8,
@@ -136,7 +136,7 @@ describe('SimilarUsersDrawer Component', () => {
 
       getSimilarUsers.mockResolvedValue({
         similarUsers: mockSimilarUsers,
-        currentUserEmail: 'user@example.com',
+        currentUserId: 'u_userABCDEF',
         eventId: 'testEvent'
       });
 
@@ -148,21 +148,21 @@ describe('SimilarUsersDrawer Component', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Alice Smith')).toBeInTheDocument();
-        expect(screen.getByText('bob@example.com')).toBeInTheDocument();
+        expect(screen.getByText('Guest')).toBeInTheDocument();
       });
     });
 
-    it('should display user name when available, otherwise email', async () => {
+    it('should display user name when available, otherwise Guest', async () => {
       const mockSimilarUsers = [
         {
-          email: 'alice@example.com',
+          userId: 'u_aliceABCDE',
           name: 'Alice Smith',
           similarityScore: 0.87,
           commonItemsCount: 12,
           commonItems: []
         },
         {
-          email: 'bob@example.com',
+          userId: 'u_bob12ABCDE',
           name: null,
           similarityScore: 0.72,
           commonItemsCount: 8,
@@ -172,7 +172,7 @@ describe('SimilarUsersDrawer Component', () => {
 
       getSimilarUsers.mockResolvedValue({
         similarUsers: mockSimilarUsers,
-        currentUserEmail: 'user@example.com',
+        currentUserId: 'u_userABCDEF',
         eventId: 'testEvent'
       });
 
@@ -184,14 +184,14 @@ describe('SimilarUsersDrawer Component', () => {
 
       await waitFor(() => {
         expect(screen.getByText('Alice Smith')).toBeInTheDocument();
-        expect(screen.getByText('bob@example.com')).toBeInTheDocument();
+        expect(screen.getByText('Guest')).toBeInTheDocument();
       });
     });
 
     it('should display rating comparisons for common items', async () => {
       const mockSimilarUsers = [
         {
-          email: 'alice@example.com',
+          userId: 'u_aliceABCDE',
           name: 'Alice Smith',
           similarityScore: 0.87,
           commonItemsCount: 2,
@@ -204,7 +204,7 @@ describe('SimilarUsersDrawer Component', () => {
 
       getSimilarUsers.mockResolvedValue({
         similarUsers: mockSimilarUsers,
-        currentUserEmail: 'user@example.com',
+        currentUserId: 'u_userABCDEF',
         eventId: 'testEvent'
       });
 
@@ -229,7 +229,7 @@ describe('SimilarUsersDrawer Component', () => {
 
       const mockSimilarUsers = [
         {
-          email: 'alice@example.com',
+          userId: 'u_aliceABCDE',
           name: 'Alice Smith',
           similarityScore: 0.87,
           commonItemsCount: 15,
@@ -239,7 +239,7 @@ describe('SimilarUsersDrawer Component', () => {
 
       getSimilarUsers.mockResolvedValue({
         similarUsers: mockSimilarUsers,
-        currentUserEmail: 'user@example.com',
+        currentUserId: 'u_userABCDEF',
         eventId: 'testEvent'
       });
 
@@ -263,7 +263,7 @@ describe('SimilarUsersDrawer Component', () => {
 
       const mockSimilarUsers = [
         {
-          email: 'alice@example.com',
+          userId: 'u_aliceABCDE',
           name: 'Alice Smith',
           similarityScore: 0.87,
           commonItemsCount: 15,
@@ -273,7 +273,7 @@ describe('SimilarUsersDrawer Component', () => {
 
       getSimilarUsers.mockResolvedValue({
         similarUsers: mockSimilarUsers,
-        currentUserEmail: 'user@example.com',
+        currentUserId: 'u_userABCDEF',
         eventId: 'testEvent'
       });
 
@@ -293,7 +293,7 @@ describe('SimilarUsersDrawer Component', () => {
     it('personality subtitle shown when present', async () => {
       const mockSimilarUsers = [
         {
-          email: 'alice@example.com',
+          userId: 'u_aliceABCDE',
           name: 'Alice Smith',
           similarityScore: 0.87,
           commonItemsCount: 5,
@@ -304,7 +304,7 @@ describe('SimilarUsersDrawer Component', () => {
 
       getSimilarUsers.mockResolvedValue({
         similarUsers: mockSimilarUsers,
-        currentUserEmail: 'user@example.com',
+        currentUserId: 'u_userABCDEF',
         eventId: 'testEvent'
       });
 
@@ -322,7 +322,7 @@ describe('SimilarUsersDrawer Component', () => {
     it('personality subtitle hidden when null', async () => {
       const mockSimilarUsers = [
         {
-          email: 'bob@example.com',
+          userId: 'u_bob12ABCDE',
           name: null,
           similarityScore: 0.72,
           commonItemsCount: 4,
@@ -333,7 +333,7 @@ describe('SimilarUsersDrawer Component', () => {
 
       getSimilarUsers.mockResolvedValue({
         similarUsers: mockSimilarUsers,
-        currentUserEmail: 'user@example.com',
+        currentUserId: 'u_userABCDEF',
         eventId: 'testEvent'
       });
 
@@ -344,7 +344,7 @@ describe('SimilarUsersDrawer Component', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText('bob@example.com')).toBeInTheDocument();
+        expect(screen.getByText('Guest')).toBeInTheDocument();
       });
       expect(screen.getByText('4 common')).toBeInTheDocument();
       expect(screen.queryByText(/The Golden Retriever/)).not.toBeInTheDocument();
@@ -355,7 +355,7 @@ describe('SimilarUsersDrawer Component', () => {
     it('should call onClose when close button is clicked', async () => {
       getSimilarUsers.mockResolvedValue({
         similarUsers: [],
-        currentUserEmail: 'user@example.com',
+        currentUserId: 'u_userABCDEF',
         eventId: 'testEvent'
       });
 

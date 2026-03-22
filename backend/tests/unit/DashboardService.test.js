@@ -3,7 +3,7 @@ import dashboardService from '../../src/services/DashboardService.js';
 import { detectPersonality } from '../../src/services/PersonalityService.js';
 
 vi.mock('../../src/services/EventService.js', () => ({
-  default: { getEvent: vi.fn() }
+  default: { getEvent: vi.fn(), updateEvent: vi.fn().mockResolvedValue(undefined) }
 }));
 vi.mock('../../src/services/RatingService.js', () => ({
   default: { getRatings: vi.fn() }
@@ -29,6 +29,7 @@ vi.mock('../../src/services/PersonalityService.js', () => ({
 describe('DashboardService', () => {
   describe('calculateUserSummaries', () => {
     const baseEvent = {
+      eventId: 'TESTEVNT',
       typeOfItem: 'wine',
       users: { 'user1@test.com': { name: 'User1' }, 'user2@test.com': { name: 'User2' } },
       itemConfiguration: { numberOfItems: 8, excludedItemIds: [] },
@@ -47,47 +48,53 @@ describe('DashboardService', () => {
       vi.clearAllMocks();
     });
 
-    it('includes noteCount in summaries', () => {
-      const result = dashboardService.calculateUserSummaries(baseEvent, baseRatings, 8);
+    it('includes noteCount in summaries', async () => {
+      const event = JSON.parse(JSON.stringify(baseEvent));
+      const result = await dashboardService.calculateUserSummaries(event, baseRatings, 8);
 
-      const user1 = result.find(s => s.email === 'user1@test.com');
-      const user2 = result.find(s => s.email === 'user2@test.com');
+      const user1 = result.find(s => s.name === 'User1');
+      const user2 = result.find(s => s.name === 'User2');
 
       expect(user1.noteCount).toBe(2); // 'Great wine' and 'Nice'
       expect(user2.noteCount).toBe(0);
+      // Summaries should have userId, not email
+      expect(user1.userId).toBeDefined();
+      expect(user1.email).toBeUndefined();
     });
 
-    it('includes personality field for wine events when detectPersonality is mocked', () => {
+    it('includes personality field for wine events when detectPersonality is mocked', async () => {
       detectPersonality
         .mockReturnValueOnce('golden-retriever')
         .mockReturnValueOnce(null);
 
-      const result = dashboardService.calculateUserSummaries(baseEvent, baseRatings, 8);
+      const event = JSON.parse(JSON.stringify(baseEvent));
+      const result = await dashboardService.calculateUserSummaries(event, baseRatings, 8);
 
-      const user1 = result.find(s => s.email === 'user1@test.com');
-      const user2 = result.find(s => s.email === 'user2@test.com');
+      const user1 = result.find(s => s.name === 'User1');
+      const user2 = result.find(s => s.name === 'User2');
 
       expect(user1.personality).toBe('golden-retriever');
       expect(user2.personality).toBe(null);
     });
 
-    it('sets personality to null for non-wine events and does not call detectPersonality', () => {
-      const event = { ...baseEvent, typeOfItem: 'beer' };
+    it('sets personality to null for non-wine events and does not call detectPersonality', async () => {
+      const event = { ...JSON.parse(JSON.stringify(baseEvent)), typeOfItem: 'beer' };
 
-      const result = dashboardService.calculateUserSummaries(event, baseRatings, 8);
+      const result = await dashboardService.calculateUserSummaries(event, baseRatings, 8);
 
       expect(result.every(s => s.personality === null)).toBe(true);
       expect(detectPersonality).not.toHaveBeenCalled();
     });
 
-    it('passes correct input to detectPersonality', () => {
+    it('passes correct input to detectPersonality', async () => {
       const capturedInputs = [];
       detectPersonality.mockImplementation((input) => {
         capturedInputs.push(input);
         return null;
       });
 
-      dashboardService.calculateUserSummaries(baseEvent, baseRatings, 8);
+      const event = JSON.parse(JSON.stringify(baseEvent));
+      await dashboardService.calculateUserSummaries(event, baseRatings, 8);
 
       expect(capturedInputs.length).toBeGreaterThanOrEqual(1);
       const input = capturedInputs[0];

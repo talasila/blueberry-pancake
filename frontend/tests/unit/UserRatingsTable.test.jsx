@@ -18,7 +18,7 @@ vi.mock('../../src/components/UserRatingProgress.jsx', () => ({
 
 const USERS = [
   {
-    email: 'sarah@test.com',
+    userId: 'u_sarahABCDE',
     name: 'Sarah',
     personality: 'golden-retriever',
     numberOfBottlesRated: 5,
@@ -29,7 +29,7 @@ const USERS = [
     totalRatings: 5
   },
   {
-    email: 'mike@test.com',
+    userId: 'u_mikeABCDEF',
     name: 'Mike',
     personality: 'simon-cowell',
     numberOfBottlesRated: 2,
@@ -40,7 +40,7 @@ const USERS = [
     totalRatings: 2
   },
   {
-    email: 'jane@test.com',
+    userId: 'u_janeABCDEF',
     name: 'Jane',
     personality: null,
     numberOfBottlesRated: 4,
@@ -53,29 +53,29 @@ const USERS = [
 ];
 
 describe('UserRatingsTable – card layout', () => {
-  it('renders user cards with name, email, and average rating', () => {
+  it('renders user cards with name and average rating', () => {
     render(<UserRatingsTable userSummaries={USERS} ratingConfiguration={[]} />);
 
     expect(screen.getByText('Sarah')).toBeInTheDocument();
-    expect(screen.getByText('sarah')).toBeInTheDocument();
     expect(screen.getByText('Avg: 3.50')).toBeInTheDocument();
 
     expect(screen.getByText('Mike')).toBeInTheDocument();
     expect(screen.getByText('Avg: 1.50')).toBeInTheDocument();
   });
 
-  it('shows personality inline with email when present', () => {
+  it('shows personality when present', () => {
     render(<UserRatingsTable userSummaries={USERS} ratingConfiguration={[]} />);
 
-    expect(screen.getByText('· The Golden Retriever')).toBeInTheDocument();
-    expect(screen.getByText('· The Simon Cowell')).toBeInTheDocument();
+    expect(screen.getByText('The Golden Retriever')).toBeInTheDocument();
+    expect(screen.getByText('The Simon Cowell')).toBeInTheDocument();
   });
 
   it('does not show personality when null', () => {
     render(<UserRatingsTable userSummaries={USERS} ratingConfiguration={[]} />);
 
     const janeCard = screen.getByText('Jane').closest('button');
-    expect(janeCard).not.toHaveTextContent('·');
+    expect(janeCard).not.toHaveTextContent('The Golden Retriever');
+    expect(janeCard).not.toHaveTextContent('The Simon Cowell');
   });
 
   it('passes barHeight="h-2" to UserRatingProgress', () => {
@@ -139,12 +139,12 @@ describe('UserRatingsTable – card layout', () => {
     expect(cards[2]).toHaveTextContent('Mike');
   });
 
-  it('calls onRowClick with user email when card is clicked', () => {
+  it('calls onRowClick with user userId when card is clicked', () => {
     const onRowClick = vi.fn();
     render(<UserRatingsTable userSummaries={USERS} ratingConfiguration={[]} onRowClick={onRowClick} />);
 
     fireEvent.click(screen.getByText('Sarah').closest('button'));
-    expect(onRowClick).toHaveBeenCalledWith('sarah@test.com');
+    expect(onRowClick).toHaveBeenCalledWith('u_sarahABCDE');
   });
 
   it('shows empty state when no users', () => {

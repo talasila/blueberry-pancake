@@ -632,4 +632,77 @@ test.describe('Dashboard Page', () => {
     const dashboardLink = page.getByRole('menuitem', { name: /dashboard/i });
     await expect(dashboardLink).not.toBeVisible();
   });
+
+  // ===================================
+  // User Details Drawer from People Tab
+  // ===================================
+
+  test('admin can view own ratings in People tab user details drawer', async ({ page, testEvent }) => {
+    const { eventId } = testEvent;
+    const adminEmail = 'dashadmin@example.com';
+    const adminToken = await addAdminToEvent(eventId, adminEmail);
+    await startEvent(eventId, adminToken);
+
+    // Admin submits ratings
+    await submitRating(eventId, adminToken, 1, 4);
+    await submitRating(eventId, adminToken, 2, 3);
+
+    // Complete the event so dashboard is accessible
+    await changeEventState(eventId, 'completed', 'started', adminToken);
+
+    // Navigate to dashboard as admin
+    await setAuthToken(page, adminToken, adminEmail);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
+
+    // Click People tab
+    const peopleTab = page.getByRole('tab', { name: /people/i });
+    await expect(peopleTab).toBeVisible({ timeout: 10000 });
+    await peopleTab.click();
+
+    // Click on admin's own user card
+    const adminName = adminEmail.split('@')[0];
+    const userCard = page.locator('button').filter({ hasText: new RegExp(adminName, 'i') });
+    await expect(userCard.first()).toBeVisible({ timeout: 10000 });
+    await userCard.first().click();
+
+    // User details drawer should open with ratings
+    const drawer = page.getByRole('dialog', { name: /progress/i });
+    await expect(drawer).toBeVisible({ timeout: 5000 });
+    await expect(drawer.getByText(/no ratings yet/i)).not.toBeVisible({ timeout: 3000 });
+  });
+
+  test('admin can view guest ratings in People tab user details drawer', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
+    const adminEmail = 'dashviewadmin@example.com';
+    const adminToken = await addAdminToEvent(eventId, adminEmail);
+    await startEvent(eventId, adminToken);
+
+    // Register a guest and submit ratings
+    const guestToken = await getUserToken(eventId, 'dashguest@example.com', pin);
+    await submitRating(eventId, guestToken, 1, 4);
+    await submitRating(eventId, guestToken, 2, 2);
+    await submitRating(eventId, guestToken, 3, 3);
+
+    // Complete the event
+    await changeEventState(eventId, 'completed', 'started', adminToken);
+
+    // Navigate to dashboard as admin
+    await setAuthToken(page, adminToken, adminEmail);
+    await page.goto(`${BASE_URL}/event/${eventId}/dashboard`);
+
+    // Click People tab
+    const peopleTab = page.getByRole('tab', { name: /people/i });
+    await expect(peopleTab).toBeVisible({ timeout: 10000 });
+    await peopleTab.click();
+
+    // Click on the guest's user card
+    const guestCard = page.locator('button').filter({ hasText: /dashguest/i });
+    await expect(guestCard.first()).toBeVisible({ timeout: 10000 });
+    await guestCard.first().click();
+
+    // User details drawer should open with ratings
+    const drawer = page.getByRole('dialog', { name: /progress/i });
+    await expect(drawer).toBeVisible({ timeout: 5000 });
+    await expect(drawer.getByText(/no ratings yet/i)).not.toBeVisible({ timeout: 3000 });
+  });
 });
