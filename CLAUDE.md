@@ -38,4 +38,11 @@ JavaScript (ES Modules), Node.js >= 22.12.0: Follow standard conventions
 
 
 <!-- MANUAL ADDITIONS START -->
+
+## System Documentation
+
+For comprehensive system documentation (API endpoints, database schema, security mechanisms, caching strategies, component inventory, deployment config, etc.), see **[SYSTEM_DOCUMENTATION.md](./SYSTEM_DOCUMENTATION.md)**. Consult this document before making architectural decisions or changes that span multiple layers.
+
+**Keeping it current:** After completing any significant change (new/modified API endpoints, new components or pages, database schema changes, security mechanism changes, new dependencies, config changes, or build/deployment updates), update the relevant sections in `SYSTEM_DOCUMENTATION.md` to reflect the changes. Do this as the final step before committing.
+
 <!-- MANUAL ADDITIONS END -->
