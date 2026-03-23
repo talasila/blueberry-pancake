@@ -436,17 +436,54 @@ State transitions use optimistic locking (`expectedState` parameter). Returns 40
 
 **Two authentication methods:**
 
-| Method | For | JWT Payload | Cookie |
-|--------|-----|-------------|--------|
-| **OTP** (email) | Administrators | `{ email, events[], authMethod: 'otp' }` | `jwt_token` + `refresh_token` |
-| **PIN** (event) | Guests | `{ userId, events[], authMethod: 'pin' }` | `jwt_token` + `refresh_token` |
+| Method | For | Identity in JWT | Cookie |
+|--------|-----|-----------------|--------|
+| **OTP** (email) | Administrators | `email` (plain email address) | `jwt_token` + `refresh_token` |
+| **PIN** (event) | Guests | `userId` (opaque, no email) | `jwt_token` + `refresh_token` |
 
-- JWT algorithm: HS256
-- JWT expiration: 24h (configurable)
-- Refresh token: 7d (configurable), stored hashed (SHA256) in DynamoDB
-- Refresh token rotation on each refresh
-- OTP: 6-digit, crypto-random, 10-min TTL, timing-safe comparison
-- PIN: 6-digit, crypto-random, stored in event config
+**JWT Token Structure:**
+
+OTP token (administrators):
+```json
+{
+  "email": "admin@example.com",
+  "events": ["ABC12345", "XYZ67890"],
+  "authMethod": "otp",
+  "iat": 1711152000,
+  "exp": 1711238400
+}
+```
+
+PIN token (guests):
+```json
+{
+  "userId": "u_aBcDeFgHiJ",
+  "events": ["ABC12345"],
+  "authMethod": "pin",
+  "iat": 1711152000,
+  "exp": 1711238400
+}
+```
+
+Key differences:
+- **OTP tokens** carry `email` — used directly for DB key construction and admin authorization checks
+- **PIN tokens** carry `userId` (opaque) — email is never exposed to the guest; server resolves `userId` → `email` via `event.users` map when needed for DB operations (see section 7.6)
+- **`events` array** — list of event IDs the user has access to; updated on event creation and token refresh
+- **`authMethod`** — distinguishes admin vs guest flows; PIN users are blocked from admin-only operations
+
+**Token configuration:**
+- Algorithm: HS256
+- Expiration: 24h (configurable via `JWT_EXPIRATION`)
+- Signing secret: `JWT_SECRET` env var (must be non-default in production)
+
+**Refresh tokens:**
+- 64-byte cryptographically random hex string
+- Stored in DynamoDB hashed with SHA256 (never stored in plaintext)
+- TTL: 7 days (configurable via `REFRESH_TOKEN_EXPIRATION`)
+- Rotated on each refresh (old token invalidated, new one issued)
+
+**OTP:** 6-digit, crypto-random, 10-min TTL, timing-safe comparison
+**PIN:** 6-digit, crypto-random, stored in event config
 
 ### 7.2 Authorization
 
@@ -496,6 +533,11 @@ Circuit breaker: Blocks after 5 consecutive Turnstile verification failures. Fai
 - Similar users endpoint: emails redacted, userId + display name only
 - Display name mandatory for guest registration
 - Lazy userId backfill for pre-existing users
+
+**Identity resolution flow:** DynamoDB keys remain email-based (e.g. `RATING#{email}#{itemId}`). The userId is a privacy layer above the database, not a storage key. The translation works in both directions:
+
+- **Inbound (PIN user → DB write):** PIN JWT contains only `userId`, no email (see section 7.1). The `requireEventMembership` middleware resolves `userId` to `email` by scanning the `event.users` map via `resolveEmailFromUserId()` → resolved email is set on `req.user.resolvedEmail` → all downstream service/DB operations use that email for key construction. OTP JWTs already contain `email`, so no resolution is needed for admins.
+- **Outbound (DB read → API response):** Ratings and user data come back from DynamoDB keyed by email → for non-admin responses, `email` is stripped and replaced with the corresponding `userId` via `buildUserIdMap()` before returning to the client
 
 ### 7.7 Security Headers (Helmet)
 
