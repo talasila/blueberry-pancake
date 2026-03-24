@@ -98,6 +98,7 @@ blueberry-pancake/
 |-------|-----------|------|---------|
 | `/` | `LandingPage` | None | Join/create entry point |
 | `/auth` | `AuthPage` | None | Email + OTP verification |
+| `/privacy` | `PrivacyPolicyPage` | None | Privacy policy (static content) |
 | `/create-event` | `CreateEventPage` | ProtectedRoute | Event creation form |
 | `/my-events` | `MyEventsPage` | ProtectedRoute | User's event list |
 | `/system` | `SystemPage` | ProtectedRoute | Root admin dashboard |

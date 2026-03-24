@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label';
 import apiClient from '@/services/apiClient';
 import { clearAllBookmarks } from '@/utils/bookmarkStorage';
 import { useTurnstile } from '@/hooks/useTurnstile';
+import BottomSheetPicker from '@/components/BottomSheetPicker';
+import PrivacyPolicyContent from '@/components/PrivacyPolicyContent';
 
 /**
  * AuthPage Component
@@ -28,6 +30,7 @@ function AuthPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [privacyOpen, setPrivacyOpen] = useState(false);
 
   const { token: turnstileToken, isLoading: turnstileLoading, error: turnstileError, resetWidget, containerRef: turnstileRef } = useTurnstile(
     import.meta.env.VITE_TURNSTILE_SITE_KEY
@@ -204,8 +207,15 @@ function AuthPage() {
             </CardContent>
           </Card>
           <div ref={turnstileRef} />
+          <p className="text-center text-xs text-muted-foreground mt-4">
+            By continuing, you agree to our{' '}
+            <button type="button" onClick={() => setPrivacyOpen(true)} className="underline hover:text-foreground">Privacy Policy</button>
+          </p>
         </div>
       </div>
+      <BottomSheetPicker isOpen={privacyOpen} onClose={() => setPrivacyOpen(false)} title="Privacy Policy">
+        <PrivacyPolicyContent />
+      </BottomSheetPicker>
     </div>
   );
 }

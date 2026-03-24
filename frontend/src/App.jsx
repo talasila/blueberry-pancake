@@ -12,6 +12,7 @@ import EventOTPEntryPage from './pages/EventOTPEntryPage.jsx';
 import DashboardPage from './pages/DashboardPage.jsx';
 import ItemAssignmentPage from './pages/ItemAssignmentPage.jsx';
 import SystemPage from './pages/SystemPage.jsx';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
 import DashboardRoute from './components/DashboardRoute.jsx';
@@ -116,6 +117,7 @@ function AppLayout() {
           {/* Public routes - no authentication required */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/auth" element={<AuthPage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
           
           {/* Protected routes - authentication required */}
           <Route 

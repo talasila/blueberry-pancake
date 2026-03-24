@@ -9,6 +9,8 @@ import { useTurnstile } from '@/hooks/useTurnstile';
 import useEventPublicInfo from '@/hooks/useEventPublicInfo';
 import useDarkMode from '@/hooks/useDarkMode';
 import { getThemeVars } from '@/utils/themePresets';
+import BottomSheetPicker from '@/components/BottomSheetPicker';
+import PrivacyPolicyContent from '@/components/PrivacyPolicyContent';
 
 /**
  * EmailEntryPage Component
@@ -50,6 +52,7 @@ function EmailEntryPage() {
   const [email, setEmail] = useState(() => getRemembered('remembered:email'));
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   const { token: turnstileToken, containerRef: turnstileRef } = useTurnstile(
     import.meta.env.VITE_TURNSTILE_SITE_KEY
   );
@@ -210,8 +213,15 @@ function EmailEntryPage() {
             </CardContent>
           </Card>
           <div ref={turnstileRef} />
+          <p className="text-center text-xs text-muted-foreground mt-4">
+            By continuing, you agree to our{' '}
+            <button type="button" onClick={() => setPrivacyOpen(true)} className="underline hover:text-foreground">Privacy Policy</button>
+          </p>
         </div>
       </div>
+      <BottomSheetPicker isOpen={privacyOpen} onClose={() => setPrivacyOpen(false)} title="Privacy Policy">
+        <PrivacyPolicyContent />
+      </BottomSheetPicker>
     </div>
   );
 }
