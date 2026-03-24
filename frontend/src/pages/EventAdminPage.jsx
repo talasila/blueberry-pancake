@@ -1595,6 +1595,19 @@ function EventAdminPage({ onOpenAdminGuide }) {
             />
           </div>
 
+          {/* Guide link — outside card, safe distance from stepper buttons */}
+          {onOpenAdminGuide && (
+            <p className="text-center -mt-1">
+              <button
+                type="button"
+                onClick={onOpenAdminGuide}
+                className="text-xs text-muted-foreground hover:text-primary hover:underline"
+              >
+                Not sure what to do next? See the guide &rarr;
+              </button>
+            </p>
+          )}
+
           {/* Settings rows */}
           <div className="w-full border-t">
             <SettingsRow

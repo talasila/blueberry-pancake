@@ -224,13 +224,16 @@ test.describe('OTP Authentication', () => {
   });
 
   test('wrong OTP error code is INVALID_OTP in API response', async ({ page }) => {
+    // Use a unique email per run to avoid hitting a lingering suspension from prior runs
+    const uniqueEmail = `otp-code-${Date.now()}@example.com`;
+
     // Request an OTP first so the backend has an entry
     await page.request.post(`${API_URL}/api/auth/otp/request`, {
-      data: { email: 'otp-code-test@example.com' },
+      data: { email: uniqueEmail },
     });
 
     const response = await page.request.post(`${API_URL}/api/auth/otp/verify`, {
-      data: { email: 'otp-code-test@example.com', otp: '999999' },
+      data: { email: uniqueEmail, otp: '999999' },
     });
 
     expect(response.status()).toBe(400);
