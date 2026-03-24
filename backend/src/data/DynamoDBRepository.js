@@ -1073,21 +1073,27 @@ class DynamoDBRepository extends DataRepository {
 
   // ==================== REFRESH TOKENS ====================
 
-  async storeRefreshToken(tokenHash, email, expiresAt) {
+  async storeRefreshToken(tokenHash, email, expiresAt, metadata = {}) {
     await this.initialize();
 
     const ttl = Math.floor(expiresAt / 1000);
 
+    const item = {
+      PK: `REFRESH#${tokenHash}`,
+      SK: 'REFRESH',
+      email,
+      createdAt: new Date().toISOString(),
+      expiresAt,
+      TTL: ttl,
+    };
+
+    if (metadata.authMethod !== undefined) item.authMethod = metadata.authMethod;
+    if (metadata.userId !== undefined) item.userId = metadata.userId;
+    if (metadata.events !== undefined) item.events = metadata.events;
+
     await this.docClient.send(new PutCommand({
       TableName: this.tableName,
-      Item: {
-        PK: `REFRESH#${tokenHash}`,
-        SK: 'REFRESH',
-        email,
-        createdAt: new Date().toISOString(),
-        expiresAt,
-        TTL: ttl,
-      },
+      Item: item,
     }));
   }
 
@@ -1112,6 +1118,9 @@ class DynamoDBRepository extends DataRepository {
       email: response.Item.email,
       createdAt: response.Item.createdAt,
       expiresAt: response.Item.expiresAt,
+      authMethod: response.Item.authMethod,
+      userId: response.Item.userId,
+      events: response.Item.events,
     };
   }
 

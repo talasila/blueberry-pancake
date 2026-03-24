@@ -8,6 +8,10 @@ let ApiClient;
 let clients = [];
 
 beforeEach(async () => {
+  // Suppress expected console noise from apiClient error-handling paths
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  vi.spyOn(console, 'warn').mockImplementation(() => {});
+
   vi.stubGlobal('fetch', vi.fn());
   vi.stubGlobal('localStorage', {
     _store: {},
@@ -76,6 +80,26 @@ describe('apiClient — session-expired dispatch on 401', () => {
       email: 'user@test.com',
       eventId: 'ABCD1234',
     });
+  });
+
+  it('should attempt refresh for PIN users (not just OTP) and retry on success', async () => {
+    const client = new ApiClient();
+    client.setUserSession({ email: 'guest@test.com', exp: 9999999999, authMethod: 'pin' });
+
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+    fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ csrfToken: 'tok' }) }) // CSRF
+      .mockResolvedValueOnce({ status: 401, ok: false, json: async () => ({ error: 'Unauthorized' }) }) // main request 401
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ user: { userId: 'u_abc', exp: 9999999999, authMethod: 'pin' } }) }) // refresh success
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ success: true }) }); // retry succeeds
+
+    await client.post('/events/ABCD1234/ratings', { rating: 4 });
+
+    const sessionExpiredEvents = dispatchSpy.mock.calls
+      .filter(([e]) => e.type === 'session-expired');
+
+    expect(sessionExpiredEvents).toHaveLength(0);
   });
 
   it('should NOT dispatch session-expired when refresh succeeds (OTP user)', async () => {
@@ -242,13 +266,18 @@ describe('apiClient — credential vs session error code routing', () => {
 
 describe('apiClient — visibilitychange listener', () => {
   it('should attempt refresh when tab becomes visible and token is expired', async () => {
+    // Start with a valid session, then expire it (simulates token expiring while tab is backgrounded)
     localStorage.setItem('userSession', JSON.stringify({
       email: 'user@test.com',
-      exp: Math.floor(Date.now() / 1000) - 3600,
+      exp: Math.floor(Date.now() / 1000) + 3600,
       authMethod: 'pin',
     }));
 
     const client = new ApiClient();
+
+    // Now expire the session (as if time passed while tab was hidden)
+    client.userSession.exp = Math.floor(Date.now() / 1000) - 3600;
+    localStorage.setItem('userSession', JSON.stringify(client.userSession));
 
     // Refresh succeeds
     fetch.mockResolvedValueOnce({
@@ -274,13 +303,18 @@ describe('apiClient — visibilitychange listener', () => {
   });
 
   it('should dispatch session-expired when tab becomes visible and refresh fails', async () => {
+    // Start with a valid session, then expire it (simulates token expiring while tab is backgrounded)
     localStorage.setItem('userSession', JSON.stringify({
       email: 'user@test.com',
-      exp: Math.floor(Date.now() / 1000) - 3600,
+      exp: Math.floor(Date.now() / 1000) + 3600,
       authMethod: 'pin',
     }));
 
     const client = new ApiClient();
+
+    // Now expire the session (as if time passed while tab was hidden)
+    client.userSession.exp = Math.floor(Date.now() / 1000) - 3600;
+    localStorage.setItem('userSession', JSON.stringify(client.userSession));
 
     // Refresh fails
     fetch.mockResolvedValueOnce({ ok: false, status: 401 });
@@ -330,5 +364,103 @@ describe('apiClient — visibilitychange listener', () => {
     await new Promise(resolve => setTimeout(resolve, 50));
 
     expect(fetch).not.toHaveBeenCalled();
+  });
+});
+
+describe('apiClient — isAuthenticated() is side-effect-free', () => {
+  it('should return false for expired session without clearing it', () => {
+    const client = new ApiClient();
+    client.setUserSession({
+      email: 'user@test.com',
+      exp: Math.floor(Date.now() / 1000) - 3600,
+      authMethod: 'pin',
+    });
+
+    expect(client.isAuthenticated()).toBe(false);
+    // Session data must still be present (no side effect)
+    expect(client.userSession).not.toBeNull();
+    expect(client.userSession.email).toBe('user@test.com');
+    expect(client.userSession.authMethod).toBe('pin');
+    // localStorage must still have the session
+    expect(localStorage.getItem('userSession')).not.toBeNull();
+  });
+
+  it('should return true for valid (non-expired) session', () => {
+    const client = new ApiClient();
+    client.setUserSession({
+      email: 'user@test.com',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      authMethod: 'otp',
+    });
+
+    expect(client.isAuthenticated()).toBe(true);
+    expect(client.userSession.email).toBe('user@test.com');
+  });
+
+  it('should not destroy data needed by recovery path when called multiple times', () => {
+    const client = new ApiClient();
+    client.setUserSession({
+      userId: 'u_abc123',
+      exp: Math.floor(Date.now() / 1000) - 3600,
+      authMethod: 'pin',
+    });
+
+    // Multiple callers check auth — none should destroy the session
+    client.isAuthenticated();
+    client.isAuthenticated();
+    client.isAuthenticated();
+
+    // Session data still intact for the recovery path
+    expect(client.userSession.userId).toBe('u_abc123');
+    expect(client.userSession.authMethod).toBe('pin');
+  });
+});
+
+describe('apiClient — clearExpiredSession()', () => {
+  it('should return snapshot and clear session when expired', () => {
+    const client = new ApiClient();
+    client.setUserSession({
+      email: 'user@test.com',
+      userId: 'u_xyz',
+      name: 'Test User',
+      exp: Math.floor(Date.now() / 1000) - 3600,
+      authMethod: 'pin',
+    });
+
+    const snapshot = client.clearExpiredSession();
+
+    expect(snapshot).toEqual({
+      authMethod: 'pin',
+      email: 'user@test.com',
+      userId: 'u_xyz',
+      name: 'Test User',
+    });
+    // Session must be cleared
+    expect(client.userSession).toBeNull();
+    expect(localStorage.getItem('userSession')).toBeNull();
+  });
+
+  it('should return null when session is still valid (not expired)', () => {
+    const client = new ApiClient();
+    client.setUserSession({
+      email: 'user@test.com',
+      exp: Math.floor(Date.now() / 1000) + 3600,
+      authMethod: 'otp',
+    });
+
+    const snapshot = client.clearExpiredSession();
+
+    expect(snapshot).toBeNull();
+    // Session must NOT be cleared
+    expect(client.userSession).not.toBeNull();
+    expect(client.userSession.email).toBe('user@test.com');
+  });
+
+  it('should return null when no session exists', () => {
+    const client = new ApiClient();
+
+    const snapshot = client.clearExpiredSession();
+
+    expect(snapshot).toBeNull();
   });
 });

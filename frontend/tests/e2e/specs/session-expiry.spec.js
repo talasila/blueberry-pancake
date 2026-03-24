@@ -131,6 +131,121 @@ test.describe('Session Expiration — PIN User', () => {
   });
 });
 
+test.describe('Session Expiration — PIN Silent Renewal', () => {
+
+  test('silently renews session on visibilitychange when refresh succeeds', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
+    await loginAsUserToEvent(page, eventId, 'session-silent@example.com', pin);
+
+    // Intercept refresh to succeed with PIN-style response
+    await page.route('**/api/auth/refresh', route =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          user: { userId: 'u_silent', exp: Math.floor(Date.now() / 1000) + 86400, authMethod: 'pin' },
+          message: 'Token refreshed successfully',
+        }),
+      })
+    );
+
+    // Expire the session client-side and trigger visibilitychange
+    await page.evaluate(() => {
+      const session = JSON.parse(localStorage.getItem('userSession'));
+      if (session) {
+        session.exp = Math.floor(Date.now() / 1000) - 3600;
+        localStorage.setItem('userSession', JSON.stringify(session));
+      }
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    // Wait briefly for the async refresh to complete
+    await page.waitForTimeout(500);
+
+    // Session expired dialog should NOT appear — refresh succeeded silently
+    await expect(page.getByTestId('session-expired-dialog')).not.toBeVisible();
+  });
+
+  test('dialog shows correct identity after race between visibility and polling', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
+    await loginAsUserToEvent(page, eventId, 'session-race@example.com', pin);
+
+    // Intercept refresh to fail
+    await page.route('**/api/auth/refresh', route =>
+      route.fulfill({ status: 401, contentType: 'application/json', body: '{"error":"Refresh token expired"}' })
+    );
+
+    // Expire session and trigger visibilitychange
+    await page.evaluate(() => {
+      const session = JSON.parse(localStorage.getItem('userSession'));
+      if (session) {
+        session.exp = Math.floor(Date.now() / 1000) - 3600;
+        localStorage.setItem('userSession', JSON.stringify(session));
+      }
+      Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+
+    // Exactly one dialog should appear (not duplicated, not stuck)
+    await expect(page.getByTestId('session-expired-dialog')).toBeVisible({ timeout: 5000 });
+
+    // The PIN input should be visible (auth method correctly identified as PIN, not null)
+    await expect(page.getByTestId('session-expired-pin-input')).toBeVisible();
+  });
+
+  test('second tab picks up renewed session without showing dialog', async ({ page, context, testEvent }) => {
+    const { eventId, pin } = testEvent;
+    await loginAsUserToEvent(page, eventId, 'session-multitab@example.com', pin);
+
+    // Simulate silent refresh by updating localStorage with a renewed session
+    await page.evaluate(() => {
+      const session = JSON.parse(localStorage.getItem('userSession'));
+      if (session) {
+        session.exp = Math.floor(Date.now() / 1000) + 86400; // refreshed: valid for 24h
+        localStorage.setItem('userSession', JSON.stringify(session));
+      }
+    });
+
+    // Open a second tab in the same browser context (shares cookies + localStorage)
+    const page2 = await context.newPage();
+    await page2.goto(`${BASE_URL}/event/${eventId}`);
+
+    // The second tab should load the event page without a session-expired dialog
+    await page2.waitForTimeout(1000);
+    await expect(page2.getByTestId('session-expired-dialog')).not.toBeVisible();
+
+    await page2.close();
+  });
+
+  test('prompted re-auth works with recovery email from localStorage', async ({ page, testEvent }) => {
+    const { eventId, pin } = testEvent;
+    await loginAsUserToEvent(page, eventId, 'session-recovery@example.com', pin);
+
+    // Verify pin:email was persisted during login
+    const storedEmail = await page.evaluate((eid) => localStorage.getItem(`pin:email:${eid}`), eventId);
+    expect(storedEmail).toBe('session-recovery@example.com');
+
+    // Trigger session-expired with null email (simulating the post-041 scenario)
+    await page.evaluate((eid) => {
+      window.dispatchEvent(new CustomEvent('session-expired', {
+        detail: { authMethod: 'pin', email: null, eventId: eid },
+      }));
+    }, eventId);
+
+    // Dialog should appear
+    await expect(page.getByTestId('session-expired-dialog')).toBeVisible({ timeout: 3000 });
+
+    // Enter correct PIN — recovery email from localStorage should make this work
+    await page.getByTestId('session-expired-pin-input').fill(pin);
+    await page.getByTestId('session-expired-pin-submit').click();
+
+    // Dialog should dismiss on successful re-auth
+    await expect(page.getByTestId('session-expired-dialog')).not.toBeVisible({ timeout: 5000 });
+  });
+});
+
 test.describe('Session Expiration — OTP Admin', () => {
 
   test('shows redirect dialog for OTP admin session expiration', async ({ page, testEvent }) => {

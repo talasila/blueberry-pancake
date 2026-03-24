@@ -124,6 +124,9 @@ function PINEntryPage() {
         localStorage.setItem(`pin:session:${eventId}`, response.sessionId);
       }
 
+      // Persist guest email for session recovery (SessionExpiredDialog)
+      localStorage.setItem(`pin:email:${eventId}`, email);
+
       // Clear email and name from sessionStorage
       sessionStorage.removeItem(`event:${eventId}:email`);
       sessionStorage.removeItem(`event:${eventId}:name`);

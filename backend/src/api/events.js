@@ -8,11 +8,12 @@ import pinService from '../services/PINService.js';
 import ratingService from '../services/RatingService.js';
 import rateLimitService from '../services/RateLimitService.js';
 import loggerService from '../logging/Logger.js';
-import { 
-  generateToken, 
+import {
+  generateToken,
   generateRefreshToken,
+  invalidateRefreshToken,
   addEventToToken,
-  JWT_COOKIE_NAME, 
+  JWT_COOKIE_NAME,
   REFRESH_COOKIE_NAME,
   getJWTCookieOptions,
   getRefreshCookieOptions
@@ -217,14 +218,20 @@ router.post('/:eventId/verify-pin', async (req, res) => {
       return handleApiError(res, tokenError, 'generate authentication token');
     }
 
-    const refreshToken = await generateRefreshToken(normalizedEmail);
+    const existingRefreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
+    if (existingRefreshToken) {
+      await invalidateRefreshToken(existingRefreshToken).catch(err => {
+        loggerService.warn(`Could not invalidate old refresh token: ${err.message}`);
+      });
+    }
+
+    const decoded = jwt.decode(token);
+    const refreshToken = await generateRefreshToken(normalizedEmail, { authMethod: 'pin', userId, events: decoded?.events || [eventId] });
 
     // Set JWT as httpOnly cookie for security
     res.cookie(JWT_COOKIE_NAME, token, getJWTCookieOptions());
     // Set refresh token as httpOnly cookie
     res.cookie(REFRESH_COOKIE_NAME, refreshToken, getRefreshCookieOptions());
-
-    const decoded = jwt.decode(token);
     res.json({
       sessionId: result.sessionId,
       eventId,

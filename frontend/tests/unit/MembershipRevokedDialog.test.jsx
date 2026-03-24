@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import MembershipRevokedDialog from '../../src/components/MembershipRevokedDialog.jsx';
 
 vi.mock('../../src/services/apiClient.js', () => ({
@@ -23,9 +23,11 @@ describe('MembershipRevokedDialog', () => {
   it('should render modal when membership-revoked event fires', async () => {
     render(<MembershipRevokedDialog />);
 
-    window.dispatchEvent(new CustomEvent('membership-revoked', {
-      detail: { message: 'User is not registered for this event' },
-    }));
+    act(() => {
+      window.dispatchEvent(new CustomEvent('membership-revoked', {
+        detail: { message: 'User is not registered for this event' },
+      }));
+    });
 
     await waitFor(() => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -41,9 +43,11 @@ describe('MembershipRevokedDialog', () => {
 
     render(<MembershipRevokedDialog />);
 
-    window.dispatchEvent(new CustomEvent('membership-revoked', {
-      detail: { message: 'Access removed' },
-    }));
+    act(() => {
+      window.dispatchEvent(new CustomEvent('membership-revoked', {
+        detail: { message: 'Access removed' },
+      }));
+    });
 
     await waitFor(() => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
@@ -60,9 +64,11 @@ describe('MembershipRevokedDialog', () => {
   it('should have aria-modal attribute for blocking interaction', async () => {
     render(<MembershipRevokedDialog />);
 
-    window.dispatchEvent(new CustomEvent('membership-revoked', {
-      detail: { message: 'Blocked' },
-    }));
+    act(() => {
+      window.dispatchEvent(new CustomEvent('membership-revoked', {
+        detail: { message: 'Blocked' },
+      }));
+    });
 
     await waitFor(() => {
       const dialog = screen.getByRole('dialog');

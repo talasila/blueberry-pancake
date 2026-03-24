@@ -4,6 +4,7 @@ import app from '../../src/app.js';
 import emailService from '../../src/services/EmailService.js';
 import suspensionService from '../../src/services/SuspensionService.js';
 import eventConfigService from '../../src/services/EventConfigService.js';
+import { validateRefreshToken, REFRESH_COOKIE_NAME } from '../../src/middleware/jwtAuth.js';
 
 const request = supertest(app);
 
@@ -83,6 +84,8 @@ vi.mock('../../src/middleware/jwtAuth.js', async (importOriginal) => {
   return {
     ...original,
     generateRefreshToken: vi.fn().mockResolvedValue('mock-refresh-token'),
+    validateRefreshToken: vi.fn().mockResolvedValue({ valid: false, error: 'No refresh token provided' }),
+    invalidateRefreshToken: vi.fn().mockResolvedValue(),
   };
 });
 
@@ -310,5 +313,101 @@ describe('OTP Authentication API', () => {
       // updateUserName should NOT be called when name/eventId are missing
       expect(eventConfigService.updateUserName).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('POST /api/auth/refresh', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('PIN user refresh returns correct JWT', async () => {
+    validateRefreshToken.mockResolvedValueOnce({
+      valid: true,
+      email: 'guest@test.com',
+      authMethod: 'pin',
+      userId: 'u_abc123',
+      events: ['ABCD1234'],
+    });
+
+    const response = await request
+      .post('/api/auth/refresh')
+      .set('Cookie', `${REFRESH_COOKIE_NAME}=mock-refresh-token-value`)
+      .expect(200);
+
+    expect(response.body).toHaveProperty('success', true);
+    expect(response.body).toHaveProperty('user');
+    expect(response.body.user).toHaveProperty('authMethod', 'pin');
+    expect(response.body.user).toHaveProperty('userId', 'u_abc123');
+  });
+
+  it('OTP user refresh returns correct JWT', async () => {
+    validateRefreshToken.mockResolvedValueOnce({
+      valid: true,
+      email: 'admin@test.com',
+      authMethod: 'otp',
+    });
+
+    const response = await request
+      .post('/api/auth/refresh')
+      .set('Cookie', `${REFRESH_COOKIE_NAME}=mock-refresh-token-value`)
+      .expect(200);
+
+    expect(response.body).toHaveProperty('success', true);
+    expect(response.body).toHaveProperty('user');
+    expect(response.body.user).toHaveProperty('authMethod', 'otp');
+    expect(response.body.user).toHaveProperty('email', 'admin@test.com');
+  });
+
+  it('legacy refresh token without authMethod falls back to OTP', async () => {
+    validateRefreshToken.mockResolvedValueOnce({
+      valid: true,
+      email: 'user@test.com',
+    });
+
+    const response = await request
+      .post('/api/auth/refresh')
+      .set('Cookie', `${REFRESH_COOKIE_NAME}=mock-refresh-token-value`)
+      .expect(200);
+
+    expect(response.body).toHaveProperty('success', true);
+    expect(response.body).toHaveProperty('user');
+    expect(response.body.user).toHaveProperty('authMethod', 'otp');
+    expect(response.body.user).toHaveProperty('email', 'user@test.com');
+  });
+
+  it('refresh rotates token: invalidates old before issuing new', async () => {
+    validateRefreshToken.mockResolvedValueOnce({
+      valid: true,
+      email: 'guest@test.com',
+      authMethod: 'pin',
+      userId: 'u_rotate',
+      events: ['ABCD1234'],
+    });
+
+    const { invalidateRefreshToken: mockInvalidate } = await import('../../src/middleware/jwtAuth.js');
+
+    await request
+      .post('/api/auth/refresh')
+      .set('Cookie', `${REFRESH_COOKIE_NAME}=old-refresh-token`)
+      .expect(200);
+
+    // The old refresh token should have been invalidated during rotation
+    expect(mockInvalidate).toHaveBeenCalledWith('old-refresh-token');
+  });
+
+  it('expired refresh token returns 401', async () => {
+    validateRefreshToken.mockResolvedValueOnce({
+      valid: false,
+      error: 'Refresh token expired',
+    });
+
+    const response = await request
+      .post('/api/auth/refresh')
+      .set('Cookie', `${REFRESH_COOKIE_NAME}=expired-token-value`)
+      .expect(401);
+
+    expect(response.body).toHaveProperty('error');
+    expect(response.body.error).toContain('expired');
   });
 });

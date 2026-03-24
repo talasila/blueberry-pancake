@@ -209,13 +209,17 @@ function parseRefreshExpiration() {
 /**
  * Generate a secure refresh token and store in DynamoDB
  * @param {string} email - User email
+ * @param {object} [metadata={}] - Optional metadata to persist with the token
+ * @param {string} [metadata.authMethod] - Authentication method (e.g. 'pin', 'otp')
+ * @param {string} [metadata.userId] - Opaque user identifier
+ * @param {string[]} [metadata.events] - Array of event IDs the user has access to
  * @returns {Promise<string>} Refresh token
  */
-export async function generateRefreshToken(email) {
+export async function generateRefreshToken(email, metadata = {}) {
   const refreshToken = crypto.randomBytes(64).toString('hex');
   const expiresAt = Date.now() + parseRefreshExpiration();
 
-  await dataRepository.storeRefreshToken(hashToken(refreshToken), email, expiresAt);
+  await dataRepository.storeRefreshToken(hashToken(refreshToken), email, expiresAt, metadata);
 
   return refreshToken;
 }
@@ -238,9 +242,9 @@ export function getRefreshCookieOptions() {
 }
 
 /**
- * Validate refresh token and return email if valid
+ * Validate refresh token and return the full token record if valid
  * @param {string} refreshToken - Refresh token to validate
- * @returns {Promise<{valid: boolean, email?: string, error?: string}>}
+ * @returns {Promise<{valid: boolean, email?: string, authMethod?: string, userId?: string, events?: string[], error?: string}>}
  */
 export async function validateRefreshToken(refreshToken) {
   if (!refreshToken) {
@@ -258,7 +262,13 @@ export async function validateRefreshToken(refreshToken) {
     return { valid: false, error: 'Refresh token expired' };
   }
 
-  return { valid: true, email: tokenData.email };
+  return {
+    valid: true,
+    email: tokenData.email,
+    authMethod: tokenData.authMethod,
+    userId: tokenData.userId,
+    events: tokenData.events
+  };
 }
 
 /**

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import useEventPolling from '../../src/hooks/useEventPolling.js';
 import apiClient from '../../src/services/apiClient.js';
 
@@ -38,6 +38,7 @@ describe('useEventPolling Hook', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllTimers();
+    vi.restoreAllMocks();
   });
 
   describe('Initial fetch', () => {
@@ -231,15 +232,16 @@ describe('useEventPolling Hook', () => {
       // Simulate page becoming hidden
       document.visibilityState = 'hidden';
       document.hidden = true;
-      
-      const visibilityEvent = new Event('visibilitychange');
-      document.dispatchEvent(visibilityEvent);
-      
+
+      act(() => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+
       // Advance timer - polling should be paused
       vi.advanceTimersByTime(5000);
-      
+
       await new Promise(resolve => setTimeout(resolve, 100));
-      
+
       expect(apiClient.getEvent).toHaveBeenCalledTimes(1);
       expect(result.current.isPolling).toBe(false);
     });
@@ -270,10 +272,11 @@ describe('useEventPolling Hook', () => {
       // Simulate page becoming visible
       document.visibilityState = 'visible';
       document.hidden = false;
-      
-      const visibilityEvent = new Event('visibilitychange');
-      document.dispatchEvent(visibilityEvent);
-      
+
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+
       // Should fetch immediately when page becomes visible
       await waitFor(() => {
         expect(apiClient.getEvent).toHaveBeenCalledTimes(2);
@@ -334,6 +337,7 @@ describe('useEventPolling Hook', () => {
     });
 
     it('should implement exponential backoff on retries', async () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
       const mockEvent = {
         eventId: 'A5ohYrHe',
         name: 'Test Event',
@@ -398,8 +402,10 @@ describe('useEventPolling Hook', () => {
       // Test refetch
       const updatedEvent = { ...mockEvent, name: 'Updated Event' };
       apiClient.getEvent.mockResolvedValue(updatedEvent);
-      
-      await result.current.refetch();
+
+      await act(async () => {
+        await result.current.refetch();
+      });
       
       await waitFor(() => {
         expect(result.current.event.name).toBe('Updated Event');

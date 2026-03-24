@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { BrowserRouter, MemoryRouter, Routes, Route } from 'react-router-dom';
 import { useParams } from 'react-router-dom';
 import EventAdminPage from '../../src/pages/EventAdminPage.jsx';
@@ -74,9 +74,11 @@ describe('EventAdminPage Component', () => {
   });
 
   describe('Loading state', () => {
-    it('should display loading indicator while fetching', () => {
-      renderWithProviders(null);
-      
+    it('should display loading indicator while fetching', async () => {
+      await act(async () => {
+        renderWithProviders(null);
+      });
+
       expect(screen.getByText(/loading event/i)).toBeInTheDocument();
     });
   });
@@ -142,9 +144,11 @@ describe('EventAdminPage Component', () => {
         isPolling: false,
         refetch: vi.fn()
       });
-      
-      renderWithProviders(null);
-      
+
+      await act(async () => {
+        renderWithProviders(null);
+      });
+
       // When context and polling both provide null, component shows loading
       expect(screen.getByText(/loading event/i)).toBeInTheDocument();
     });
@@ -179,9 +183,11 @@ describe('EventAdminPage Component', () => {
   });
 
   describe('Polling integration', () => {
-    it('should use useEventPolling hook', () => {
-      renderWithProviders(null);
-      
+    it('should use useEventPolling hook', async () => {
+      await act(async () => {
+        renderWithProviders(null);
+      });
+
       expect(useEventPolling).toHaveBeenCalledWith('A5ohYrHe');
     });
 
@@ -280,14 +286,16 @@ describe('EventAdminPage Component', () => {
       expect(screen.getByText('Your event is ready!')).toBeInTheDocument();
     });
 
-    it('does NOT render WelcomeBottomSheet on normal admin page visit', () => {
+    it('does NOT render WelcomeBottomSheet on normal admin page visit', async () => {
       useEventPolling.mockReturnValue({
         event: fullEvent,
         isPolling: false,
         refetch: vi.fn()
       });
 
-      renderWithLocationState(fullEvent);
+      await act(async () => {
+        renderWithLocationState(fullEvent);
+      });
 
       expect(screen.queryByTestId('welcome-bottom-sheet')).not.toBeInTheDocument();
     });

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, act } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { useParams } from 'react-router-dom';
 import EventPage from '../../src/pages/EventPage.jsx';
@@ -85,9 +85,11 @@ describe('EventPage Component', () => {
   });
 
   describe('Loading state', () => {
-    it('should display loading indicator while fetching', () => {
-      renderWithProviders(null, false);
-      
+    it('should display loading indicator while fetching', async () => {
+      await act(async () => {
+        renderWithProviders(null, false);
+      });
+
       expect(screen.getByText(/loading event/i)).toBeInTheDocument();
     });
   });
@@ -180,9 +182,11 @@ describe('EventPage Component', () => {
         isPolling: false,
         refetch: vi.fn()
       });
-      
-      renderWithProviders(null, false);
-      
+
+      await act(async () => {
+        renderWithProviders(null, false);
+      });
+
       // When context provides null event, component shows loading state
       expect(screen.getByText(/loading event/i)).toBeInTheDocument();
     });
@@ -193,9 +197,11 @@ describe('EventPage Component', () => {
         isPolling: false,
         refetch: vi.fn()
       });
-      
-      renderWithProviders(null, false);
-      
+
+      await act(async () => {
+        renderWithProviders(null, false);
+      });
+
       // Component shows loading while event is null from context
       expect(screen.getByText(/loading event/i)).toBeInTheDocument();
     });

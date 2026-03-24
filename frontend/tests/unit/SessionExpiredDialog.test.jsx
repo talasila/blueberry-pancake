@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import SessionExpiredDialog from '../../src/components/SessionExpiredDialog.jsx';
 
 vi.mock('../../src/services/apiClient.js', () => ({
@@ -13,9 +13,11 @@ vi.mock('../../src/services/apiClient.js', () => ({
 import apiClient from '../../src/services/apiClient.js';
 
 function dispatchSessionExpired(detail = {}) {
-  window.dispatchEvent(new CustomEvent('session-expired', {
-    detail: { authMethod: 'pin', email: 'user@test.com', eventId: 'ABCD1234', ...detail },
-  }));
+  act(() => {
+    window.dispatchEvent(new CustomEvent('session-expired', {
+      detail: { authMethod: 'pin', email: 'user@test.com', eventId: 'ABCD1234', ...detail },
+    }));
+  });
 }
 
 describe('SessionExpiredDialog', () => {
@@ -211,6 +213,152 @@ describe('SessionExpiredDialog', () => {
       });
       // Only one dialog
       expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    });
+  });
+});
+
+describe('SessionExpiredDialog — recovery email from localStorage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('reads pin:email:{eventId} from localStorage when session email is null', async () => {
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key) => {
+      if (key === 'pin:email:ABCD1234') return 'guest@test.com';
+      return null;
+    });
+
+    apiClient.verifyPIN.mockResolvedValue({
+      user: { userId: 'u_testABCDEF', name: 'Guest', exp: 9999999999, authMethod: 'pin' },
+      sessionId: 'sess-456',
+    });
+
+    render(<SessionExpiredDialog />);
+    dispatchSessionExpired({ email: null, authMethod: 'pin', eventId: 'ABCD1234' });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-expired-pin-input')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByTestId('session-expired-pin-input'), { target: { value: '123456' } });
+    fireEvent.submit(screen.getByTestId('session-expired-pin-submit').closest('form'));
+
+    await waitFor(() => {
+      expect(apiClient.verifyPIN).toHaveBeenCalledWith('ABCD1234', '123456', 'guest@test.com', expect.any(String));
+    });
+
+    getItemSpy.mockRestore();
+  });
+
+  it('updates stored email after successful re-auth', async () => {
+    const getItemSpy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation((key) => {
+      if (key === 'pin:email:ABCD1234') return 'guest@test.com';
+      return null;
+    });
+    const setItemSpy = vi.spyOn(Storage.prototype, 'setItem');
+
+    apiClient.verifyPIN.mockResolvedValue({
+      user: { userId: 'u_testABCDEF', name: 'Guest', exp: 9999999999, authMethod: 'pin' },
+      sessionId: 'sess-456',
+    });
+
+    render(<SessionExpiredDialog />);
+    dispatchSessionExpired({ email: null, authMethod: 'pin', eventId: 'ABCD1234' });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-expired-pin-input')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByTestId('session-expired-pin-input'), { target: { value: '123456' } });
+    fireEvent.submit(screen.getByTestId('session-expired-pin-submit').closest('form'));
+
+    await waitFor(() => {
+      expect(apiClient.verifyPIN).toHaveBeenCalled();
+    });
+
+    await waitFor(() => {
+      expect(setItemSpy).toHaveBeenCalledWith('pin:email:ABCD1234', 'guest@test.com');
+    });
+
+    getItemSpy.mockRestore();
+    setItemSpy.mockRestore();
+  });
+});
+
+describe('SessionExpiredDialog — error message accuracy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('shows "Invalid PIN" for wrong PIN error', async () => {
+    apiClient.verifyPIN.mockRejectedValue(new Error('Invalid PIN'));
+
+    render(<SessionExpiredDialog />);
+    dispatchSessionExpired();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-expired-pin-input')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByTestId('session-expired-pin-input'), { target: { value: '000000' } });
+    fireEvent.submit(screen.getByTestId('session-expired-pin-submit').closest('form'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-expired-error')).toHaveTextContent('Invalid PIN. Please try again.');
+    });
+  });
+
+  it('shows rate limit message for Too many attempts error', async () => {
+    apiClient.verifyPIN.mockRejectedValue(new Error('Too many attempts. Please try again later.'));
+
+    render(<SessionExpiredDialog />);
+    dispatchSessionExpired();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-expired-pin-input')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByTestId('session-expired-pin-input'), { target: { value: '000000' } });
+    fireEvent.submit(screen.getByTestId('session-expired-pin-submit').closest('form'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-expired-error')).toHaveTextContent('Too many attempts. Please try again later.');
+    });
+  });
+
+  it('shows session data expired for Email-related error', async () => {
+    apiClient.verifyPIN.mockRejectedValue(new Error('Email is required'));
+
+    render(<SessionExpiredDialog />);
+    dispatchSessionExpired();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-expired-pin-input')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByTestId('session-expired-pin-input'), { target: { value: '123456' } });
+    fireEvent.submit(screen.getByTestId('session-expired-pin-submit').closest('form'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-expired-error')).toHaveTextContent('Session data expired. Please reload the page to sign in again.');
+    });
+  });
+
+  it('shows connection error for network failure', async () => {
+    apiClient.verifyPIN.mockRejectedValue(new Error('Failed to fetch'));
+
+    render(<SessionExpiredDialog />);
+    dispatchSessionExpired();
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-expired-pin-input')).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByTestId('session-expired-pin-input'), { target: { value: '123456' } });
+    fireEvent.submit(screen.getByTestId('session-expired-pin-submit').closest('form'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-expired-error')).toHaveTextContent('Unable to connect. Please check your connection.');
     });
   });
 });

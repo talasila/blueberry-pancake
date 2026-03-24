@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { renderHook, waitFor } from '@testing-library/react';
+import { renderHook, waitFor, act } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { useParams } from 'react-router-dom';
 import useEvent from '../../src/hooks/useEvent.js';
@@ -211,8 +211,10 @@ describe('useEvent Hook', () => {
       // Test refetch
       const updatedEvent = { ...mockEvent, name: 'Updated Event' };
       apiClient.getEvent.mockResolvedValue(updatedEvent);
-      
-      await result.current.refetch();
+
+      await act(async () => {
+        await result.current.refetch();
+      });
       
       await waitFor(() => {
         expect(result.current.event.name).toBe('Updated Event');

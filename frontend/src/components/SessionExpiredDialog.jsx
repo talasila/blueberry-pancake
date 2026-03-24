@@ -45,8 +45,9 @@ function SessionExpiredDialog() {
 
     try {
       // Name is required for verify-PIN — use stored name or derive from email
-      const name = apiClient.getUserName() || localStorage.getItem('remembered:name') || email?.split('@')[0] || 'Guest';
-      const response = await apiClient.verifyPIN(eventId, pin, email, name);
+      const recoveryEmail = email || localStorage.getItem(`pin:email:${eventId}`);
+      const name = apiClient.getUserName() || localStorage.getItem('remembered:name') || recoveryEmail?.split('@')[0] || 'Guest';
+      const response = await apiClient.verifyPIN(eventId, pin, recoveryEmail, name);
 
       if (response.user) {
         apiClient.setUserSession(response.user);
@@ -54,11 +55,16 @@ function SessionExpiredDialog() {
       if (response.sessionId && eventId) {
         localStorage.setItem(`pin:session:${eventId}`, response.sessionId);
       }
+      if (recoveryEmail && eventId) {
+        localStorage.setItem(`pin:email:${eventId}`, recoveryEmail);
+      }
       setVisible(false);
     } catch (err) {
       let msg = 'Invalid PIN. Please try again.';
       if (err.message?.includes('Too many attempts')) {
         msg = err.message;
+      } else if (err.message?.includes('Email') || err.message?.includes('required') || err.message?.includes('session')) {
+        msg = 'Session data expired. Please reload the page to sign in again.';
       } else if (err.message?.includes('Failed to fetch') || err.message?.includes('Network error')) {
         msg = 'Unable to connect. Please check your connection.';
       }

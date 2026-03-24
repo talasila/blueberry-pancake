@@ -130,6 +130,14 @@ Provides event data and admin status. Includes polling via `useEventPolling` (30
 ```
 Session stored in localStorage as `pin:session:{eventId}`.
 
+**Client-Side localStorage Keys:**
+
+| Key | Purpose | Written | Read | Cleared |
+|-----|---------|---------|------|---------|
+| `userSession` | JWT token for API client | On login/refresh | apiClient on every request | On logout |
+| `pin:session:{eventId}` | PIN session ID | On PIN verification | PINContext | On logout |
+| `pin:email:{eventId}` | Guest's email per event for session recovery | During PIN verification | SessionExpiredDialog (when session email is null) | On logout |
+
 ### 3.4 Custom Hooks
 
 | Hook | Purpose |
@@ -357,6 +365,25 @@ State transitions use optimistic locking (`expectedState` parameter). Returns 40
 | **Similar Users Cache** | `SIMILAR#{eventId}` | `SIMILAR#{email}` | — | — | 30s |
 | **Refresh Token** | `REFRESH#{tokenHash}` | `REFRESH` | — | — | 7d |
 
+**Refresh Token Record Shape:**
+
+```javascript
+{
+  PK: "REFRESH#{tokenHash}",
+  SK: "REFRESH",
+  tokenHash: string,
+  email: string,
+  createdAt: ISO8601,
+  TTL: number,
+  // Optional fields (added for PIN session recovery):
+  authMethod: "otp" | "pin",   // Defaults to "otp" for legacy records without this field
+  userId: "u_xxxxxxxxxx",      // Opaque ID — present only for PIN users
+  events: ["ABC12345"]         // Event IDs the user has access to
+}
+```
+
+Legacy refresh token records (created before PIN session recovery) lack `authMethod`, `userId`, and `events` fields and are treated as OTP.
+
 ### 6.3 Event Config Shape
 
 ```javascript
@@ -496,6 +523,14 @@ Key differences:
 - Stored in DynamoDB hashed with SHA256 (never stored in plaintext)
 - TTL: 7 days (configurable via `REFRESH_TOKEN_EXPIRATION`)
 - Rotated on each refresh (old token invalidated, new one issued)
+- Record includes `authMethod`, `userId`, and `events` for PIN session recovery (see section 6.2)
+
+**Session recovery (silent token refresh):**
+- Both OTP and PIN users support silent token refresh via the `/api/auth/refresh` endpoint
+- The refresh endpoint reads `authMethod` from the stored refresh token record and branches to generate the correct JWT type (OTP token with `email` vs PIN token with `userId`)
+- PIN guests previously could not refresh; they now can because refresh token records carry the necessary `userId` and `events` fields
+- `isAuthenticated()` is a pure read operation with no side effects — it checks token validity without triggering refresh or navigation
+- Session cleanup is coordinated through a single function (`clearExpiredSession()`) to avoid scattered cleanup logic across the codebase
 
 **OTP:** 6-digit, crypto-random, 10-min TTL, timing-safe comparison
 **PIN:** 6-digit, crypto-random, stored in event config

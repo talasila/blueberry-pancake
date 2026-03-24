@@ -1,6 +1,6 @@
 # blueberry-pancake Development Guidelines
 
-Auto-generated from all feature plans. Last updated: 2026-03-23
+Auto-generated from all feature plans. Last updated: 2026-03-24
 
 ## Active Technologies
 - DynamoDB (via DynamoDBRepository) — user records in `event.users` map (035-guest-name-entry)
@@ -15,6 +15,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-23
 - DynamoDB (single-table design, nested `users` map in event CONFIG item) (041-email-privacy-opaque-id)
 - JavaScript (ES Modules), Node.js >= 22.12.0 + Express 5.2.1 (backend), React 19.2.1 (frontend) (042-structured-error-codes)
 - DynamoDB (no schema changes needed) (042-structured-error-codes)
+- JavaScript (ES Modules), Node.js >= 22.12.0 + Express 5.2.1 (backend), React 19.2.1 (frontend), jsonwebtoken, Radix UI, Tailwind CSS 4.1.17 (043-fix-pin-session-recovery)
+- DynamoDB (single-table design) — refresh tokens stored as `REFRESH#{tokenHash}` items; localStorage for client-side session state (043-fix-pin-session-recovery)
 
 - JavaScript (ES Modules), Node.js >= 22.12.0 + React 19.2.1, Express 5.2.1, Radix UI, Tailwind CSS 4.1.17 (034-codebase-refactor)
 
@@ -34,9 +36,9 @@ npm test && npm run lint
 JavaScript (ES Modules), Node.js >= 22.12.0: Follow standard conventions
 
 ## Recent Changes
+- 043-fix-pin-session-recovery: Added JavaScript (ES Modules), Node.js >= 22.12.0 + Express 5.2.1 (backend), React 19.2.1 (frontend), jsonwebtoken, Radix UI, Tailwind CSS 4.1.17
 - 042-structured-error-codes: Added JavaScript (ES Modules), Node.js >= 22.12.0 + Express 5.2.1 (backend), React 19.2.1 (frontend)
 - 041-email-privacy-opaque-id: Added JavaScript (ES Modules), Node.js >= 22.12.0 + React 19.2.1 + Express 5.2.1, Radix UI, Tailwind CSS 4.1.17, nanoid ^5.1.6 (already installed), jsonwebtoken
-- 040-personality-toggle: Added JavaScript (ES Modules), Node.js >= 22.12.0 + React 19.2.1 + Express 5.2.1, Radix UI, Tailwind CSS 4.1.17, lucide-reac
 
 
 <!-- MANUAL ADDITIONS START -->

@@ -34,8 +34,9 @@ vi.mock('../../../src/logging/Logger.js', () => ({
 }));
 
 import jwt from 'jsonwebtoken';
-import { clearAuthCookies, generateToken, jwtAuth, JWT_COOKIE_NAME, REFRESH_COOKIE_NAME } from '../../../src/middleware/jwtAuth.js';
+import { clearAuthCookies, generateToken, generateRefreshToken, validateRefreshToken, jwtAuth, JWT_COOKIE_NAME, REFRESH_COOKIE_NAME } from '../../../src/middleware/jwtAuth.js';
 import { isProduction } from '../../../src/utils/environment.js';
+import dataRepository from '../../../src/data/DynamoDBRepository.js';
 
 describe('clearAuthCookies', () => {
   let mockRes;
@@ -210,5 +211,71 @@ describe('jwtAuth middleware legacy PIN detection', () => {
     expect(req.user.legacyPinToken).toBeUndefined();
     expect(req.user.userId).toBe('u_testABCDEF');
     expect(req.user.authMethod).toBe('pin');
+  });
+});
+
+describe('jwtAuth — refresh token metadata', () => {
+  let tokenStore;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    tokenStore = new Map();
+
+    dataRepository.storeRefreshToken.mockImplementation(async (hash, email, expiresAt, metadata = {}) => {
+      const record = { email, expiresAt };
+      if (metadata.authMethod !== undefined) record.authMethod = metadata.authMethod;
+      if (metadata.userId !== undefined) record.userId = metadata.userId;
+      if (metadata.events !== undefined) record.events = metadata.events;
+      tokenStore.set(hash, record);
+    });
+
+    dataRepository.getRefreshToken.mockImplementation(async (hash) => {
+      return tokenStore.get(hash) || null;
+    });
+  });
+
+  it('generateRefreshToken stores metadata', async () => {
+    const token = await generateRefreshToken('user@test.com', {
+      authMethod: 'pin',
+      userId: 'u_abc',
+      events: ['ABCD1234']
+    });
+
+    const result = await validateRefreshToken(token);
+
+    expect(result.valid).toBe(true);
+    expect(result.authMethod).toBe('pin');
+    expect(result.userId).toBe('u_abc');
+    expect(result.events).toEqual(['ABCD1234']);
+  });
+
+  it('validateRefreshToken returns metadata fields', async () => {
+    const token = await generateRefreshToken('user@test.com', {
+      authMethod: 'pin',
+      userId: 'u_abc',
+      events: ['ABCD1234']
+    });
+
+    const result = await validateRefreshToken(token);
+
+    expect(result).toEqual({
+      valid: true,
+      email: 'user@test.com',
+      authMethod: 'pin',
+      userId: 'u_abc',
+      events: ['ABCD1234']
+    });
+  });
+
+  it('legacy tokens without metadata return authMethod undefined', async () => {
+    const token = await generateRefreshToken('user@test.com');
+
+    const result = await validateRefreshToken(token);
+
+    expect(result.valid).toBe(true);
+    expect(result.email).toBe('user@test.com');
+    expect(result.authMethod).toBeUndefined();
+    expect(result.userId).toBeUndefined();
+    expect(result.events).toBeUndefined();
   });
 });

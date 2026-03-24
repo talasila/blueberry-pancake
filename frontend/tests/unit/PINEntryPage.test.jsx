@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import PINEntryPage from '../../src/pages/PINEntryPage.jsx';
 import apiClient from '../../src/services/apiClient.js';
@@ -362,7 +362,9 @@ describe('PINEntryPage', () => {
       });
       expect(screen.getByPlaceholderText(/Enter 6-digit PIN/i)).toBeDisabled();
 
-      resolveVerify({ sessionId: 'x', user: { email: 'user@example.com', exp: 9999999999 } });
+      await act(async () => {
+        resolveVerify({ sessionId: 'x', user: { email: 'user@example.com', exp: 9999999999 } });
+      });
     });
   });
 

@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import SimilarUsersDrawer from '../../src/components/SimilarUsersDrawer.jsx';
@@ -60,6 +60,14 @@ describe('SimilarUsersDrawer Component', () => {
   });
 
   describe('Error state', () => {
+    beforeEach(() => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
     it('should display error message when API call fails', async () => {
       getSimilarUsers.mockRejectedValue(new Error('Failed to fetch similar users'));
 

@@ -233,7 +233,7 @@ router.post('/otp/verify', async (req, res) => {
       });
     }
 
-    const refreshToken = await generateRefreshToken(normalizedEmail);
+    const refreshToken = await generateRefreshToken(normalizedEmail, { authMethod: 'otp', events: adminEvents });
 
     // Log successful authentication
     const authType = otpResult.bypass ? 'test OTP' : 'OTP';
@@ -297,44 +297,77 @@ router.post('/refresh', async (req, res) => {
       return unauthorizedError(res, validation.error || 'Invalid refresh token', 'TOKEN_INVALID');
     }
 
-    // Generate new JWT token with updated event access
+    // Generate new JWT token — branch on authMethod
     const email = validation.email;
-    
-    // Get current events where user is an administrator (refresh access list)
-    let adminEvents = [];
-    try {
-      adminEvents = await eventMemberService.getEventsByAdministrator(email);
-      loggerService.debug(`Token refresh: User ${email} has access to ${adminEvents.length} event(s)`).catch(() => {});
-    } catch (error) {
-      loggerService.error(`Failed to get events during refresh for ${email}: ${error.message}`).catch(() => {});
-      // Continue with empty events array
-    }
-    
+    const authMethod = validation.authMethod || 'otp';
+
     let token;
-    try {
-      token = generateToken({ 
-        email,
-        events: adminEvents,
-        authMethod: 'otp'
-      });
-    } catch (tokenError) {
-      loggerService.error(`Failed to generate JWT token during refresh: ${tokenError.message}`).catch(() => {});
-      return res.status(500).json({
-        error: 'Authentication service error. Please try logging in again.'
-      });
+    let events;
+
+    if (authMethod === 'pin' && validation.userId) {
+      // PIN users: reuse the events stored in the refresh token (no admin lookup)
+      events = validation.events || [];
+      try {
+        token = generateToken({
+          userId: validation.userId,
+          events,
+          authMethod: 'pin'
+        });
+      } catch (tokenError) {
+        loggerService.error(`Failed to generate JWT token during refresh: ${tokenError.message}`).catch(() => {});
+        return res.status(500).json({
+          error: 'Authentication service error. Please try logging in again.'
+        });
+      }
+    } else {
+      // OTP users: re-query admin events to keep access list fresh
+      events = [];
+      try {
+        events = await eventMemberService.getEventsByAdministrator(email);
+        loggerService.debug(`Token refresh: User ${email} has access to ${events.length} event(s)`).catch(() => {});
+      } catch (error) {
+        loggerService.error(`Failed to get events during refresh for ${email}: ${error.message}`).catch(() => {});
+        // Continue with empty events array
+      }
+
+      try {
+        token = generateToken({
+          email,
+          events,
+          authMethod: 'otp'
+        });
+      } catch (tokenError) {
+        loggerService.error(`Failed to generate JWT token during refresh: ${tokenError.message}`).catch(() => {});
+        return res.status(500).json({
+          error: 'Authentication service error. Please try logging in again.'
+        });
+      }
     }
 
     // Rotate refresh token: invalidate the old one and issue a new one
     await invalidateRefreshToken(refreshToken);
-    const newRefreshToken = await generateRefreshToken(email);
+    const newRefreshToken = await generateRefreshToken(email, {
+      authMethod,
+      userId: validation.userId,
+      events
+    });
 
     // Set new JWT cookie
     res.cookie(JWT_COOKIE_NAME, token, getJWTCookieOptions());
     res.cookie(REFRESH_COOKIE_NAME, newRefreshToken, getRefreshCookieOptions());
 
-    loggerService.info(`Token refreshed for ${email}`).catch(() => {});
+    loggerService.info(`Token refreshed for ${email} (authMethod: ${authMethod})`).catch(() => {});
 
     const decoded = jwt.decode(token);
+
+    if (authMethod === 'pin') {
+      return res.status(200).json({
+        success: true,
+        user: { userId: validation.userId, exp: decoded?.exp, authMethod: 'pin' },
+        message: 'Token refreshed successfully'
+      });
+    }
+
     return res.status(200).json({
       success: true,
       user: { email, exp: decoded?.exp, authMethod: 'otp' },

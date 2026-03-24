@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import AssignmentView from '../../src/components/AssignmentView.jsx';
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
@@ -227,10 +227,12 @@ describe('AssignmentView', () => {
       expect(screen.queryByTestId('pause-cta')).not.toBeInTheDocument();
     });
 
-    it('calls onPauseEvent when pause button is tapped', () => {
+    it('calls onPauseEvent when pause button is tapped', async () => {
       const onPauseEvent = vi.fn().mockResolvedValue({});
       render(<AssignmentView {...defaultProps} event={makeEvent({ state: 'started' })} onPauseEvent={onPauseEvent} />);
-      fireEvent.click(screen.getByTestId('pause-cta'));
+      await act(async () => {
+        fireEvent.click(screen.getByTestId('pause-cta'));
+      });
       expect(onPauseEvent).toHaveBeenCalledOnce();
     });
 

@@ -17,6 +17,9 @@ class ApiClient {
     this.csrfToken = null;
     this._csrfFetchPromise = null;
     this._loadSession();
+    // Clear already-expired sessions at startup so the visibility listener
+    // only handles sessions that expire while the user is away from the tab.
+    this.clearExpiredSession();
     this._initVisibilityListener();
   }
 
@@ -67,16 +70,16 @@ class ApiClient {
       this._loadSession();
       if (!this.userSession) return;
 
-      // Capture before isAuthenticated() potentially clears the session
-      const { authMethod = null, email = null } = this.userSession;
-
       if (this.isAuthenticated()) return; // token still valid
+
+      // Session expired — capture snapshot before clearing
+      const snapshot = this.clearExpiredSession();
+      if (!snapshot) return; // not expired (should not happen after isAuthenticated check, but guard)
 
       const refreshed = await this.refreshToken();
       if (!refreshed && typeof window !== 'undefined') {
-        this.setUserSession(null);
         window.dispatchEvent(new CustomEvent('session-expired', {
-          detail: { authMethod, email },
+          detail: { authMethod: snapshot.authMethod, email: snapshot.email },
         }));
       }
     };
@@ -122,7 +125,7 @@ class ApiClient {
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && key.startsWith('pin:session:')) {
+      if (key && (key.startsWith('pin:session:') || key.startsWith('pin:email:'))) {
         keysToRemove.push(key);
       }
     }
@@ -139,16 +142,32 @@ class ApiClient {
   }
 
   /**
-   * Check if user is currently authenticated
+   * Check if user is currently authenticated (pure read — no side effects)
    * @returns {boolean}
    */
   isAuthenticated() {
     if (!this.userSession?.email && !this.userSession?.userId) return false;
-    if (this.userSession.exp && this.userSession.exp * 1000 < Date.now()) {
-      this.setUserSession(null);
-      return false;
-    }
+    if (this.userSession.exp && this.userSession.exp * 1000 < Date.now()) return false;
     return true;
+  }
+
+  /**
+   * If the session is expired, capture a snapshot of identity data and clear it.
+   * This is the ONLY place that clears an expired session.
+   * @returns {{ authMethod: string|null, email: string|null, userId: string|null, name: string|null } | null}
+   *   Snapshot of the cleared session, or null if the session is not expired.
+   */
+  clearExpiredSession() {
+    if (!this.userSession) return null;
+    if (!this.userSession.exp || this.userSession.exp * 1000 >= Date.now()) return null;
+    const snapshot = {
+      authMethod: this.userSession.authMethod || null,
+      email: this.userSession.email || null,
+      userId: this.userSession.userId || null,
+      name: this.userSession.name || null,
+    };
+    this.setUserSession(null);
+    return snapshot;
   }
 
   /**
@@ -373,25 +392,31 @@ class ApiClient {
           throw new Error(errorMessage);
         }
 
-        // Session error (TOKEN_EXPIRED, TOKEN_INVALID, or no code) — existing flow
-        const authMethod = this.getAuthMethod();
+        // Session error (TOKEN_EXPIRED, TOKEN_INVALID, or no code) — try refresh first
+        // Pre-read session values in case another code path has already cleared them
+        const preRead = {
+          authMethod: this.userSession?.authMethod || null,
+          email: this.userSession?.email || null,
+        };
 
-        if (authMethod === 'otp') {
-          const refreshed = await this.refreshToken();
-          if (refreshed) {
-            return this.request(endpoint, options, true);
-          }
+        const refreshed = await this.refreshToken();
+        if (refreshed) {
+          return this.request(endpoint, options, true);
         }
 
-        // Refresh not attempted or failed — notify UI so it can show a re-auth prompt
-        const expiredAuthMethod = this.userSession?.authMethod || null;
-        const expiredEmail = this.userSession?.email || null;
+        // Refresh failed — capture snapshot via clearExpiredSession, fall back to pre-read
+        const snapshot = this.clearExpiredSession();
+        const detail = snapshot
+          ? { authMethod: snapshot.authMethod, email: snapshot.email }
+          : preRead;
         const eventId = this.getEventIdFromUrl(endpoint);
-        this.setUserSession(null);
+
+        // If session wasn't cleared by clearExpiredSession (already null), ensure it's cleared
+        if (!snapshot) this.setUserSession(null);
 
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('session-expired', {
-            detail: { authMethod: expiredAuthMethod, email: expiredEmail, eventId },
+            detail: { ...detail, eventId },
           }));
         }
 

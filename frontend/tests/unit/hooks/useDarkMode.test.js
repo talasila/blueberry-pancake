@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, cleanup } from '@testing-library/react';
 import useDarkMode from '../../../src/hooks/useDarkMode.js';
 
 describe('useDarkMode Hook', () => {
@@ -13,6 +13,9 @@ describe('useDarkMode Hook', () => {
   });
 
   afterEach(() => {
+    // Unmount React components (disconnects MutationObserver) BEFORE restoring the DOM,
+    // otherwise the className reset triggers the still-active observer causing act() warnings.
+    cleanup();
     document.documentElement.className = originalClassList;
     localStorage.clear();
   });
@@ -32,11 +35,13 @@ describe('useDarkMode Hook', () => {
   });
 
   describe('Toggle behavior', () => {
-    it('should toggle from light to dark', () => {
+    it('should toggle from light to dark', async () => {
       document.documentElement.classList.remove('dark');
       const { result } = renderHook(() => useDarkMode());
 
-      act(() => {
+      // async act lets the MutationObserver microtask (triggered by classList.toggle)
+      // settle within React's batching boundary
+      await act(async () => {
         result.current.toggleDark();
       });
 
@@ -44,11 +49,11 @@ describe('useDarkMode Hook', () => {
       expect(localStorage.getItem('theme')).toBe('dark');
     });
 
-    it('should toggle from dark to light', () => {
+    it('should toggle from dark to light', async () => {
       document.documentElement.classList.add('dark');
       const { result } = renderHook(() => useDarkMode());
 
-      act(() => {
+      await act(async () => {
         result.current.toggleDark();
       });
 
