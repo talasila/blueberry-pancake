@@ -54,14 +54,9 @@ export default function BottomSheetPicker({ isOpen, onClose, title, children }) 
         data-testid="bottom-sheet"
       >
         <div className="flex flex-col h-full max-h-[calc(100dvh-60px)]">
-          {/* Drag handle */}
-          <div className="flex justify-center pt-2 pb-1 flex-shrink-0">
-            <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
-          </div>
-
           {/* Header */}
           {title && (
-            <div className="flex items-center justify-between px-4 pb-2 border-b flex-shrink-0">
+            <div className="flex items-center justify-between px-4 pt-3 pb-2 border-b flex-shrink-0">
               <h3 className="text-sm font-semibold">{title}</h3>
               <button
                 onClick={onClose}
