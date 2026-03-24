@@ -31,8 +31,10 @@ export function errorResponse(res, statusCode, message, error = null) {
  * @param {string} message - Error message
  * @returns {object} Express response
  */
-export function badRequestError(res, message) {
-  return res.status(400).json({ error: message });
+export function badRequestError(res, message, code) {
+  const response = { error: message };
+  if (code) response.code = code;
+  return res.status(400).json(response);
 }
 
 /**
@@ -41,8 +43,10 @@ export function badRequestError(res, message) {
  * @param {string} [message='Authentication required'] - Error message
  * @returns {object} Express response
  */
-export function unauthorizedError(res, message = 'Authentication required') {
-  return res.status(401).json({ error: message });
+export function unauthorizedError(res, message = 'Authentication required', code) {
+  const response = { error: message };
+  if (code) response.code = code;
+  return res.status(401).json(response);
 }
 
 /**
@@ -51,8 +55,10 @@ export function unauthorizedError(res, message = 'Authentication required') {
  * @param {string} message - Error message
  * @returns {object} Express response
  */
-export function forbiddenError(res, message) {
-  return res.status(403).json({ error: message });
+export function forbiddenError(res, message, code) {
+  const response = { error: message };
+  if (code) response.code = code;
+  return res.status(403).json(response);
 }
 
 /**
@@ -61,8 +67,10 @@ export function forbiddenError(res, message) {
  * @param {string} [message='Resource not found'] - Error message
  * @returns {object} Express response
  */
-export function notFoundError(res, message = 'Resource not found') {
-  return res.status(404).json({ error: message });
+export function notFoundError(res, message = 'Resource not found', code) {
+  const response = { error: message };
+  if (code) response.code = code;
+  return res.status(404).json(response);
 }
 
 /**
@@ -82,8 +90,10 @@ export function conflictError(res, message, additionalData = {}) {
  * @param {string} message - Error message
  * @returns {object} Express response
  */
-export function rateLimitError(res, message) {
-  return res.status(429).json({ error: message });
+export function rateLimitError(res, message, code) {
+  const response = { error: message };
+  if (code) response.code = code;
+  return res.status(429).json(response);
 }
 
 /**
@@ -93,13 +103,15 @@ export function rateLimitError(res, message) {
  * @param {string} [message='Too many requests'] - Custom error message prefix
  * @returns {object} Express response
  */
-export function formatRateLimitResponse(res, result, message = 'Too many requests') {
+export function formatRateLimitResponse(res, result, message = 'Too many requests', code) {
   const retryAfterSeconds = Math.ceil(result.retryAfter || 0);
   const retryAfterMinutes = Math.max(1, Math.ceil(retryAfterSeconds / 60));
-  return res.status(429).json({
+  const response = {
     error: `${message}. Please try again in ${retryAfterMinutes} minute(s).`,
     retryAfter: retryAfterSeconds
-  });
+  };
+  if (code) response.code = code;
+  return res.status(429).json(response);
 }
 
 /**
@@ -153,7 +165,7 @@ export function handleApiError(res, error, context = 'process request') {
 
   // Membership enforcement (403 with machine-readable code)
   if (message.includes('not registered for this event')) {
-    return res.status(403).json({ error: message, code: 'EVENT_MEMBERSHIP_REQUIRED' });
+    return forbiddenError(res, message, 'EVENT_MEMBERSHIP_REQUIRED');
   }
 
   // Authorization errors (403)

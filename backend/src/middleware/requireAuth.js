@@ -1,4 +1,5 @@
 import { jwtAuth, hasEventAccess } from './jwtAuth.js';
+import { forbiddenError } from '../utils/apiErrorHandler.js';
 
 /**
  * Require authentication middleware
@@ -18,10 +19,7 @@ export function requireAuth(req, res, next) {
     
     // Check if user has access to this specific event
     if (!hasEventAccess(req.user, eventId)) {
-      return res.status(403).json({ 
-        error: 'Access denied: You do not have access to this event. Please authenticate for this event first.',
-        code: 'EVENT_ACCESS_DENIED'
-      });
+      return forbiddenError(res, 'Access denied: You do not have access to this event. Please authenticate for this event first.', 'EVENT_ACCESS_DENIED');
     }
     
     // User has access to this event

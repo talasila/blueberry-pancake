@@ -58,7 +58,7 @@ export function jwtAuth(req, res, next) {
     }
     
     if (!token) {
-      return res.status(401).json({ error: 'Missing or invalid authorization' });
+      return res.status(401).json({ error: 'Missing or invalid authorization', code: 'AUTHENTICATION_REQUIRED' });
     }
     const secret = process.env.JWT_SECRET || configLoader.get('security.jwtSecret');
 
@@ -84,10 +84,10 @@ export function jwtAuth(req, res, next) {
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({ error: 'Token expired' });
+      return res.status(401).json({ error: 'Token expired', code: 'TOKEN_EXPIRED' });
     }
     if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({ error: 'Invalid token' });
+      return res.status(401).json({ error: 'Invalid token', code: 'TOKEN_INVALID' });
     }
     return res.status(500).json({ error: 'Token verification failed' });
   }

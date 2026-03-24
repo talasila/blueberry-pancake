@@ -1,4 +1,5 @@
 import configLoader from '../config/configLoader.js';
+import { unauthorizedError, forbiddenError } from '../utils/apiErrorHandler.js';
 
 /**
  * Middleware to require root administrator access
@@ -12,15 +13,11 @@ export function requireRoot(req, res, next) {
   const userEmail = req.user?.email;
 
   if (!userEmail) {
-    return res.status(401).json({ 
-      error: 'Authentication required' 
-    });
+    return unauthorizedError(res, 'Authentication required', 'AUTHENTICATION_REQUIRED');
   }
 
   if (!configLoader.isRootAdmin(userEmail)) {
-    return res.status(403).json({ 
-      error: 'Root access required' 
-    });
+    return forbiddenError(res, 'Root access required', 'ROOT_ACCESS_REQUIRED');
   }
 
   next();

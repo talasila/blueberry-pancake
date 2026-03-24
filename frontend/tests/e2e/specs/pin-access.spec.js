@@ -189,6 +189,53 @@ test.describe('PIN-based Event Access', () => {
   });
 
   // ===================================
+  // Structured Error Codes (042)
+  // ===================================
+
+  test('wrong PIN shows inline error, NOT session-expired dialog', async ({ page, testEvent }) => {
+    const { eventId } = testEvent;
+
+    // Navigate first so localStorage is accessible on the correct origin
+    await page.goto(`${BASE_URL}/event/${eventId}`);
+
+    // Set up a stale PIN session so the old bug would have triggered session-expired
+    await page.evaluate((eid) => {
+      localStorage.setItem('userSession', JSON.stringify({
+        email: 'old@example.com', exp: Math.floor(Date.now() / 1000) - 60, authMethod: 'pin'
+      }));
+      localStorage.setItem(`pin:session:${eid}`, 'stale-session-id');
+    }, eventId);
+
+    // Reload to pick up the stale session
+    await page.goto(`${BASE_URL}/event/${eventId}`);
+    await submitEmail(page, 'wrongpin@example.com');
+    await enterAndSubmitPIN(page, '999999');
+
+    // Inline error should appear on PIN page
+    const errorMsg = await getErrorMessage(page);
+    expect(errorMsg).not.toBeNull();
+    expect(errorMsg).toMatch(/invalid pin/i);
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}/pin`));
+
+    // Session-expired dialog must NOT appear
+    const sessionDialog = page.locator('[data-testid="session-expired-dialog"]');
+    await expect(sessionDialog).toHaveCount(0);
+  });
+
+  test('wrong PIN error code is INVALID_PIN in API response', async ({ page, testEvent }) => {
+    const { eventId } = testEvent;
+
+    const response = await page.request.post(`${API_URL}/api/events/${eventId}/verify-pin`, {
+      data: { email: 'wrongpin@example.com', pin: '999999', name: 'Test User' },
+    });
+
+    expect(response.status()).toBe(401);
+    const data = await response.json();
+    expect(data.code).toBe('INVALID_PIN');
+    expect(data.error).toBeTruthy();
+  });
+
+  // ===================================
   // User Story 3 - PIN Regeneration
   // ===================================
   

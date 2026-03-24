@@ -204,12 +204,27 @@ Session stored in localStorage as `pin:session:{eventId}`.
 ### 4.3 Error Handling
 
 Global error handler in `middleware/errorHandler.js`. Utility functions:
-- `badRequestError()` → 400
-- `unauthorizedError()` → 401
-- `forbiddenError()` → 403
-- `notFoundError()` → 404
+- `badRequestError(res, message, code?)` → 400
+- `unauthorizedError(res, message, code?)` → 401
+- `forbiddenError(res, message, code?)` → 403
+- `notFoundError(res, message, code?)` → 404
+- `rateLimitError(res, message, code?)` → 429
 - `handleApiError()` → Centralized error dispatch
-- `formatRateLimitResponse()` → 429 with `retryAfter`
+- `formatRateLimitResponse(res, result, message, code?)` → 429 with `retryAfter`
+
+All auth/authz error helpers accept an optional `code` parameter. When provided, the response includes a machine-readable `code` field: `{ error: "message", code: "ERROR_CODE" }`. When omitted, the response is the original `{ error: "message" }` shape (backward compatible).
+
+**Error Code Taxonomy:**
+
+| Category | Codes | Used For |
+|----------|-------|----------|
+| Credential errors | `INVALID_PIN`, `INVALID_OTP`, `OTP_EXPIRED`, `INVALID_EMAIL`, `INVALID_DISPLAY_NAME`, `SUSPENDED`, `ADMIN_MUST_USE_OTP` | Login attempt failures — frontend shows inline error, NOT session expiry dialog |
+| Session errors | `TOKEN_EXPIRED`, `TOKEN_INVALID`, `AUTHENTICATION_REQUIRED`, `EVENT_ACCESS_DENIED` | Expired/invalid sessions — frontend triggers session-expired dialog |
+| Membership errors | `EVENT_MEMBERSHIP_REQUIRED` | User not registered for event |
+| Authorization errors | `ADMIN_REQUIRED`, `OWNER_REQUIRED`, `ROOT_ACCESS_REQUIRED` | Insufficient permissions |
+| Rate-limit errors | `RATE_LIMITED` | Too many requests |
+
+The frontend `apiClient.js` uses the `code` field to distinguish credential errors (skip session-expired dispatch) from session errors (trigger session-expired). URL-based safety net also skips session-expired for `/verify-pin`, `/otp/verify`, `/otp/request` endpoints.
 
 ---
 

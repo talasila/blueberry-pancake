@@ -13,7 +13,94 @@ vi.mock('../../../src/utils/environment.js', () => ({
   isProduction: vi.fn(() => false)
 }));
 
-import { formatRateLimitResponse } from '../../../src/utils/apiErrorHandler.js';
+import {
+  badRequestError,
+  unauthorizedError,
+  forbiddenError,
+  notFoundError,
+  rateLimitError,
+  formatRateLimitResponse
+} from '../../../src/utils/apiErrorHandler.js';
+
+describe('error code parameter', () => {
+  let mockRes;
+  let jsonSpy;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    jsonSpy = vi.fn();
+    mockRes = {
+      status: vi.fn(() => ({ json: jsonSpy }))
+    };
+  });
+
+  it('badRequestError includes code when provided', () => {
+    badRequestError(mockRes, 'Invalid input', 'INVALID_EMAIL');
+    expect(jsonSpy).toHaveBeenCalledWith({ error: 'Invalid input', code: 'INVALID_EMAIL' });
+  });
+
+  it('badRequestError omits code when not provided', () => {
+    badRequestError(mockRes, 'Invalid input');
+    expect(jsonSpy).toHaveBeenCalledWith({ error: 'Invalid input' });
+  });
+
+  it('unauthorizedError includes code when provided', () => {
+    unauthorizedError(mockRes, 'Token expired', 'TOKEN_EXPIRED');
+    expect(jsonSpy).toHaveBeenCalledWith({ error: 'Token expired', code: 'TOKEN_EXPIRED' });
+  });
+
+  it('unauthorizedError omits code when not provided', () => {
+    unauthorizedError(mockRes, 'Token expired');
+    expect(jsonSpy).toHaveBeenCalledWith({ error: 'Token expired' });
+  });
+
+  it('forbiddenError includes code when provided', () => {
+    forbiddenError(mockRes, 'Access denied', 'EVENT_ACCESS_DENIED');
+    expect(jsonSpy).toHaveBeenCalledWith({ error: 'Access denied', code: 'EVENT_ACCESS_DENIED' });
+  });
+
+  it('forbiddenError omits code when not provided', () => {
+    forbiddenError(mockRes, 'Access denied');
+    expect(jsonSpy).toHaveBeenCalledWith({ error: 'Access denied' });
+  });
+
+  it('notFoundError includes code when provided', () => {
+    notFoundError(mockRes, 'Event not found', 'EVENT_NOT_FOUND');
+    expect(jsonSpy).toHaveBeenCalledWith({ error: 'Event not found', code: 'EVENT_NOT_FOUND' });
+  });
+
+  it('notFoundError omits code when not provided', () => {
+    notFoundError(mockRes, 'Event not found');
+    expect(jsonSpy).toHaveBeenCalledWith({ error: 'Event not found' });
+  });
+
+  it('rateLimitError includes code when provided', () => {
+    rateLimitError(mockRes, 'Too many requests', 'RATE_LIMITED');
+    expect(jsonSpy).toHaveBeenCalledWith({ error: 'Too many requests', code: 'RATE_LIMITED' });
+  });
+
+  it('rateLimitError omits code when not provided', () => {
+    rateLimitError(mockRes, 'Too many requests');
+    expect(jsonSpy).toHaveBeenCalledWith({ error: 'Too many requests' });
+  });
+
+  it('formatRateLimitResponse includes code when provided', () => {
+    formatRateLimitResponse(mockRes, { retryAfter: 60 }, 'Too many attempts', 'RATE_LIMITED');
+    expect(jsonSpy).toHaveBeenCalledWith({
+      error: 'Too many attempts. Please try again in 1 minute(s).',
+      retryAfter: 60,
+      code: 'RATE_LIMITED'
+    });
+  });
+
+  it('formatRateLimitResponse omits code when not provided', () => {
+    formatRateLimitResponse(mockRes, { retryAfter: 60 }, 'Too many attempts');
+    expect(jsonSpy).toHaveBeenCalledWith({
+      error: 'Too many attempts. Please try again in 1 minute(s).',
+      retryAfter: 60
+    });
+  });
+});
 
 describe('formatRateLimitResponse', () => {
   let mockRes;

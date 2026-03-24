@@ -6,7 +6,7 @@
  */
 
 import { test, expect } from './fixtures.js';
-import { clearAuth, addAdminToEvent, setAuthToken, BASE_URL } from './helpers.js';
+import { clearAuth, addAdminToEvent, setAuthToken, BASE_URL, API_URL } from './helpers.js';
 import { TEST_OTP } from '../e2e-config.js';
 
 test.describe('OTP Authentication', () => {
@@ -160,6 +160,83 @@ test.describe('OTP Authentication', () => {
     // Verify user session is NOT stored in localStorage (auth failed)
     const session = await page.evaluate(() => localStorage.getItem('userSession'));
     expect(session).toBeFalsy();
+  });
+
+  // ===================================
+  // Structured Error Codes (042)
+  // ===================================
+
+  test('wrong OTP shows inline error, NOT session-expired dialog', async ({ page, testEvent }) => {
+    const { eventId } = testEvent;
+    const adminEmail = 'wrongotp-admin@example.com';
+    const INVALID_OTP = '999999';
+
+    await addAdminToEvent(eventId, adminEmail);
+
+    // Navigate first so localStorage is accessible on the correct origin
+    await page.goto(`${BASE_URL}/event/${eventId}`);
+
+    // Set up a stale OTP session so the old bug would have triggered session-expired
+    await page.evaluate(() => {
+      localStorage.setItem('userSession', JSON.stringify({
+        email: 'stale@example.com', exp: Math.floor(Date.now() / 1000) - 60, authMethod: 'otp'
+      }));
+    });
+
+    // Reload to pick up the stale session
+    await page.goto(`${BASE_URL}/event/${eventId}`);
+
+    // Enter name and admin email
+    const nameInput = page.locator('input#name');
+    await nameInput.waitFor({ state: 'visible', timeout: 5000 });
+    await nameInput.fill('Test Admin');
+    const emailInput = page.locator('input#email');
+    await emailInput.fill(adminEmail);
+
+    const continueButton = page.getByRole('button', { name: /continue/i });
+    await continueButton.click();
+
+    // Wait for OTP page
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}/otp`), { timeout: 5000 });
+
+    // Enter wrong OTP
+    const otpInput = page.locator('input#otp');
+    await otpInput.waitFor({ state: 'visible', timeout: 5000 });
+    await expect(otpInput).toBeEnabled({ timeout: 10000 });
+    await otpInput.fill(INVALID_OTP);
+
+    const verifyButton = page.getByRole('button', { name: /sign in/i });
+    await Promise.all([
+      page.waitForResponse(resp => resp.url().includes('/auth/otp/verify')),
+      verifyButton.click(),
+    ]);
+
+    // Inline error should appear on OTP page
+    const errorElement = page.locator('.text-destructive').or(page.locator('[role="alert"]'));
+    await expect(errorElement).toBeVisible({ timeout: 10000 });
+
+    // Should stay on OTP page
+    await expect(page).toHaveURL(new RegExp(`/event/${eventId}/otp`));
+
+    // Session-expired dialog must NOT appear
+    const sessionDialog = page.locator('[data-testid="session-expired-dialog"]');
+    await expect(sessionDialog).toHaveCount(0);
+  });
+
+  test('wrong OTP error code is INVALID_OTP in API response', async ({ page }) => {
+    // Request an OTP first so the backend has an entry
+    await page.request.post(`${API_URL}/api/auth/otp/request`, {
+      data: { email: 'otp-code-test@example.com' },
+    });
+
+    const response = await page.request.post(`${API_URL}/api/auth/otp/verify`, {
+      data: { email: 'otp-code-test@example.com', otp: '999999' },
+    });
+
+    expect(response.status()).toBe(400);
+    const data = await response.json();
+    expect(data.code).toBe('INVALID_OTP');
+    expect(data.error).toBeTruthy();
   });
 
   // ===================================

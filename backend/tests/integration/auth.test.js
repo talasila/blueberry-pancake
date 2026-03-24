@@ -113,6 +113,7 @@ describe('OTP Authentication API', () => {
 
       expect(response.body).toHaveProperty('error');
       expect(response.body.error).toContain('Invalid email');
+      expect(response.body).toHaveProperty('code', 'INVALID_EMAIL');
     });
 
     it('should reject missing email', async () => {
@@ -122,6 +123,7 @@ describe('OTP Authentication API', () => {
         .expect(400);
 
       expect(response.body).toHaveProperty('error');
+      expect(response.body).toHaveProperty('code', 'INVALID_EMAIL');
     });
 
     it('should block OTP request for suspended email', async () => {
@@ -137,6 +139,7 @@ describe('OTP Authentication API', () => {
 
       expect(response.body).toHaveProperty('error');
       expect(response.body.error).toContain('suspended');
+      expect(response.body).toHaveProperty('code', 'SUSPENDED');
     });
 
     it('should handle email service failures gracefully', async () => {
@@ -211,6 +214,7 @@ describe('OTP Authentication API', () => {
 
       expect(response.body).toHaveProperty('error');
       expect(response.body.error).toContain('Invalid');
+      expect(response.body).toHaveProperty('code', 'INVALID_OTP');
     });
 
     it('should reject unknown OTP', async () => {
@@ -220,6 +224,7 @@ describe('OTP Authentication API', () => {
         .expect(400);
 
       expect(response.body).toHaveProperty('error');
+      expect(response.body).toHaveProperty('code', 'INVALID_OTP');
     });
 
     it('should track failed attempts', async () => {
@@ -239,6 +244,7 @@ describe('OTP Authentication API', () => {
 
       expect(response.body).toHaveProperty('error');
       expect(response.body.error).toContain('suspended');
+      expect(response.body).toHaveProperty('code', 'SUSPENDED');
     });
 
     it('should accept test OTP in non-production environment', async () => {

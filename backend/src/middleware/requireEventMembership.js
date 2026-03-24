@@ -1,5 +1,6 @@
 import eventService from '../services/EventService.js';
 import { resolveEmailFromUserId } from '../utils/userIdUtils.js';
+import { forbiddenError } from '../utils/apiErrorHandler.js';
 
 /**
  * Middleware that verifies the authenticated user is still a member of the event
@@ -21,17 +22,11 @@ export default async function requireEventMembership(req, res, next) {
     }
 
     if (!eventId || !email) {
-      return res.status(403).json({
-        error: 'User is not registered for this event',
-        code: 'EVENT_MEMBERSHIP_REQUIRED',
-      });
+      return forbiddenError(res, 'User is not registered for this event', 'EVENT_MEMBERSHIP_REQUIRED');
     }
 
     if (!eventService.isEventMember(event, email)) {
-      return res.status(403).json({
-        error: 'User is not registered for this event',
-        code: 'EVENT_MEMBERSHIP_REQUIRED',
-      });
+      return forbiddenError(res, 'User is not registered for this event', 'EVENT_MEMBERSHIP_REQUIRED');
     }
 
     req.event = event;

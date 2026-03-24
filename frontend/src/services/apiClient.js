@@ -350,9 +350,30 @@ class ApiClient {
         throw new Error(errorMessage);
       }
 
-      // Handle 401 Unauthorized - attempt token refresh (OTP users only)
-      // PIN users cannot refresh — they must re-authenticate via PIN
+      // Handle 401 Unauthorized - distinguish credential errors from session errors
       if (response.status === 401 && !isRetry) {
+        // Parse the response body to check for an error code BEFORE dispatching session-expired
+        const errorData = await response.json().catch(() => ({}));
+        const errorCode = errorData.code;
+        const errorMessage = errorData.error || errorData.message || 'Authentication failed';
+
+        // Credential error codes: the user entered wrong credentials during a login attempt.
+        // These must NOT trigger the session-expired dialog — let the calling page handle inline.
+        const CREDENTIAL_ERROR_CODES = new Set([
+          'INVALID_PIN', 'INVALID_OTP', 'OTP_EXPIRED', 'INVALID_EMAIL',
+          'SUSPENDED', 'ADMIN_MUST_USE_OTP', 'RATE_LIMITED'
+        ]);
+
+        // Safety net: always skip session-expired for auth endpoints, regardless of code
+        const isAuthEndpoint = endpoint.includes('/verify-pin') ||
+          endpoint.includes('/otp/verify') || endpoint.includes('/otp/request');
+
+        if (CREDENTIAL_ERROR_CODES.has(errorCode) || isAuthEndpoint) {
+          // Credential error — throw for the caller to handle as an inline error
+          throw new Error(errorMessage);
+        }
+
+        // Session error (TOKEN_EXPIRED, TOKEN_INVALID, or no code) — existing flow
         const authMethod = this.getAuthMethod();
 
         if (authMethod === 'otp') {
@@ -373,6 +394,8 @@ class ApiClient {
             detail: { authMethod: expiredAuthMethod, email: expiredEmail, eventId },
           }));
         }
+
+        throw new Error(errorMessage);
       }
 
       // Return null for caller-declared expected statuses (e.g. 404 when item may not exist)

@@ -20,7 +20,7 @@ import {
 import requireAuth from '../middleware/requireAuth.js';
 import { isProduction } from '../utils/environment.js';
 import { validateEventId } from '../utils/validators.js';
-import { handleApiError, badRequestError, unauthorizedError, forbiddenError, formatRateLimitResponse } from '../utils/apiErrorHandler.js';
+import { handleApiError, badRequestError, unauthorizedError, forbiddenError, notFoundError, rateLimitError, formatRateLimitResponse } from '../utils/apiErrorHandler.js';
 import { isValidEmail, normalizeEmail } from '../utils/emailUtils.js';
 import { resolveEmailFromUserId } from '../utils/userIdUtils.js';
 import { verifyTurnstile } from '../middleware/turnstileProtection.js';
@@ -107,12 +107,12 @@ router.post('/:eventId/verify-pin', async (req, res) => {
 
     // Validate email is provided
     if (!email || typeof email !== 'string' || !email.trim()) {
-      return badRequestError(res, 'Email address is required');
+      return badRequestError(res, 'Email address is required', 'INVALID_EMAIL');
     }
 
     // Validate email format
     if (!isValidEmail(email)) {
-      return badRequestError(res, 'Invalid email format');
+      return badRequestError(res, 'Invalid email format', 'INVALID_EMAIL');
     }
 
     // Validate mandatory name (server-side: trim, non-empty, max 100 chars)
@@ -124,13 +124,13 @@ router.post('/:eventId/verify-pin', async (req, res) => {
       }
     }
     if (!validatedName) {
-      return badRequestError(res, 'Display name is required');
+      return badRequestError(res, 'Display name is required', 'INVALID_DISPLAY_NAME');
     }
 
     // Validate PIN format using centralized validation
     const pinFormatValidation = pinService.validatePINFormat(pin);
     if (!pinFormatValidation.valid) {
-      return badRequestError(res, pinFormatValidation.error);
+      return badRequestError(res, pinFormatValidation.error, 'INVALID_PIN');
     }
 
     // Security check: Prevent administrators from logging in via PIN
@@ -139,7 +139,7 @@ router.post('/:eventId/verify-pin', async (req, res) => {
     const isAdmin = eventService.isAdministrator(event, email.trim());
 
     if (isAdmin) {
-      return unauthorizedError(res, 'Administrators must use OTP authentication. Please use the OTP login flow.');
+      return unauthorizedError(res, 'Administrators must use OTP authentication. Please use the OTP login flow.', 'ADMIN_MUST_USE_OTP');
     }
 
     // Get user agent for session fingerprinting
@@ -151,16 +151,16 @@ router.post('/:eventId/verify-pin', async (req, res) => {
     if (!result.valid) {
       // Determine appropriate status code based on error type
       if (result.error.includes('Too many attempts')) {
-        return res.status(429).json({ error: result.error });
+        return rateLimitError(res, result.error, 'RATE_LIMITED');
       }
       if (result.error.includes('not found')) {
-        return res.status(404).json({ error: result.error });
+        return notFoundError(res, result.error, 'EVENT_NOT_FOUND');
       }
       if (result.error.includes('must be exactly 6 digits')) {
-        return badRequestError(res, result.error);
+        return badRequestError(res, result.error, 'INVALID_PIN');
       }
       // Default to 401 for invalid PIN
-      return unauthorizedError(res, result.error);
+      return unauthorizedError(res, result.error, 'INVALID_PIN');
     }
 
     // PIN verified successfully - register user for the event

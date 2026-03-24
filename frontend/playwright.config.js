@@ -14,7 +14,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 4 : 4,
-  reporter: 'html',
+  reporter: [['html'], ['./tests/e2e/rerun-reporter.js']],
   timeout: 60000,
   
   globalSetup: './tests/e2e/global-setup.js',

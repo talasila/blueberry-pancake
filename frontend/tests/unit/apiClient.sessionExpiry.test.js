@@ -120,6 +120,126 @@ describe('apiClient — session-expired dispatch on 401', () => {
   });
 });
 
+describe('apiClient — credential vs session error code routing', () => {
+  it('should NOT dispatch session-expired when 401 has INVALID_PIN code', async () => {
+    const client = new ApiClient();
+    client.setUserSession({ email: 'guest@test.com', exp: 9999999999, authMethod: 'pin' });
+
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+    fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ csrfToken: 'tok' }) })
+      .mockResolvedValueOnce({
+        status: 401, ok: false,
+        json: async () => ({ error: 'Invalid PIN', code: 'INVALID_PIN' })
+      });
+
+    try {
+      await client.post('/events/ABCD1234/verify-pin', { pin: '000000' });
+    } catch (err) {
+      expect(err.message).toBe('Invalid PIN');
+    }
+
+    const sessionExpiredEvents = dispatchSpy.mock.calls.filter(([e]) => e.type === 'session-expired');
+    expect(sessionExpiredEvents).toHaveLength(0);
+  });
+
+  it('should dispatch session-expired when 401 has TOKEN_EXPIRED code', async () => {
+    const client = new ApiClient();
+    client.setUserSession({ email: 'user@test.com', exp: 9999999999, authMethod: 'pin' });
+
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+    fetch
+      .mockResolvedValueOnce({
+        status: 401, ok: false,
+        json: async () => ({ error: 'Token expired', code: 'TOKEN_EXPIRED' })
+      });
+
+    try {
+      await client.get('/events/ABCD1234/ratings');
+    } catch {
+      // Expected
+    }
+
+    const sessionExpiredEvents = dispatchSpy.mock.calls.filter(([e]) => e.type === 'session-expired');
+    expect(sessionExpiredEvents).toHaveLength(1);
+    expect(sessionExpiredEvents[0][0].detail).toEqual({
+      authMethod: 'pin',
+      email: 'user@test.com',
+      eventId: 'ABCD1234',
+    });
+  });
+
+  it('should dispatch session-expired when 401 has no code (backward compat)', async () => {
+    const client = new ApiClient();
+    client.setUserSession({ email: 'user@test.com', exp: 9999999999, authMethod: 'pin' });
+
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+    fetch
+      .mockResolvedValueOnce({
+        status: 401, ok: false,
+        json: async () => ({ error: 'Unauthorized' })
+      });
+
+    try {
+      await client.get('/events/ABCD1234/ratings');
+    } catch {
+      // Expected
+    }
+
+    const sessionExpiredEvents = dispatchSpy.mock.calls.filter(([e]) => e.type === 'session-expired');
+    expect(sessionExpiredEvents).toHaveLength(1);
+  });
+
+  it('should NOT dispatch session-expired for /verify-pin URL regardless of code', async () => {
+    const client = new ApiClient();
+    client.setUserSession({ email: 'guest@test.com', exp: 9999999999, authMethod: 'pin' });
+
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+    fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ csrfToken: 'tok' }) })
+      .mockResolvedValueOnce({
+        status: 401, ok: false,
+        json: async () => ({ error: 'Some error' })
+      });
+
+    try {
+      await client.post('/events/ABCD1234/verify-pin', { pin: '999999' });
+    } catch {
+      // Expected
+    }
+
+    const sessionExpiredEvents = dispatchSpy.mock.calls.filter(([e]) => e.type === 'session-expired');
+    expect(sessionExpiredEvents).toHaveLength(0);
+  });
+
+  it('should NOT dispatch session-expired when 401 has SUSPENDED code', async () => {
+    const client = new ApiClient();
+    client.setUserSession({ email: 'user@test.com', exp: 9999999999, authMethod: 'otp' });
+
+    const dispatchSpy = vi.spyOn(window, 'dispatchEvent');
+
+    fetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ csrfToken: 'tok' }) })
+      .mockResolvedValueOnce({
+        status: 401, ok: false,
+        json: async () => ({ error: 'Account suspended', code: 'SUSPENDED' })
+      });
+
+    try {
+      await client.post('/auth/otp/verify', { email: 'user@test.com', otp: '123456' });
+    } catch (err) {
+      expect(err.message).toBe('Account suspended');
+    }
+
+    const sessionExpiredEvents = dispatchSpy.mock.calls.filter(([e]) => e.type === 'session-expired');
+    expect(sessionExpiredEvents).toHaveLength(0);
+  });
+});
+
 describe('apiClient — visibilitychange listener', () => {
   it('should attempt refresh when tab becomes visible and token is expired', async () => {
     localStorage.setItem('userSession', JSON.stringify({

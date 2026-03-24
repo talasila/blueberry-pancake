@@ -22,7 +22,7 @@ import {
 import loggerService from '../logging/Logger.js';
 import { verifyTurnstile } from '../middleware/turnstileProtection.js';
 import { isProduction, isDevelopment, isTest } from '../utils/environment.js';
-import { handleApiError, formatRateLimitResponse } from '../utils/apiErrorHandler.js';
+import { handleApiError, formatRateLimitResponse, badRequestError, forbiddenError, unauthorizedError } from '../utils/apiErrorHandler.js';
 import { normalizeEmail, isValidEmail } from '../utils/emailUtils.js';
 
 const router = Router();
@@ -37,18 +37,14 @@ router.post('/otp/request', async (req, res) => {
 
     // Validate email is provided
     if (!email || typeof email !== 'string') {
-      return res.status(400).json({
-        error: 'Email address is required'
-      });
+      return badRequestError(res, 'Email address is required', 'INVALID_EMAIL');
     }
 
     const normalizedEmail = normalizeEmail(email);
 
     // Validate email format
     if (!isValidEmail(normalizedEmail)) {
-      return res.status(400).json({
-        error: 'Invalid email address format'
-      });
+      return badRequestError(res, 'Invalid email address format', 'INVALID_EMAIL');
     }
 
     // Turnstile verification (rejects invalid/expired tokens; missing tokens fail open)
@@ -58,16 +54,14 @@ router.post('/otp/request', async (req, res) => {
     // Global rate limit (caps total OTP requests across all callers)
     const globalResult = await rateLimitService.checkGlobalLimit();
     if (!globalResult.allowed) {
-      return formatRateLimitResponse(res, globalResult, 'Too many requests');
+      return formatRateLimitResponse(res, globalResult, 'Too many requests', 'RATE_LIMITED');
     }
 
     // Check if email is suspended
     const suspensionStatus = await suspensionService.isSuspended(normalizedEmail);
     if (suspensionStatus.suspended) {
       const remainingMinutes = Math.ceil((suspensionStatus.endTime - Date.now()) / 60000);
-      return res.status(403).json({
-        error: `Account is temporarily suspended. Please try again in ${remainingMinutes} minute(s).`
-      });
+      return forbiddenError(res, `Account is temporarily suspended. Please try again in ${remainingMinutes} minute(s).`, 'SUSPENDED');
     }
 
     if (isProduction()) {
@@ -75,7 +69,7 @@ router.post('/otp/request', async (req, res) => {
       const rateLimitResult = await rateLimitService.checkLimits(normalizedEmail, clientIP);
 
       if (!rateLimitResult.allowed) {
-        return formatRateLimitResponse(res, rateLimitResult, 'Rate limit exceeded');
+        return formatRateLimitResponse(res, rateLimitResult, 'Rate limit exceeded', 'RATE_LIMITED');
       }
     }
 
@@ -127,31 +121,23 @@ router.post('/otp/verify', async (req, res) => {
 
     // Validate inputs
     if (!email || typeof email !== 'string') {
-      return res.status(400).json({
-        error: 'Email address is required'
-      });
+      return badRequestError(res, 'Email address is required', 'INVALID_EMAIL');
     }
 
     const normalizedEmail = normalizeEmail(email);
 
     const rawOtp = otp;
     if (rawOtp == null || (typeof rawOtp !== 'string' && typeof rawOtp !== 'number')) {
-      return res.status(400).json({
-        error: 'OTP code is required'
-      });
+      return badRequestError(res, 'OTP code is required', 'INVALID_OTP');
     }
     const otpTrimmed = String(rawOtp).trim();
     if (!otpTrimmed) {
-      return res.status(400).json({
-        error: 'OTP code is required'
-      });
+      return badRequestError(res, 'OTP code is required', 'INVALID_OTP');
     }
 
     // Validate email format
     if (!isValidEmail(normalizedEmail)) {
-      return res.status(400).json({
-        error: 'Invalid email address format'
-      });
+      return badRequestError(res, 'Invalid email address format', 'INVALID_EMAIL');
     }
 
     // Test OTP bypasses all restrictions in non-production environments (FR-019)
@@ -166,9 +152,7 @@ router.post('/otp/verify', async (req, res) => {
       const suspensionStatus = await suspensionService.isSuspended(normalizedEmail);
       if (suspensionStatus.suspended) {
         const remainingMinutes = Math.ceil((suspensionStatus.endTime - Date.now()) / 60000);
-        return res.status(403).json({
-          error: `Account is temporarily suspended. Please try again in ${remainingMinutes} minute(s).`
-        });
+        return forbiddenError(res, `Account is temporarily suspended. Please try again in ${remainingMinutes} minute(s).`, 'SUSPENDED');
       }
 
       // Validate OTP (normal flow)
@@ -182,15 +166,11 @@ router.post('/otp/verify', async (req, res) => {
 
         if (attemptResult.suspended) {
           loggerService.warn(`Email ${normalizedEmail} suspended after ${attemptResult.attempts} failed attempts`).catch(() => {});
-          return res.status(403).json({
-            error: 'Too many failed attempts. Your account has been temporarily suspended for 5 minutes.'
-          });
+          return forbiddenError(res, 'Too many failed attempts. Your account has been temporarily suspended for 5 minutes.', 'SUSPENDED');
         }
       }
 
-      return res.status(400).json({
-        error: otpResult.error || 'Invalid or expired OTP code'
-      });
+      return badRequestError(res, otpResult.error || 'Invalid or expired OTP code', 'INVALID_OTP');
     }
 
     // OTP is valid - reset failed attempts and generate JWT token
@@ -314,9 +294,7 @@ router.post('/refresh', async (req, res) => {
     if (!validation.valid) {
       clearAuthCookies(res);
 
-      return res.status(401).json({
-        error: validation.error || 'Invalid refresh token'
-      });
+      return unauthorizedError(res, validation.error || 'Invalid refresh token', 'TOKEN_INVALID');
     }
 
     // Generate new JWT token with updated event access

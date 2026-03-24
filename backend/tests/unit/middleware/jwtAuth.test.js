@@ -119,6 +119,50 @@ describe('generateToken email privacy', () => {
   });
 });
 
+describe('jwtAuth middleware error codes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    process.env.JWT_SECRET = 'test-secret';
+  });
+
+  it('returns AUTHENTICATION_REQUIRED when no token provided', () => {
+    const req = { headers: {}, cookies: {} };
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const next = vi.fn();
+
+    jwtAuth(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'AUTHENTICATION_REQUIRED' }));
+  });
+
+  it('returns TOKEN_EXPIRED for expired token', () => {
+    const token = jwt.sign({ email: 'test@test.com', events: [] }, 'test-secret', { expiresIn: '-1s' });
+    const req = { headers: { authorization: `Bearer ${token}` }, cookies: {} };
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const next = vi.fn();
+
+    jwtAuth(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'TOKEN_EXPIRED' }));
+  });
+
+  it('returns TOKEN_INVALID for malformed token', () => {
+    const req = { headers: { authorization: 'Bearer invalid.token.here' }, cookies: {} };
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const next = vi.fn();
+
+    jwtAuth(req, res, next);
+
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'TOKEN_INVALID' }));
+  });
+});
+
 describe('jwtAuth middleware legacy PIN detection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
