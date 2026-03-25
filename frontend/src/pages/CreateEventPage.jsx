@@ -139,7 +139,7 @@ function CreateEventPage() {
                     }
                   }}
                   onBlur={handleNameBlur}
-                  placeholder="Enter event name"
+                  placeholder="e.g. Friday Night Wines"
                   maxLength={100}
                   disabled={isSubmitting}
                   aria-invalid={!!nameError}
