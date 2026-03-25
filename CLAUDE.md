@@ -19,6 +19,8 @@ Auto-generated from all feature plans. Last updated: 2026-03-24
 - DynamoDB (single-table design) — refresh tokens stored as `REFRESH#{tokenHash}` items; localStorage for client-side session state (043-fix-pin-session-recovery)
 - JavaScript (ES Modules), Node.js >= 22.12.0, React 19.2.1 + React Router v6, Radix UI, Tailwind CSS 4.1.17, lucide-reac (044-privacy-policy-page)
 - N/A — no backend or database changes (044-privacy-policy-page)
+- JavaScript (ES Modules), Node.js >= 22.12.0, React 19.2.1 + React Router 7.10.1, Radix UI (Button, Input), Tailwind CSS 4.1.17, lucide-react 0.556.0, class-variance-authority (045-landing-page-redesign)
+- N/A — no backend or data changes (045-landing-page-redesign)
 
 - JavaScript (ES Modules), Node.js >= 22.12.0 + React 19.2.1, Express 5.2.1, Radix UI, Tailwind CSS 4.1.17 (034-codebase-refactor)
 
@@ -38,9 +40,9 @@ npm test && npm run lint
 JavaScript (ES Modules), Node.js >= 22.12.0: Follow standard conventions
 
 ## Recent Changes
+- 045-landing-page-redesign: Added JavaScript (ES Modules), Node.js >= 22.12.0, React 19.2.1 + React Router 7.10.1, Radix UI (Button, Input), Tailwind CSS 4.1.17, lucide-react 0.556.0, class-variance-authority
 - 044-privacy-policy-page: Added JavaScript (ES Modules), Node.js >= 22.12.0, React 19.2.1 + React Router v6, Radix UI, Tailwind CSS 4.1.17, lucide-reac
 - 043-fix-pin-session-recovery: Added JavaScript (ES Modules), Node.js >= 22.12.0 + Express 5.2.1 (backend), React 19.2.1 (frontend), jsonwebtoken, Radix UI, Tailwind CSS 4.1.17
-- 042-structured-error-codes: Added JavaScript (ES Modules), Node.js >= 22.12.0 + Express 5.2.1 (backend), React 19.2.1 (frontend)
 
 
 <!-- MANUAL ADDITIONS START -->

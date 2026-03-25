@@ -1,7 +1,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import LandingPage from '../../src/pages/LandingPage.jsx';
+import apiClient from '../../src/services/apiClient.js';
+import { useLocation } from 'react-router-dom';
+
+const mockNavigate = vi.fn();
+vi.mock('react-router-dom', async () => {
+  const actual = await vi.importActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: vi.fn(() => mockNavigate),
+    useLocation: vi.fn(() => ({ state: null, pathname: '/' }))
+  };
+});
 
 vi.mock('../../src/services/apiClient.js', () => ({
   default: {
@@ -9,145 +21,278 @@ vi.mock('../../src/services/apiClient.js', () => ({
   }
 }));
 
+vi.mock('../../src/hooks/useDarkMode.js', () => ({
+  default: vi.fn(() => ({ isDark: false, toggleDark: vi.fn() }))
+}));
+
+vi.mock('../../src/utils/helpers', () => ({
+  clearSuccessMessage: vi.fn()
+}));
+
 // Helper to render component with router
 const renderWithRouter = (component) => {
   return render(<BrowserRouter>{component}</BrowserRouter>);
 };
 
-describe('LandingPage Component - User Story 1', () => {
-  beforeEach(() => {
-    // Clear any mocks before each test
-    vi.clearAllMocks();
-  });
-
-  describe('Component Rendering', () => {
-    it('should render event ID input field and Join button', () => {
-      renderWithRouter(<LandingPage />);
-      
-      // Verify event ID input field is visible
-      const inputField = screen.getByPlaceholderText(/enter event id/i);
-      expect(inputField).toBeInTheDocument();
-      
-      // Verify Join button is visible
-      const joinButton = screen.getByRole('button', { name: /join/i });
-      expect(joinButton).toBeInTheDocument();
-    });
-  });
-
-  describe('Event ID Input Field', () => {
-    it('should accept text input and display it', () => {
-      renderWithRouter(<LandingPage />);
-      
-      const inputField = screen.getByPlaceholderText(/enter event id/i);
-      
-      // Type text into the input field
-      fireEvent.change(inputField, { target: { value: 'test-event-123' } });
-      
-      // Verify the text appears in the input field
-      expect(inputField).toHaveValue('test-event-123');
-    });
-
-    it('should handle long text input (up to 1000 characters)', () => {
-      renderWithRouter(<LandingPage />);
-      
-      const inputField = screen.getByPlaceholderText(/enter event id/i);
-      const longText = 'a'.repeat(1000);
-      
-      fireEvent.change(inputField, { target: { value: longText } });
-      
-      expect(inputField).toHaveValue(longText);
-    });
-  });
-
-  describe('Join Button Interaction', () => {
-    it('should provide visual feedback when clicked without triggering navigation', () => {
-      // Mock window.location to verify no navigation occurs
-      const originalLocation = window.location;
-      delete window.location;
-      window.location = { href: originalLocation.href, assign: vi.fn(), replace: vi.fn() };
-
-      renderWithRouter(<LandingPage />);
-      
-      const joinButton = screen.getByRole('button', { name: /join/i });
-      
-      // Click the button
-      fireEvent.click(joinButton);
-      
-      // Verify no navigation occurred
-      expect(window.location.assign).not.toHaveBeenCalled();
-      expect(window.location.replace).not.toHaveBeenCalled();
-      
-      // Restore window.location
-      window.location = originalLocation;
-    });
-
-  });
-});
-
-describe('LandingPage Component - User Story 2', () => {
+describe('LandingPage Component', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset useLocation to default (no state)
+    useLocation.mockReturnValue({ state: null, pathname: '/' });
+    apiClient.isAuthenticated.mockReturnValue(false);
   });
 
-  describe('Create Button Rendering', () => {
-    it('should render Create button', () => {
+  describe('Headline and Subtitle', () => {
+    it('should render the headline text', () => {
       renderWithRouter(<LandingPage />);
-      
-      const createButton = screen.getByRole('button', { name: /create/i });
-      expect(createButton).toBeInTheDocument();
+
+      const headline = screen.getByText('Blind tastings, scored together.');
+      expect(headline).toBeInTheDocument();
+      expect(headline.tagName).toBe('H1');
+    });
+
+    it('should render the subtitle text', () => {
+      renderWithRouter(<LandingPage />);
+
+      const subtitle = screen.getByText(
+        'Host a tasting party, rate the mystery bottles, and see who has the best palate.'
+      );
+      expect(subtitle).toBeInTheDocument();
     });
   });
 
-  describe('Create Button Interaction', () => {
-    it('should provide visual feedback when clicked without triggering navigation', () => {
-      const originalLocation = window.location;
-      delete window.location;
-      window.location = { href: originalLocation.href, assign: vi.fn(), replace: vi.fn() };
-
+  describe('Three-Step Icons', () => {
+    it('should render Cover, Taste, and Reveal step labels', () => {
       renderWithRouter(<LandingPage />);
-      
-      const createButton = screen.getByRole('button', { name: /create/i });
-      
-      fireEvent.click(createButton);
-      
-      expect(window.location.assign).not.toHaveBeenCalled();
-      expect(window.location.replace).not.toHaveBeenCalled();
-      
-      window.location = originalLocation;
+
+      expect(screen.getByText('Cover')).toBeInTheDocument();
+      expect(screen.getByText('Taste')).toBeInTheDocument();
+      expect(screen.getByText('Reveal')).toBeInTheDocument();
     });
   });
-});
 
-describe('LandingPage Component - User Story 3', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  describe('Host a Tasting Button', () => {
+    it('should render the Host a Tasting button', () => {
+      renderWithRouter(<LandingPage />);
+
+      const hostButton = screen.getByRole('button', { name: /host a tasting/i });
+      expect(hostButton).toBeInTheDocument();
+    });
+
+    it('should navigate to /create-event when authenticated', () => {
+      apiClient.isAuthenticated.mockReturnValue(true);
+      renderWithRouter(<LandingPage />);
+
+      const hostButton = screen.getByRole('button', { name: /host a tasting/i });
+      fireEvent.click(hostButton);
+
+      expect(mockNavigate).toHaveBeenCalledWith('/create-event');
+    });
+
+    it('should navigate to /auth with redirect state when not authenticated', () => {
+      apiClient.isAuthenticated.mockReturnValue(false);
+      renderWithRouter(<LandingPage />);
+
+      const hostButton = screen.getByRole('button', { name: /host a tasting/i });
+      fireEvent.click(hostButton);
+
+      expect(mockNavigate).toHaveBeenCalledWith('/auth', {
+        state: { from: { pathname: '/create-event' } }
+      });
+    });
   });
 
-  describe('My Events Button Rendering', () => {
-    it('should render My events button', () => {
+  describe('My Events Button', () => {
+    it('should render the My Events button', () => {
       renderWithRouter(<LandingPage />);
-      
+
       const myEventsButton = screen.getByRole('button', { name: /my events/i });
       expect(myEventsButton).toBeInTheDocument();
     });
+
+    it('should navigate to /my-events when authenticated', () => {
+      apiClient.isAuthenticated.mockReturnValue(true);
+      renderWithRouter(<LandingPage />);
+
+      const myEventsButton = screen.getByRole('button', { name: /my events/i });
+      fireEvent.click(myEventsButton);
+
+      expect(mockNavigate).toHaveBeenCalledWith('/my-events');
+    });
+
+    it('should navigate to /auth with redirect state when not authenticated', () => {
+      apiClient.isAuthenticated.mockReturnValue(false);
+      renderWithRouter(<LandingPage />);
+
+      const myEventsButton = screen.getByRole('button', { name: /my events/i });
+      fireEvent.click(myEventsButton);
+
+      expect(mockNavigate).toHaveBeenCalledWith('/auth', {
+        state: { from: { pathname: '/my-events' } }
+      });
+    });
   });
 
-  describe('My Events Button Interaction', () => {
-    it('should provide visual feedback when clicked without triggering navigation', () => {
-      const originalLocation = window.location;
-      delete window.location;
-      window.location = { href: originalLocation.href, assign: vi.fn(), replace: vi.fn() };
+  describe('Event Code Toggle and Input', () => {
+    it('should render "Have an event code?" text link', () => {
+      renderWithRouter(<LandingPage />);
+
+      const codeLink = screen.getByText('Have an event code?');
+      expect(codeLink).toBeInTheDocument();
+    });
+
+    it('should not show code input initially', () => {
+      renderWithRouter(<LandingPage />);
+
+      expect(screen.queryByPlaceholderText(/ABCD1234/i)).not.toBeInTheDocument();
+    });
+
+    it('should reveal code input when "Have an event code?" is clicked', () => {
+      renderWithRouter(<LandingPage />);
+
+      const codeLink = screen.getByText('Have an event code?');
+      fireEvent.click(codeLink);
+
+      const input = screen.getByPlaceholderText(/ABCD1234/i);
+      expect(input).toBeInTheDocument();
+    });
+
+    it('should hide "Have an event code?" link after it is clicked', () => {
+      renderWithRouter(<LandingPage />);
+
+      const codeLink = screen.getByText('Have an event code?');
+      fireEvent.click(codeLink);
+
+      expect(screen.queryByText('Have an event code?')).not.toBeInTheDocument();
+    });
+
+    it('should auto-focus the code input when revealed', async () => {
+      renderWithRouter(<LandingPage />);
+
+      const codeLink = screen.getByText('Have an event code?');
+      fireEvent.click(codeLink);
+
+      const input = screen.getByPlaceholderText(/ABCD1234/i);
+      await waitFor(() => {
+        expect(input).toHaveFocus();
+      });
+    });
+
+    it('should render a Go submit button alongside the input', () => {
+      renderWithRouter(<LandingPage />);
+
+      fireEvent.click(screen.getByText('Have an event code?'));
+
+      const goButton = screen.getByRole('button', { name: /go/i });
+      expect(goButton).toBeInTheDocument();
+    });
+
+    it('should disable Go button when input is empty', () => {
+      renderWithRouter(<LandingPage />);
+
+      fireEvent.click(screen.getByText('Have an event code?'));
+
+      const goButton = screen.getByRole('button', { name: /go/i });
+      expect(goButton).toBeDisabled();
+    });
+
+    it('should enable Go button when input has a value', () => {
+      renderWithRouter(<LandingPage />);
+
+      fireEvent.click(screen.getByText('Have an event code?'));
+
+      const input = screen.getByPlaceholderText(/ABCD1234/i);
+      fireEvent.change(input, { target: { value: 'abc123' } });
+
+      const goButton = screen.getByRole('button', { name: /go/i });
+      expect(goButton).not.toBeDisabled();
+    });
+
+    it('should accept text input and display it', () => {
+      renderWithRouter(<LandingPage />);
+
+      fireEvent.click(screen.getByText('Have an event code?'));
+
+      const input = screen.getByPlaceholderText(/ABCD1234/i);
+      fireEvent.change(input, { target: { value: 'myEvent99' } });
+
+      expect(input).toHaveValue('myEvent99');
+    });
+  });
+
+  describe('Event Code Submission', () => {
+    it('should navigate to /event/${CODE} in uppercase on submit', () => {
+      renderWithRouter(<LandingPage />);
+
+      fireEvent.click(screen.getByText('Have an event code?'));
+
+      const input = screen.getByPlaceholderText(/ABCD1234/i);
+      fireEvent.change(input, { target: { value: 'abc123' } });
+
+      const goButton = screen.getByRole('button', { name: /go/i });
+      fireEvent.click(goButton);
+
+      expect(mockNavigate).toHaveBeenCalledWith('/event/ABC123');
+    });
+
+    it('should trim whitespace before navigating', () => {
+      renderWithRouter(<LandingPage />);
+
+      fireEvent.click(screen.getByText('Have an event code?'));
+
+      const input = screen.getByPlaceholderText(/ABCD1234/i);
+      fireEvent.change(input, { target: { value: '  xyz789  ' } });
+
+      const goButton = screen.getByRole('button', { name: /go/i });
+      fireEvent.click(goButton);
+
+      expect(mockNavigate).toHaveBeenCalledWith('/event/XYZ789');
+    });
+
+    it('should not navigate when input is only whitespace', () => {
+      renderWithRouter(<LandingPage />);
+
+      fireEvent.click(screen.getByText('Have an event code?'));
+
+      const input = screen.getByPlaceholderText(/ABCD1234/i);
+      fireEvent.change(input, { target: { value: '   ' } });
+
+      // Go button should be disabled with only whitespace
+      const goButton = screen.getByRole('button', { name: /go/i });
+      expect(goButton).toBeDisabled();
+    });
+  });
+
+  describe('Success Message from Navigation State', () => {
+    it('should display success message when present in location state', () => {
+      useLocation.mockReturnValue({
+        state: { message: 'Event created successfully!', messageType: 'success' },
+        pathname: '/'
+      });
 
       renderWithRouter(<LandingPage />);
-      
-      const myEventsButton = screen.getByRole('button', { name: /my events/i });
-      
-      fireEvent.click(myEventsButton);
-      
-      expect(window.location.assign).not.toHaveBeenCalled();
-      expect(window.location.replace).not.toHaveBeenCalled();
-      
-      window.location = originalLocation;
+
+      expect(screen.getByText('Event created successfully!')).toBeInTheDocument();
+    });
+
+    it('should not display success message when location state is null', () => {
+      useLocation.mockReturnValue({ state: null, pathname: '/' });
+
+      renderWithRouter(<LandingPage />);
+
+      // No success message element should be present
+      expect(screen.queryByText('Event created successfully!')).not.toBeInTheDocument();
+    });
+
+    it('should not display message when messageType is not success', () => {
+      useLocation.mockReturnValue({
+        state: { message: 'Something happened', messageType: 'error' },
+        pathname: '/'
+      });
+
+      renderWithRouter(<LandingPage />);
+
+      expect(screen.queryByText('Something happened')).not.toBeInTheDocument();
     });
   });
 });

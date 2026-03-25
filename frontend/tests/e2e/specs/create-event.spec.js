@@ -28,12 +28,12 @@ test.describe('Create Event', () => {
   // User Story 1 - Navigate to Create Event Page
   // ===================================
 
-  test('Create button on landing page leads to auth flow', async ({ page }) => {
+  test('Host a Tasting button on landing page leads to auth flow', async ({ page }) => {
     await page.goto(BASE_URL);
-    
-    const createButton = page.getByRole('button', { name: /create/i });
-    await createButton.click();
-    
+
+    const hostButton = page.getByRole('button', { name: /host a tasting/i });
+    await hostButton.click();
+
     // Should navigate to auth page
     await expect(page).toHaveURL(/\/auth/);
   });
@@ -243,16 +243,20 @@ test.describe('Create Event', () => {
     // Navigate to landing page
     await page.goto(BASE_URL);
 
+    // Reveal the event code input via "Have an event code?" link
+    const codeToggle = page.getByText(/have an event code/i);
+    await codeToggle.click();
+
     // Enter an event ID containing excluded Crockford characters
-    const eventIdInput = page.locator('input#event-id');
+    const eventIdInput = page.getByPlaceholder(/ABCD1234/i);
     await expect(eventIdInput).toBeVisible({ timeout: 5000 });
     await eventIdInput.fill('OIL12345');
 
     await expect(eventIdInput).toHaveValue('OIL12345');
 
-    // Click Join
-    const joinButton = page.getByRole('button', { name: /join/i });
-    await joinButton.click();
+    // Click Go
+    const goButton = page.getByRole('button', { name: /^go$/i });
+    await goButton.click();
 
     // Excluded Crockford characters are valid alphanumeric, so the app navigates to the
     // event email-entry page (the event won't exist, but the ID format is accepted).
@@ -296,9 +300,9 @@ test.describe('Create Event', () => {
 
     // --- Navigate back to landing page ---
     await page.goto(BASE_URL);
-    // --- Click Create again — should NOT go to /auth ---
-    const landingCreateButton = page.getByRole('button', { name: /create/i });
-    await landingCreateButton.click();
+    // --- Click Host a Tasting again — should NOT go to /auth ---
+    const landingHostButton = page.getByRole('button', { name: /host a tasting/i });
+    await landingHostButton.click();
 
     await expect(page).toHaveURL(/\/create-event/, { timeout: 5000 });
 

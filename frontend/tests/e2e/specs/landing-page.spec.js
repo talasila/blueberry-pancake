@@ -1,8 +1,8 @@
 /**
  * Landing Page Tests
- * 
- * Tests the landing page interface including join event, create event,
- * and navigation functionality.
+ *
+ * Tests the redesigned landing page with hero section, three-step strip,
+ * host-focused CTAs, and demoted event-code input.
  */
 
 import { test, expect } from '@playwright/test';
@@ -16,107 +16,132 @@ test.describe('Landing Page', () => {
   });
 
   // ===================================
-  // User Story 1 - Join Event Interface
+  // Hero content & three-step strip
   // ===================================
 
-  test('displays event ID input field and Join button', async ({ page }) => {
-    // Event ID input should be visible
-    const eventIdInput = page.locator('input#event-id');
-    await expect(eventIdInput).toBeVisible();
-    
-    // Join button should be visible
-    const joinButton = page.getByRole('button', { name: /join/i });
-    await expect(joinButton).toBeVisible();
+  test('displays headline, subtitle, and three-step strip', async ({ page }) => {
+    // Headline
+    const headline = page.getByRole('heading', { name: /blind tastings, scored together/i });
+    await expect(headline).toBeVisible();
+
+    // Subtitle
+    const subtitle = page.getByText(/host a tasting party, rate the mystery bottles/i);
+    await expect(subtitle).toBeVisible();
+
+    // Three-step labels
+    await expect(page.getByText('Cover')).toBeVisible();
+    await expect(page.getByText('Taste')).toBeVisible();
+    await expect(page.getByText('Reveal')).toBeVisible();
   });
 
-  test('allows typing in event ID field', async ({ page }) => {
-    const eventIdInput = page.locator('input#event-id');
-    await eventIdInput.fill('TEST1234');
-    
-    await expect(eventIdInput).toHaveValue('TEST1234');
+  // ===================================
+  // Unauthenticated CTA navigation
+  // ===================================
+
+  test('"Host a Tasting" navigates to auth when unauthenticated', async ({ page }) => {
+    const hostButton = page.getByRole('button', { name: /host a tasting/i });
+    await expect(hostButton).toBeVisible();
+    await hostButton.click();
+
+    await expect(page).toHaveURL(/\/auth/);
   });
 
-  test('Join button is disabled when event ID is empty', async ({ page }) => {
-    const joinButton = page.getByRole('button', { name: /join/i });
-    await expect(joinButton).toBeDisabled();
+  test('"My Events" navigates to auth when unauthenticated', async ({ page }) => {
+    const myEventsButton = page.getByRole('button', { name: /my events/i });
+    await expect(myEventsButton).toBeVisible();
+    await myEventsButton.click();
+
+    await expect(page).toHaveURL(/\/auth/);
   });
 
-  test('Join button is enabled when event ID is entered', async ({ page }) => {
-    const eventIdInput = page.locator('input#event-id');
-    await eventIdInput.fill('TEST1234');
-    
-    const joinButton = page.getByRole('button', { name: /join/i });
-    await expect(joinButton).toBeEnabled();
-  });
+  // ===================================
+  // Event code input
+  // ===================================
 
-  test('clicking Join navigates to event page', async ({ page }) => {
-    const eventIdInput = page.locator('input#event-id');
-    await eventIdInput.fill('TEST1234');
-    
-    const joinButton = page.getByRole('button', { name: /join/i });
-    await joinButton.click();
-    
-    // Should navigate to event page (will redirect to email entry)
+  test('"Have an event code?" reveals input, entering code + Go navigates to event page', async ({ page }) => {
+    // Code input should not be visible initially
+    const codeInput = page.getByPlaceholder(/ABCD1234/i);
+    await expect(codeInput).not.toBeVisible();
+
+    // Click the toggle text
+    const codeToggle = page.getByText(/have an event code/i);
+    await expect(codeToggle).toBeVisible();
+    await codeToggle.click();
+
+    // Input and Go button should now appear
+    await expect(codeInput).toBeVisible();
+
+    const goButton = page.getByRole('button', { name: /^go$/i });
+    await expect(goButton).toBeVisible();
+    await expect(goButton).toBeDisabled();
+
+    // Enter a code and submit
+    await codeInput.fill('TEST1234');
+    await expect(goButton).toBeEnabled();
+    await goButton.click();
+
     await expect(page).toHaveURL(/\/event\/TEST1234/);
   });
 
   // ===================================
-  // Create / My Events Links
+  // Mobile / narrow viewport
   // ===================================
 
-  test('displays Create an Event and My Events links', async ({ page }) => {
-    const createLink = page.getByRole('button', { name: /create an event/i });
-    const myEventsLink = page.getByRole('button', { name: /my events/i });
-    await expect(createLink).toBeVisible();
-    await expect(myEventsLink).toBeVisible();
-  });
-
-  test('clicking Create an Event navigates to auth page', async ({ page }) => {
-    const createLink = page.getByRole('button', { name: /create an event/i });
-    await createLink.click();
-    
-    // Should navigate to auth page for OTP authentication
-    await expect(page).toHaveURL(/\/auth/);
-  });
-
-  test('clicking My Events navigates to auth page when not authenticated', async ({ page }) => {
-    const myEventsLink = page.getByRole('button', { name: /my events/i });
-    await myEventsLink.click();
-
-    await expect(page).toHaveURL(/\/auth/);
-  });
-
-  // ===================================
-  // Edge Cases
-  // ===================================
-
-  // Verifies the input field accepts long text without crashing or truncating.
-  // Does not test app behavior (e.g. validation or error) for oversized event IDs.
-  test('handles long event ID input', async ({ page }) => {
-    const eventIdInput = page.locator('input#event-id');
-    const longText = 'A'.repeat(100);
-    await eventIdInput.fill(longText);
-    
-    // Input should accept the text
-    await expect(eventIdInput).toHaveValue(longText);
-  });
-
-  test('page is responsive on mobile viewport', async ({ page }) => {
+  test('mobile viewport (375px) shows all hero content above fold', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
-    
-    // All main elements should still be visible
-    const eventIdInput = page.locator('input#event-id');
-    const joinButton = page.getByRole('button', { name: /join/i });
-    const createLink = page.getByRole('button', { name: /create an event/i });
-    const myEventsLink = page.getByRole('button', { name: /my events/i });
-    
-    await expect(eventIdInput).toBeVisible();
-    await expect(joinButton).toBeVisible();
-    await expect(createLink).toBeVisible();
-    await expect(myEventsLink).toBeVisible();
+
+    // All primary elements should be visible
+    const headline = page.getByRole('heading', { name: /blind tastings, scored together/i });
+    await expect(headline).toBeVisible();
+
+    const subtitle = page.getByText(/host a tasting party, rate the mystery bottles/i);
+    await expect(subtitle).toBeVisible();
+
+    await expect(page.getByText('Cover')).toBeVisible();
+    await expect(page.getByText('Taste')).toBeVisible();
+    await expect(page.getByText('Reveal')).toBeVisible();
+
+    const hostButton = page.getByRole('button', { name: /host a tasting/i });
+    await expect(hostButton).toBeVisible();
+
+    const myEventsButton = page.getByRole('button', { name: /my events/i });
+    await expect(myEventsButton).toBeVisible();
+
+    const codeToggle = page.getByText(/have an event code/i);
+    await expect(codeToggle).toBeVisible();
   });
 
+  test('narrow viewport (320px) three-step icons stay in a single horizontal row', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 568 });
+
+    // All three step labels should be visible
+    const cover = page.getByText('Cover');
+    const taste = page.getByText('Taste');
+    const reveal = page.getByText('Reveal');
+
+    await expect(cover).toBeVisible();
+    await expect(taste).toBeVisible();
+    await expect(reveal).toBeVisible();
+
+    // Verify they are in the same horizontal row by checking their bounding boxes
+    const coverBox = await cover.boundingBox();
+    const tasteBox = await taste.boundingBox();
+    const revealBox = await reveal.boundingBox();
+
+    // All three labels should share approximately the same vertical position (within 20px tolerance)
+    // This confirms no wrapping occurred
+    expect(Math.abs(coverBox.y - tasteBox.y)).toBeLessThan(20);
+    expect(Math.abs(tasteBox.y - revealBox.y)).toBeLessThan(20);
+
+    // They should be laid out left-to-right
+    expect(coverBox.x).toBeLessThan(tasteBox.x);
+    expect(tasteBox.x).toBeLessThan(revealBox.x);
+  });
 });
+
+// ===================================
+// Authenticated user navigation
+// ===================================
 
 // Tests in this describe share mutable `eventId`/`token` state via beforeEach/afterEach.
 // Playwright runs tests within a describe block serially by default, so this is safe.
@@ -138,11 +163,11 @@ test.describe('Landing Page - Authenticated User', () => {
     }
   });
 
-  test('clicking Create an Event navigates directly to create-event when authenticated', async ({ page }) => {
+  test('"Host a Tasting" navigates directly to create-event when authenticated', async ({ page }) => {
     await page.goto(BASE_URL);
 
-    const createLink = page.getByRole('button', { name: /create an event/i });
-    await createLink.click();
+    const hostButton = page.getByRole('button', { name: /host a tasting/i });
+    await hostButton.click();
 
     await expect(page).toHaveURL(/\/create-event/, { timeout: 5000 });
 
@@ -150,11 +175,11 @@ test.describe('Landing Page - Authenticated User', () => {
     await expect(nameInput).toBeVisible({ timeout: 5000 });
   });
 
-  test('clicking My Events navigates directly to my-events when authenticated', async ({ page }) => {
+  test('"My Events" navigates directly to my-events when authenticated', async ({ page }) => {
     await page.goto(BASE_URL);
 
-    const myEventsLink = page.getByRole('button', { name: /my events/i });
-    await myEventsLink.click();
+    const myEventsButton = page.getByRole('button', { name: /my events/i });
+    await myEventsButton.click();
 
     await expect(page).toHaveURL(/\/my-events/, { timeout: 5000 });
 
