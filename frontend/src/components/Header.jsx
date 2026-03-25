@@ -251,11 +251,11 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-[9999] border-b border-border shadow-md${!isEventRoute ? ' bg-background' : ''}`}
+      className={`fixed top-0 left-0 right-0 z-[9999]${isLandingPage ? '' : ' border-b border-border shadow-md'}${!isEventRoute && !isLandingPage ? ' bg-background' : ''}`}
       style={{
         width: '100vw',
         marginRight: 'calc(100% - 100vw)',
-        backgroundColor: isEventRoute ? 'var(--event-header-bg)' : undefined,
+        backgroundColor: isLandingPage ? 'transparent' : isEventRoute ? 'var(--event-header-bg)' : undefined,
       }}
     >
       <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-2">

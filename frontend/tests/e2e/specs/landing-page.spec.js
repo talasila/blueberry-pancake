@@ -21,11 +21,11 @@ test.describe('Landing Page', () => {
 
   test('displays headline, subtitle, and three-step strip', async ({ page }) => {
     // Headline
-    const headline = page.getByRole('heading', { name: /blind tastings, scored together/i });
+    const headline = page.getByRole('heading', { name: /who brought the best bottle/i });
     await expect(headline).toBeVisible();
 
     // Subtitle
-    const subtitle = page.getByText(/host a tasting party, rate the mystery bottles/i);
+    const subtitle = page.getByText(/host a blind tasting party, rate the mystery bottles/i);
     await expect(subtitle).toBeVisible();
 
     // Three-step labels
@@ -91,10 +91,10 @@ test.describe('Landing Page', () => {
     await page.setViewportSize({ width: 375, height: 667 });
 
     // All primary elements should be visible
-    const headline = page.getByRole('heading', { name: /blind tastings, scored together/i });
+    const headline = page.getByRole('heading', { name: /who brought the best bottle/i });
     await expect(headline).toBeVisible();
 
-    const subtitle = page.getByText(/host a tasting party, rate the mystery bottles/i);
+    const subtitle = page.getByText(/host a blind tasting party, rate the mystery bottles/i);
     await expect(subtitle).toBeVisible();
 
     await expect(page.getByText('Cover')).toBeVisible();

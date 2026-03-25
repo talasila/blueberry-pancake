@@ -67,10 +67,14 @@ function LandingPage() {
     }
   }, [location.state]);
 
-  // Auto-focus event code input when revealed
+  // Auto-focus and scroll event code input into view when revealed
   useEffect(() => {
-    if (showCodeInput) {
-      codeInputRef.current?.focus();
+    if (showCodeInput && codeInputRef.current) {
+      codeInputRef.current.focus();
+      // Small delay to let the keyboard open before scrolling
+      setTimeout(() => {
+        codeInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 300);
     }
   }, [showCodeInput]);
 
@@ -104,37 +108,34 @@ function LandingPage() {
     : 'oklch(0.95 0.03 350)';
 
   const ctaBg = isDark
-    ? 'oklch(0.65 0.15 15)'
-    : 'oklch(0.45 0.15 15)';
+    ? 'oklch(0.65 0.15 350)'
+    : 'oklch(0.45 0.15 350)';
 
   return (
-    <div className="w-full">
-      {/* Gradient wash — full-width, bleeds under header shadow */}
-      <div
-        className="w-full"
-        style={{
-          background: `radial-gradient(ellipse at top center, ${gradientColor}, transparent 65%)`,
-        }}
-      >
-        <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 pt-6 pb-4 sm:pt-8 sm:pb-5">
-          <div className="w-full max-w-md text-center">
-            {/* Success Message — above hero per FR-012 */}
-            {successMessage && (
-              <div className="mb-4">
-                <Message type="success">{successMessage}</Message>
-              </div>
-            )}
+    <div
+      className="w-full min-h-full"
+      style={{
+        background: `radial-gradient(ellipse at top center, ${gradientColor}, transparent 85%)`,
+      }}
+    >
+      <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 pt-[65px] pb-4 sm:pt-[73px] sm:pb-5">
+        <div className="w-full max-w-md text-center">
+          {/* Success Message — above hero per FR-012 */}
+          {successMessage && (
+            <div className="mb-4">
+              <Message type="success">{successMessage}</Message>
+            </div>
+          )}
 
-            {/* Headline */}
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-3">
-              Blind tastings, scored together.
-            </h1>
+          {/* Headline */}
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground mb-3">
+            Who brought the best bottle?
+          </h1>
 
-            {/* Subtitle */}
-            <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
-              Host a tasting party, rate the mystery bottles, and see who has the best palate.
-            </p>
-          </div>
+          {/* Subtitle */}
+          <p className="text-sm sm:text-base text-muted-foreground leading-relaxed">
+            Host a blind tasting party, rate the mystery bottles, and find out which one everyone loves. You'll be surprised which bottle comes out on top.
+          </p>
         </div>
       </div>
 
@@ -218,37 +219,33 @@ function LandingPage() {
 
           {/* Demoted event code join */}
           <div className="mt-6 text-center">
-            {!showCodeInput ? (
-              <button
-                type="button"
-                onClick={() => setShowCodeInput(true)}
-                className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Have an event code?
-              </button>
-            ) : (
-              <div className="rounded-lg border border-border bg-muted/30 p-3">
-                <p className="text-xs text-muted-foreground mb-2">Enter your event code</p>
-                <form onSubmit={handleCodeSubmit} className="flex gap-2">
-                  <Input
-                    ref={codeInputRef}
-                    type="text"
-                    value={eventId}
-                    onChange={(e) => setEventId(e.target.value)}
-                    placeholder="e.g. ABCD1234"
-                    autoComplete="off"
-                    className="flex-1 h-9 text-center font-mono tracking-wider uppercase"
-                  />
-                  <Button
-                    type="submit"
-                    size="sm"
-                    className="h-9 px-4"
-                    disabled={!eventId || eventId.trim().length === 0}
-                  >
-                    Go
-                  </Button>
-                </form>
-              </div>
+            <button
+              type="button"
+              onClick={() => { setShowCodeInput(!showCodeInput); if (showCodeInput) setEventId(''); }}
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              Have an event code?
+            </button>
+            {showCodeInput && (
+              <form onSubmit={handleCodeSubmit} className="flex gap-2 mt-3">
+                <Input
+                  ref={codeInputRef}
+                  type="text"
+                  value={eventId}
+                  onChange={(e) => setEventId(e.target.value)}
+                  placeholder="e.g. ABCD1234"
+                  autoComplete="off"
+                  className="flex-1 h-9 text-center font-mono tracking-wider uppercase"
+                />
+                <Button
+                  type="submit"
+                  size="sm"
+                  className="h-9 px-4"
+                  disabled={!eventId || eventId.trim().length === 0}
+                >
+                  Go
+                </Button>
+              </form>
             )}
           </div>
         </div>

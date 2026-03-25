@@ -46,7 +46,7 @@ describe('LandingPage Component', () => {
     it('should render the headline text', () => {
       renderWithRouter(<LandingPage />);
 
-      const headline = screen.getByText('Blind tastings, scored together.');
+      const headline = screen.getByText('Who brought the best bottle?');
       expect(headline).toBeInTheDocument();
       expect(headline.tagName).toBe('H1');
     });
@@ -55,7 +55,7 @@ describe('LandingPage Component', () => {
       renderWithRouter(<LandingPage />);
 
       const subtitle = screen.getByText(
-        'Host a tasting party, rate the mystery bottles, and see who has the best palate.'
+        /Host a blind tasting party, rate the mystery bottles/i
       );
       expect(subtitle).toBeInTheDocument();
     });
@@ -157,13 +157,13 @@ describe('LandingPage Component', () => {
       expect(input).toBeInTheDocument();
     });
 
-    it('should hide "Have an event code?" link after it is clicked', () => {
+    it('should keep "Have an event code?" link visible as a toggle after it is clicked', () => {
       renderWithRouter(<LandingPage />);
 
       const codeLink = screen.getByText('Have an event code?');
       fireEvent.click(codeLink);
 
-      expect(screen.queryByText('Have an event code?')).not.toBeInTheDocument();
+      expect(screen.getByText('Have an event code?')).toBeInTheDocument();
     });
 
     it('should auto-focus the code input when revealed', async () => {

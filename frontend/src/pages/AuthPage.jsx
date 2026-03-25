@@ -110,7 +110,7 @@ function AuthPage() {
         <div className="w-full max-w-md">
           <Card>
             <CardHeader>
-              <CardTitle>Welcome back</CardTitle>
+              <CardTitle>Sign in</CardTitle>
               <CardDescription>
                 {step === 'request'
                   ? "We'll send a verification code to your email"
