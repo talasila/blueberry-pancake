@@ -1,45 +1,44 @@
 import { getAllPresets } from '@/utils/themePresets';
 
 /**
- * Full-width list of preset rows for selecting an event theme.
- * Each row shows color swatches, the name, and a short description.
+ * Compact swatch grid for selecting an event theme.
+ * Shows color circles in a wrap layout with the selected mood's
+ * name and description displayed below.
  */
 export default function ThemePicker({ selectedTheme, onSelect, disabled = false }) {
   const presets = getAllPresets();
+  const selected = presets.find((p) => p.id === selectedTheme) || presets[0];
 
   return (
-    <div className="flex flex-col gap-1.5" data-testid="theme-picker">
-      {presets.map((preset) => {
-        const isSelected = preset.id === selectedTheme;
-        const accent = preset.light.accent;
-        const headerBg = preset.light.headerBg;
-
-        return (
-          <button
-            key={preset.id}
-            type="button"
-            data-testid={`theme-card-${preset.id}`}
-            disabled={disabled}
-            onClick={() => !disabled && onSelect?.(preset.id)}
-            className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left border transition-shadow ${
-              isSelected ? 'border-primary ring-1 ring-primary' : 'border-border'
-            } ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer hover:shadow-sm'}`}
-          >
-            <div className="flex items-center gap-1.5 flex-shrink-0">
-              <span
-                className="inline-block w-4 h-4 rounded-full border border-black/10"
-                style={{ backgroundColor: accent }}
-              />
-              <span
-                className="inline-block w-4 h-4 rounded-full border border-black/10"
-                style={{ backgroundColor: headerBg }}
-              />
-            </div>
-            <span className="flex-shrink-0 font-medium text-sm text-foreground">{preset.name}</span>
-            <span className="ml-auto truncate text-xs text-muted-foreground">{preset.description}</span>
-          </button>
-        );
-      })}
+    <div data-testid="theme-picker">
+      <div className="flex flex-wrap gap-2 pt-1">
+        {presets.map((preset) => {
+          const isSelected = preset.id === selectedTheme;
+          return (
+            <button
+              key={preset.id}
+              type="button"
+              data-testid={`theme-card-${preset.id}`}
+              disabled={disabled}
+              onClick={() => !disabled && onSelect?.(preset.id)}
+              className={`w-10 h-10 rounded-full border-2 transition-all overflow-hidden ${
+                isSelected
+                  ? 'border-primary ring-2 ring-primary ring-offset-2 ring-offset-background scale-110'
+                  : 'border-transparent hover:border-border'
+              } ${disabled ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+              aria-label={`${preset.name} — ${preset.description}`}
+              aria-pressed={isSelected}
+            >
+              <div className="w-full h-1/2" style={{ backgroundColor: preset.dark.accent }} />
+              <div className="w-full h-1/2" style={{ backgroundColor: preset.light.accent }} />
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-2 text-sm">
+        <span className="text-foreground">{selected.name}</span>
+        <span className="text-muted-foreground"> — {selected.description}</span>
+      </p>
     </div>
   );
 }

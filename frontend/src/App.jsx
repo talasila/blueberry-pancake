@@ -112,7 +112,7 @@ function AppLayout() {
       style={{ height: `${viewportHeight}px` }}
     >
       <Header onToggleGuide={onToggleGuide} guideVariant={guideVariant} isGuideOpen={isGuideOpen} />
-      <main className={`flex-1 overflow-y-auto min-h-0${location.pathname === '/' ? '' : ' pt-[49px]'}`}>
+      <main className={`flex-1 overflow-y-auto min-h-0${['/', '/auth', '/create-event'].includes(location.pathname) ? '' : ' pt-[49px]'}`}>
         <Routes>
           {/* Public routes - no authentication required */}
           <Route path="/" element={<LandingPage />} />

@@ -31,12 +31,14 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
   const { plural } = useItemTerminology(event);
   const [authState, setAuthState] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [hasScrolled, setHasScrolled] = useState(false);
   const { isDark, toggleDark } = useDarkMode();
 
   const isEventRoute = location.pathname.startsWith('/event/');
   const isSystemRoute = location.pathname.startsWith('/system');
   const isStandalonePage = ['/my-events', '/create-event'].includes(location.pathname);
   const isLandingPage = location.pathname === '/';
+  const isGradientPage = isLandingPage || location.pathname === '/auth' || location.pathname === '/create-event';
   const showHamburgerMenu = authState && !isLandingPage && !isSystemRoute && !isStandalonePage;
   const eventName = event?.name;
 
@@ -80,6 +82,19 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
     };
   }, [location.pathname]); // isEventRoute and pathEventId are derived from location.pathname
 
+  // Track scroll position on gradient pages to show/hide header background
+  useEffect(() => {
+    if (!isGradientPage) {
+      setHasScrolled(false);
+      return;
+    }
+    const main = document.querySelector('main');
+    if (!main) return;
+    const onScroll = () => setHasScrolled(main.scrollTop > 10);
+    main.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    return () => main.removeEventListener('scroll', onScroll);
+  }, [isGradientPage]);
 
   // Check if dashboard is available
   const isDashboardAvailable = useMemo(() => {
@@ -251,11 +266,11 @@ function Header({ onToggleGuide, guideVariant, isGuideOpen }) {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-[9999]${isLandingPage ? '' : ' border-b border-border shadow-md'}${!isEventRoute && !isLandingPage ? ' bg-background' : ''}`}
+      className={`fixed top-0 left-0 right-0 z-[9999] transition-[background-color,border-color,box-shadow] duration-200${isGradientPage && !hasScrolled ? '' : !isGradientPage ? ' border-b border-border shadow-md' : ' border-b border-border/50 shadow-sm'}${!isEventRoute && !isGradientPage ? ' bg-background' : ''}`}
       style={{
         width: '100vw',
         marginRight: 'calc(100% - 100vw)',
-        backgroundColor: isLandingPage ? 'transparent' : isEventRoute ? 'var(--event-header-bg)' : undefined,
+        backgroundColor: isGradientPage ? (hasScrolled ? 'var(--background)' : 'transparent') : isEventRoute ? 'var(--event-header-bg)' : undefined,
       }}
     >
       <div className="flex items-center justify-center px-4 sm:px-6 lg:px-8 py-2">

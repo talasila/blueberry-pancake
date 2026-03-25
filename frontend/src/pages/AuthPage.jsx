@@ -9,6 +9,7 @@ import { clearAllBookmarks } from '@/utils/bookmarkStorage';
 import { useTurnstile } from '@/hooks/useTurnstile';
 import BottomSheetPicker from '@/components/BottomSheetPicker';
 import PrivacyPolicyContent from '@/components/PrivacyPolicyContent';
+import useDarkMode from '@/hooks/useDarkMode';
 
 /**
  * AuthPage Component
@@ -37,6 +38,15 @@ function AuthPage() {
   );
 
   const from = location.state?.from?.pathname || '/';
+  const { isDark } = useDarkMode();
+
+  const gradientColor = isDark
+    ? 'oklch(0.20 0.04 350)'
+    : 'oklch(0.95 0.03 350)';
+
+  const ctaBg = isDark
+    ? 'oklch(0.65 0.15 350)'
+    : 'oklch(0.45 0.15 350)';
 
   // If already authenticated, redirect immediately without showing sign-in form
   useEffect(() => {
@@ -105,107 +115,107 @@ function AuthPage() {
   };
 
   return (
-    <div className="w-full h-full">
-      <div className="flex items-start pt-8 sm:items-center sm:pt-4 justify-center px-4 sm:px-6 lg:px-8 min-h-full">
+    <div
+      className="w-full min-h-full"
+      style={{
+        background: `radial-gradient(ellipse at top center, ${gradientColor}, transparent 85%)`,
+      }}
+    >
+      <div className="flex items-start pt-[65px] sm:pt-[73px] justify-center px-4 sm:px-6 lg:px-8 min-h-full">
         <div className="w-full max-w-md">
-          <Card>
-            <CardHeader>
-              <CardTitle>Sign in</CardTitle>
-              <CardDescription>
-                {step === 'request'
-                  ? "We'll send a verification code to your email"
-                  : <>Enter the verification code sent to <span className="font-medium text-foreground">{email}</span></>}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <form onSubmit={step === 'request' ? handleRequestOTP : handleVerifyOTP}>
-                <div className="space-y-4">
-                  {/* Email input - visible only in request step */}
-                  {step === 'request' && (
-                    <div>
-                      <Label htmlFor="email">Email Address</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="Enter your email"
-                        required
-                        disabled={loading}
-                        className="mt-1"
-                      />
-                    </div>
-                  )}
-
-                  {/* Verification code input - visible only in verify step */}
-                  {step === 'verify' && (
-                    <div>
-                      <label htmlFor="otp" className="sr-only">
-                        Verification code
-                      </label>
-                      <Input
-                        id="otp"
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        maxLength={6}
-                        value={otp}
-                        onChange={(e) => setOtp(e.target.value)}
-                        disabled={loading}
-                        placeholder="Enter 6-digit code"
-                        className="text-center text-lg tracking-widest"
-                      />
-                    </div>
-                  )}
-
-                  {/* Error message */}
-                  {error && (
-                    <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
-                      {error}
-                    </div>
-                  )}
-
-                  {/* Success message */}
-                  {success && (
-                    <div className="text-sm text-green-600 bg-green-50 dark:bg-green-900/20 p-3 rounded-md">
-                      {success}
-                    </div>
-                  )}
-
-                  {/* Action buttons */}
-                  <div className="flex gap-2">
-                    {step === 'verify' && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => {
-                          setStep('request');
-                          setOtp('');
-                          setError('');
-                          setSuccess('');
-                        }}
-                        disabled={loading}
-                        className="flex-1"
-                      >
-                        Back
-                      </Button>
-                    )}
-                    <Button
-                      type="submit"
-                      disabled={loading || (step === 'request' && (!email || (turnstileLoading && !turnstileError))) || (step === 'verify' && otp.length !== 6)}
-                      className="flex-1"
-                    >
-                      {loading
-                        ? 'Processing...'
-                        : step === 'request'
-                          ? 'Send verification code'
-                          : 'Sign in'}
-                    </Button>
-                  </div>
+          <h1 className="text-xl font-semibold text-foreground mb-2">Sign in</h1>
+          <p className="text-sm text-muted-foreground mb-6">
+            {step === 'request'
+              ? "We'll send a verification code to your email"
+              : <>Enter the verification code sent to <span className="font-medium text-foreground">{email}</span></>}
+          </p>
+          <form onSubmit={step === 'request' ? handleRequestOTP : handleVerifyOTP}>
+            <div className="space-y-4">
+              {/* Email input - visible only in request step */}
+              {step === 'request' && (
+                <div>
+                  <Label htmlFor="email">Email Address</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter your email"
+                    required
+                    disabled={loading}
+                    className="mt-1 bg-background"
+                  />
                 </div>
-              </form>
-            </CardContent>
-          </Card>
+              )}
+
+              {/* Verification code input - visible only in verify step */}
+              {step === 'verify' && (
+                <div>
+                  <label htmlFor="otp" className="sr-only">
+                    Verification code
+                  </label>
+                  <Input
+                    id="otp"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={6}
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value)}
+                    disabled={loading}
+                    placeholder="Enter 6-digit code"
+                    className="text-center text-lg tracking-widest bg-background"
+                  />
+                </div>
+              )}
+
+              {/* Error message */}
+              {error && (
+                <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+                  {error}
+                </div>
+              )}
+
+              {/* Success message */}
+              {success && (
+                <div className="text-sm text-green-600 bg-green-50 dark:bg-green-900/20 p-3 rounded-md">
+                  {success}
+                </div>
+              )}
+
+              {/* Action buttons */}
+              <div className="flex gap-2">
+                {step === 'verify' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => {
+                      setStep('request');
+                      setOtp('');
+                      setError('');
+                      setSuccess('');
+                    }}
+                    disabled={loading}
+                    className="flex-1"
+                  >
+                    Back
+                  </Button>
+                )}
+                <Button
+                  type="submit"
+                  disabled={loading || (step === 'request' && (!email || (turnstileLoading && !turnstileError))) || (step === 'verify' && otp.length !== 6)}
+                  className="flex-1"
+                  style={{ backgroundColor: ctaBg, color: 'white' }}
+                >
+                  {loading
+                    ? 'Processing...'
+                    : step === 'request'
+                      ? 'Send verification code'
+                      : 'Sign in'}
+                </Button>
+              </div>
+            </div>
+          </form>
           <div ref={turnstileRef} />
           <p className="text-center text-xs text-muted-foreground mt-4">
             By continuing, you agree to our{' '}
