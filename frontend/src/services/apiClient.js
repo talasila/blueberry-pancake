@@ -320,11 +320,15 @@ class ApiClient {
       }
     }
 
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
+
     try {
       const response = await fetch(url, {
         ...fetchOptions,
         headers,
         credentials: 'include',
+        signal: controller.signal,
       });
 
       // Handle 403 Forbidden - Event access denied or CSRF issues
@@ -436,14 +440,21 @@ class ApiClient {
 
       return response;
     } catch (error) {
+      // Handle request timeout
+      if (error.name === 'AbortError') {
+        throw new Error('Request timed out. Please check your connection and try again.');
+      }
+
       console.error('API request failed:', error);
-      
+
       // Provide more descriptive error messages
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
         throw new Error('Failed to fetch: Cannot connect to backend server. Make sure the backend is running.');
       }
-      
+
       throw error;
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

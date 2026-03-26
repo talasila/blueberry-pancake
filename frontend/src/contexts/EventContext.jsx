@@ -1,4 +1,4 @@
-import { createContext, useContext } from 'react';
+import { createContext, useContext, useMemo } from 'react';
 
 /**
  * EventContext
@@ -35,8 +35,13 @@ export function useEventContext() {
  * @param {React.ReactNode} props.children - Child components
  */
 export function EventContextProvider({ event, eventId, isAdmin, refetch = noop, children }) {
+  const value = useMemo(
+    () => ({ event, eventId, isAdmin, refetch }),
+    [event, eventId, isAdmin, refetch]
+  );
+
   return (
-    <EventContext.Provider value={{ event, eventId, isAdmin, refetch }}>
+    <EventContext.Provider value={value}>
       {children}
     </EventContext.Provider>
   );

@@ -1,18 +1,8 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Header from './components/Header.jsx';
 import LandingPage from './pages/LandingPage.jsx';
 import AuthPage from './pages/AuthPage.jsx';
-import CreateEventPage from './pages/CreateEventPage.jsx';
-import MyEventsPage from './pages/MyEventsPage.jsx';
-import EventPage from './pages/EventPage.jsx';
-import EventAdminPage from './pages/EventAdminPage.jsx';
-import EmailEntryPage from './pages/EmailEntryPage.jsx';
-import PINEntryPage from './pages/PINEntryPage.jsx';
-import EventOTPEntryPage from './pages/EventOTPEntryPage.jsx';
-import DashboardPage from './pages/DashboardPage.jsx';
-import ItemAssignmentPage from './pages/ItemAssignmentPage.jsx';
-import SystemPage from './pages/SystemPage.jsx';
-import PrivacyPolicyPage from './pages/PrivacyPolicyPage.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import AdminRoute from './components/AdminRoute.jsx';
 import DashboardRoute from './components/DashboardRoute.jsx';
@@ -31,6 +21,19 @@ import SessionExpiredDialog from './components/SessionExpiredDialog';
 import EventThemeProvider from './components/EventThemeProvider';
 import MyBottlesSheet from './components/MyBottlesSheet';
 import { useEventContext } from './contexts/EventContext';
+
+// Lazy-loaded pages — split into separate chunks to reduce initial bundle size
+const CreateEventPage = lazy(() => import('./pages/CreateEventPage.jsx'));
+const MyEventsPage = lazy(() => import('./pages/MyEventsPage.jsx'));
+const EventPage = lazy(() => import('./pages/EventPage.jsx'));
+const EventAdminPage = lazy(() => import('./pages/EventAdminPage.jsx'));
+const EmailEntryPage = lazy(() => import('./pages/EmailEntryPage.jsx'));
+const PINEntryPage = lazy(() => import('./pages/PINEntryPage.jsx'));
+const EventOTPEntryPage = lazy(() => import('./pages/EventOTPEntryPage.jsx'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage.jsx'));
+const ItemAssignmentPage = lazy(() => import('./pages/ItemAssignmentPage.jsx'));
+const SystemPage = lazy(() => import('./pages/SystemPage.jsx'));
+const PrivacyPolicyPage = lazy(() => import('./pages/PrivacyPolicyPage.jsx'));
 
 /**
  * Hosts the MyBottlesSheet at the app level so it opens from any event route
@@ -113,6 +116,7 @@ function AppLayout() {
     >
       <Header onToggleGuide={onToggleGuide} guideVariant={guideVariant} isGuideOpen={isGuideOpen} />
       <main className={`flex-1 overflow-y-auto min-h-0${['/', '/auth', '/create-event'].includes(location.pathname) ? '' : ' pt-[49px]'}`}>
+        <Suspense fallback={null}>
         <Routes>
           {/* Public routes - no authentication required */}
           <Route path="/" element={<LandingPage />} />
@@ -213,6 +217,7 @@ function AppLayout() {
             } 
           />
         </Routes>
+        </Suspense>
       </main>
       {!isAdminRoute && !isSystemRoute && <GuideDrawer isOpen={guideOpen} onClose={closeGuide} />}
       {isAdminRoute && <EventGuideDrawer isOpen={adminGuideOpen} onClose={closeAdminGuide} />}

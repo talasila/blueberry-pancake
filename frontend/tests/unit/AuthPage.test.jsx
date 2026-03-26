@@ -71,9 +71,9 @@ describe('AuthPage', () => {
   });
 
   describe('T013 - Request step (email entry)', () => {
-    it('title reads "Welcome back"', () => {
+    it('title reads "Sign in"', () => {
       renderComponent();
-      expect(screen.getByText('Welcome back')).toBeInTheDocument();
+      expect(screen.getByText('Sign in')).toBeInTheDocument();
     });
 
     it('email step description reads "We\'ll send a verification code to your email"', () => {

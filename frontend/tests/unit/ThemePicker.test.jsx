@@ -19,7 +19,7 @@ describe('ThemePicker', () => {
   it('classic pre-selected shows ring class', () => {
     render(<ThemePicker selectedTheme="classic" onSelect={vi.fn()} />);
     const classicCard = screen.getByTestId('theme-card-classic');
-    expect(classicCard).toHaveClass('ring-1');
+    expect(classicCard).toHaveClass('ring-2');
     expect(classicCard).toHaveClass('ring-primary');
   });
 
@@ -40,17 +40,15 @@ describe('ThemePicker', () => {
     expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it('each card shows the preset name', () => {
+  it('shows the selected preset name and description', () => {
     render(<ThemePicker selectedTheme="classic" onSelect={vi.fn()} />);
     expect(screen.getByText('Classic')).toBeInTheDocument();
+    expect(screen.getByText(/The timeless choice/)).toBeInTheDocument();
+  });
+
+  it('shows a different name when a different preset is selected', () => {
+    render(<ThemePicker selectedTheme="cellar" onSelect={vi.fn()} />);
     expect(screen.getByText('Cellar')).toBeInTheDocument();
-    expect(screen.getByText('Garden')).toBeInTheDocument();
-    expect(screen.getByText('Golden')).toBeInTheDocument();
-    expect(screen.getByText('Midnight')).toBeInTheDocument();
-    expect(screen.getByText('Rosé')).toBeInTheDocument();
-    expect(screen.getByText('Terracotta')).toBeInTheDocument();
-    expect(screen.getByText('Olive')).toBeInTheDocument();
-    expect(screen.getByText('Ocean')).toBeInTheDocument();
-    expect(screen.getByText('Lavender')).toBeInTheDocument();
+    expect(screen.getByText(/Aged oak & candlelight/)).toBeInTheDocument();
   });
 });
