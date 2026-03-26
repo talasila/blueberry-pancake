@@ -1,5 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
-import * as icons from 'lucide-react';
+import {
+  Repeat, Contrast, Zap, Heart, ThumbsDown, PenTool,
+  TrendingUpDown, Scale, EyeOff, BrainCircuit, Compass, HelpCircle
+} from 'lucide-react';
+
+/** Map personality icon names to components — avoids importing all of lucide-react */
+const PERSONALITY_ICONS = {
+  Repeat, Contrast, Zap, Heart, ThumbsDown, PenTool,
+  TrendingUpDown, Scale, EyeOff, BrainCircuit, Compass, HelpCircle,
+};
 import { getPersonalityDisplay } from '@/utils/personalityContent';
 
 const PARTICLE_COUNT = 6;
@@ -99,7 +108,7 @@ function PersonalityCard({ personalityId, templateVars = {}, previousPersonality
     ? isPossessive ? `${ownerName} tasting personality` : `${ownerName}\u2019s tasting personality`
     : null;
 
-  const IconComponent = icons[display.icon] || icons.HelpCircle;
+  const IconComponent = PERSONALITY_ICONS[display.icon] || HelpCircle;
 
   return (
     <section

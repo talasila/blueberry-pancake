@@ -24,6 +24,7 @@ export default defineConfig({
             '@radix-ui/react-switch',
             '@radix-ui/react-tabs',
           ],
+          'icons-vendor': ['lucide-react'],
         },
       },
     },
