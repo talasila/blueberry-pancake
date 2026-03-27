@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -11,17 +11,18 @@ import { getThemeVars } from '@/utils/themePresets';
 
 /**
  * EventOTPEntryPage Component
- * 
+ *
  * Handles OTP-based event access for administrators (Step 2 for admins):
  * 1. Gets email from previous step (sessionStorage)
- * 2. Requests OTP code
- * 3. User enters 6-digit OTP code
- * 4. On success, stores JWT token and redirects to event page
+ * 2. Waits for Turnstile bot-protection check to complete
+ * 3. Auto-sends OTP code exactly once per page mount
+ * 4. User enters 6-digit OTP code
+ * 5. On success, stores JWT token and redirects to event page
  */
 function EventOTPEntryPage() {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  
+
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [otp, setOtp] = useState('');
@@ -30,6 +31,10 @@ function EventOTPEntryPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [otpRequested, setOtpRequested] = useState(false);
+
+  // Refs to decouple auto-send from Turnstile token identity changes
+  const hasAutoRequested = useRef(false);
+  const turnstileTokenRef = useRef(null);
 
   // Fetch public event info for theming and display
   const eventInfo = useEventPublicInfo(eventId);
@@ -50,50 +55,74 @@ function EventOTPEntryPage() {
     return () => { keys.forEach((key) => root.style.removeProperty(key)); };
   }, [themeVars]);
 
-  const { token: turnstileToken, resetWidget, containerRef: turnstileRef } = useTurnstile(
-    import.meta.env.VITE_TURNSTILE_SITE_KEY
-  );
+  const {
+    token: turnstileToken,
+    isLoading: turnstileLoading,
+    error: turnstileError,
+    resetWidget,
+    containerRef: turnstileRef
+  } = useTurnstile(import.meta.env.VITE_TURNSTILE_SITE_KEY);
+
+  // Keep ref in sync with latest Turnstile token (for manual resend reads)
+  useEffect(() => {
+    turnstileTokenRef.current = turnstileToken;
+  }, [turnstileToken]);
 
   /**
-   * Request OTP code
+   * Shared OTP send helper — does NOT call resetWidget (caller decides)
    */
-  const requestOTP = useCallback(async (emailToUse) => {
-    if (!emailToUse) {
-      return;
-    }
-    
+  const sendOTPRequest = async (emailToUse, token) => {
+    if (!emailToUse) return;
+
     setRequestingOTP(true);
     setError('');
     setSuccess('');
 
     try {
-      const response = await apiClient.requestOTP(emailToUse, turnstileToken);
+      const response = await apiClient.requestOTP(emailToUse, token);
       setSuccess(response.message || 'Verification code has been sent to your email. Please check your inbox.');
       setOtpRequested(true);
-      resetWidget();
     } catch (err) {
       const errorMessage = err.message || 'Unable to send verification code. Please check your email address and try again.';
       setError(errorMessage);
-      resetWidget();
     } finally {
       setRequestingOTP(false);
     }
-  }, [turnstileToken, resetWidget]);
+  };
 
-  // Get email and name from sessionStorage (set in EmailEntryPage) and auto-request OTP
+  // Auto-request OTP once per mount: waits for email + Turnstile token
   useEffect(() => {
+    if (hasAutoRequested.current) return;
+
     const storedEmail = sessionStorage.getItem(`event:${eventId}:email`);
     const storedName = sessionStorage.getItem(`event:${eventId}:name`);
-    if (storedEmail) {
-      setEmail(storedEmail);
-      if (storedName) setName(storedName);
-      // Automatically request OTP when email is available
-      requestOTP(storedEmail);
-    } else {
-      // If no email found, redirect back to email entry
+
+    if (!storedEmail) {
       navigate(`/event/${eventId}/email`, { replace: true });
+      return;
     }
-  }, [eventId, navigate, requestOTP]);
+
+    setEmail(storedEmail);
+    if (storedName) setName(storedName);
+
+    // Wait for Turnstile to finish: either token available or error (failed to load).
+    // When Turnstile errors (e.g., script not available in dev/E2E), proceed with
+    // null token — the backend decides whether to accept it per environment.
+    if (!turnstileToken && !turnstileError) return;
+
+    hasAutoRequested.current = true;
+    sendOTPRequest(storedEmail, turnstileToken);
+  }, [eventId, navigate, turnstileToken, turnstileError]);
+
+  /**
+   * Manual resend handler — resets Turnstile widget after send
+   */
+  const handleResend = async () => {
+    const token = turnstileTokenRef.current;
+    if (!token) return;
+    await sendOTPRequest(email, token);
+    resetWidget();
+  };
 
   /**
    * Handle OTP verification
@@ -170,6 +199,13 @@ function EventOTPEntryPage() {
                     />
                   </div>
 
+                  {/* Waiting for Turnstile before auto-send */}
+                  {!turnstileToken && !turnstileError && !hasAutoRequested.current && (
+                    <div className="text-sm text-muted-foreground p-3 rounded-md text-center">
+                      Sending verification code...
+                    </div>
+                  )}
+
                   {/* Error message */}
                   {error && (
                     <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
@@ -191,8 +227,8 @@ function EventOTPEntryPage() {
                         type="button"
                         variant="ghost"
                         size="sm"
-                        onClick={() => requestOTP(email)}
-                        disabled={requestingOTP || loading}
+                        onClick={handleResend}
+                        disabled={requestingOTP || loading || !turnstileToken}
                         className="text-sm"
                       >
                         {requestingOTP ? 'Sending...' : "Didn't receive code? Resend"}
